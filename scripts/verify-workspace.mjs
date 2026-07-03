@@ -10,10 +10,12 @@ const requiredPaths = [
   'packages/shared',
   'packages/utils',
   'packages/types',
-  'docs'
+  'docs',
 ];
 
-const missingPaths = requiredPaths.filter((workspacePath) => !existsSync(join(process.cwd(), workspacePath)));
+const missingPaths = requiredPaths.filter(
+  (workspacePath) => !existsSync(join(process.cwd(), workspacePath)),
+);
 
 if (missingPaths.length > 0) {
   console.error(`Missing required workspace paths: ${missingPaths.join(', ')}`);

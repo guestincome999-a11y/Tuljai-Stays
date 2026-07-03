@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { PresenceSummary } from '@tuljai/types';
 
 import { RealtimeGateway } from './realtime.gateway';
 
@@ -28,5 +29,9 @@ export class RealtimeEventsService {
 
   public publishToCity(cityId: string, event: string, payload: Record<string, unknown>): void {
     this.realtimeGateway.emitToRoom(`city:${cityId}`, event, payload);
+  }
+
+  public getPresenceSummary(): PresenceSummary {
+    return this.realtimeGateway.getPresenceSummary();
   }
 }

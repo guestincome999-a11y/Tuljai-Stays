@@ -23,20 +23,20 @@ export default tseslint.config(
       '**/generated/**',
       '**/babel.config.js',
       '**/metro.config.js',
-      '**/next-env.d.ts'
-    ]
+      '**/next-env.d.ts',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
     plugins: {
-      import: importPlugin
+      import: importPlugin,
     },
     languageOptions: {
       parserOptions: {
         projectService: true,
-        tsconfigRootDir: import.meta.dirname
-      }
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
@@ -48,9 +48,9 @@ export default tseslint.config(
         {
           alphabetize: { order: 'asc', caseInsensitive: true },
           groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
-          'newlines-between': 'always'
-        }
-      ]
-    }
-  }
+          'newlines-between': 'always',
+        },
+      ],
+    },
+  },
 );

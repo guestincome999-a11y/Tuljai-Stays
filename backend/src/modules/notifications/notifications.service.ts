@@ -42,6 +42,21 @@ export class NotificationsService {
   ) {}
 
   public async create(input: CreateNotificationInput): Promise<SharedNotification> {
+    const dedupeWindowStart = new Date(Date.now() - 120_000);
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        bookingId: input.bookingId,
+        createdAt: { gte: dedupeWindowStart },
+        deletedAt: null,
+        recipientUserId: input.recipientUserId,
+        type: input.type,
+      },
+    });
+
+    if (existing) {
+      return this.toNotification(existing);
+    }
+
     const notification = await this.prisma.notification.create({
       data: {
         body: input.body,

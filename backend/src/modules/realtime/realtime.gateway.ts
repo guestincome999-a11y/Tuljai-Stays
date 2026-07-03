@@ -8,7 +8,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { AuthenticatedUser, JwtPayload } from '@tuljai/types';
+import type { AuthenticatedUser, JwtPayload, PresenceSummary } from '@tuljai/types';
 import type { Server, Socket } from 'socket.io';
 
 interface RealtimeSocketData {
@@ -35,6 +35,10 @@ type AuthenticatedSocket = Socket<
 })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
+  private readonly presence = new Map<
+    string,
+    { connectedAt: Date; lastSeenAt: Date; user: AuthenticatedUser }
+  >();
 
   @WebSocketServer()
   private server!: Server;
@@ -63,6 +67,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         roles: payload.roles,
       };
       client.data.user = user;
+      this.presence.set(client.id, { connectedAt: new Date(), lastSeenAt: new Date(), user });
       void client.join(`user:${user.id}`);
       for (const role of user.roles) {
         void client.join(`role:${role}`);
@@ -74,8 +79,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
   }
 
-  public handleDisconnect(): void {
-    return undefined;
+  public handleDisconnect(client: AuthenticatedSocket): void {
+    this.presence.delete(client.id);
   }
 
   public emitToRoom(room: string, event: string, payload: Record<string, unknown>): void {
@@ -96,6 +101,28 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.server.emit('announcement:new', { message, createdAt: new Date().toISOString() });
   }
 
+  public getPresenceSummary(): PresenceSummary {
+    let onlineAdmins = 0;
+    let onlineOwners = 0;
+    let onlinePilgrims = 0;
+
+    for (const item of this.presence.values()) {
+      if (item.user.roles.includes('ADMIN') || item.user.roles.includes('SUPER_ADMIN')) {
+        onlineAdmins += 1;
+      }
+
+      if (item.user.roles.includes('OWNER')) {
+        onlineOwners += 1;
+      }
+
+      if (item.user.roles.includes('PILGRIM')) {
+        onlinePilgrims += 1;
+      }
+    }
+
+    return { onlineAdmins, onlineOwners, onlinePilgrims, totalOnline: this.presence.size };
+  }
+
   @SubscribeMessage('presence:update')
   public handlePresenceUpdate(client: AuthenticatedSocket, payload: Record<string, unknown>): void {
     if (!client.data.user) {
@@ -103,6 +130,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return;
     }
 
+    this.presence.set(client.id, {
+      connectedAt: this.presence.get(client.id)?.connectedAt ?? new Date(),
+      lastSeenAt: new Date(),
+      user: client.data.user,
+    });
     client.emit('presence:update', { ...payload, userId: client.data.user.id });
   }
 

@@ -12,11 +12,14 @@ import { CitiesModule } from './cities/cities.module';
 import { HealthModule } from './health/health.module';
 import { LodgesModule } from './lodges/lodges.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { OperationsModule } from './operations/operations.module';
 import { OwnersModule } from './owners/owners.module';
 import { PhotosModule } from './photos/photos.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { ReviewsModule } from './reviews/reviews.module';
 import { RoomsModule } from './rooms/rooms.module';
+import { SettingsModule } from './settings/settings.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -39,6 +42,9 @@ import { StorageModule } from './storage/storage.module';
     HealthModule,
     RealtimeModule,
     NotificationsModule,
+    ReviewsModule,
+    SettingsModule,
+    OperationsModule,
     StorageModule,
   ],
 })
