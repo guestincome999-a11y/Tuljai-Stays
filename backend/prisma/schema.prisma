@@ -33,6 +33,83 @@ enum DevicePlatform {
   UNKNOWN
 }
 
+enum PropertyType {
+  LODGE
+  BHAKT_NIWAS
+  DHARAMSHALA
+  HOTEL
+  HOMESTAY
+}
+
+enum LodgeStatus {
+  DRAFT
+  PENDING_VERIFICATION
+  VERIFIED
+  SUSPENDED
+  REJECTED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum LodgeDocumentType {
+  OWNER_ID
+  PAN
+  GST
+  BUSINESS_LICENSE
+  PROPERTY_PROOF
+  BANK_PROOF
+  OTHER
+}
+
+enum AmenityCategory {
+  ROOM
+  PROPERTY
+  SAFETY
+  FAMILY
+  PARKING
+  FOOD
+  ACCESSIBILITY
+}
+
+enum RoomStatus {
+  AVAILABLE
+  RESERVED
+  PENDING_APPROVAL
+  CONFIRMED
+  OCCUPIED
+  CLEANING
+  MAINTENANCE
+  BLOCKED
+}
+
+enum PriceType {
+  NORMAL
+  WEEKEND
+  FESTIVAL
+  MANUAL_OVERRIDE
+}
+
+enum PhotoCategory {
+  COVER
+  EXTERIOR
+  RECEPTION
+  ROOM
+  BATHROOM
+  PARKING
+  AMENITY
+  OTHER
+}
+
+enum PhotoApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id            String        @id @default(uuid()) @db.Uuid
   phoneNumber   String        @unique @map("phone_number")
@@ -47,11 +124,304 @@ model User {
   refreshTokens RefreshToken[]
   sessions      UserSession[]
   deviceTokens  DeviceToken[]
+  ownedLodges   LodgeOwner[]
+  ownedListings Lodge[]       @relation("PrimaryLodgeOwner")
+  uploadedDocs  LodgeDocument[] @relation("UploadedLodgeDocuments")
+  reviewedDocs  LodgeDocument[] @relation("ReviewedLodgeDocuments")
+  reviewedLogs  LodgeVerificationLog[]
+  uploadedPhotos LodgePhoto[] @relation("UploadedLodgePhotos")
+  approvedPhotos LodgePhoto[] @relation("ApprovedLodgePhotos")
 
   @@index([phoneNumber])
   @@index([isActive])
   @@index([deletedAt])
   @@map("users")
+}
+
+model City {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String    @unique
+  state     String
+  country   String
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  lodges    Lodge[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("cities")
+}
+
+model Lodge {
+  id                         String                  @id @default(uuid()) @db.Uuid
+  cityId                     String                  @map("city_id") @db.Uuid
+  name                       String
+  slug                       String
+  description                String?
+  propertyType               PropertyType            @map("property_type")
+  status                     LodgeStatus             @default(DRAFT)
+  verificationStatus         VerificationStatus       @default(PENDING) @map("verification_status")
+  ownerUserId                String?                 @map("owner_user_id") @db.Uuid
+  primaryPhone               String                  @map("primary_phone")
+  secondaryPhone             String?                 @map("secondary_phone")
+  whatsappNumber             String?                 @map("whatsapp_number")
+  email                      String?
+  distanceFromTempleMeters   Int?                    @map("distance_from_temple_meters")
+  latitude                   Decimal?                @db.Decimal(10, 7)
+  longitude                  Decimal?                @db.Decimal(10, 7)
+  checkInTime                String?                 @map("check_in_time")
+  checkOutTime               String?                 @map("check_out_time")
+  rules                      String?
+  isActive                   Boolean                 @default(true) @map("is_active")
+  createdAt                  DateTime                @default(now()) @map("created_at")
+  updatedAt                  DateTime                @updatedAt @map("updated_at")
+  deletedAt                  DateTime?               @map("deleted_at")
+  city                       City                    @relation(fields: [cityId], references: [id])
+  ownerUser                  User?                   @relation("PrimaryLodgeOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  address                    LodgeAddress?
+  owners                     LodgeOwner[]
+  documents                  LodgeDocument[]
+  verificationLogs           LodgeVerificationLog[]
+  amenities                  LodgeAmenity[]
+  roomTypes                  RoomType[]
+  rooms                      Room[]
+  photos                     LodgePhoto[]
+
+  @@unique([cityId, slug])
+  @@index([cityId])
+  @@index([ownerUserId])
+  @@index([status, verificationStatus, isActive])
+  @@index([deletedAt])
+  @@map("lodges")
+}
+
+model LodgeAddress {
+  id           String   @id @default(uuid()) @db.Uuid
+  lodgeId      String   @unique @map("lodge_id") @db.Uuid
+  addressLine1 String   @map("address_line_1")
+  addressLine2 String?  @map("address_line_2")
+  landmark     String?
+  city         String
+  district     String
+  state        String
+  pincode      String
+  country      String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  lodge        Lodge    @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+
+  @@map("lodge_addresses")
+}
+
+model LodgeOwner {
+  id         String    @id @default(uuid()) @db.Uuid
+  lodgeId    String    @map("lodge_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  ownerName  String    @map("owner_name")
+  ownerPhone String    @map("owner_phone")
+  ownerEmail String?   @map("owner_email")
+  roleTitle  String?   @map("role_title")
+  isPrimary  Boolean   @default(false) @map("is_primary")
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+  lodge      Lodge     @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([lodgeId, userId])
+  @@index([lodgeId, isPrimary])
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("lodge_owners")
+}
+
+model LodgeDocument {
+  id                 String             @id @default(uuid()) @db.Uuid
+  lodgeId            String             @map("lodge_id") @db.Uuid
+  documentType       LodgeDocumentType  @map("document_type")
+  documentNumber     String?            @map("document_number")
+  fileUrl            String?            @map("file_url")
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  uploadedByUserId   String             @map("uploaded_by_user_id") @db.Uuid
+  reviewedByUserId   String?            @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime?          @map("reviewed_at")
+  rejectionReason    String?            @map("rejection_reason")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+  lodge              Lodge              @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  uploadedBy         User               @relation("UploadedLodgeDocuments", fields: [uploadedByUserId], references: [id])
+  reviewedBy         User?              @relation("ReviewedLodgeDocuments", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([lodgeId])
+  @@index([verificationStatus])
+  @@index([deletedAt])
+  @@map("lodge_documents")
+}
+
+model LodgeVerificationLog {
+  id               String             @id @default(uuid()) @db.Uuid
+  lodgeId          String             @map("lodge_id") @db.Uuid
+  status           VerificationStatus
+  notes            String?
+  reviewedByUserId String             @map("reviewed_by_user_id") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  lodge            Lodge              @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  reviewedBy       User               @relation(fields: [reviewedByUserId], references: [id])
+
+  @@index([lodgeId])
+  @@index([reviewedByUserId])
+  @@map("lodge_verification_logs")
+}
+
+model Amenity {
+  id        String           @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String           @unique
+  iconName  String?          @map("icon_name")
+  category  AmenityCategory
+  isActive  Boolean          @default(true) @map("is_active")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  deletedAt DateTime?        @map("deleted_at")
+  lodges    LodgeAmenity[]
+
+  @@index([category])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("amenities")
+}
+
+model LodgeAmenity {
+  id        String   @id @default(uuid()) @db.Uuid
+  lodgeId   String   @map("lodge_id") @db.Uuid
+  amenityId String   @map("amenity_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  lodge     Lodge    @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  amenity   Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@unique([lodgeId, amenityId])
+  @@index([amenityId])
+  @@map("lodge_amenities")
+}
+
+model RoomType {
+  id               String        @id @default(uuid()) @db.Uuid
+  lodgeId          String        @map("lodge_id") @db.Uuid
+  name             String
+  slug             String
+  description      String?
+  capacityAdults   Int           @map("capacity_adults")
+  capacityChildren Int           @map("capacity_children")
+  basePrice        Decimal       @map("base_price") @db.Decimal(10, 2)
+  festivalPrice    Decimal?      @map("festival_price") @db.Decimal(10, 2)
+  totalRooms       Int           @map("total_rooms")
+  isActive         Boolean       @default(true) @map("is_active")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  deletedAt        DateTime?     @map("deleted_at")
+  lodge            Lodge         @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  rooms            Room[]
+  pricing          RoomPricing[]
+  photos           LodgePhoto[]
+
+  @@unique([lodgeId, slug])
+  @@index([lodgeId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("room_types")
+}
+
+model Room {
+  id         String             @id @default(uuid()) @db.Uuid
+  lodgeId    String             @map("lodge_id") @db.Uuid
+  roomTypeId String             @map("room_type_id") @db.Uuid
+  roomNumber String             @map("room_number")
+  floor      String?
+  status     RoomStatus         @default(AVAILABLE)
+  isActive   Boolean            @default(true) @map("is_active")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+  deletedAt  DateTime?          @map("deleted_at")
+  lodge      Lodge              @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  roomType   RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  availability RoomAvailability[]
+  photos     LodgePhoto[]
+
+  @@unique([lodgeId, roomNumber])
+  @@index([roomTypeId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("rooms")
+}
+
+model RoomPricing {
+  id         String    @id @default(uuid()) @db.Uuid
+  roomTypeId String    @map("room_type_id") @db.Uuid
+  date       DateTime  @db.Date
+  price      Decimal   @db.Decimal(10, 2)
+  priceType  PriceType @map("price_type")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  roomType   RoomType  @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([roomTypeId, date])
+  @@index([date])
+  @@map("room_pricing")
+}
+
+model RoomAvailability {
+  id        String     @id @default(uuid()) @db.Uuid
+  roomId    String     @map("room_id") @db.Uuid
+  date      DateTime   @db.Date
+  status    RoomStatus
+  reason    String?
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, date])
+  @@index([date])
+  @@index([status])
+  @@map("room_availability")
+}
+
+model LodgePhoto {
+  id               String              @id @default(uuid()) @db.Uuid
+  lodgeId          String              @map("lodge_id") @db.Uuid
+  roomTypeId       String?             @map("room_type_id") @db.Uuid
+  roomId           String?             @map("room_id") @db.Uuid
+  uploadedByUserId String              @map("uploaded_by_user_id") @db.Uuid
+  category         PhotoCategory
+  fileUrl          String              @map("file_url")
+  thumbnailUrl     String?             @map("thumbnail_url")
+  approvalStatus   PhotoApprovalStatus @default(PENDING) @map("approval_status")
+  rejectionReason  String?             @map("rejection_reason")
+  approvedByUserId String?             @map("approved_by_user_id") @db.Uuid
+  approvedAt       DateTime?           @map("approved_at")
+  sortOrder        Int                 @default(0) @map("sort_order")
+  isCover          Boolean             @default(false) @map("is_cover")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  deletedAt        DateTime?           @map("deleted_at")
+  lodge            Lodge               @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  roomType         RoomType?           @relation(fields: [roomTypeId], references: [id], onDelete: SetNull)
+  room             Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  uploadedBy       User                @relation("UploadedLodgePhotos", fields: [uploadedByUserId], references: [id])
+  approvedBy       User?               @relation("ApprovedLodgePhotos", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([lodgeId])
+  @@index([roomTypeId])
+  @@index([roomId])
+  @@index([approvalStatus])
+  @@index([deletedAt])
+  @@map("lodge_photos")
 }
 
 model OtpRequest {

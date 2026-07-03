@@ -20,6 +20,7 @@
     "verify:workspace": "node scripts/verify-workspace.mjs",
     "db:generate": "npm --workspace @tuljai/backend run db:generate",
     "db:migrate": "npm --workspace @tuljai/backend run db:migrate",
+    "db:seed": "npm --workspace @tuljai/backend run db:seed",
     "db:studio": "npm --workspace @tuljai/backend run db:studio"
   },
   "devDependencies": {
