@@ -26,6 +26,29 @@ export type GuestIdType = 'AADHAAR' | 'PAN' | 'VOTER_ID' | 'PASSPORT' | 'DRIVING
 
 export type BookingLockStatus = 'ACTIVE' | 'CONSUMED' | 'EXPIRED' | 'RELEASED';
 
+export type QrTokenStatus = 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED';
+
+export type QrScanResult =
+  | 'SUCCESS'
+  | 'INVALID'
+  | 'EXPIRED'
+  | 'USED'
+  | 'UNAUTHORIZED'
+  | 'BOOKING_NOT_FOUND'
+  | 'WRONG_LODGE'
+  | 'INVALID_STATUS';
+
+export type GuestRegisterStatus =
+  'CHECKED_IN' | 'CHECKED_OUT' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED';
+
+export type RegisterAuditAction =
+  | 'REGISTER_CREATED'
+  | 'DETAILS_VIEWED'
+  | 'ID_MARKED_VERIFIED'
+  | 'NOTES_UPDATED'
+  | 'CHECKOUT_MARKED'
+  | 'EXPORT_REQUESTED';
+
 export interface BookingGuest {
   age: number | null;
   fullName: string;
@@ -120,4 +143,72 @@ export interface OwnerBookingSummary extends Booking {
 
 export interface AdminBookingSummary extends OwnerBookingSummary {
   cityName: string;
+}
+
+export interface QrPayload {
+  bookingCode: string;
+  bookingId: UUID;
+  expiresAt: ISODateTime;
+  token: string;
+  tokenVersion: number;
+}
+
+export interface QrTokenMetadata {
+  bookingId: UUID;
+  expiresAt: ISODateTime;
+  id: UUID;
+  status: QrTokenStatus;
+  tokenVersion: number;
+  usedAt: ISODateTime | null;
+}
+
+export interface GuestIdDocument {
+  documentHolderName: string | null;
+  documentNumber: string;
+  documentType: GuestIdType;
+  id: UUID;
+  verifiedAt: ISODateTime | null;
+  verifiedByUserId: UUID | null;
+}
+
+export interface GuestRegister {
+  actualCheckoutAt: ISODateTime | null;
+  alternatePhone: string | null;
+  bookingCode: string;
+  bookingId: UUID;
+  checkInAt: ISODateTime;
+  expectedCheckoutAt: ISODateTime | null;
+  governmentIdNumber: string | null;
+  governmentIdType: GuestIdType | null;
+  guestAddress: string | null;
+  guestEmail: string | null;
+  id: UUID;
+  idDocuments: GuestIdDocument[];
+  idVerified: boolean;
+  lodgeId: UUID;
+  numberOfAdults: number;
+  numberOfChildren: number;
+  ownerNotes: string | null;
+  pilgrimUserId: UUID;
+  primaryGuestName: string;
+  primaryGuestPhone: string;
+  qrTokenId: UUID | null;
+  registerCode: string;
+  roomId: UUID | null;
+  roomNumber: string | null;
+  roomTypeId: UUID;
+  roomTypeName: string | null;
+  status: GuestRegisterStatus;
+  totalGuests: number;
+}
+
+export interface CheckInResponse {
+  booking: Booking;
+  register: GuestRegister;
+  scanResult: QrScanResult;
+}
+
+export interface CheckoutResponse {
+  booking: Booking;
+  register: GuestRegister;
 }

@@ -150,33 +150,65 @@ enum BookingLockStatus {
   RELEASED
 }
 
+enum QrTokenStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+enum QrScanResult {
+  SUCCESS
+  INVALID
+  EXPIRED
+  USED
+  UNAUTHORIZED
+  BOOKING_NOT_FOUND
+  WRONG_LODGE
+  INVALID_STATUS
+}
+
+enum GuestRegisterStatus {
+  CHECKED_IN
+  CHECKED_OUT
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
 model User {
-  id            String        @id @default(uuid()) @db.Uuid
-  phoneNumber   String        @unique @map("phone_number")
-  displayName   String?       @map("display_name")
-  roles         UserRole[]     @default([PILGRIM])
-  isActive      Boolean       @default(true) @map("is_active")
-  lastLoginAt   DateTime?     @map("last_login_at")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  deletedAt     DateTime?     @map("deleted_at")
-  auditLogs     AuditLog[]
-  refreshTokens RefreshToken[]
-  sessions      UserSession[]
-  deviceTokens  DeviceToken[]
-  ownedLodges   LodgeOwner[]
-  ownedListings Lodge[]       @relation("PrimaryLodgeOwner")
-  uploadedDocs  LodgeDocument[] @relation("UploadedLodgeDocuments")
-  reviewedDocs  LodgeDocument[] @relation("ReviewedLodgeDocuments")
-  reviewedLogs  LodgeVerificationLog[]
-  uploadedPhotos LodgePhoto[] @relation("UploadedLodgePhotos")
-  approvedPhotos LodgePhoto[] @relation("ApprovedLodgePhotos")
-  pilgrimBookings Booking[] @relation("PilgrimBookings")
-  acceptedBookings Booking[] @relation("AcceptedBookings")
-  rejectedBookings Booking[] @relation("RejectedBookings")
-  bookingLocks BookingLock[]
-  bookingHistory BookingHistory[]
-  roomStatusHistory RoomStatusHistory[]
+  id                       String                 @id @default(uuid()) @db.Uuid
+  phoneNumber              String                 @unique @map("phone_number")
+  displayName              String?                @map("display_name")
+  roles                    UserRole[]             @default([PILGRIM])
+  isActive                 Boolean                @default(true) @map("is_active")
+  lastLoginAt              DateTime?              @map("last_login_at")
+  createdAt                DateTime               @default(now()) @map("created_at")
+  updatedAt                DateTime               @updatedAt @map("updated_at")
+  deletedAt                DateTime?              @map("deleted_at")
+  auditLogs                AuditLog[]
+  refreshTokens            RefreshToken[]
+  sessions                 UserSession[]
+  deviceTokens             DeviceToken[]
+  ownedLodges              LodgeOwner[]
+  ownedListings            Lodge[]                @relation("PrimaryLodgeOwner")
+  uploadedDocs             LodgeDocument[]        @relation("UploadedLodgeDocuments")
+  reviewedDocs             LodgeDocument[]        @relation("ReviewedLodgeDocuments")
+  reviewedLogs             LodgeVerificationLog[]
+  uploadedPhotos           LodgePhoto[]           @relation("UploadedLodgePhotos")
+  approvedPhotos           LodgePhoto[]           @relation("ApprovedLodgePhotos")
+  pilgrimBookings          Booking[]              @relation("PilgrimBookings")
+  acceptedBookings         Booking[]              @relation("AcceptedBookings")
+  rejectedBookings         Booking[]              @relation("RejectedBookings")
+  bookingLocks             BookingLock[]
+  bookingHistory           BookingHistory[]
+  roomStatusHistory        RoomStatusHistory[]
+  usedQrTokens             BookingQrToken[]       @relation("UsedQrTokens")
+  qrScanLogs               QrScanLog[]            @relation("ScannedQrLogs")
+  createdRegisters         GuestRegister[]        @relation("CreatedGuestRegisters")
+  updatedRegisters         GuestRegister[]        @relation("UpdatedGuestRegisters")
+  verifiedGuestIdDocuments GuestIdDocument[]      @relation("VerifiedGuestIdDocuments")
+  registerAuditLogs        RegisterAuditLog[]
 
   @@index([phoneNumber])
   @@index([isActive])
@@ -204,41 +236,43 @@ model City {
 }
 
 model Lodge {
-  id                         String                  @id @default(uuid()) @db.Uuid
-  cityId                     String                  @map("city_id") @db.Uuid
-  name                       String
-  slug                       String
-  description                String?
-  propertyType               PropertyType            @map("property_type")
-  status                     LodgeStatus             @default(DRAFT)
-  verificationStatus         VerificationStatus       @default(PENDING) @map("verification_status")
-  ownerUserId                String?                 @map("owner_user_id") @db.Uuid
-  primaryPhone               String                  @map("primary_phone")
-  secondaryPhone             String?                 @map("secondary_phone")
-  whatsappNumber             String?                 @map("whatsapp_number")
-  email                      String?
-  distanceFromTempleMeters   Int?                    @map("distance_from_temple_meters")
-  latitude                   Decimal?                @db.Decimal(10, 7)
-  longitude                  Decimal?                @db.Decimal(10, 7)
-  checkInTime                String?                 @map("check_in_time")
-  checkOutTime               String?                 @map("check_out_time")
-  rules                      String?
-  isActive                   Boolean                 @default(true) @map("is_active")
-  createdAt                  DateTime                @default(now()) @map("created_at")
-  updatedAt                  DateTime                @updatedAt @map("updated_at")
-  deletedAt                  DateTime?               @map("deleted_at")
-  city                       City                    @relation(fields: [cityId], references: [id])
-  ownerUser                  User?                   @relation("PrimaryLodgeOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  address                    LodgeAddress?
-  owners                     LodgeOwner[]
-  documents                  LodgeDocument[]
-  verificationLogs           LodgeVerificationLog[]
-  amenities                  LodgeAmenity[]
-  roomTypes                  RoomType[]
-  rooms                      Room[]
-  photos                     LodgePhoto[]
-  bookings                   Booking[]
-  bookingLocks               BookingLock[]
+  id                       String                 @id @default(uuid()) @db.Uuid
+  cityId                   String                 @map("city_id") @db.Uuid
+  name                     String
+  slug                     String
+  description              String?
+  propertyType             PropertyType           @map("property_type")
+  status                   LodgeStatus            @default(DRAFT)
+  verificationStatus       VerificationStatus     @default(PENDING) @map("verification_status")
+  ownerUserId              String?                @map("owner_user_id") @db.Uuid
+  primaryPhone             String                 @map("primary_phone")
+  secondaryPhone           String?                @map("secondary_phone")
+  whatsappNumber           String?                @map("whatsapp_number")
+  email                    String?
+  distanceFromTempleMeters Int?                   @map("distance_from_temple_meters")
+  latitude                 Decimal?               @db.Decimal(10, 7)
+  longitude                Decimal?               @db.Decimal(10, 7)
+  checkInTime              String?                @map("check_in_time")
+  checkOutTime             String?                @map("check_out_time")
+  rules                    String?
+  isActive                 Boolean                @default(true) @map("is_active")
+  createdAt                DateTime               @default(now()) @map("created_at")
+  updatedAt                DateTime               @updatedAt @map("updated_at")
+  deletedAt                DateTime?              @map("deleted_at")
+  city                     City                   @relation(fields: [cityId], references: [id])
+  ownerUser                User?                  @relation("PrimaryLodgeOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  address                  LodgeAddress?
+  owners                   LodgeOwner[]
+  documents                LodgeDocument[]
+  verificationLogs         LodgeVerificationLog[]
+  amenities                LodgeAmenity[]
+  roomTypes                RoomType[]
+  rooms                    Room[]
+  photos                   LodgePhoto[]
+  bookings                 Booking[]
+  bookingLocks             BookingLock[]
+  qrScanLogs               QrScanLog[]
+  guestRegisters           GuestRegister[]
 
   @@unique([cityId, slug])
   @@index([cityId])
@@ -330,15 +364,15 @@ model LodgeVerificationLog {
 }
 
 model Amenity {
-  id        String           @id @default(uuid()) @db.Uuid
+  id        String          @id @default(uuid()) @db.Uuid
   name      String
-  slug      String           @unique
-  iconName  String?          @map("icon_name")
+  slug      String          @unique
+  iconName  String?         @map("icon_name")
   category  AmenityCategory
-  isActive  Boolean          @default(true) @map("is_active")
-  createdAt DateTime         @default(now()) @map("created_at")
-  updatedAt DateTime         @updatedAt @map("updated_at")
-  deletedAt DateTime?        @map("deleted_at")
+  isActive  Boolean         @default(true) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  deletedAt DateTime?       @map("deleted_at")
   lodges    LodgeAmenity[]
 
   @@index([category])
@@ -361,26 +395,27 @@ model LodgeAmenity {
 }
 
 model RoomType {
-  id               String        @id @default(uuid()) @db.Uuid
-  lodgeId          String        @map("lodge_id") @db.Uuid
+  id               String          @id @default(uuid()) @db.Uuid
+  lodgeId          String          @map("lodge_id") @db.Uuid
   name             String
   slug             String
   description      String?
-  capacityAdults   Int           @map("capacity_adults")
-  capacityChildren Int           @map("capacity_children")
-  basePrice        Decimal       @map("base_price") @db.Decimal(10, 2)
-  festivalPrice    Decimal?      @map("festival_price") @db.Decimal(10, 2)
-  totalRooms       Int           @map("total_rooms")
-  isActive         Boolean       @default(true) @map("is_active")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
-  deletedAt        DateTime?     @map("deleted_at")
-  lodge            Lodge         @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  capacityAdults   Int             @map("capacity_adults")
+  capacityChildren Int             @map("capacity_children")
+  basePrice        Decimal         @map("base_price") @db.Decimal(10, 2)
+  festivalPrice    Decimal?        @map("festival_price") @db.Decimal(10, 2)
+  totalRooms       Int             @map("total_rooms")
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  deletedAt        DateTime?       @map("deleted_at")
+  lodge            Lodge           @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
   rooms            Room[]
   pricing          RoomPricing[]
   photos           LodgePhoto[]
   bookings         Booking[]
   bookingLocks     BookingLock[]
+  guestRegisters   GuestRegister[]
 
   @@unique([lodgeId, slug])
   @@index([lodgeId])
@@ -390,23 +425,24 @@ model RoomType {
 }
 
 model Room {
-  id         String             @id @default(uuid()) @db.Uuid
-  lodgeId    String             @map("lodge_id") @db.Uuid
-  roomTypeId String             @map("room_type_id") @db.Uuid
-  roomNumber String             @map("room_number")
-  floor      String?
-  status     RoomStatus         @default(AVAILABLE)
-  isActive   Boolean            @default(true) @map("is_active")
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
-  deletedAt  DateTime?          @map("deleted_at")
-  lodge      Lodge              @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
-  roomType   RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
-  availability RoomAvailability[]
-  photos     LodgePhoto[]
-  bookings   Booking[]
-  bookingLocks BookingLock[]
-  statusHistory RoomStatusHistory[]
+  id             String              @id @default(uuid()) @db.Uuid
+  lodgeId        String              @map("lodge_id") @db.Uuid
+  roomTypeId     String              @map("room_type_id") @db.Uuid
+  roomNumber     String              @map("room_number")
+  floor          String?
+  status         RoomStatus          @default(AVAILABLE)
+  isActive       Boolean             @default(true) @map("is_active")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  deletedAt      DateTime?           @map("deleted_at")
+  lodge          Lodge               @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  roomType       RoomType            @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  availability   RoomAvailability[]
+  photos         LodgePhoto[]
+  bookings       Booking[]
+  bookingLocks   BookingLock[]
+  statusHistory  RoomStatusHistory[]
+  guestRegisters GuestRegister[]
 
   @@unique([lodgeId, roomNumber])
   @@index([roomTypeId])
@@ -479,52 +515,55 @@ model LodgePhoto {
 }
 
 model Booking {
-  id                     String           @id @default(uuid()) @db.Uuid
-  bookingCode            String           @unique @map("booking_code")
-  pilgrimUserId          String           @map("pilgrim_user_id") @db.Uuid
-  lodgeId                String           @map("lodge_id") @db.Uuid
-  roomTypeId             String           @map("room_type_id") @db.Uuid
-  roomId                 String?          @map("room_id") @db.Uuid
-  cityId                 String           @map("city_id") @db.Uuid
-  status                 BookingStatus    @default(PENDING_OWNER_APPROVAL)
-  guestName              String           @map("guest_name")
-  guestPhone             String           @map("guest_phone")
-  alternatePhone         String?          @map("alternate_phone")
-  guestEmail             String?          @map("guest_email")
-  guestAddress           String?          @map("guest_address")
-  numberOfAdults         Int              @map("number_of_adults")
-  numberOfChildren       Int              @map("number_of_children")
-  totalGuests            Int              @map("total_guests")
-  checkInDate            DateTime         @map("check_in_date") @db.Date
-  checkOutDate           DateTime         @map("check_out_date") @db.Date
-  expectedCheckInTime    String?          @map("expected_check_in_time")
-  expectedCheckOutTime   String?          @map("expected_check_out_time")
-  specialRequest         String?          @map("special_request")
-  totalAmount            Decimal?         @map("total_amount") @db.Decimal(10, 2)
-  advanceAmount          Decimal?         @map("advance_amount") @db.Decimal(10, 2)
-  balanceAmount          Decimal?         @map("balance_amount") @db.Decimal(10, 2)
-  commissionAmount       Decimal?         @map("commission_amount") @db.Decimal(10, 2)
-  paymentStatus          PaymentStatus    @default(PAY_AT_LODGE) @map("payment_status")
-  ownerResponseDeadline  DateTime?        @map("owner_response_deadline")
-  acceptedByUserId       String?          @map("accepted_by_user_id") @db.Uuid
-  rejectedByUserId       String?          @map("rejected_by_user_id") @db.Uuid
-  cancellationReason     String?          @map("cancellation_reason")
-  rejectedReason         String?          @map("rejected_reason")
-  checkedInAt            DateTime?        @map("checked_in_at")
-  checkedOutAt           DateTime?        @map("checked_out_at")
-  createdAt              DateTime         @default(now()) @map("created_at")
-  updatedAt              DateTime         @updatedAt @map("updated_at")
-  deletedAt              DateTime?        @map("deleted_at")
-  pilgrim                User             @relation("PilgrimBookings", fields: [pilgrimUserId], references: [id])
-  lodge                  Lodge            @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
-  roomType               RoomType         @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
-  room                   Room?            @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  city                   City             @relation(fields: [cityId], references: [id])
-  acceptedBy             User?            @relation("AcceptedBookings", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
-  rejectedBy             User?            @relation("RejectedBookings", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
-  guests                 BookingGuest[]
-  history                BookingHistory[]
-  roomStatusHistory      RoomStatusHistory[]
+  id                    String              @id @default(uuid()) @db.Uuid
+  bookingCode           String              @unique @map("booking_code")
+  pilgrimUserId         String              @map("pilgrim_user_id") @db.Uuid
+  lodgeId               String              @map("lodge_id") @db.Uuid
+  roomTypeId            String              @map("room_type_id") @db.Uuid
+  roomId                String?             @map("room_id") @db.Uuid
+  cityId                String              @map("city_id") @db.Uuid
+  status                BookingStatus       @default(PENDING_OWNER_APPROVAL)
+  guestName             String              @map("guest_name")
+  guestPhone            String              @map("guest_phone")
+  alternatePhone        String?             @map("alternate_phone")
+  guestEmail            String?             @map("guest_email")
+  guestAddress          String?             @map("guest_address")
+  numberOfAdults        Int                 @map("number_of_adults")
+  numberOfChildren      Int                 @map("number_of_children")
+  totalGuests           Int                 @map("total_guests")
+  checkInDate           DateTime            @map("check_in_date") @db.Date
+  checkOutDate          DateTime            @map("check_out_date") @db.Date
+  expectedCheckInTime   String?             @map("expected_check_in_time")
+  expectedCheckOutTime  String?             @map("expected_check_out_time")
+  specialRequest        String?             @map("special_request")
+  totalAmount           Decimal?            @map("total_amount") @db.Decimal(10, 2)
+  advanceAmount         Decimal?            @map("advance_amount") @db.Decimal(10, 2)
+  balanceAmount         Decimal?            @map("balance_amount") @db.Decimal(10, 2)
+  commissionAmount      Decimal?            @map("commission_amount") @db.Decimal(10, 2)
+  paymentStatus         PaymentStatus       @default(PAY_AT_LODGE) @map("payment_status")
+  ownerResponseDeadline DateTime?           @map("owner_response_deadline")
+  acceptedByUserId      String?             @map("accepted_by_user_id") @db.Uuid
+  rejectedByUserId      String?             @map("rejected_by_user_id") @db.Uuid
+  cancellationReason    String?             @map("cancellation_reason")
+  rejectedReason        String?             @map("rejected_reason")
+  checkedInAt           DateTime?           @map("checked_in_at")
+  checkedOutAt          DateTime?           @map("checked_out_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  deletedAt             DateTime?           @map("deleted_at")
+  pilgrim               User                @relation("PilgrimBookings", fields: [pilgrimUserId], references: [id])
+  lodge                 Lodge               @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  roomType              RoomType            @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  room                  Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  city                  City                @relation(fields: [cityId], references: [id])
+  acceptedBy            User?               @relation("AcceptedBookings", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  rejectedBy            User?               @relation("RejectedBookings", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+  guests                BookingGuest[]
+  history               BookingHistory[]
+  roomStatusHistory     RoomStatusHistory[]
+  qrTokens              BookingQrToken[]
+  qrScanLogs            QrScanLog[]
+  guestRegister         GuestRegister?
 
   @@index([pilgrimUserId])
   @@index([lodgeId, status])
@@ -585,18 +624,18 @@ model BookingLock {
 }
 
 model BookingHistory {
-  id            String         @id @default(uuid()) @db.Uuid
-  bookingId     String         @map("booking_id") @db.Uuid
-  fromStatus    BookingStatus? @map("from_status")
-  toStatus      BookingStatus  @map("to_status")
-  action        String
-  actorUserId   String?        @map("actor_user_id") @db.Uuid
-  notes         String?
-  metadata      Json?
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  booking       Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  actor         User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  id          String         @id @default(uuid()) @db.Uuid
+  bookingId   String         @map("booking_id") @db.Uuid
+  fromStatus  BookingStatus? @map("from_status")
+  toStatus    BookingStatus  @map("to_status")
+  action      String
+  actorUserId String?        @map("actor_user_id") @db.Uuid
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  booking     Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  actor       User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([bookingId])
   @@index([actorUserId])
@@ -605,17 +644,17 @@ model BookingHistory {
 }
 
 model RoomStatusHistory {
-  id            String     @id @default(uuid()) @db.Uuid
-  roomId        String     @map("room_id") @db.Uuid
-  fromStatus    RoomStatus @map("from_status")
-  toStatus      RoomStatus @map("to_status")
-  reason        String
-  bookingId     String?    @map("booking_id") @db.Uuid
-  actorUserId   String?    @map("actor_user_id") @db.Uuid
-  createdAt     DateTime   @default(now()) @map("created_at")
-  room          Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  booking       Booking?   @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  actor         User?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  id          String     @id @default(uuid()) @db.Uuid
+  roomId      String     @map("room_id") @db.Uuid
+  fromStatus  RoomStatus @map("from_status")
+  toStatus    RoomStatus @map("to_status")
+  reason      String
+  bookingId   String?    @map("booking_id") @db.Uuid
+  actorUserId String?    @map("actor_user_id") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at")
+  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  booking     Booking?   @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  actor       User?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([roomId])
   @@index([bookingId])
@@ -623,19 +662,159 @@ model RoomStatusHistory {
   @@map("room_status_history")
 }
 
+model BookingQrToken {
+  id             String          @id @default(uuid()) @db.Uuid
+  bookingId      String          @map("booking_id") @db.Uuid
+  tokenHash      String          @unique @map("token_hash")
+  tokenVersion   Int             @default(1) @map("token_version")
+  expiresAt      DateTime        @map("expires_at")
+  usedAt         DateTime?       @map("used_at")
+  usedByUserId   String?         @map("used_by_user_id") @db.Uuid
+  usedDeviceId   String?         @map("used_device_id")
+  scanIpAddress  String?         @map("scan_ip_address")
+  scanUserAgent  String?         @map("scan_user_agent")
+  status         QrTokenStatus   @default(ACTIVE)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  booking        Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  usedBy         User?           @relation("UsedQrTokens", fields: [usedByUserId], references: [id], onDelete: SetNull)
+  scanLogs       QrScanLog[]
+  guestRegisters GuestRegister[]
+
+  @@index([bookingId])
+  @@index([expiresAt])
+  @@index([status])
+  @@map("booking_qr_tokens")
+}
+
+model QrScanLog {
+  id              String          @id @default(uuid()) @db.Uuid
+  bookingId       String?         @map("booking_id") @db.Uuid
+  qrTokenId       String?         @map("qr_token_id") @db.Uuid
+  scannedByUserId String?         @map("scanned_by_user_id") @db.Uuid
+  lodgeId         String?         @map("lodge_id") @db.Uuid
+  result          QrScanResult
+  failureReason   String?         @map("failure_reason")
+  deviceId        String?         @map("device_id")
+  ipAddress       String?         @map("ip_address")
+  userAgent       String?         @map("user_agent")
+  metadata        Json?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  booking         Booking?        @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  qrToken         BookingQrToken? @relation(fields: [qrTokenId], references: [id], onDelete: SetNull)
+  scannedBy       User?           @relation("ScannedQrLogs", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+  lodge           Lodge?          @relation(fields: [lodgeId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@index([qrTokenId])
+  @@index([scannedByUserId])
+  @@index([lodgeId])
+  @@index([result])
+  @@map("qr_scan_logs")
+}
+
+model GuestRegister {
+  id                 String              @id @default(uuid()) @db.Uuid
+  registerCode       String              @unique @map("register_code")
+  bookingId          String              @unique @map("booking_id") @db.Uuid
+  lodgeId            String              @map("lodge_id") @db.Uuid
+  roomId             String?             @map("room_id") @db.Uuid
+  roomTypeId         String              @map("room_type_id") @db.Uuid
+  pilgrimUserId      String              @map("pilgrim_user_id") @db.Uuid
+  primaryGuestName   String              @map("primary_guest_name")
+  primaryGuestPhone  String              @map("primary_guest_phone")
+  alternatePhone     String?             @map("alternate_phone")
+  guestEmail         String?             @map("guest_email")
+  guestAddress       String?             @map("guest_address")
+  numberOfAdults     Int                 @map("number_of_adults")
+  numberOfChildren   Int                 @map("number_of_children")
+  totalGuests        Int                 @map("total_guests")
+  governmentIdType   GuestIdType?        @map("government_id_type")
+  governmentIdNumber String?             @map("government_id_number")
+  idVerified         Boolean             @default(false) @map("id_verified")
+  bookingCode        String              @map("booking_code")
+  qrTokenId          String?             @map("qr_token_id") @db.Uuid
+  checkInAt          DateTime            @map("check_in_at")
+  expectedCheckoutAt DateTime?           @map("expected_checkout_at")
+  actualCheckoutAt   DateTime?           @map("actual_checkout_at")
+  status             GuestRegisterStatus @default(CHECKED_IN)
+  ownerNotes         String?             @map("owner_notes")
+  createdByUserId    String?             @map("created_by_user_id") @db.Uuid
+  updatedByUserId    String?             @map("updated_by_user_id") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  deletedAt          DateTime?           @map("deleted_at")
+  booking            Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  lodge              Lodge               @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  room               Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  roomType           RoomType            @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  createdBy          User?               @relation("CreatedGuestRegisters", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy          User?               @relation("UpdatedGuestRegisters", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  qrToken            BookingQrToken?     @relation(fields: [qrTokenId], references: [id], onDelete: SetNull)
+  idDocuments        GuestIdDocument[]
+  auditLogs          RegisterAuditLog[]
+
+  @@index([lodgeId, status])
+  @@index([roomId])
+  @@index([roomTypeId])
+  @@index([pilgrimUserId])
+  @@index([bookingCode])
+  @@index([checkInAt])
+  @@index([deletedAt])
+  @@map("guest_register")
+}
+
+model GuestIdDocument {
+  id                 String        @id @default(uuid()) @db.Uuid
+  guestRegisterId    String        @map("guest_register_id") @db.Uuid
+  documentType       GuestIdType   @map("document_type")
+  documentNumber     String        @map("document_number")
+  documentHolderName String?       @map("document_holder_name")
+  verifiedByUserId   String?       @map("verified_by_user_id") @db.Uuid
+  verifiedAt         DateTime?     @map("verified_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
+  guestRegister      GuestRegister @relation(fields: [guestRegisterId], references: [id], onDelete: Cascade)
+  verifiedBy         User?         @relation("VerifiedGuestIdDocuments", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([guestRegisterId])
+  @@index([verifiedByUserId])
+  @@index([deletedAt])
+  @@map("guest_id_documents")
+}
+
+model RegisterAuditLog {
+  id              String        @id @default(uuid()) @db.Uuid
+  guestRegisterId String        @map("guest_register_id") @db.Uuid
+  actorUserId     String?       @map("actor_user_id") @db.Uuid
+  action          String
+  metadata        Json?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  guestRegister   GuestRegister @relation(fields: [guestRegisterId], references: [id], onDelete: Cascade)
+  actor           User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([guestRegisterId])
+  @@index([actorUserId])
+  @@index([action])
+  @@map("register_audit_logs")
+}
+
 model OtpRequest {
-  id          String      @id @default(uuid()) @db.Uuid
-  phoneNumber String      @map("phone_number")
-  otpHash     String      @map("otp_hash")
+  id          String     @id @default(uuid()) @db.Uuid
+  phoneNumber String     @map("phone_number")
+  otpHash     String     @map("otp_hash")
   purpose     OtpPurpose
-  attempts    Int         @default(0)
-  maxAttempts Int         @default(5) @map("max_attempts")
-  expiresAt   DateTime    @map("expires_at")
-  consumedAt  DateTime?   @map("consumed_at")
-  ipAddress   String?     @map("ip_address")
-  userAgent   String?     @map("user_agent")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  attempts    Int        @default(0)
+  maxAttempts Int        @default(5) @map("max_attempts")
+  expiresAt   DateTime   @map("expires_at")
+  consumedAt  DateTime?  @map("consumed_at")
+  ipAddress   String?    @map("ip_address")
+  userAgent   String?    @map("user_agent")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
 
   @@index([phoneNumber, purpose])
   @@index([expiresAt])
@@ -644,15 +823,15 @@ model OtpRequest {
 }
 
 model RefreshToken {
-  id          String        @id @default(uuid()) @db.Uuid
-  userId      String        @map("user_id") @db.Uuid
-  tokenHash   String        @unique @map("token_hash")
-  deviceId    String        @map("device_id")
-  expiresAt   DateTime      @map("expires_at")
-  revokedAt   DateTime?     @map("revoked_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  tokenHash   String       @unique @map("token_hash")
+  deviceId    String       @map("device_id")
+  expiresAt   DateTime     @map("expires_at")
+  revokedAt   DateTime?    @map("revoked_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userSession UserSession?
 
   @@index([userId])

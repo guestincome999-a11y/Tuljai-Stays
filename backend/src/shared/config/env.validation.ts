@@ -69,6 +69,15 @@ class EnvironmentVariables {
   @IsInt()
   @Min(30)
   BOOKING_SCHEDULER_INTERVAL_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(300)
+  BOOKING_QR_TOKEN_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsString()
+  BOOKING_SHOW_OWNER_PHONE_AFTER_ACCEPTED?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {

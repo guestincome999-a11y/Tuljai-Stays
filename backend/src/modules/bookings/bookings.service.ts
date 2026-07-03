@@ -32,13 +32,7 @@ import type {
   UpdateBookingStatusDto,
 } from './dto/booking.dto';
 
-const OWNER_VISIBLE_CONTACT_STATUSES: BookingStatus[] = [
-  'ACCEPTED',
-  'QR_GENERATED',
-  'CHECKED_IN',
-  'CHECKED_OUT',
-  'COMPLETED',
-];
+const OWNER_VISIBLE_CONTACT_STATUSES: BookingStatus[] = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'];
 
 const ADMIN_ALLOWED_STATUS_UPDATES: BookingStatus[] = [
   'PENDING_OWNER_APPROVAL',
@@ -195,6 +189,20 @@ export class BookingsService {
     await this.assertCanViewBooking(booking, user);
 
     return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
+  }
+
+  public async getOwnerSafeBookingView(id: string, user: AuthenticatedUser): Promise<Booking> {
+    const booking = await this.findBookingOrThrow(id);
+    await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
+
+    return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
+  }
+
+  public async getOwnerUnlockedBookingView(id: string, user: AuthenticatedUser): Promise<Booking> {
+    const booking = await this.findBookingOrThrow(id);
+    await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
+
+    return this.toBooking(booking);
   }
 
   public async listOwnerBookings(

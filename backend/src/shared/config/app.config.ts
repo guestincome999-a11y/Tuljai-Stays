@@ -25,6 +25,8 @@ export const appConfig = registerAs('api', () => ({
       ? Number(process.env.BOOKING_COMMISSION_FLAT_AMOUNT)
       : null,
     schedulerIntervalSeconds: Number(process.env.BOOKING_SCHEDULER_INTERVAL_SECONDS ?? 60),
+    qrTokenTtlSeconds: Number(process.env.BOOKING_QR_TOKEN_TTL_SECONDS ?? 86400),
+    showOwnerPhoneAfterAccepted: process.env.BOOKING_SHOW_OWNER_PHONE_AFTER_ACCEPTED === 'true',
   },
   fcm: {
     projectId: process.env.FCM_PROJECT_ID,
