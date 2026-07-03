@@ -16,6 +16,16 @@ export const appConfig = registerAs('api', () => ({
     rateLimitMaxRequests: Number(process.env.OTP_RATE_LIMIT_MAX_REQUESTS ?? 5),
     allowDevResponse: process.env.ALLOW_DEV_OTP_RESPONSE === 'true',
   },
+  booking: {
+    lockTtlSeconds: Number(process.env.BOOKING_LOCK_TTL_SECONDS ?? 300),
+    ownerResponseDeadlineSeconds: Number(
+      process.env.BOOKING_OWNER_RESPONSE_DEADLINE_SECONDS ?? 120,
+    ),
+    commissionFlatAmount: process.env.BOOKING_COMMISSION_FLAT_AMOUNT
+      ? Number(process.env.BOOKING_COMMISSION_FLAT_AMOUNT)
+      : null,
+    schedulerIntervalSeconds: Number(process.env.BOOKING_SCHEDULER_INTERVAL_SECONDS ?? 60),
+  },
   fcm: {
     projectId: process.env.FCM_PROJECT_ID,
     clientEmail: process.env.FCM_CLIENT_EMAIL,

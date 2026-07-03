@@ -110,6 +110,46 @@ enum PhotoApprovalStatus {
   REJECTED
 }
 
+enum BookingStatus {
+  DRAFT
+  PENDING_OWNER_APPROVAL
+  ACCEPTED
+  REJECTED
+  QR_GENERATED
+  CHECKED_IN
+  CHECKED_OUT
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  NOT_REQUIRED
+  PENDING
+  ADVANCE_PAID
+  FULLY_PAID
+  PAY_AT_LODGE
+  REFUNDED
+  FAILED
+}
+
+enum GuestIdType {
+  AADHAAR
+  PAN
+  VOTER_ID
+  PASSPORT
+  DRIVING_LICENSE
+  OTHER
+}
+
+enum BookingLockStatus {
+  ACTIVE
+  CONSUMED
+  EXPIRED
+  RELEASED
+}
+
 model User {
   id            String        @id @default(uuid()) @db.Uuid
   phoneNumber   String        @unique @map("phone_number")
@@ -131,6 +171,12 @@ model User {
   reviewedLogs  LodgeVerificationLog[]
   uploadedPhotos LodgePhoto[] @relation("UploadedLodgePhotos")
   approvedPhotos LodgePhoto[] @relation("ApprovedLodgePhotos")
+  pilgrimBookings Booking[] @relation("PilgrimBookings")
+  acceptedBookings Booking[] @relation("AcceptedBookings")
+  rejectedBookings Booking[] @relation("RejectedBookings")
+  bookingLocks BookingLock[]
+  bookingHistory BookingHistory[]
+  roomStatusHistory RoomStatusHistory[]
 
   @@index([phoneNumber])
   @@index([isActive])
@@ -149,6 +195,7 @@ model City {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
   lodges    Lodge[]
+  bookings  Booking[]
 
   @@index([slug])
   @@index([isActive])
@@ -190,6 +237,8 @@ model Lodge {
   roomTypes                  RoomType[]
   rooms                      Room[]
   photos                     LodgePhoto[]
+  bookings                   Booking[]
+  bookingLocks               BookingLock[]
 
   @@unique([cityId, slug])
   @@index([cityId])
@@ -330,6 +379,8 @@ model RoomType {
   rooms            Room[]
   pricing          RoomPricing[]
   photos           LodgePhoto[]
+  bookings         Booking[]
+  bookingLocks     BookingLock[]
 
   @@unique([lodgeId, slug])
   @@index([lodgeId])
@@ -353,6 +404,9 @@ model Room {
   roomType   RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
   availability RoomAvailability[]
   photos     LodgePhoto[]
+  bookings   Booking[]
+  bookingLocks BookingLock[]
+  statusHistory RoomStatusHistory[]
 
   @@unique([lodgeId, roomNumber])
   @@index([roomTypeId])
@@ -422,6 +476,151 @@ model LodgePhoto {
   @@index([approvalStatus])
   @@index([deletedAt])
   @@map("lodge_photos")
+}
+
+model Booking {
+  id                     String           @id @default(uuid()) @db.Uuid
+  bookingCode            String           @unique @map("booking_code")
+  pilgrimUserId          String           @map("pilgrim_user_id") @db.Uuid
+  lodgeId                String           @map("lodge_id") @db.Uuid
+  roomTypeId             String           @map("room_type_id") @db.Uuid
+  roomId                 String?          @map("room_id") @db.Uuid
+  cityId                 String           @map("city_id") @db.Uuid
+  status                 BookingStatus    @default(PENDING_OWNER_APPROVAL)
+  guestName              String           @map("guest_name")
+  guestPhone             String           @map("guest_phone")
+  alternatePhone         String?          @map("alternate_phone")
+  guestEmail             String?          @map("guest_email")
+  guestAddress           String?          @map("guest_address")
+  numberOfAdults         Int              @map("number_of_adults")
+  numberOfChildren       Int              @map("number_of_children")
+  totalGuests            Int              @map("total_guests")
+  checkInDate            DateTime         @map("check_in_date") @db.Date
+  checkOutDate           DateTime         @map("check_out_date") @db.Date
+  expectedCheckInTime    String?          @map("expected_check_in_time")
+  expectedCheckOutTime   String?          @map("expected_check_out_time")
+  specialRequest         String?          @map("special_request")
+  totalAmount            Decimal?         @map("total_amount") @db.Decimal(10, 2)
+  advanceAmount          Decimal?         @map("advance_amount") @db.Decimal(10, 2)
+  balanceAmount          Decimal?         @map("balance_amount") @db.Decimal(10, 2)
+  commissionAmount       Decimal?         @map("commission_amount") @db.Decimal(10, 2)
+  paymentStatus          PaymentStatus    @default(PAY_AT_LODGE) @map("payment_status")
+  ownerResponseDeadline  DateTime?        @map("owner_response_deadline")
+  acceptedByUserId       String?          @map("accepted_by_user_id") @db.Uuid
+  rejectedByUserId       String?          @map("rejected_by_user_id") @db.Uuid
+  cancellationReason     String?          @map("cancellation_reason")
+  rejectedReason         String?          @map("rejected_reason")
+  checkedInAt            DateTime?        @map("checked_in_at")
+  checkedOutAt           DateTime?        @map("checked_out_at")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+  deletedAt              DateTime?        @map("deleted_at")
+  pilgrim                User             @relation("PilgrimBookings", fields: [pilgrimUserId], references: [id])
+  lodge                  Lodge            @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  roomType               RoomType         @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  room                   Room?            @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  city                   City             @relation(fields: [cityId], references: [id])
+  acceptedBy             User?            @relation("AcceptedBookings", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  rejectedBy             User?            @relation("RejectedBookings", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+  guests                 BookingGuest[]
+  history                BookingHistory[]
+  roomStatusHistory      RoomStatusHistory[]
+
+  @@index([pilgrimUserId])
+  @@index([lodgeId, status])
+  @@index([roomTypeId])
+  @@index([roomId])
+  @@index([cityId])
+  @@index([checkInDate, checkOutDate])
+  @@index([ownerResponseDeadline])
+  @@index([deletedAt])
+  @@map("bookings")
+}
+
+model BookingGuest {
+  id             String       @id @default(uuid()) @db.Uuid
+  bookingId      String       @map("booking_id") @db.Uuid
+  fullName       String       @map("full_name")
+  age            Int?
+  gender         String?
+  phone          String?
+  idType         GuestIdType? @map("id_type")
+  idNumber       String?      @map("id_number")
+  isPrimaryGuest Boolean      @default(false) @map("is_primary_guest")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([deletedAt])
+  @@map("booking_guests")
+}
+
+model BookingLock {
+  id            String            @id @default(uuid()) @db.Uuid
+  lockCode      String            @unique @map("lock_code")
+  pilgrimUserId String?           @map("pilgrim_user_id") @db.Uuid
+  lodgeId       String            @map("lodge_id") @db.Uuid
+  roomTypeId    String            @map("room_type_id") @db.Uuid
+  roomId        String?           @map("room_id") @db.Uuid
+  checkInDate   DateTime          @map("check_in_date") @db.Date
+  checkOutDate  DateTime          @map("check_out_date") @db.Date
+  expiresAt     DateTime          @map("expires_at")
+  status        BookingLockStatus @default(ACTIVE)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  pilgrim       User?             @relation(fields: [pilgrimUserId], references: [id], onDelete: SetNull)
+  lodge         Lodge             @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  roomType      RoomType          @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  room          Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@index([pilgrimUserId])
+  @@index([lodgeId, roomTypeId])
+  @@index([roomId])
+  @@index([checkInDate, checkOutDate])
+  @@index([expiresAt])
+  @@index([status])
+  @@map("booking_locks")
+}
+
+model BookingHistory {
+  id            String         @id @default(uuid()) @db.Uuid
+  bookingId     String         @map("booking_id") @db.Uuid
+  fromStatus    BookingStatus? @map("from_status")
+  toStatus      BookingStatus  @map("to_status")
+  action        String
+  actorUserId   String?        @map("actor_user_id") @db.Uuid
+  notes         String?
+  metadata      Json?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  booking       Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  actor         User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@index([actorUserId])
+  @@index([toStatus])
+  @@map("booking_history")
+}
+
+model RoomStatusHistory {
+  id            String     @id @default(uuid()) @db.Uuid
+  roomId        String     @map("room_id") @db.Uuid
+  fromStatus    RoomStatus @map("from_status")
+  toStatus      RoomStatus @map("to_status")
+  reason        String
+  bookingId     String?    @map("booking_id") @db.Uuid
+  actorUserId   String?    @map("actor_user_id") @db.Uuid
+  createdAt     DateTime   @default(now()) @map("created_at")
+  room          Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  booking       Booking?   @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  actor         User?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([bookingId])
+  @@index([actorUserId])
+  @@map("room_status_history")
 }
 
 model OtpRequest {

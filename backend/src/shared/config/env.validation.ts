@@ -49,6 +49,26 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   ALLOW_DEV_OTP_RESPONSE?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  BOOKING_LOCK_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  BOOKING_OWNER_RESPONSE_DEADLINE_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  BOOKING_COMMISSION_FLAT_AMOUNT?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  BOOKING_SCHEDULER_INTERVAL_SECONDS?: number;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
