@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Tuljai Stays",
+    "slug": "tuljai-stays-pilgrim",
+    "scheme": "tuljai-stays",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFBFE"
+      }
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

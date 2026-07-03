@@ -1,0 +1,35 @@
+{
+  "name": "@tuljai/owner-app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "@tuljai/shared": "0.1.0",
+    "@tuljai/types": "0.1.0",
+    "@tuljai/ui": "0.1.0",
+    "expo": "^57.0.2",
+    "expo-router": "^57.0.3",
+    "expo-splash-screen": "^57.0.2",
+    "expo-status-bar": "^57.0.0",
+    "react": "19.2.7",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "3.0.2",
+    "react-native-paper": "^5.15.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "5.8.0",
+    "react-native-screens": "4.25.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "typescript": "^5.9.3"
+  }
+}

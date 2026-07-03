@@ -1,0 +1,36 @@
+{
+  "name": "tuljai-stays",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tuljai Stays monorepo for pilgrim, owner, admin, and backend applications.",
+  "license": "MIT",
+  "packageManager": "npm@10.8.0",
+  "workspaces": [
+    "apps/*",
+    "backend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
+    "verify:workspace": "node scripts/verify-workspace.mjs",
+    "db:generate": "npm --workspace @tuljai/backend run db:generate",
+    "db:migrate": "npm --workspace @tuljai/backend run db:migrate",
+    "db:studio": "npm --workspace @tuljai/backend run db:studio"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@typescript-eslint/eslint-plugin": "^8.49.0",
+    "@typescript-eslint/parser": "^8.49.0",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.49.0"
+  }
+}

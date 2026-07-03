@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Tuljai Stays Owner",
+    "slug": "tuljai-stays-owner",
+    "scheme": "tuljai-stays-owner",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFBFE"
+      }
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
