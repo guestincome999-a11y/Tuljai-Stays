@@ -1,9 +1,35 @@
 import { Module } from '@nestjs/common';
 
+import { RealtimeModule } from '../realtime/realtime.module';
+
+import { AnnouncementsService } from './announcements.service';
+import { DeviceTargetingService } from './device-targeting.service';
+import { NotificationDeliveryService } from './notification-delivery.service';
+import { NotificationEventsService } from './notification-events.service';
+import { NotificationTemplatesService } from './notification-templates.service';
+import { NotificationsController } from './notifications.controller';
+import { NotificationsService } from './notifications.service';
 import { FcmService } from './providers/fcm.service';
 
 @Module({
-  providers: [FcmService],
-  exports: [FcmService],
+  imports: [RealtimeModule],
+  controllers: [NotificationsController],
+  providers: [
+    AnnouncementsService,
+    DeviceTargetingService,
+    FcmService,
+    NotificationDeliveryService,
+    NotificationEventsService,
+    NotificationTemplatesService,
+    NotificationsService,
+  ],
+  exports: [
+    AnnouncementsService,
+    FcmService,
+    NotificationDeliveryService,
+    NotificationEventsService,
+    NotificationTemplatesService,
+    NotificationsService,
+  ],
 })
 export class NotificationsModule {}

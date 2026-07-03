@@ -176,39 +176,103 @@ enum GuestRegisterStatus {
   ARCHIVED
 }
 
+enum NotificationType {
+  BOOKING_REQUEST
+  BOOKING_ACCEPTED
+  BOOKING_REJECTED
+  BOOKING_CANCELLED
+  QR_GENERATED
+  CHECKIN_COMPLETED
+  CHECKOUT_COMPLETED
+  CHECKOUT_REMINDER
+  PHOTO_APPROVED
+  PHOTO_REJECTED
+  ADMIN_ANNOUNCEMENT
+  EMERGENCY_ALERT
+  REVIEW_RECEIVED
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  SOCKET
+  EMAIL_OPTIONAL
+  WHATSAPP_OPTIONAL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  SKIPPED
+}
+
+enum AnnouncementCategory {
+  GENERAL
+  EMERGENCY
+  TEMPLE_NOTICE
+  FESTIVAL
+  MAINTENANCE
+  OFFER
+  SYSTEM
+}
+
+enum AnnouncementTargetAudience {
+  ALL
+  PILGRIMS
+  OWNERS
+  ADMINS
+  LODGE_SPECIFIC
+  CITY_SPECIFIC
+}
+
 model User {
-  id                       String                 @id @default(uuid()) @db.Uuid
-  phoneNumber              String                 @unique @map("phone_number")
-  displayName              String?                @map("display_name")
-  roles                    UserRole[]             @default([PILGRIM])
-  isActive                 Boolean                @default(true) @map("is_active")
-  lastLoginAt              DateTime?              @map("last_login_at")
-  createdAt                DateTime               @default(now()) @map("created_at")
-  updatedAt                DateTime               @updatedAt @map("updated_at")
-  deletedAt                DateTime?              @map("deleted_at")
+  id                       String                    @id @default(uuid()) @db.Uuid
+  phoneNumber              String                    @unique @map("phone_number")
+  displayName              String?                   @map("display_name")
+  roles                    UserRole[]                @default([PILGRIM])
+  isActive                 Boolean                   @default(true) @map("is_active")
+  lastLoginAt              DateTime?                 @map("last_login_at")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  deletedAt                DateTime?                 @map("deleted_at")
   auditLogs                AuditLog[]
   refreshTokens            RefreshToken[]
   sessions                 UserSession[]
   deviceTokens             DeviceToken[]
   ownedLodges              LodgeOwner[]
-  ownedListings            Lodge[]                @relation("PrimaryLodgeOwner")
-  uploadedDocs             LodgeDocument[]        @relation("UploadedLodgeDocuments")
-  reviewedDocs             LodgeDocument[]        @relation("ReviewedLodgeDocuments")
+  ownedListings            Lodge[]                   @relation("PrimaryLodgeOwner")
+  uploadedDocs             LodgeDocument[]           @relation("UploadedLodgeDocuments")
+  reviewedDocs             LodgeDocument[]           @relation("ReviewedLodgeDocuments")
   reviewedLogs             LodgeVerificationLog[]
-  uploadedPhotos           LodgePhoto[]           @relation("UploadedLodgePhotos")
-  approvedPhotos           LodgePhoto[]           @relation("ApprovedLodgePhotos")
-  pilgrimBookings          Booking[]              @relation("PilgrimBookings")
-  acceptedBookings         Booking[]              @relation("AcceptedBookings")
-  rejectedBookings         Booking[]              @relation("RejectedBookings")
+  uploadedPhotos           LodgePhoto[]              @relation("UploadedLodgePhotos")
+  approvedPhotos           LodgePhoto[]              @relation("ApprovedLodgePhotos")
+  pilgrimBookings          Booking[]                 @relation("PilgrimBookings")
+  acceptedBookings         Booking[]                 @relation("AcceptedBookings")
+  rejectedBookings         Booking[]                 @relation("RejectedBookings")
   bookingLocks             BookingLock[]
   bookingHistory           BookingHistory[]
   roomStatusHistory        RoomStatusHistory[]
-  usedQrTokens             BookingQrToken[]       @relation("UsedQrTokens")
-  qrScanLogs               QrScanLog[]            @relation("ScannedQrLogs")
-  createdRegisters         GuestRegister[]        @relation("CreatedGuestRegisters")
-  updatedRegisters         GuestRegister[]        @relation("UpdatedGuestRegisters")
-  verifiedGuestIdDocuments GuestIdDocument[]      @relation("VerifiedGuestIdDocuments")
+  usedQrTokens             BookingQrToken[]          @relation("UsedQrTokens")
+  qrScanLogs               QrScanLog[]               @relation("ScannedQrLogs")
+  createdRegisters         GuestRegister[]           @relation("CreatedGuestRegisters")
+  updatedRegisters         GuestRegister[]           @relation("UpdatedGuestRegisters")
+  verifiedGuestIdDocuments GuestIdDocument[]         @relation("VerifiedGuestIdDocuments")
   registerAuditLogs        RegisterAuditLog[]
+  notifications            Notification[]
+  notificationDeliveryLogs NotificationDeliveryLog[]
+  announcementsCreated     Announcement[]            @relation("CreatedAnnouncements")
+  announcementReads        AnnouncementRead[]
+  notificationPreferences  NotificationPreference[]
 
   @@index([phoneNumber])
   @@index([isActive])
@@ -217,17 +281,18 @@ model User {
 }
 
 model City {
-  id        String    @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String    @unique
-  state     String
-  country   String
-  isActive  Boolean   @default(true) @map("is_active")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
-  lodges    Lodge[]
-  bookings  Booking[]
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  slug          String         @unique
+  state         String
+  country       String
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at")
+  lodges        Lodge[]
+  bookings      Booking[]
+  announcements Announcement[]
 
   @@index([slug])
   @@index([isActive])
@@ -273,6 +338,8 @@ model Lodge {
   bookingLocks             BookingLock[]
   qrScanLogs               QrScanLog[]
   guestRegisters           GuestRegister[]
+  notifications            Notification[]
+  announcements            Announcement[]
 
   @@unique([cityId, slug])
   @@index([cityId])
@@ -802,6 +869,138 @@ model RegisterAuditLog {
   @@map("register_audit_logs")
 }
 
+model Notification {
+  id              String                    @id @default(uuid()) @db.Uuid
+  recipientUserId String?                   @map("recipient_user_id") @db.Uuid
+  recipientRole   UserRole?                 @map("recipient_role")
+  lodgeId         String?                   @map("lodge_id") @db.Uuid
+  bookingId       String?                   @map("booking_id") @db.Uuid
+  title           String
+  body            String
+  type            NotificationType
+  priority        NotificationPriority      @default(NORMAL)
+  channel         NotificationChannel       @default(IN_APP)
+  data            Json?
+  readAt          DateTime?                 @map("read_at")
+  deliveredAt     DateTime?                 @map("delivered_at")
+  failedAt        DateTime?                 @map("failed_at")
+  failureReason   String?                   @map("failure_reason")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  deletedAt       DateTime?                 @map("deleted_at")
+  recipient       User?                     @relation(fields: [recipientUserId], references: [id], onDelete: SetNull)
+  lodge           Lodge?                    @relation(fields: [lodgeId], references: [id], onDelete: SetNull)
+  deliveryLogs    NotificationDeliveryLog[]
+
+  @@index([recipientUserId, readAt])
+  @@index([recipientRole])
+  @@index([lodgeId])
+  @@index([bookingId])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("notifications")
+}
+
+model NotificationTemplate {
+  id              String               @id @default(uuid()) @db.Uuid
+  type            NotificationType     @unique
+  titleTemplate   String               @map("title_template")
+  bodyTemplate    String               @map("body_template")
+  defaultPriority NotificationPriority @default(NORMAL) @map("default_priority")
+  isActive        Boolean              @default(true) @map("is_active")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  deletedAt       DateTime?            @map("deleted_at")
+
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("notification_templates")
+}
+
+model NotificationDeliveryLog {
+  id                String                     @id @default(uuid()) @db.Uuid
+  notificationId    String                     @map("notification_id") @db.Uuid
+  userId            String?                    @map("user_id") @db.Uuid
+  deviceTokenId     String?                    @map("device_token_id") @db.Uuid
+  channel           NotificationChannel
+  provider          String
+  status            NotificationDeliveryStatus @default(PENDING)
+  providerMessageId String?                    @map("provider_message_id")
+  attemptCount      Int                        @default(0) @map("attempt_count")
+  lastAttemptAt     DateTime?                  @map("last_attempt_at")
+  failureReason     String?                    @map("failure_reason")
+  metadata          Json?
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+  notification      Notification               @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user              User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  deviceToken       DeviceToken?               @relation(fields: [deviceTokenId], references: [id], onDelete: SetNull)
+
+  @@index([notificationId])
+  @@index([userId])
+  @@index([deviceTokenId])
+  @@index([status])
+  @@map("notification_delivery_logs")
+}
+
+model Announcement {
+  id              String                     @id @default(uuid()) @db.Uuid
+  title           String
+  body            String
+  category        AnnouncementCategory       @default(GENERAL)
+  priority        NotificationPriority       @default(NORMAL)
+  targetAudience  AnnouncementTargetAudience @map("target_audience")
+  targetCityId    String?                    @map("target_city_id") @db.Uuid
+  targetLodgeId   String?                    @map("target_lodge_id") @db.Uuid
+  startsAt        DateTime?                  @map("starts_at")
+  expiresAt       DateTime?                  @map("expires_at")
+  createdByUserId String                     @map("created_by_user_id") @db.Uuid
+  isActive        Boolean                    @default(true) @map("is_active")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  deletedAt       DateTime?                  @map("deleted_at")
+  createdBy       User                       @relation("CreatedAnnouncements", fields: [createdByUserId], references: [id])
+  targetCity      City?                      @relation(fields: [targetCityId], references: [id], onDelete: SetNull)
+  targetLodge     Lodge?                     @relation(fields: [targetLodgeId], references: [id], onDelete: SetNull)
+  reads           AnnouncementRead[]
+
+  @@index([targetAudience])
+  @@index([targetCityId])
+  @@index([targetLodgeId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String       @id @default(uuid()) @db.Uuid
+  announcementId String       @map("announcement_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  readAt         DateTime     @map("read_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId])
+  @@map("announcement_reads")
+}
+
+model NotificationPreference {
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  notificationType NotificationType @map("notification_type")
+  pushEnabled      Boolean          @default(true) @map("push_enabled")
+  inAppEnabled     Boolean          @default(true) @map("in_app_enabled")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationType])
+  @@map("notification_preferences")
+}
+
 model OtpRequest {
   id          String     @id @default(uuid()) @db.Uuid
   phoneNumber String     @map("phone_number")
@@ -866,16 +1065,17 @@ model UserSession {
 }
 
 model DeviceToken {
-  id        String         @id @default(uuid()) @db.Uuid
-  userId    String         @map("user_id") @db.Uuid
-  deviceId  String         @map("device_id")
-  fcmToken  String         @map("fcm_token")
-  platform  DevicePlatform @default(UNKNOWN)
-  appType   AppType        @map("app_type")
-  isActive  Boolean        @default(true) @map("is_active")
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String                    @id @default(uuid()) @db.Uuid
+  userId       String                    @map("user_id") @db.Uuid
+  deviceId     String                    @map("device_id")
+  fcmToken     String                    @map("fcm_token")
+  platform     DevicePlatform            @default(UNKNOWN)
+  appType      AppType                   @map("app_type")
+  isActive     Boolean                   @default(true) @map("is_active")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+  user         User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveryLogs NotificationDeliveryLog[]
 
   @@unique([userId, deviceId, appType])
   @@index([fcmToken])

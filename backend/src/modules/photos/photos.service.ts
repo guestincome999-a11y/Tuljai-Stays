@@ -3,6 +3,7 @@ import type { AuthenticatedUser, LodgePhoto } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { CreateLodgePhotoDto, RejectPhotoDto } from './dto/photo.dto';
@@ -12,6 +13,7 @@ export class PhotosService {
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly lodgeAccessService: LodgeAccessService,
+    private readonly notificationEventsService: NotificationEventsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -41,7 +43,6 @@ export class PhotosService {
       entityType: 'lodge_photo',
       metadata: { lodgeId },
     });
-
     return this.toPhoto(photo);
   }
 
@@ -73,6 +74,7 @@ export class PhotosService {
       entityId: id,
       entityType: 'lodge_photo',
     });
+    await this.notificationEventsService.photoReviewed(photo.lodgeId, id, true);
 
     return this.toPhoto(photo);
   }
@@ -94,6 +96,7 @@ export class PhotosService {
       entityType: 'lodge_photo',
       metadata: { rejectionReason: dto.rejectionReason },
     });
+    await this.notificationEventsService.photoReviewed(photo.lodgeId, id, false);
 
     return this.toPhoto(photo);
   }

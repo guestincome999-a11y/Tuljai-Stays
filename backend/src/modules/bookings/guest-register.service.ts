@@ -9,6 +9,7 @@ import { normalizePagination } from '@tuljai/utils';
 
 import { Prisma } from '../../../generated/prisma';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { BookingHistoryService } from './booking-history.service';
@@ -38,6 +39,7 @@ export class GuestRegisterService {
   public constructor(
     private readonly bookingHistoryService: BookingHistoryService,
     private readonly lodgeAccessService: LodgeAccessService,
+    private readonly notificationEventsService: NotificationEventsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -234,6 +236,7 @@ export class GuestRegisterService {
       return { booking, register };
     });
     await this.createRegisterAuditLog(id, user.id, 'CHECKOUT_MARKED');
+    await this.notificationEventsService.checkoutCompleted(existing.bookingId, existing.lodgeId);
 
     return {
       booking: this.toBooking(result.booking),

@@ -20,6 +20,7 @@ import { normalizePagination } from '@tuljai/utils';
 import { BookingStatus, Prisma } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { BookingAvailabilityService } from './booking-availability.service';
@@ -61,6 +62,7 @@ export class BookingsService {
     private readonly bookingHistoryService: BookingHistoryService,
     private readonly configService: ConfigService,
     private readonly lodgeAccessService: LodgeAccessService,
+    private readonly notificationEventsService: NotificationEventsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -167,6 +169,7 @@ export class BookingsService {
       entityId: booking.id,
       entityType: 'booking',
     });
+    await this.notificationEventsService.bookingCreated(booking.id);
 
     return this.toBooking(booking);
   }
@@ -322,6 +325,7 @@ export class BookingsService {
       entityId: id,
       entityType: 'booking',
     });
+    await this.notificationEventsService.bookingAccepted(id);
 
     return this.toBooking(booking);
   }
@@ -361,6 +365,7 @@ export class BookingsService {
       entityId: id,
       entityType: 'booking',
     });
+    await this.notificationEventsService.bookingRejected(id);
 
     return this.toBooking(booking);
   }
@@ -475,6 +480,7 @@ export class BookingsService {
         fromStatus: booking.status,
         toStatus: 'EXPIRED',
       });
+      await this.notificationEventsService.bookingExpired(booking.id);
     }
 
     return expiredBookings.length;

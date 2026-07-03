@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { LodgesModule } from '../lodges/lodges.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingHistoryService } from './booking-history.service';
@@ -12,7 +13,7 @@ import { GuestRegisterService } from './guest-register.service';
 import { QrCheckinService } from './qr-checkin.service';
 
 @Module({
-  imports: [LodgesModule],
+  imports: [LodgesModule, NotificationsModule],
   controllers: [BookingsController],
   providers: [
     BookingAvailabilityService,

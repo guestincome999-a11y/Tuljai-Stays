@@ -13,6 +13,7 @@ import type { AuthenticatedUser, CheckInResponse, QrPayload, QrTokenMetadata } f
 import { Prisma, QrScanResult as PrismaQrScanResult } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { BookingsService } from './bookings.service';
@@ -41,6 +42,7 @@ export class QrCheckinService {
     private readonly configService: ConfigService,
     private readonly guestRegisterService: GuestRegisterService,
     private readonly lodgeAccessService: LodgeAccessService,
+    private readonly notificationEventsService: NotificationEventsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -113,6 +115,7 @@ export class QrCheckinService {
       entityType: 'booking',
       metadata: { qrTokenId: qrToken.id },
     });
+    await this.notificationEventsService.qrGenerated(bookingId);
 
     return {
       bookingCode: booking.bookingCode,
@@ -177,6 +180,7 @@ export class QrCheckinService {
 
     if (!qrToken) {
       await this.logScanFailure('INVALID', 'QR token is invalid', user, context, dto.bookingId);
+      this.notificationEventsService.qrScanFailed(user.id, dto.bookingId);
       throw new BadRequestException('Invalid QR token');
     }
 
@@ -190,6 +194,7 @@ export class QrCheckinService {
         qrToken.id,
         qrToken.booking.lodgeId,
       );
+      this.notificationEventsService.qrScanFailed(user.id, dto.bookingId);
       throw new BadRequestException('Invalid QR token');
     }
 
@@ -203,6 +208,7 @@ export class QrCheckinService {
         qrToken.id,
         qrToken.booking.lodgeId,
       );
+      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
       throw new ConflictException('QR token has already been used');
     }
 
@@ -216,6 +222,7 @@ export class QrCheckinService {
         qrToken.id,
         qrToken.booking.lodgeId,
       );
+      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
       throw new BadRequestException('QR token is not active');
     }
 
@@ -233,6 +240,7 @@ export class QrCheckinService {
         qrToken.id,
         qrToken.booking.lodgeId,
       );
+      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
       throw new BadRequestException('QR token has expired');
     }
 
@@ -248,6 +256,7 @@ export class QrCheckinService {
         qrToken.id,
         qrToken.booking.lodgeId,
       );
+      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
       throw new ForbiddenException('You cannot scan this QR code');
     }
 
@@ -261,6 +270,7 @@ export class QrCheckinService {
         qrToken.id,
         qrToken.booking.lodgeId,
       );
+      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
       throw new BadRequestException('Booking is not ready for QR check-in');
     }
 
@@ -274,6 +284,7 @@ export class QrCheckinService {
         qrToken.id,
         qrToken.booking.lodgeId,
       );
+      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
       throw new BadRequestException('Booking has no assigned room');
     }
 
@@ -351,6 +362,10 @@ export class QrCheckinService {
       booking: updatedBooking,
       qrTokenId: qrToken.id,
     });
+    await this.notificationEventsService.checkinCompleted(
+      qrToken.bookingId,
+      qrToken.booking.lodgeId,
+    );
 
     return {
       booking: await this.bookingsService.getOwnerUnlockedBookingView(qrToken.bookingId, user),

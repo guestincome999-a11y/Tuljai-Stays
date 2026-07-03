@@ -341,6 +341,12 @@ export class AuthService {
     dto: RegisterDeviceTokenDto,
   ): Promise<{ success: true }> {
     await this.saveDeviceToken(userId, dto);
+    await this.createAuditLog({
+      action: 'DEVICE_TOKEN_REGISTERED',
+      actorUserId: userId,
+      entityType: 'device_token',
+      metadata: { appType: dto.appType, deviceId: dto.deviceId, platform: dto.platform },
+    });
 
     return { success: true };
   }
