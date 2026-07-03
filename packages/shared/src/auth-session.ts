@@ -1,11 +1,20 @@
-import type { AuthenticatedUser, AuthTokens } from '@tuljai/types';
+import type { AuthTokens, AuthUserProfile, UserSession } from '@tuljai/types';
 
 export interface AuthSession {
-  user: AuthenticatedUser | null;
+  activeSession: UserSession | null;
   tokens: AuthTokens | null;
+  user: AuthUserProfile | null;
 }
 
 export const emptyAuthSession: AuthSession = {
-  user: null,
+  activeSession: null,
   tokens: null,
+  user: null,
 };
+
+export interface TokenStorage {
+  clear(): Promise<void>;
+  getAccessToken(): Promise<string | null>;
+  getRefreshToken(): Promise<string | null>;
+  setTokens(tokens: AuthTokens): Promise<void>;
+}

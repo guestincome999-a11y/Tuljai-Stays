@@ -6,3 +6,4 @@ build
 coverage
 backend/generated
 package-lock.json
+apps/admin-panel/next-env.d.ts

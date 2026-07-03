@@ -61,3 +61,5 @@ This repository is initialized as a TypeScript monorepo with separate applicatio
 ## Documentation
 
 Start with [docs/architecture.md](docs/architecture.md) and [docs/setup.md](docs/setup.md).
+
+Authentication foundation details are documented in [docs/auth-foundation.md](docs/auth-foundation.md).

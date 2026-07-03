@@ -10,6 +10,7 @@
 - Material Design 3 theme primitives.
 - Axios API client foundation.
 - Authentication session and RBAC primitives.
+- OTP request, OTP verification, JWT issuing, refresh token, session, and device token foundations.
 - Shared logging and application error utilities.
 - Centralized backend error response filter.
 - Prisma database foundation.

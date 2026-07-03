@@ -25,6 +25,30 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   JWT_REFRESH_TOKEN_TTL?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  OTP_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  OTP_MAX_ATTEMPTS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  OTP_RATE_LIMIT_WINDOW_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  OTP_RATE_LIMIT_MAX_REQUESTS?: number;
+
+  @IsOptional()
+  @IsString()
+  ALLOW_DEV_OTP_RESPONSE?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
