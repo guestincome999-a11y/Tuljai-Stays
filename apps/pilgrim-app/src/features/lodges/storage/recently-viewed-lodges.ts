@@ -25,3 +25,7 @@ export async function listRecentlyViewedLodgeIds(): Promise<string[]> {
     return [];
   }
 }
+
+export async function clearRecentlyViewedLodges(): Promise<void> {
+  await SecureStore.deleteItemAsync(RECENTLY_VIEWED_LODGES_KEY);
+}

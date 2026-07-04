@@ -17,6 +17,7 @@ import { useAuth } from '../../../auth/auth-context';
 import { LodgeCard } from '../../lodges/components/LodgeCard';
 import { LodgeSearchBar } from '../../lodges/components/LodgeSearchBar';
 import { useHomeDiscovery } from '../../lodges/hooks/useLodgeDiscovery';
+import { useUnreadNotificationCount } from '../../notifications/hooks/useNotifications';
 
 const quickFilters = [
   { label: 'Near Temple', quick: 'near-temple' },
@@ -30,6 +31,7 @@ const quickFilters = [
 export function HomeScreen() {
   const auth = useAuth();
   const discovery = useHomeDiscovery();
+  const notifications = useUnreadNotificationCount();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const theme = useTheme();
@@ -63,11 +65,11 @@ export function HomeScreen() {
             accessibilityLabel="Notifications"
             icon="bell-outline"
             mode="contained-tonal"
-            onPress={() => undefined}
+            onPress={() => router.push('/(app)/notifications')}
           />
           <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
             <Text style={{ color: theme.colors.onPrimary }} variant="labelSmall">
-              0
+              {Math.min(notifications.unreadCount, 9)}
             </Text>
           </View>
         </View>
@@ -141,6 +143,9 @@ export function HomeScreen() {
             <Text numberOfLines={2} variant="bodyMedium">
               {discovery.data.announcements[0].body}
             </Text>
+            <Button mode="contained-tonal" onPress={() => router.push('/(app)/announcements')}>
+              View Announcements
+            </Button>
           </Card.Content>
         </Card>
       ) : null}

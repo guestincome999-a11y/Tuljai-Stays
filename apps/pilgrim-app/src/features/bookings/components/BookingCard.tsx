@@ -4,7 +4,7 @@ import { Button, Card, Text, useTheme } from 'react-native-paper';
 
 import type { EnrichedBooking } from '../api/bookings-api';
 
-import { BookingStatusChip } from './BookingStatusChip';
+import { BookingStatusChip, getBookingNextStep } from './BookingStatusChip';
 
 interface BookingCardProps {
   booking: EnrichedBooking;
@@ -30,6 +30,9 @@ export function BookingCard({ booking, onPress }: BookingCardProps) {
         <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
           {booking.booking.checkInDate} to {booking.booking.checkOutDate} ·{' '}
           {booking.booking.totalGuests} guests
+        </Text>
+        <Text variant="bodySmall">
+          {getBookingNextStep(booking.booking.status, booking.booking.rejectedReason)}
         </Text>
         <Button mode="contained-tonal" onPress={onPress}>
           View Details

@@ -3,16 +3,24 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Text, useTheme } from 'react-native-paper';
 
+import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { BookingStatusChip, getBookingNextStep } from '../components/BookingStatusChip';
-import { useBookingDetail } from '../hooks/useBookings';
+import { BookingTimeline } from '../components/BookingTimeline';
+import { QrPassCard } from '../components/QrPassCard';
+import { useBookingDetail, useBookingQr } from '../hooks/useBookings';
 
 export function BookingDetailsScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const bookingId = typeof params.id === 'string' ? params.id : null;
   const bookingDetail = useBookingDetail(bookingId);
+  const connectivity = useConnectivity();
   const router = useRouter();
   const theme = useTheme();
   const data = bookingDetail.data;
+  const qrPass = useBookingQr(
+    bookingId,
+    data?.booking.status === 'ACCEPTED' || data?.booking.status === 'QR_GENERATED',
+  );
 
   if (bookingDetail.isLoading) {
     return (
@@ -68,6 +76,28 @@ export function BookingDetailsScreen() {
         </Card.Content>
       </Card>
 
+      <Card mode="outlined" style={styles.card}>
+        <Card.Content style={styles.cardContent}>
+          <Text variant="titleMedium">Lifecycle</Text>
+          <BookingTimeline booking={data.booking} />
+        </Card.Content>
+      </Card>
+
+      <QrPassCard
+        booking={data.booking}
+        errorMessage={qrPass.errorMessage}
+        isLoading={qrPass.isLoading || qrPass.isRefreshing}
+        isOffline={connectivity.isOffline}
+        lodgeName={data.lodgeName}
+        metadata={qrPass.data}
+        onRefresh={() => {
+          void Promise.all([bookingDetail.refresh(), qrPass.refresh()]);
+        }}
+        roomTypeName={data.roomTypeName}
+      />
+
+      <CheckInReadinessCard status={data.booking.status} />
+
       <InfoCard
         rows={[
           ['Next step', getBookingNextStep(data.booking.status, data.booking.rejectedReason)],
@@ -114,6 +144,40 @@ export function BookingDetailsScreen() {
         </Button>
       </View>
     </ScrollView>
+  );
+}
+
+function CheckInReadinessCard({ status }: { status: string }) {
+  const ready = status === 'ACCEPTED' || status === 'QR_GENERATED';
+  const pending = status === 'PENDING_OWNER_APPROVAL';
+  const rejected = status === 'REJECTED';
+
+  return (
+    <Card mode="outlined" style={styles.card}>
+      <Card.Content style={styles.cardContent}>
+        <Text variant="titleMedium">Check-in Readiness</Text>
+        <Text variant="bodyMedium">
+          {ready
+            ? 'Your room is confirmed. Show this QR code at the lodge reception for faster check-in.'
+            : pending
+              ? 'Your booking request is waiting for lodge approval.'
+              : rejected
+                ? 'This booking was not accepted by the lodge. You may browse other available stays.'
+                : 'Follow the current booking status before travelling.'}
+        </Text>
+        {[
+          'Booking accepted',
+          'QR pass ready',
+          'Carry valid ID if required by lodge',
+          'Reach lodge before check-in time',
+          'Show QR at reception',
+        ].map((item) => (
+          <Text key={item} variant="bodySmall">
+            {item}
+          </Text>
+        ))}
+      </Card.Content>
+    </Card>
   );
 }
 

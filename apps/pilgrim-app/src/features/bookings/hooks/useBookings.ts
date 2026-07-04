@@ -1,6 +1,7 @@
-import type { AvailabilityResponse, BookingLock } from '@tuljai/types';
+import type { AvailabilityResponse, BookingLock, QrTokenMetadata } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
+import { getBookingQrMetadata } from '../api/booking-qr-api';
 import {
   checkAvailability,
   createBooking,
@@ -174,5 +175,52 @@ export function useBookingRequestFlow() {
         setIsCreatingLock(false);
       }
     },
+  };
+}
+
+export function useBookingQr(bookingId: string | null, enabled: boolean) {
+  const [data, setData] = useState<QrTokenMetadata | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(enabled);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const load = useCallback(
+    async (refreshing = false) => {
+      if (!bookingId || !enabled) {
+        setData(null);
+        setErrorMessage(null);
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+
+      setErrorMessage(null);
+      setIsLoading(!refreshing && !data);
+      setIsRefreshing(refreshing);
+
+      try {
+        const result = await getBookingQrMetadata(bookingId);
+        setData(result);
+      } catch {
+        setData(null);
+        setErrorMessage('QR pass is not ready yet.');
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [bookingId, data, enabled],
+  );
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return {
+    data,
+    errorMessage,
+    isLoading,
+    isRefreshing,
+    refresh: () => load(true),
   };
 }
