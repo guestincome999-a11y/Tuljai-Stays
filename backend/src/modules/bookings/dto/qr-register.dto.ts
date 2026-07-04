@@ -10,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 
-import { GuestIdType, GuestRegisterStatus } from '../../../../generated/prisma';
+import { GuestIdType, GuestRegisterStatus, QrScanResult } from '../../../../generated/prisma';
 
 export class GenerateQrDto {
   @IsOptional()
@@ -102,4 +102,35 @@ export class UpdateRegisterNotesDto {
   @IsString()
   @MaxLength(1000)
   ownerNotes!: string;
+}
+
+export class QrScanLogQueryDto {
+  @IsOptional()
+  @IsString()
+  lodgeId?: string;
+
+  @IsEnum(QrScanResult)
+  @IsOptional()
+  result?: QrScanResult;
+
+  @IsDateString()
+  @IsOptional()
+  fromDate?: string;
+
+  @IsDateString()
+  @IsOptional()
+  toDate?: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  page?: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }

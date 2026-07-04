@@ -39,10 +39,14 @@ const eventNames: OwnerRealtimeEventName[] = [
   'booking:expired',
   'booking:new',
   'booking:rejected',
+  'checkin:completed',
+  'checkout:completed',
   'dashboard:update',
   'notification:new',
   'notification:unread-count',
   'owner:alert',
+  'qr:scan-failed',
+  'qr:scan-success',
   'room:availability-updated',
 ];
 

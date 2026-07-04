@@ -1,6 +1,6 @@
 import { EmptyState, radius, spacing } from '@tuljai/ui';
-import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
@@ -13,6 +13,7 @@ import {
 } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { listGuestRegisters } from '../../checkin/api/checkin-api';
 import { RejectBookingModal } from '../components/RejectBookingModal';
 import { useOwnerBookingDetail } from '../hooks/useOwnerBookingDetail';
 import { useOwnerBookingActions } from '../hooks/useOwnerBookings';
@@ -21,13 +22,43 @@ export function OwnerBookingDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const bookingId = typeof params.id === 'string' ? params.id : null;
   const detail = useOwnerBookingDetail(bookingId);
+  const router = useRouter();
   const theme = useTheme();
   const [rejectVisible, setRejectVisible] = useState(false);
+  const [registerId, setRegisterId] = useState<string | null>(null);
   const actions = useOwnerBookingActions(() => {
     void detail.refresh();
     setRejectVisible(false);
   });
   const booking = detail.data;
+
+  useEffect(() => {
+    if (!booking || !['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(booking.status)) {
+      setRegisterId(null);
+      return;
+    }
+
+    let mounted = true;
+    const bookingCode = booking.bookingCode;
+
+    async function loadRegisterId() {
+      const response = await listGuestRegisters({
+        bookingCode,
+        limit: 1,
+        page: 1,
+      }).catch(() => null);
+
+      if (mounted) {
+        setRegisterId(response?.items[0]?.id ?? null);
+      }
+    }
+
+    void loadRegisterId();
+
+    return () => {
+      mounted = false;
+    };
+  }, [booking]);
 
   if (detail.isLoading) {
     return (
@@ -99,9 +130,30 @@ export function OwnerBookingDetailScreen() {
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.cardContent}>
             <Text variant="titleMedium">Privacy</Text>
-            <Text variant="bodyMedium">
-              Contact details and ID details remain hidden until QR check-in is completed.
-            </Text>
+            {['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(booking.status) ? (
+              <>
+                <Text variant="bodyMedium">Phone: {booking.guestPhone ?? 'Not provided'}</Text>
+                <Text variant="bodyMedium">
+                  Alternate: {booking.alternatePhone ?? 'Not provided'}
+                </Text>
+                <Text variant="bodyMedium">Address: {booking.guestAddress ?? 'Not provided'}</Text>
+                <Text variant="bodyMedium">Guest ID details are available in Guest Register.</Text>
+                {registerId ? (
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() =>
+                      router.push({ pathname: '/(app)/register/[id]', params: { id: registerId } })
+                    }
+                  >
+                    Open Guest Register
+                  </Button>
+                ) : null}
+              </>
+            ) : (
+              <Text variant="bodyMedium">
+                Contact details and ID details remain hidden until QR check-in is completed.
+              </Text>
+            )}
           </Card.Content>
         </Card>
 

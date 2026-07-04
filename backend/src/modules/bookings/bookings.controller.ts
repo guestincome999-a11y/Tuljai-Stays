@@ -22,6 +22,7 @@ import {
 import {
   GenerateQrDto,
   MarkIdVerifiedDto,
+  QrScanLogQueryDto,
   RegisterQueryDto,
   ScanQrDto,
   UpdateRegisterNotesDto,
@@ -191,6 +192,16 @@ export class BookingsController {
       query.checkInDate,
       query.checkOutDate,
     );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Get('owner/qr-scans')
+  public listOwnerQrScans(
+    @Query() query: QrScanLogQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.qrCheckinService.listOwnerScanLogs(query, user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

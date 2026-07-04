@@ -7,10 +7,14 @@ export type OwnerRealtimeEventName = Extract<
   | 'booking:expired'
   | 'booking:new'
   | 'booking:rejected'
+  | 'checkin:completed'
+  | 'checkout:completed'
   | 'dashboard:update'
   | 'notification:new'
   | 'notification:unread-count'
   | 'owner:alert'
+  | 'qr:scan-failed'
+  | 'qr:scan-success'
   | 'room:availability-updated'
 >;
 
@@ -41,6 +45,14 @@ export function getRealtimeMessage(event: OwnerRealtimeEvent): string | null {
 
   if (event.name === 'notification:new') {
     return 'New notification received.';
+  }
+
+  if (event.name === 'checkin:completed' || event.name === 'qr:scan-success') {
+    return 'Guest check-in completed.';
+  }
+
+  if (event.name === 'checkout:completed') {
+    return 'Guest checkout completed.';
   }
 
   if (event.name === 'announcement:new') {

@@ -221,3 +221,14 @@ export interface CheckoutResponse {
   booking: Booking;
   register: GuestRegister;
 }
+
+export interface QrScanLogEntry {
+  bookingCode: string | null;
+  bookingId: UUID | null;
+  createdAt: ISODateTime;
+  failureReason: string | null;
+  guestName: string | null;
+  id: UUID;
+  lodgeId: UUID | null;
+  result: QrScanResult;
+}

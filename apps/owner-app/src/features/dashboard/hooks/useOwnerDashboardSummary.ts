@@ -88,6 +88,8 @@ export function useOwnerDashboardSummary() {
       eventName === 'booking:accepted' ||
       eventName === 'booking:rejected' ||
       eventName === 'booking:expired' ||
+      eventName === 'checkin:completed' ||
+      eventName === 'checkout:completed' ||
       eventName === 'room:availability-updated' ||
       eventName === 'dashboard:update' ||
       eventName === 'notification:new' ||

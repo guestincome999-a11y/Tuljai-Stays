@@ -31,6 +31,8 @@ export default function AppLayout() {
         <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
         <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
         <Tabs.Screen name="scan" options={{ title: 'Scan QR' }} />
+        <Tabs.Screen name="scan-history" options={{ href: null, title: 'Scan History' }} />
+        <Tabs.Screen name="register" options={{ href: null, title: 'Guest Register' }} />
         <Tabs.Screen name="rooms" options={{ title: 'Rooms' }} />
         <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       </Tabs>

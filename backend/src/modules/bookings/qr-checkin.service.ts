@@ -13,7 +13,10 @@ import type {
   CheckInResponse,
   QrDisplayPayload,
   QrPayload,
+  QrScanLogEntry,
+  PaginatedResponse,
 } from '@tuljai/types';
+import { normalizePagination } from '@tuljai/utils';
 
 import { Prisma, QrScanResult as PrismaQrScanResult } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
@@ -22,7 +25,7 @@ import { NotificationEventsService } from '../notifications/notification-events.
 import { PrismaService } from '../prisma/prisma.service';
 
 import { BookingsService } from './bookings.service';
-import type { GenerateQrDto, ScanQrDto } from './dto/qr-register.dto';
+import type { GenerateQrDto, QrScanLogQueryDto, ScanQrDto } from './dto/qr-register.dto';
 import { GuestRegisterService } from './guest-register.service';
 
 interface ScanContext {
@@ -395,6 +398,69 @@ export class QrCheckinService {
       booking: await this.bookingsService.getOwnerUnlockedBookingView(qrToken.bookingId, user),
       register,
       scanResult: 'SUCCESS',
+    };
+  }
+
+  public async listOwnerScanLogs(
+    query: QrScanLogQueryDto,
+    user: AuthenticatedUser,
+  ): Promise<PaginatedResponse<QrScanLogEntry>> {
+    if (query.lodgeId) {
+      await this.lodgeAccessService.assertCanManageLodge(user, query.lodgeId);
+    }
+
+    const pagination = normalizePagination(query.page, query.limit);
+    const where: Prisma.QrScanLogWhereInput = {
+      ...(query.lodgeId ? { lodgeId: query.lodgeId } : {}),
+      ...(query.result ? { result: query.result } : {}),
+      ...(query.fromDate || query.toDate
+        ? {
+            createdAt: {
+              gte: query.fromDate ? new Date(query.fromDate) : undefined,
+              lte: query.toDate ? new Date(query.toDate) : undefined,
+            },
+          }
+        : {}),
+      ...(this.lodgeAccessService.isAdmin(user)
+        ? {}
+        : {
+            lodge: {
+              owners: {
+                some: {
+                  deletedAt: null,
+                  isActive: true,
+                  userId: user.id,
+                },
+              },
+            },
+          }),
+    };
+    const [items, totalItems] = await this.prisma.$transaction([
+      this.prisma.qrScanLog.findMany({
+        include: { booking: true },
+        orderBy: { createdAt: 'desc' },
+        skip: pagination.skip,
+        take: pagination.take,
+        where,
+      }),
+      this.prisma.qrScanLog.count({ where }),
+    ]);
+
+    return {
+      items: items.map((item) => ({
+        bookingCode: item.booking?.bookingCode ?? null,
+        bookingId: item.bookingId,
+        createdAt: item.createdAt.toISOString(),
+        failureReason: item.failureReason,
+        guestName: item.booking?.guestName ?? null,
+        id: item.id,
+        lodgeId: item.lodgeId,
+        result: item.result,
+      })),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems,
+      totalPages: Math.ceil(totalItems / pagination.pageSize),
     };
   }
 

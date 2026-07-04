@@ -10,11 +10,13 @@ import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { useOwnerDashboardSummary } from '../hooks/useOwnerDashboardSummary';
+import { useReceptionSnapshot } from '../hooks/useReceptionSnapshot';
 
 export function DashboardScreen() {
   const auth = useAuth();
   const assignedLodges = useAssignedLodges();
   const dashboard = useOwnerDashboardSummary();
+  const reception = useReceptionSnapshot();
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
   const router = useRouter();
@@ -56,8 +58,9 @@ export function DashboardScreen() {
           onRefresh={() => {
             void assignedLodges.refresh();
             void dashboard.refresh();
+            void reception.refresh();
           }}
-          refreshing={assignedLodges.isRefreshing || dashboard.isRefreshing}
+          refreshing={assignedLodges.isRefreshing || dashboard.isRefreshing || reception.isLoading}
           tintColor={theme.colors.primary}
         />
       }
@@ -166,6 +169,15 @@ export function DashboardScreen() {
         ))}
       </View>
 
+      <Card mode="outlined" style={styles.card}>
+        <Card.Content style={styles.cardContent}>
+          <Text variant="titleMedium">Reception Snapshot</Text>
+          <ReceptionRows title="Today's Check-ins" registers={reception.todayCheckIns} />
+          <ReceptionRows title="Today's Check-outs" registers={reception.todayCheckOuts} />
+          <ReceptionRows title="Upcoming Check-outs" registers={reception.upcomingCheckOuts} />
+        </Card.Content>
+      </Card>
+
       <View style={styles.actions}>
         <Button
           icon="clipboard-list-outline"
@@ -193,6 +205,36 @@ export function DashboardScreen() {
         </Button>
       </View>
     </ScrollView>
+  );
+}
+
+function ReceptionRows({
+  registers,
+  title,
+}: {
+  registers: Array<{
+    expectedCheckoutAt: string | null;
+    primaryGuestName: string;
+    roomNumber: string | null;
+  }>;
+  title: string;
+}) {
+  return (
+    <View style={styles.receptionBlock}>
+      <Text variant="titleSmall">{title}</Text>
+      {registers.length === 0 ? <Text variant="bodySmall">No guests yet.</Text> : null}
+      {registers.map((register) => (
+        <Text
+          key={`${title}-${register.primaryGuestName}-${register.roomNumber}`}
+          variant="bodySmall"
+        >
+          {register.primaryGuestName} - Room {register.roomNumber ?? 'Assigned'} -{' '}
+          {register.expectedCheckoutAt
+            ? new Date(register.expectedCheckoutAt).toLocaleString('en-IN')
+            : 'Time not set'}
+        </Text>
+      ))}
+    </View>
   );
 }
 
@@ -298,6 +340,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     width: 48,
+  },
+  receptionBlock: {
+    gap: spacing.xs,
   },
   screen: {
     flexGrow: 1,

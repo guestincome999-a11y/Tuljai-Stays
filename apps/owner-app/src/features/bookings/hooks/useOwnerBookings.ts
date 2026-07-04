@@ -93,6 +93,8 @@ export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) 
       eventName === 'booking:accepted' ||
       eventName === 'booking:rejected' ||
       eventName === 'booking:expired' ||
+      eventName === 'checkin:completed' ||
+      eventName === 'checkout:completed' ||
       eventName === 'room:availability-updated'
     ) {
       const timeout = setTimeout(
