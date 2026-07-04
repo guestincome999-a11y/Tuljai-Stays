@@ -37,10 +37,29 @@ Terminal statuses are shown safely:
 ## QR Pass Behavior
 
 - The app calls `GET /api/bookings/:id/qr` for accepted or QR-generated bookings.
-- If active QR metadata is returned, the booking detail shows QR-ready state, booking summary, guest name, and expiry.
-- The current backend endpoint returns QR metadata only and does not expose the raw QR token because tokens are stored as hashes.
-- The app does not fake a scannable QR and does not display raw token text.
+- If an active QR display payload is returned, the booking detail renders a scannable QR, booking summary, guest name, and expiry.
+- The backend stores QR token hashes internally and returns a short-lived signed payload for display.
+- The app does not display the raw QR payload as text.
 - Refresh is disabled while offline.
+
+## QR Payload Security Model
+
+The pilgrim QR payload is an opaque signed envelope:
+
+```text
+tjsqr.v1.<base64url-body>.<hmac-signature>
+```
+
+The body contains only safe references:
+
+- `bookingId`
+- `bookingCode`
+- `qrTokenId`
+- `expiresAt`
+- `tokenVersion`
+- `version`
+
+It excludes guest phone number, address, government ID details, owner details, token hash, and database secrets. The owner scan flow posts the scanned payload to `POST /api/qr/scan`; the backend verifies the signature, token reference, active status, expiry, usage state, booking status, and lodge access before check-in.
 
 ## Notifications
 
@@ -82,7 +101,6 @@ Profile now shows:
 
 ## Known Limitations
 
-- The QR pass cannot render a valid scannable QR until the backend exposes a pilgrim-safe QR payload or another secure handoff mechanism.
 - Notification and announcement lists are foundational and do not include push registration or Socket.IO live updates yet.
 - Cached booking persistence is in-memory for this sequence.
 

@@ -162,6 +162,15 @@ export interface QrTokenMetadata {
   usedAt: ISODateTime | null;
 }
 
+export interface QrDisplayPayload {
+  bookingCode: string;
+  bookingId: UUID;
+  expiresAt: ISODateTime;
+  qrPayload: string;
+  status: QrTokenStatus;
+  tokenVersion: number;
+}
+
 export interface GuestIdDocument {
   documentHolderName: string | null;
   documentNumber: string;

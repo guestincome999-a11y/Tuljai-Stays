@@ -1,8 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { Booking, QrTokenMetadata } from '@tuljai/types';
+import type { Booking, QrDisplayPayload } from '@tuljai/types';
 import { radius, spacing } from '@tuljai/ui';
 import { StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Text, useTheme } from 'react-native-paper';
+import QRCode from 'react-native-qrcode-svg';
 
 interface QrPassCardProps {
   booking: Booking;
@@ -10,7 +10,7 @@ interface QrPassCardProps {
   isLoading: boolean;
   isOffline: boolean;
   lodgeName: string;
-  metadata: QrTokenMetadata | null;
+  metadata: QrDisplayPayload | null;
   onRefresh: () => void;
   roomTypeName: string;
 }
@@ -50,14 +50,18 @@ export function QrPassCard({
         {metadata?.status === 'ACTIVE' ? (
           <View style={styles.qrShell}>
             <View style={[styles.qrPlaceholder, { backgroundColor: theme.colors.surface }]}>
-              <MaterialCommunityIcons color={theme.colors.primary} name="qrcode-scan" size={96} />
+              <QRCode
+                backgroundColor={theme.colors.surface}
+                color={theme.colors.onSurface}
+                size={220}
+                value={metadata.qrPayload}
+              />
             </View>
             <Text style={styles.centerText} variant="titleMedium">
               QR pass is ready
             </Text>
             <Text style={styles.centerText} variant="bodyMedium">
-              Show this pass at the lodge reception. Reconnect before check-in if the QR does not
-              appear.
+              Show this QR at the lodge reception for faster check-in.
             </Text>
           </View>
         ) : (
@@ -136,7 +140,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: radius.sm,
     justifyContent: 'center',
-    width: '72%',
+    width: 260,
   },
   qrShell: {
     alignItems: 'center',

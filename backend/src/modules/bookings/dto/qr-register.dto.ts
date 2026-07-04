@@ -21,8 +21,13 @@ export class GenerateQrDto {
 }
 
 export class ScanQrDto {
+  @IsOptional()
   @IsString()
-  token!: string;
+  token?: string;
+
+  @IsOptional()
+  @IsString()
+  qrPayload?: string;
 
   @IsOptional()
   @IsString()

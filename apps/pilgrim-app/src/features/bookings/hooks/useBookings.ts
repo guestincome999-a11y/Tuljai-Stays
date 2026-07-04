@@ -1,4 +1,4 @@
-import type { AvailabilityResponse, BookingLock, QrTokenMetadata } from '@tuljai/types';
+import type { AvailabilityResponse, BookingLock, QrDisplayPayload } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
 import { getBookingQrMetadata } from '../api/booking-qr-api';
@@ -179,7 +179,7 @@ export function useBookingRequestFlow() {
 }
 
 export function useBookingQr(bookingId: string | null, enabled: boolean) {
-  const [data, setData] = useState<QrTokenMetadata | null>(null);
+  const [data, setData] = useState<QrDisplayPayload | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(enabled);
   const [isRefreshing, setIsRefreshing] = useState(false);

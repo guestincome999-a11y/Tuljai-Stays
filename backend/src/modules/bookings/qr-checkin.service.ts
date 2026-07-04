@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import {
   BadRequestException,
@@ -8,7 +8,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { AuthenticatedUser, CheckInResponse, QrPayload, QrTokenMetadata } from '@tuljai/types';
+import type {
+  AuthenticatedUser,
+  CheckInResponse,
+  QrDisplayPayload,
+  QrPayload,
+} from '@tuljai/types';
 
 import { Prisma, QrScanResult as PrismaQrScanResult } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
@@ -25,6 +30,27 @@ interface ScanContext {
   ipAddress?: string;
   userAgent?: string;
 }
+
+interface SignedQrPayloadBody {
+  bookingCode: string;
+  bookingId: string;
+  expiresAt: string;
+  qrTokenId: string;
+  tokenVersion: number;
+  version: 1;
+}
+
+type QrTokenWithBooking = Prisma.BookingQrTokenGetPayload<{
+  include: {
+    booking: {
+      include: {
+        lodge: true;
+        room: true;
+        roomType: true;
+      };
+    };
+  };
+}>;
 
 type BookingForQr = Prisma.BookingGetPayload<{
   include: {
@@ -126,11 +152,14 @@ export class QrCheckinService {
     };
   }
 
-  public async getQrMetadata(bookingId: string, user: AuthenticatedUser): Promise<QrTokenMetadata> {
+  public async getQrMetadata(
+    bookingId: string,
+    user: AuthenticatedUser,
+  ): Promise<QrDisplayPayload> {
     const booking = await this.findBookingForQrOrThrow(bookingId);
 
-    if (booking.pilgrimUserId !== user.id && !this.lodgeAccessService.isAdmin(user)) {
-      throw new ForbiddenException('Only the pilgrim or admin can view QR metadata');
+    if (booking.pilgrimUserId !== user.id) {
+      throw new ForbiddenException('Only the pilgrim can view QR display payload');
     }
 
     if (!['ACCEPTED', 'QR_GENERATED'].includes(booking.status)) {
@@ -150,12 +179,19 @@ export class QrCheckinService {
     }
 
     return {
+      bookingCode: booking.bookingCode,
       bookingId,
       expiresAt: qrToken.expiresAt.toISOString(),
-      id: qrToken.id,
+      qrPayload: this.signQrDisplayPayload({
+        bookingCode: booking.bookingCode,
+        bookingId,
+        expiresAt: qrToken.expiresAt.toISOString(),
+        qrTokenId: qrToken.id,
+        tokenVersion: qrToken.tokenVersion,
+        version: 1,
+      }),
       status: qrToken.status,
       tokenVersion: qrToken.tokenVersion,
-      usedAt: qrToken.usedAt?.toISOString() ?? null,
     };
   }
 
@@ -164,19 +200,7 @@ export class QrCheckinService {
     user: AuthenticatedUser,
     context: ScanContext,
   ): Promise<CheckInResponse> {
-    const tokenHash = this.hashToken(dto.token);
-    const qrToken = await this.prisma.bookingQrToken.findUnique({
-      include: {
-        booking: {
-          include: {
-            lodge: true,
-            room: true,
-            roomType: true,
-          },
-        },
-      },
-      where: { tokenHash },
-    });
+    const qrToken = await this.resolveQrTokenFromScanDto(dto);
 
     if (!qrToken) {
       await this.logScanFailure('INVALID', 'QR token is invalid', user, context, dto.bookingId);
@@ -408,6 +432,123 @@ export class QrCheckinService {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async resolveQrTokenFromScanDto(dto: ScanQrDto): Promise<QrTokenWithBooking | null> {
+    if (dto.qrPayload) {
+      const payloadBody = this.verifyQrDisplayPayload(dto.qrPayload);
+
+      if (!payloadBody) {
+        return null;
+      }
+
+      if (dto.bookingId && dto.bookingId !== payloadBody.bookingId) {
+        return null;
+      }
+
+      return this.prisma.bookingQrToken.findFirst({
+        include: {
+          booking: {
+            include: {
+              lodge: true,
+              room: true,
+              roomType: true,
+            },
+          },
+        },
+        where: {
+          bookingId: payloadBody.bookingId,
+          id: payloadBody.qrTokenId,
+          tokenVersion: payloadBody.tokenVersion,
+        },
+      });
+    }
+
+    if (!dto.token) {
+      return null;
+    }
+
+    return this.prisma.bookingQrToken.findUnique({
+      include: {
+        booking: {
+          include: {
+            lodge: true,
+            room: true,
+            roomType: true,
+          },
+        },
+      },
+      where: { tokenHash: this.hashToken(dto.token) },
+    });
+  }
+
+  private signQrDisplayPayload(body: SignedQrPayloadBody): string {
+    const encodedBody = Buffer.from(JSON.stringify(body), 'utf8').toString('base64url');
+    const signature = this.signEncodedQrBody(encodedBody);
+
+    return `tjsqr.v1.${encodedBody}.${signature}`;
+  }
+
+  private verifyQrDisplayPayload(qrPayload: string): SignedQrPayloadBody | null {
+    const [prefix, version, encodedBody, signature] = qrPayload.split('.');
+
+    if (prefix !== 'tjsqr' || version !== 'v1' || !encodedBody || !signature) {
+      return null;
+    }
+
+    const expectedSignature = this.signEncodedQrBody(encodedBody);
+
+    if (!this.safeEqual(signature, expectedSignature)) {
+      return null;
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(Buffer.from(encodedBody, 'base64url').toString('utf8'));
+
+      if (!this.isSignedQrPayloadBody(parsed)) {
+        return null;
+      }
+
+      if (new Date(parsed.expiresAt).getTime() <= Date.now()) {
+        return null;
+      }
+
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private signEncodedQrBody(encodedBody: string): string {
+    return createHmac('sha256', this.getQrPayloadSecret()).update(encodedBody).digest('base64url');
+  }
+
+  private getQrPayloadSecret(): string {
+    return this.configService.getOrThrow<string>('api.jwt.accessSecret');
+  }
+
+  private safeEqual(left: string, right: string): boolean {
+    const leftBuffer = Buffer.from(left);
+    const rightBuffer = Buffer.from(right);
+
+    return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+  }
+
+  private isSignedQrPayloadBody(value: unknown): value is SignedQrPayloadBody {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    const payload = value as Record<string, unknown>;
+
+    return (
+      payload.version === 1 &&
+      typeof payload.bookingId === 'string' &&
+      typeof payload.bookingCode === 'string' &&
+      typeof payload.qrTokenId === 'string' &&
+      typeof payload.expiresAt === 'string' &&
+      typeof payload.tokenVersion === 'number'
+    );
   }
 
   private async logScanFailure(
