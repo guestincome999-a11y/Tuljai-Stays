@@ -2,15 +2,17 @@
   "expo": {
     "name": "Tuljai Stays Owner",
     "slug": "tuljai-stays-owner",
-    "scheme": "tuljai-stays-owner",
+    "scheme": "tuljaistays-owner",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": ["**/*"],
     "ios": {
+      "bundleIdentifier": "com.tuljaistays.owner",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.tuljaistays.owner",
       "adaptiveIcon": {
         "backgroundColor": "#FFFBFE"
       }
