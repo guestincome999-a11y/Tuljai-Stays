@@ -1,11 +1,59 @@
 import { emptyAuthSession, type AuthSession } from '@tuljai/shared';
+import * as SecureStore from 'expo-secure-store';
 
-let session: AuthSession = emptyAuthSession;
+import { secureTokenStore } from './secure-token-store';
 
-export function getAuthSession(): AuthSession {
-  return session;
+const SESSION_KEY = 'tuljai.pilgrim.authSession';
+
+let cachedSession: AuthSession = emptyAuthSession;
+
+async function isSecureStoreAvailable(): Promise<boolean> {
+  return SecureStore.isAvailableAsync();
 }
 
-export function setAuthSession(nextSession: AuthSession): void {
-  session = nextSession;
+export async function restoreAuthSession(): Promise<AuthSession> {
+  if (!(await isSecureStoreAvailable())) {
+    cachedSession = emptyAuthSession;
+    return cachedSession;
+  }
+
+  const storedSession = await SecureStore.getItemAsync(SESSION_KEY);
+
+  if (!storedSession) {
+    cachedSession = emptyAuthSession;
+    return cachedSession;
+  }
+
+  try {
+    cachedSession = JSON.parse(storedSession) as AuthSession;
+    return cachedSession;
+  } catch {
+    await clearAuthSession();
+    return emptyAuthSession;
+  }
+}
+
+export function getAuthSession(): AuthSession {
+  return cachedSession;
+}
+
+export async function saveAuthSession(nextSession: AuthSession): Promise<void> {
+  cachedSession = nextSession;
+
+  if (nextSession.tokens) {
+    await secureTokenStore.setTokens(nextSession.tokens);
+  }
+
+  if (await isSecureStoreAvailable()) {
+    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(nextSession));
+  }
+}
+
+export async function clearAuthSession(): Promise<void> {
+  cachedSession = emptyAuthSession;
+  await secureTokenStore.clear();
+
+  if (await isSecureStoreAvailable()) {
+    await SecureStore.deleteItemAsync(SESSION_KEY);
+  }
 }
