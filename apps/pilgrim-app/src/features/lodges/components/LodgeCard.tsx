@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { radius, spacing } from '@tuljai/ui';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
+import { ResilientImage } from '../../../components/ResilientImage';
 import type { LodgePreview } from '../types/lodge-discovery';
 
 interface LodgeCardProps {
@@ -18,7 +19,11 @@ export function LodgeCard({ lodgePreview, onPress }: LodgeCardProps) {
   return (
     <Card mode="outlined" onPress={onPress} style={styles.card}>
       {coverPhotoUrl ? (
-        <Image source={{ uri: coverPhotoUrl }} style={styles.image} />
+        <ResilientImage
+          accessibilityLabel={`${lodge.name} cover photo`}
+          sourceUrl={coverPhotoUrl}
+          style={styles.image}
+        />
       ) : (
         <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceVariant }]}>
           <MaterialCommunityIcons color={theme.colors.primary} name="home-city-outline" size={40} />
@@ -71,7 +76,12 @@ export function LodgeCard({ lodgePreview, onPress }: LodgeCardProps) {
           )}
         </View>
 
-        <Button mode="contained-tonal" onPress={onPress}>
+        <Button
+          accessibilityLabel={`View details for ${lodge.name}`}
+          accessibilityHint="Opens lodge photos, rooms, amenities, and booking options"
+          mode="contained-tonal"
+          onPress={onPress}
+        >
           View Details
         </Button>
       </Card.Content>

@@ -1,7 +1,8 @@
 import { radius, spacing } from '@tuljai/ui';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
+import { ResilientImage } from '../../../components/ResilientImage';
 import type { EnrichedBooking } from '../api/bookings-api';
 
 import { BookingStatusChip, getBookingNextStep } from './BookingStatusChip';
@@ -17,7 +18,11 @@ export function BookingCard({ booking, onPress }: BookingCardProps) {
   return (
     <Card mode="outlined" onPress={onPress} style={styles.card}>
       {booking.coverPhotoUrl ? (
-        <Image source={{ uri: booking.coverPhotoUrl }} style={styles.image} />
+        <ResilientImage
+          accessibilityLabel={`${booking.lodgeName} booking lodge image`}
+          sourceUrl={booking.coverPhotoUrl}
+          style={styles.image}
+        />
       ) : null}
       <Card.Content style={styles.content}>
         <View style={styles.header}>
@@ -41,7 +46,12 @@ export function BookingCard({ booking, onPress }: BookingCardProps) {
         <Text variant="bodySmall">
           {getBookingNextStep(booking.booking.status, booking.booking.rejectedReason)}
         </Text>
-        <Button mode="contained-tonal" onPress={onPress}>
+        <Button
+          accessibilityLabel={`Open booking ${booking.booking.bookingCode}`}
+          accessibilityHint="Opens booking status, lifecycle, QR pass, and guest details"
+          mode="contained-tonal"
+          onPress={onPress}
+        >
           {booking.booking.status === 'QR_GENERATED' ? 'View QR' : 'View Details'}
         </Button>
       </Card.Content>

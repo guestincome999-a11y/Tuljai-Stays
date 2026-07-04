@@ -3,7 +3,6 @@ import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  Image,
   Linking,
   Modal,
   RefreshControl,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
+import { ResilientImage } from '../../../components/ResilientImage';
 import { useLodgeDetails } from '../hooks/useLodgeDiscovery';
 import { saveRecentlyViewedLodge } from '../storage/recently-viewed-lodges';
 
@@ -89,7 +89,11 @@ export function LodgeDetailsScreen() {
                   onPress={() => setFullScreenPhotoUrl(photo.fileUrl)}
                   style={[styles.photoButton, { width: window.width - spacing.lg * 2 }]}
                 >
-                  <Image source={{ uri: photo.fileUrl }} style={styles.heroImage} />
+                  <ResilientImage
+                    accessibilityLabel={`${data.details.name} photo`}
+                    sourceUrl={photo.fileUrl}
+                    style={styles.heroImage}
+                  />
                 </Button>
               ))}
             </ScrollView>
@@ -247,9 +251,17 @@ export function LodgeDetailsScreen() {
       <Modal animationType="fade" visible={Boolean(fullScreenPhotoUrl)}>
         <View style={[styles.modal, { backgroundColor: theme.colors.background }]}>
           {fullScreenPhotoUrl ? (
-            <Image source={{ uri: fullScreenPhotoUrl }} style={styles.modalImage} />
+            <ResilientImage
+              accessibilityLabel={`${data.details.name} full screen photo`}
+              sourceUrl={fullScreenPhotoUrl}
+              style={styles.modalImage}
+            />
           ) : null}
-          <Button mode="contained" onPress={() => setFullScreenPhotoUrl(null)}>
+          <Button
+            accessibilityLabel="Close full screen photo"
+            mode="contained"
+            onPress={() => setFullScreenPhotoUrl(null)}
+          >
             Close
           </Button>
         </View>

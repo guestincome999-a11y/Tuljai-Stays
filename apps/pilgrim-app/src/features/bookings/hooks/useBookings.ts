@@ -14,6 +14,7 @@ import {
   type CreateBookingRequest,
   type EnrichedBooking,
 } from '../api/bookings-api';
+import { loadBookingSummaryCache, saveBookingSummaryCache } from '../storage/booking-summary-cache';
 
 interface AsyncState<TData> {
   data: TData | null;
@@ -41,10 +42,13 @@ export function useMyBookings() {
 
     try {
       const data = await listMyBookings();
+      await saveBookingSummaryCache(data).catch(() => undefined);
       setState({ data, errorMessage: null, isLoading: false, isRefreshing: false });
     } catch {
+      const cached = await loadBookingSummaryCache().catch(() => []);
       setState((current) => ({
         ...current,
+        data: current.data ?? cached,
         errorMessage: 'We could not load your bookings right now.',
         isLoading: false,
         isRefreshing: false,

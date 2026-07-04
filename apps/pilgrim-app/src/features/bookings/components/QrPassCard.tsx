@@ -122,7 +122,13 @@ export function QrPassCard({
           ) : null}
         </View>
 
-        <Button disabled={isOffline || isLoading} mode="contained-tonal" onPress={onRefresh}>
+        <Button
+          accessibilityLabel="Refresh QR pass"
+          accessibilityHint="Requests a new short lived QR pass from the server"
+          disabled={isOffline || isLoading}
+          mode="contained-tonal"
+          onPress={onRefresh}
+        >
           Refresh QR
         </Button>
       </Card.Content>
