@@ -1,6 +1,8 @@
 import type { AvailabilityResponse, BookingLock, QrDisplayPayload } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
+import { getEventBookingId } from '../../../realtime/realtime-events';
+import { useRealtime } from '../../../realtime/realtime-provider';
 import { getBookingQrMetadata } from '../api/booking-qr-api';
 import {
   checkAvailability,
@@ -21,6 +23,7 @@ interface AsyncState<TData> {
 }
 
 export function useMyBookings() {
+  const realtime = useRealtime();
   const [state, setState] = useState<AsyncState<EnrichedBooking[]>>({
     data: null,
     errorMessage: null,
@@ -53,6 +56,21 @@ export function useMyBookings() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const eventName = realtime.lastEvent?.name;
+
+    if (
+      eventName === 'booking:accepted' ||
+      eventName === 'booking:rejected' ||
+      eventName === 'booking:expired' ||
+      eventName === 'qr:generated' ||
+      eventName === 'checkin:completed' ||
+      eventName === 'checkout:completed'
+    ) {
+      void load(true);
+    }
+  }, [load, realtime.lastEvent]);
+
   return {
     ...state,
     refresh: () => load(true),
@@ -60,6 +78,7 @@ export function useMyBookings() {
 }
 
 export function useBookingDetail(bookingId: string | null) {
+  const realtime = useRealtime();
   const [state, setState] = useState<AsyncState<EnrichedBooking>>({
     data: null,
     errorMessage: null,
@@ -104,6 +123,14 @@ export function useBookingDetail(bookingId: string | null) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!bookingId || getEventBookingId(realtime.lastEvent) !== bookingId) {
+      return;
+    }
+
+    void load(true);
+  }, [bookingId, load, realtime.lastEvent]);
 
   return {
     ...state,
@@ -179,6 +206,7 @@ export function useBookingRequestFlow() {
 }
 
 export function useBookingQr(bookingId: string | null, enabled: boolean) {
+  const realtime = useRealtime();
   const [data, setData] = useState<QrDisplayPayload | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(enabled);
@@ -215,6 +243,18 @@ export function useBookingQr(bookingId: string | null, enabled: boolean) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!bookingId || realtime.lastEvent?.name !== 'qr:generated') {
+      return;
+    }
+
+    const eventBookingId = getEventBookingId(realtime.lastEvent);
+
+    if (!eventBookingId || eventBookingId === bookingId) {
+      void load(true);
+    }
+  }, [bookingId, load, realtime.lastEvent]);
 
   return {
     data,

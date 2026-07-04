@@ -2,10 +2,12 @@ import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
+import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useAnnouncements } from '../hooks/useAnnouncements';
 
 export function AnnouncementsScreen() {
   const announcements = useAnnouncements();
+  const connectivity = useConnectivity();
   const theme = useTheme();
 
   return (
@@ -63,6 +65,7 @@ export function AnnouncementsScreen() {
               </Text>
               {!announcement.readAt ? (
                 <Button
+                  disabled={connectivity.isOffline}
                   mode="contained-tonal"
                   onPress={() => {
                     void announcements.markRead(announcement.id);

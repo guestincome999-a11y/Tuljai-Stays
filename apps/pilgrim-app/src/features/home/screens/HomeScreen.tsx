@@ -14,6 +14,8 @@ import {
 } from 'react-native-paper';
 
 import { useAuth } from '../../../auth/auth-context';
+import { PushPermissionCard } from '../../../notifications/PushPermissionCard';
+import { usePublicSettings } from '../../../settings/usePublicSettings';
 import { LodgeCard } from '../../lodges/components/LodgeCard';
 import { LodgeSearchBar } from '../../lodges/components/LodgeSearchBar';
 import { useHomeDiscovery } from '../../lodges/hooks/useLodgeDiscovery';
@@ -32,6 +34,7 @@ export function HomeScreen() {
   const auth = useAuth();
   const discovery = useHomeDiscovery();
   const notifications = useUnreadNotificationCount();
+  const publicSettings = usePublicSettings();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const theme = useTheme();
@@ -86,6 +89,26 @@ export function HomeScreen() {
         }}
         value={search}
       />
+
+      <PushPermissionCard />
+
+      {publicSettings.festivalModeEnabled ? (
+        <Card mode="contained" style={styles.festivalCard}>
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.festivalHeader}>
+              <MaterialCommunityIcons
+                color={theme.colors.primary}
+                name="star-four-points"
+                size={24}
+              />
+              <Text variant="titleMedium">Festival Mode</Text>
+            </View>
+            <Text variant="bodyMedium">
+              Festival updates and important temple announcements will be highlighted here.
+            </Text>
+          </Card.Content>
+        </Card>
+      ) : null}
 
       <Card mode="contained" style={styles.heroCard}>
         <Card.Content style={styles.heroContent}>
@@ -230,6 +253,14 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.xs,
     minWidth: 0,
+  },
+  festivalCard: {
+    borderRadius: radius.sm,
+  },
+  festivalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   header: {
     alignItems: 'center',

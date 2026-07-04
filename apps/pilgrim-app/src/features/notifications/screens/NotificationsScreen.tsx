@@ -2,9 +2,11 @@ import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
+import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useNotifications } from '../hooks/useNotifications';
 
 export function NotificationsScreen() {
+  const connectivity = useConnectivity();
   const notifications = useNotifications();
   const theme = useTheme();
 
@@ -24,6 +26,7 @@ export function NotificationsScreen() {
       <View style={styles.header}>
         <Text variant="headlineSmall">Notifications</Text>
         <Button
+          disabled={connectivity.isOffline}
           mode="contained-tonal"
           onPress={() => {
             void notifications.markAllRead();
@@ -52,7 +55,11 @@ export function NotificationsScreen() {
       ) : null}
 
       {notifications.data.map((notification) => (
-        <Card key={notification.id} mode="outlined" style={styles.card}>
+        <Card
+          key={notification.id}
+          mode={notification.readAt ? 'outlined' : 'contained'}
+          style={styles.card}
+        >
           <Card.Content style={styles.content}>
             <View style={styles.cardHeader}>
               <Chip compact>{notification.type.replaceAll('_', ' ')}</Chip>
@@ -64,6 +71,7 @@ export function NotificationsScreen() {
             <Text variant="bodyMedium">{notification.body}</Text>
             {!notification.readAt ? (
               <Button
+                disabled={connectivity.isOffline}
                 mode="contained-tonal"
                 onPress={() => {
                   void notifications.markRead(notification.id);

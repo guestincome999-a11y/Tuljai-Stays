@@ -1,6 +1,7 @@
 import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback } from 'react';
+import { Linking, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Text, useTheme } from 'react-native-paper';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
@@ -17,10 +18,14 @@ export function BookingDetailsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const data = bookingDetail.data;
+  const directionsQuery = data?.directionsQuery ?? null;
   const qrPass = useBookingQr(
     bookingId,
     data?.booking.status === 'ACCEPTED' || data?.booking.status === 'QR_GENERATED',
   );
+  const refreshBookingAndQr = useCallback(() => {
+    void Promise.all([bookingDetail.refresh(), qrPass.refresh()]);
+  }, [bookingDetail, qrPass]);
 
   if (bookingDetail.isLoading) {
     return (
@@ -90,13 +95,22 @@ export function BookingDetailsScreen() {
         isOffline={connectivity.isOffline}
         lodgeName={data.lodgeName}
         metadata={qrPass.data}
-        onRefresh={() => {
-          void Promise.all([bookingDetail.refresh(), qrPass.refresh()]);
-        }}
+        onRefresh={refreshBookingAndQr}
         roomTypeName={data.roomTypeName}
       />
 
       <CheckInReadinessCard status={data.booking.status} />
+
+      {shouldShowCheckInReminder(data.booking.checkInDate, data.booking.status) ? (
+        <Card mode="contained" style={styles.card}>
+          <Card.Content style={styles.cardContent}>
+            <Text variant="titleMedium">Check-in coming soon</Text>
+            <Text variant="bodyMedium">
+              Your check-in is coming soon. Keep your QR pass and ID ready.
+            </Text>
+          </Card.Content>
+        </Card>
+      ) : null}
 
       <InfoCard
         rows={[
@@ -112,6 +126,18 @@ export function BookingDetailsScreen() {
         ]}
         title="Booking Details"
       />
+
+      {directionsQuery ? (
+        <Button
+          icon="directions"
+          mode="contained-tonal"
+          onPress={() => {
+            void openDirections(directionsQuery);
+          }}
+        >
+          Open in Google Maps
+        </Button>
+      ) : null}
 
       <InfoCard
         rows={[
@@ -145,6 +171,22 @@ export function BookingDetailsScreen() {
       </View>
     </ScrollView>
   );
+}
+
+async function openDirections(query: string): Promise<void> {
+  const encodedQuery = encodeURIComponent(`${query} Tuljapur`);
+  await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedQuery}`);
+}
+
+function shouldShowCheckInReminder(checkInDate: string, status: string): boolean {
+  if (status !== 'ACCEPTED' && status !== 'QR_GENERATED') {
+    return false;
+  }
+
+  const checkInTime = new Date(`${checkInDate}T00:00:00`).getTime();
+  const millisecondsUntilCheckIn = checkInTime - Date.now();
+
+  return millisecondsUntilCheckIn <= 86_400_000 && millisecondsUntilCheckIn > -86_400_000;
 }
 
 function CheckInReadinessCard({ status }: { status: string }) {

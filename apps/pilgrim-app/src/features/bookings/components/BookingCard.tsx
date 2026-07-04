@@ -1,6 +1,6 @@
 import { radius, spacing } from '@tuljai/ui';
-import { StyleSheet, View } from 'react-native';
-import { Button, Card, Text, useTheme } from 'react-native-paper';
+import { Image, StyleSheet, View } from 'react-native';
+import { Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
 import type { EnrichedBooking } from '../api/bookings-api';
 
@@ -16,6 +16,9 @@ export function BookingCard({ booking, onPress }: BookingCardProps) {
 
   return (
     <Card mode="outlined" onPress={onPress} style={styles.card}>
+      {booking.coverPhotoUrl ? (
+        <Image source={{ uri: booking.coverPhotoUrl }} style={styles.image} />
+      ) : null}
       <Card.Content style={styles.content}>
         <View style={styles.header}>
           <View style={styles.titleBlock}>
@@ -31,29 +34,61 @@ export function BookingCard({ booking, onPress }: BookingCardProps) {
           {booking.booking.checkInDate} to {booking.booking.checkOutDate} ·{' '}
           {booking.booking.totalGuests} guests
         </Text>
+        <View style={styles.badgeRow}>
+          {booking.booking.status === 'QR_GENERATED' ? <Chip compact>QR Ready</Chip> : null}
+          <Chip compact>{formatDaysRemaining(booking.booking.checkInDate)}</Chip>
+        </View>
         <Text variant="bodySmall">
           {getBookingNextStep(booking.booking.status, booking.booking.rejectedReason)}
         </Text>
         <Button mode="contained-tonal" onPress={onPress}>
-          View Details
+          {booking.booking.status === 'QR_GENERATED' ? 'View QR' : 'View Details'}
         </Button>
       </Card.Content>
     </Card>
   );
 }
 
+function formatDaysRemaining(checkInDate: string): string {
+  const today = new Date();
+  const checkIn = new Date(`${checkInDate}T00:00:00`);
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const diffDays = Math.ceil((checkIn.getTime() - todayStart.getTime()) / 86_400_000);
+
+  if (diffDays <= 0) {
+    return 'Today';
+  }
+
+  if (diffDays === 1) {
+    return 'Tomorrow';
+  }
+
+  return `${diffDays} days`;
+}
+
 const styles = StyleSheet.create({
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
   card: {
     borderRadius: radius.sm,
+    overflow: 'hidden',
   },
   content: {
     gap: spacing.sm,
+    paddingTop: spacing.md,
   },
   header: {
     alignItems: 'flex-start',
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'space-between',
+  },
+  image: {
+    aspectRatio: 16 / 8,
+    width: '100%',
   },
   titleBlock: {
     flex: 1,

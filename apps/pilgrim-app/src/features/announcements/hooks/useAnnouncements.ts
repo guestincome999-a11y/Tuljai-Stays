@@ -1,9 +1,11 @@
 import type { Announcement } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
+import { useRealtime } from '../../../realtime/realtime-provider';
 import { listAnnouncements, markAnnouncementRead } from '../api/announcements-api';
 
 export function useAnnouncements() {
+  const realtime = useRealtime();
   const [data, setData] = useState<Announcement[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,6 +30,12 @@ export function useAnnouncements() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (realtime.lastEvent?.name === 'announcement:new') {
+      void load(true);
+    }
+  }, [load, realtime.lastEvent]);
 
   return {
     data,

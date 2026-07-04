@@ -1,6 +1,7 @@
 import type { Notification } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
+import { useRealtime } from '../../../realtime/realtime-provider';
 import {
   getUnreadNotificationCount,
   listNotifications,
@@ -9,6 +10,7 @@ import {
 } from '../api/notifications-api';
 
 export function useUnreadNotificationCount() {
+  const realtime = useRealtime();
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -20,10 +22,29 @@ export function useUnreadNotificationCount() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const event = realtime.lastEvent;
+
+    if (event?.name === 'notification:unread-count') {
+      const nextCount = event.payload.unreadCount;
+
+      if (typeof nextCount === 'number') {
+        setUnreadCount(nextCount);
+      }
+
+      return;
+    }
+
+    if (event?.name === 'notification:new') {
+      void refresh();
+    }
+  }, [realtime.lastEvent, refresh]);
+
   return { refresh, unreadCount };
 }
 
 export function useNotifications() {
+  const realtime = useRealtime();
   const [data, setData] = useState<Notification[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,6 +69,12 @@ export function useNotifications() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (realtime.lastEvent?.name === 'notification:new') {
+      void load(true);
+    }
+  }, [load, realtime.lastEvent]);
 
   return {
     data,

@@ -1,7 +1,11 @@
 import type { AvailabilityResponse, Booking, BookingLock } from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
-import { getLodgeDetails, listLodgeRoomTypes } from '../../lodges/api/lodge-discovery-api';
+import {
+  getLodgeDetails,
+  listLodgePhotos,
+  listLodgeRoomTypes,
+} from '../../lodges/api/lodge-discovery-api';
 
 export interface BookingLockRequest {
   checkInDate: string;
@@ -24,6 +28,8 @@ export interface CreateBookingRequest {
 
 export interface EnrichedBooking {
   booking: Booking;
+  coverPhotoUrl: string | null;
+  directionsQuery: string | null;
   lodgeName: string;
   roomTypeName: string;
 }
@@ -61,14 +67,28 @@ export async function getBooking(bookingId: string): Promise<EnrichedBooking> {
 }
 
 async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {
-  const [lodge, roomTypes] = await Promise.all([
+  const [lodge, photos, roomTypes] = await Promise.all([
     getLodgeDetails(booking.lodgeId).catch(() => null),
+    listLodgePhotos(booking.lodgeId).catch(() => []),
     listLodgeRoomTypes(booking.lodgeId).catch(() => []),
   ]);
   const roomType = roomTypes.find((item) => item.id === booking.roomTypeId);
+  const coverPhoto = photos.find((photo) => photo.isCover) ?? photos[0] ?? null;
 
   return {
     booking,
+    coverPhotoUrl: coverPhoto?.thumbnailUrl ?? coverPhoto?.fileUrl ?? null,
+    directionsQuery: lodge?.address
+      ? [
+          lodge.address.addressLine1,
+          lodge.address.addressLine2,
+          lodge.address.landmark,
+          lodge.address.city,
+          lodge.address.pincode,
+        ]
+          .filter(Boolean)
+          .join(', ')
+      : (lodge?.name ?? null),
     lodgeName: lodge?.name ?? 'Tuljai Stays lodge',
     roomTypeName: roomType?.name ?? 'Selected room',
   };
