@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { OwnerDashboardSummary } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -6,31 +7,27 @@ import { ActivityIndicator, Button, Card, Text, useTheme } from 'react-native-pa
 
 import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { useRealtime } from '../../../realtime/realtime-provider';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
-
-const placeholderStats = [
-  { label: 'Pending Bookings', value: '0' },
-  { label: "Today's Arrivals", value: '0' },
-  { label: "Today's Departures", value: '0' },
-  { label: 'Available Rooms', value: '0' },
-  { label: 'Occupied Rooms', value: '0' },
-  { label: 'Scan QR', value: 'Ready' },
-];
+import { useOwnerDashboardSummary } from '../hooks/useOwnerDashboardSummary';
 
 export function DashboardScreen() {
   const auth = useAuth();
   const assignedLodges = useAssignedLodges();
+  const dashboard = useOwnerDashboardSummary();
   const { isOffline } = useConnectivity();
+  const realtime = useRealtime();
   const router = useRouter();
   const theme = useTheme();
   const displayName = auth.user?.displayName ?? auth.user?.phoneNumber ?? 'Owner';
   const selectedLodge = assignedLodges.selectedLodge;
+  const stats = getDashboardStats(dashboard.data);
 
-  if (assignedLodges.isLoading) {
+  if (assignedLodges.isLoading || dashboard.isLoading) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator animating size="large" />
-        <Text variant="bodyMedium">Loading assigned lodge</Text>
+        <Text variant="bodyMedium">Loading owner dashboard</Text>
       </View>
     );
   }
@@ -44,6 +41,7 @@ export function DashboardScreen() {
           actionLabel="Retry"
           onActionPress={() => {
             void assignedLodges.refresh();
+            void dashboard.refresh();
           }}
         />
       </View>
@@ -57,8 +55,9 @@ export function DashboardScreen() {
         <RefreshControl
           onRefresh={() => {
             void assignedLodges.refresh();
+            void dashboard.refresh();
           }}
-          refreshing={assignedLodges.isRefreshing}
+          refreshing={assignedLodges.isRefreshing || dashboard.isRefreshing}
           tintColor={theme.colors.primary}
         />
       }
@@ -74,11 +73,41 @@ export function DashboardScreen() {
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
             {selectedLodge.name}
           </Text>
+          <Text style={{ color: theme.colors.primary }} variant="labelLarge">
+            {realtime.connected ? 'Realtime connected' : 'Realtime reconnecting'}
+          </Text>
         </View>
         <View style={styles.notificationIcon}>
           <MaterialCommunityIcons color={theme.colors.primary} name="bell-outline" size={28} />
+          {dashboard.data?.recentNotifications.length ? (
+            <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
+              <Text style={{ color: theme.colors.onPrimary }} variant="labelSmall">
+                {Math.min(dashboard.data.recentNotifications.length, 9)}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
+
+      <Card mode="outlined" style={styles.card}>
+        <Card.Content style={styles.cardContent}>
+          <Text variant="titleMedium">Owner Status</Text>
+          <View style={styles.statusRow}>
+            {(['AVAILABLE', 'BUSY', 'OFFLINE'] as const).map((status) => (
+              <Button
+                key={status}
+                mode={realtime.ownerStatus === status ? 'contained' : 'outlined'}
+                onPress={() => realtime.setOwnerStatus(status)}
+              >
+                {formatOwnerStatus(status)}
+              </Button>
+            ))}
+          </View>
+          <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+            Status is shared through realtime presence. Server-side persistence will be added later.
+          </Text>
+        </Card.Content>
+      </Card>
 
       {assignedLodges.lodges.length > 1 ? (
         <Card mode="outlined" style={styles.card}>
@@ -91,16 +120,19 @@ export function DashboardScreen() {
         </Card>
       ) : null}
 
-      {assignedLodges.errorMessage ? (
+      {assignedLodges.errorMessage || dashboard.errorMessage ? (
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">Lodge status</Text>
-            <Text variant="bodyMedium">{assignedLodges.errorMessage}</Text>
+            <Text variant="titleMedium">Dashboard status</Text>
+            <Text variant="bodyMedium">
+              {assignedLodges.errorMessage ?? dashboard.errorMessage}
+            </Text>
             <Button
               disabled={isOffline}
               mode="contained-tonal"
               onPress={() => {
                 void assignedLodges.refresh();
+                void dashboard.refresh();
               }}
             >
               Retry
@@ -113,7 +145,7 @@ export function DashboardScreen() {
         <Card.Content style={styles.cardContent}>
           <Text variant="titleMedium">Operational Dashboard</Text>
           <Text variant="bodyMedium">
-            Live booking, room, and QR scan metrics will appear after the next owner modules.
+            Live booking, room, revenue, and commission summary for assigned lodges.
           </Text>
           <Text style={{ color: theme.colors.primary }} variant="labelLarge">
             {isOffline ? 'Offline shell available' : 'Online'}
@@ -122,7 +154,7 @@ export function DashboardScreen() {
       </Card>
 
       <View style={styles.statGrid}>
-        {placeholderStats.map((item) => (
+        {stats.map((item) => (
           <Card key={item.label} mode="outlined" style={styles.statCard}>
             <Card.Content style={styles.statContent}>
               <Text style={{ color: theme.colors.primary }} variant="headlineSmall">
@@ -164,9 +196,76 @@ export function DashboardScreen() {
   );
 }
 
+function getDashboardStats(summary: OwnerDashboardSummary | null): Array<{
+  label: string;
+  value: string;
+}> {
+  if (!summary) {
+    return [
+      { label: 'Pending Bookings', value: '0' },
+      { label: "Today's Bookings", value: '0' },
+      { label: "Today's Check-ins", value: '0' },
+      { label: "Today's Check-outs", value: '0' },
+      { label: 'Available Rooms', value: '0' },
+      { label: 'Occupied Rooms', value: '0' },
+      { label: 'Maintenance', value: '0' },
+      { label: 'Estimated Revenue', value: 'Rs. 0' },
+      { label: 'Estimated Commission', value: 'Rs. 0' },
+      { label: 'Average Rating', value: '-' },
+      { label: 'Unread Notifications', value: '0' },
+    ];
+  }
+
+  return [
+    { label: 'Pending Bookings', value: String(summary.pendingBookings) },
+    { label: "Today's Bookings", value: String(summary.todayBookings) },
+    { label: "Today's Check-ins", value: String(summary.checkedInGuests) },
+    { label: "Today's Check-outs", value: String(summary.todayCheckOuts) },
+    { label: 'Available Rooms', value: String(summary.availableRooms) },
+    { label: 'Occupied Rooms', value: String(summary.occupiedRooms) },
+    { label: 'Maintenance', value: String(summary.roomsUnderMaintenance) },
+    { label: 'Estimated Revenue', value: `Rs. ${formatMoney(summary.estimatedRevenue)}` },
+    { label: 'Estimated Commission', value: `Rs. ${formatMoney(summary.estimatedCommission)}` },
+    { label: 'Average Rating', value: summary.averageRating?.toFixed(1) ?? '-' },
+    { label: 'Unread Notifications', value: String(summary.recentNotifications.length) },
+  ];
+}
+
+function formatMoney(value: string): string {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  return parsed.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+function formatOwnerStatus(status: 'AVAILABLE' | 'BUSY' | 'OFFLINE'): string {
+  if (status === 'AVAILABLE') {
+    return 'Available';
+  }
+
+  if (status === 'BUSY') {
+    return 'Busy';
+  }
+
+  return 'Offline';
+}
+
 const styles = StyleSheet.create({
   actions: {
     gap: spacing.md,
+  },
+  badge: {
+    alignItems: 'center',
+    borderRadius: radius.full,
+    height: 20,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: 20,
   },
   card: {
     borderRadius: radius.sm,
@@ -197,6 +296,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     height: 48,
     justifyContent: 'center',
+    position: 'relative',
     width: 48,
   },
   screen: {
@@ -220,5 +320,10 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     borderRadius: radius.sm,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
 });

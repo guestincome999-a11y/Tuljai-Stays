@@ -3,6 +3,7 @@ import { Redirect, Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
 
 import { useAuth } from '../../src/auth/auth-context';
+import { IncomingBookingAlertHost } from '../../src/features/bookings/components/IncomingBookingAlertHost';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -18,20 +19,23 @@ export default function AppLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={({ route }) => ({
-        headerShown: true,
-        tabBarIcon: ({ color, size }) => (
-          <MaterialCommunityIcons color={color} name={getTabIcon(route.name)} size={size} />
-        ),
-      })}
-    >
-      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-      <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
-      <Tabs.Screen name="scan" options={{ title: 'Scan QR' }} />
-      <Tabs.Screen name="rooms" options={{ title: 'Rooms' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-    </Tabs>
+    <>
+      <Tabs
+        screenOptions={({ route }) => ({
+          headerShown: true,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons color={color} name={getTabIcon(route.name)} size={size} />
+          ),
+        })}
+      >
+        <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+        <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
+        <Tabs.Screen name="scan" options={{ title: 'Scan QR' }} />
+        <Tabs.Screen name="rooms" options={{ title: 'Rooms' }} />
+        <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      </Tabs>
+      <IncomingBookingAlertHost />
+    </>
   );
 }
 
