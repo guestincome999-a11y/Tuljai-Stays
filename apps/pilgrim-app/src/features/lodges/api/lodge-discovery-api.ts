@@ -121,6 +121,12 @@ export async function getLodgeDetailsView(lodgeId: string): Promise<LodgeDetails
   return { details, photos, roomTypes };
 }
 
+export async function getLodgePreview(lodgeId: string): Promise<LodgePreview> {
+  const details = await getLodgeDetails(lodgeId);
+
+  return toLodgePreview(details);
+}
+
 export async function listAnnouncementsPreview(): Promise<Announcement[]> {
   const response = await apiClient.get<PaginatedResponse<Announcement>>('/api/announcements', {
     params: { limit: 3, page: 1 },
