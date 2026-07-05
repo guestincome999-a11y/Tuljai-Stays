@@ -108,6 +108,14 @@ function getCurrentSection(pathname: string): string {
     return 'Audit Logs';
   }
 
+  if (pathname.includes('/bookings')) {
+    return 'Bookings';
+  }
+
+  if (pathname.includes('/operations/intervention')) {
+    return 'Intervention Queue';
+  }
+
   if (pathname.includes('/account')) {
     return 'Account';
   }
@@ -118,6 +126,14 @@ function getCurrentSection(pathname: string): string {
 function getCurrentTitle(pathname: string): string {
   if (pathname.includes('/audit')) {
     return 'Audit Log Foundation';
+  }
+
+  if (pathname.includes('/bookings')) {
+    return 'Booking Control Center';
+  }
+
+  if (pathname.includes('/operations/intervention')) {
+    return 'Manual Intervention Queue';
   }
 
   if (pathname.includes('/account')) {

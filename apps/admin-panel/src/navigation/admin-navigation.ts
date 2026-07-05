@@ -17,18 +17,18 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     status: 'ready',
   },
   {
-    href: '/admin/operations',
+    href: '/admin/operations/intervention',
     label: 'Live Operations',
     permission: 'operations.view',
     section: 'Operations',
-    status: 'placeholder',
+    status: 'ready',
   },
   {
     href: '/admin/bookings',
     label: 'Bookings',
     permission: 'bookings.view',
     section: 'Operations',
-    status: 'placeholder',
+    status: 'ready',
   },
   {
     href: '/admin/lodges',

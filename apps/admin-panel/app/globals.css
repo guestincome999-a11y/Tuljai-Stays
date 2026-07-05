@@ -278,6 +278,10 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .section-header {
   align-items: center;
   display: flex;
@@ -686,7 +690,8 @@ p {
 }
 
 .error-banner,
-.dev-otp {
+.dev-otp,
+.success-banner {
   border-radius: var(--radius-sm);
   padding: 10px 12px;
 }
@@ -700,6 +705,14 @@ p {
   background: #fff4df;
   color: #6b3a12;
   font-weight: 800;
+}
+
+.success-banner {
+  align-items: center;
+  background: #e5f4ef;
+  color: var(--color-primary-strong);
+  display: flex;
+  justify-content: space-between;
 }
 
 .detail-list {
@@ -733,6 +746,113 @@ p {
   display: grid;
   gap: var(--space-md);
   grid-template-columns: 1fr 1fr 1fr 1fr 1.4fr;
+}
+
+.admin-table {
+  display: grid;
+  gap: var(--space-xs);
+  min-width: 980px;
+}
+
+.admin-table-row {
+  align-items: center;
+  border-bottom: 1px solid var(--color-outline);
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+}
+
+.booking-table .admin-table-row {
+  grid-template-columns: 1fr 1fr 1.2fr 1fr 0.9fr 1.2fr 0.8fr 1.5fr;
+}
+
+.intervention-table .admin-table-row {
+  grid-template-columns: 0.8fr 1.4fr 1fr 1fr 1fr 0.7fr 1.4fr 1.6fr;
+}
+
+.admin-table-head {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-table small {
+  color: var(--color-muted);
+  display: block;
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.pagination-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-md);
+  justify-content: flex-end;
+  margin-top: var(--space-md);
+}
+
+.control-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--space-lg);
+}
+
+.control-grid label {
+  display: grid;
+  gap: var(--space-xs);
+  font-weight: 800;
+}
+
+.control-grid input,
+.control-grid select,
+.form-field select,
+.form-field textarea {
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-sm);
+  min-height: 42px;
+  padding: 10px 12px;
+}
+
+.form-field textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.detail-list-wide {
+  grid-template-columns: 1fr;
+}
+
+.text-danger {
+  color: var(--color-danger);
+  font-weight: 800;
+}
+
+.timeline {
+  display: grid;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0;
+}
+
+.timeline-item {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.timeline-dot {
+  background: var(--color-primary);
+  border-radius: 999px;
+  height: 12px;
+  margin-top: 5px;
+  width: 12px;
 }
 
 .table-head {
