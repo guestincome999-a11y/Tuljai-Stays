@@ -1,4 +1,12 @@
-import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 const appTypes = ['PILGRIM_APP', 'OWNER_APP', 'ADMIN_PANEL'] as const;
 const otpPurposes = ['LOGIN', 'REGISTER', 'VERIFY_PHONE'] as const;
@@ -21,14 +29,17 @@ export class VerifyOtpDto {
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(128)
   deviceId!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   deviceName?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(4096)
   fcmToken?: string;
 
   @Matches(/^\d{4,8}$/)
@@ -44,10 +55,12 @@ export class VerifyOtpDto {
 export class RefreshTokenDto {
   @IsNotEmpty()
   @IsString()
+  @MaxLength(128)
   deviceId!: string;
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   refreshToken!: string;
 }
 
@@ -58,10 +71,12 @@ export class LogoutDto {
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(128)
   deviceId!: string;
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   refreshToken!: string;
 }
 
@@ -71,10 +86,12 @@ export class RegisterDeviceTokenDto {
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(128)
   deviceId!: string;
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(4096)
   fcmToken!: string;
 
   @IsIn(platforms)

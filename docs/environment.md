@@ -4,6 +4,8 @@
 
 - `NODE_ENV` - `development`, `test`, or `production`.
 - `API_PORT` - backend HTTP port.
+- `ALLOWED_ORIGINS` - comma-separated browser origins allowed to call credentialed backend and realtime APIs.
+- `API_BODY_LIMIT_BYTES` - maximum backend request body size in bytes.
 - `DATABASE_URL` - PostgreSQL connection string.
 - `JWT_ACCESS_SECRET` - access token signing secret.
 - `JWT_REFRESH_SECRET` - refresh token signing secret.

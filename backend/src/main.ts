@@ -6,18 +6,40 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 
 import { AppModule } from './modules/app.module';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
+import { isCorsOriginAllowed } from './shared/security/cors.config';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+  const bodyLimit = Number(process.env.API_BODY_LIMIT_BYTES ?? 1_048_576);
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter({ bodyLimit }),
+  );
   const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('api.port');
+  const allowedOrigins = configService.getOrThrow<string[]>('api.security.allowedOrigins');
+  const nodeEnv = configService.getOrThrow<string>('api.nodeEnv');
+
+  if (nodeEnv === 'production' && allowedOrigins.length === 0) {
+    throw new Error('ALLOWED_ORIGINS must be configured in production.');
+  }
 
   app.setGlobalPrefix('api');
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      callback(null, isCorsOriginAllowed(origin, allowedOrigins));
+    },
     credentials: true,
   });
-  await app.register(helmet);
+  await app.register(helmet, {
+    hsts:
+      nodeEnv === 'production'
+        ? {
+            includeSubDomains: true,
+            maxAge: 31_536_000,
+            preload: true,
+          }
+        : false,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       forbidNonWhitelisted: true,

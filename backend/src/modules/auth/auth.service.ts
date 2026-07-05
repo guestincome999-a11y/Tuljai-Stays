@@ -102,7 +102,7 @@ export class AuthService {
       entityType: 'otp_request',
       metadata: {
         appType: dto.appType,
-        phoneNumber: dto.phoneNumber,
+        phoneNumber: this.maskPhoneNumber(dto.phoneNumber),
         purpose: dto.purpose,
       },
     });
@@ -128,7 +128,10 @@ export class AuthService {
       await this.createAuditLog({
         action: 'LOGIN_FAILED',
         entityType: 'user',
-        metadata: { phoneNumber: dto.phoneNumber, reason: 'OTP_EXPIRED_OR_MISSING' },
+        metadata: {
+          phoneNumber: this.maskPhoneNumber(dto.phoneNumber),
+          reason: 'OTP_EXPIRED_OR_MISSING',
+        },
       });
       throw new UnauthorizedException('Invalid or expired OTP');
     }
@@ -137,7 +140,10 @@ export class AuthService {
       await this.createAuditLog({
         action: 'LOGIN_FAILED',
         entityType: 'user',
-        metadata: { phoneNumber: dto.phoneNumber, reason: 'OTP_ATTEMPTS_EXCEEDED' },
+        metadata: {
+          phoneNumber: this.maskPhoneNumber(dto.phoneNumber),
+          reason: 'OTP_ATTEMPTS_EXCEEDED',
+        },
       });
       throw new UnauthorizedException('OTP attempt limit exceeded');
     }
@@ -152,7 +158,7 @@ export class AuthService {
       await this.createAuditLog({
         action: 'LOGIN_FAILED',
         entityType: 'user',
-        metadata: { phoneNumber: dto.phoneNumber, reason: 'OTP_MISMATCH' },
+        metadata: { phoneNumber: this.maskPhoneNumber(dto.phoneNumber), reason: 'OTP_MISMATCH' },
       });
       throw new UnauthorizedException('Invalid or expired OTP');
     }
@@ -518,6 +524,14 @@ export class AuthService {
     const hash = scryptSync(secret, salt, 64).toString('hex');
 
     return `${salt}:${hash}`;
+  }
+
+  private maskPhoneNumber(phoneNumber: string): string {
+    if (phoneNumber.length <= 4) {
+      return '****';
+    }
+
+    return `${'*'.repeat(Math.max(phoneNumber.length - 4, 0))}${phoneNumber.slice(-4)}`;
   }
 
   private verifySecret(secret: string, storedHash: string): boolean {

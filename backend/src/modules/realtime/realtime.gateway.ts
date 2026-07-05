@@ -11,6 +11,8 @@ import {
 import type { AuthenticatedUser, JwtPayload, PresenceSummary } from '@tuljai/types';
 import type { Server, Socket } from 'socket.io';
 
+import { resolveSocketCorsOrigins } from '../../shared/security/cors.config';
+
 interface RealtimeSocketData {
   user?: AuthenticatedUser;
 }
@@ -28,7 +30,7 @@ type AuthenticatedSocket = Socket<
 
 @WebSocketGateway({
   cors: {
-    origin: true,
+    origin: resolveSocketCorsOrigins(),
     credentials: true,
   },
   namespace: 'realtime',

@@ -1,8 +1,17 @@
 import { registerAs } from '@nestjs/config';
 
+import { parseAllowedOrigins } from '../security/cors.config';
+
 export const appConfig = registerAs('api', () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.API_PORT ?? 4000),
+  security: {
+    allowedOrigins: parseAllowedOrigins(
+      process.env.ALLOWED_ORIGINS,
+      process.env.NODE_ENV ?? 'development',
+    ),
+    bodyLimitBytes: Number(process.env.API_BODY_LIMIT_BYTES ?? 1_048_576),
+  },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,
     refreshSecret: process.env.JWT_REFRESH_SECRET,

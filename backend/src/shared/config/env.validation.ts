@@ -9,6 +9,15 @@ class EnvironmentVariables {
   @Min(1)
   API_PORT: number = 4000;
 
+  @IsOptional()
+  @IsString()
+  ALLOWED_ORIGINS?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1024)
+  API_BODY_LIMIT_BYTES?: number;
+
   @IsString()
   DATABASE_URL!: string;
 
@@ -90,5 +99,30 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
     throw new Error(errors.toString());
   }
 
+  validateProductionSecurity(validatedConfig);
+
   return validatedConfig;
+}
+
+function validateProductionSecurity(config: EnvironmentVariables): void {
+  if (config.NODE_ENV !== 'production') {
+    return;
+  }
+
+  if (!config.ALLOWED_ORIGINS?.trim()) {
+    throw new Error('ALLOWED_ORIGINS must be configured in production.');
+  }
+
+  if (config.ALLOW_DEV_OTP_RESPONSE === 'true') {
+    throw new Error('ALLOW_DEV_OTP_RESPONSE must not be enabled in production.');
+  }
+
+  assertProductionSecret('JWT_ACCESS_SECRET', config.JWT_ACCESS_SECRET);
+  assertProductionSecret('JWT_REFRESH_SECRET', config.JWT_REFRESH_SECRET);
+}
+
+function assertProductionSecret(name: string, value: string): void {
+  if (value.length < 32 || value.toLowerCase().includes('change-me')) {
+    throw new Error(`${name} must be a strong production secret.`);
+  }
 }
