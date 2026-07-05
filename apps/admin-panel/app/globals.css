@@ -961,6 +961,83 @@ p {
   grid-template-columns: 1.4fr 0.9fr 0.8fr 0.9fr 1fr 0.7fr;
 }
 
+.health-grid,
+.alert-grid {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.health-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.alert-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.health-card,
+.alert-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.health-badge,
+.severity {
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 6px 9px;
+}
+
+.health-healthy,
+.severity-info {
+  background: #e5f4ef;
+  color: var(--color-primary-strong);
+}
+
+.health-warning,
+.severity-warning {
+  background: #fff4df;
+  color: #76510d;
+}
+
+.health-critical,
+.health-offline,
+.severity-critical {
+  background: #fee9e7;
+  color: var(--color-danger);
+}
+
+.api-health-table .admin-table-row {
+  grid-template-columns: 1.6fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 1fr;
+}
+
+.qr-monitor-table .admin-table-row {
+  grid-template-columns: 1fr 1fr 1fr 0.8fr 1.2fr 1fr;
+}
+
+.notification-monitor-table .admin-table-row {
+  grid-template-columns: 1fr 1.5fr 1fr;
+}
+
+.session-table .admin-table-row {
+  grid-template-columns: 1fr 1fr 1.2fr 0.8fr 1fr 1fr 0.7fr;
+}
+
+.backup-table .admin-table-row,
+.audit-api-table .admin-table-row {
+  grid-template-columns: 1fr 1fr 1.5fr;
+}
+
+.audit-table .admin-table-row {
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+
 @media (max-width: 960px) {
   .admin-shell {
     grid-template-columns: 1fr;
@@ -985,6 +1062,8 @@ p {
   .photo-grid,
   .roadmap-grid,
   .settings-grid,
+  .health-grid,
+  .alert-grid,
   .detail-list {
     grid-template-columns: 1fr;
   }
