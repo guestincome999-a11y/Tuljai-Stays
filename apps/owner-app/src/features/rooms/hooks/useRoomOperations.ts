@@ -18,6 +18,7 @@ import {
   type RoomTypeInput,
 } from '../api/owner-rooms-api';
 import { loadHousekeepingNotes, saveHousekeepingNote } from '../storage/housekeeping-notes-store';
+import { loadRoomBoardCache, saveRoomBoardCache } from '../storage/room-board-cache';
 
 interface RoomOperationsState {
   errorMessage: string | null;
@@ -71,12 +72,19 @@ export function useRoomOperations() {
       const notes = await loadHousekeepingNotes().catch(() => ({}));
 
       if (isOffline) {
+        const cached = await loadRoomBoardCache().catch(() => null);
         setState((current) => ({
           ...current,
-          errorMessage: current.rooms.length ? null : 'Connect to the internet to load rooms.',
+          errorMessage:
+            current.rooms.length || cached ? null : 'Connect to the internet to load rooms.',
           housekeepingNotes: notes,
           isLoading: false,
           isRefreshing: false,
+          photos: current.photos.length ? current.photos : (cached?.photos ?? current.photos),
+          rooms: current.rooms.length ? current.rooms : (cached?.rooms ?? current.rooms),
+          roomTypes: current.roomTypes.length
+            ? current.roomTypes
+            : (cached?.roomTypes ?? current.roomTypes),
         }));
         return;
       }
@@ -96,13 +104,22 @@ export function useRoomOperations() {
           rooms,
           roomTypes,
         });
+        await saveRoomBoardCache({ photos, rooms, roomTypes }).catch(() => undefined);
       } catch {
+        const cached = await loadRoomBoardCache().catch(() => null);
         setState((current) => ({
           ...current,
-          errorMessage: 'Room operations could not be loaded.',
+          errorMessage: cached
+            ? 'Showing last saved room board. Refresh when online.'
+            : 'Room operations could not be loaded.',
           housekeepingNotes: notes,
           isLoading: false,
           isRefreshing: false,
+          photos: current.photos.length ? current.photos : (cached?.photos ?? current.photos),
+          rooms: current.rooms.length ? current.rooms : (cached?.rooms ?? current.rooms),
+          roomTypes: current.roomTypes.length
+            ? current.roomTypes
+            : (cached?.roomTypes ?? current.roomTypes),
         }));
       }
     },

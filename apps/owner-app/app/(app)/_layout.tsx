@@ -33,7 +33,15 @@ export default function AppLayout() {
         <Tabs.Screen name="scan" options={{ title: 'Scan QR' }} />
         <Tabs.Screen name="scan-history" options={{ href: null, title: 'Scan History' }} />
         <Tabs.Screen name="register" options={{ href: null, title: 'Guest Register' }} />
+        <Tabs.Screen
+          name="register-dashboard"
+          options={{ href: null, title: 'Register Dashboard' }}
+        />
         <Tabs.Screen name="rooms" options={{ title: 'Rooms' }} />
+        <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
+        <Tabs.Screen name="announcements" options={{ href: null, title: 'Announcements' }} />
+        <Tabs.Screen name="reports" options={{ href: null, title: 'Reports' }} />
+        <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
         <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       </Tabs>
       <IncomingBookingAlertHost />
@@ -52,6 +60,10 @@ function getTabIcon(routeName: string): IconName {
 
   if (routeName === 'rooms') {
     return 'bed-outline';
+  }
+
+  if (routeName === 'notifications') {
+    return 'bell-outline';
   }
 
   if (routeName === 'profile') {

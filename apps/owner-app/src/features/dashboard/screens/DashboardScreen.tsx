@@ -8,7 +8,9 @@ import { ActivityIndicator, Button, Card, Text, useTheme } from 'react-native-pa
 import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useRealtime } from '../../../realtime/realtime-provider';
+import { useOwnerAnnouncements } from '../../announcements/hooks/useOwnerAnnouncements';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
+import { useUnreadNotificationCount } from '../../notifications/hooks/useOwnerNotifications';
 import { useOwnerDashboardSummary } from '../hooks/useOwnerDashboardSummary';
 import { useReceptionSnapshot } from '../hooks/useReceptionSnapshot';
 
@@ -17,6 +19,8 @@ export function DashboardScreen() {
   const assignedLodges = useAssignedLodges();
   const dashboard = useOwnerDashboardSummary();
   const reception = useReceptionSnapshot();
+  const announcements = useOwnerAnnouncements();
+  const notifications = useUnreadNotificationCount();
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
   const router = useRouter();
@@ -82,15 +86,30 @@ export function DashboardScreen() {
         </View>
         <View style={styles.notificationIcon}>
           <MaterialCommunityIcons color={theme.colors.primary} name="bell-outline" size={28} />
-          {dashboard.data?.recentNotifications.length ? (
+          {notifications.unreadCount ? (
             <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
               <Text style={{ color: theme.colors.onPrimary }} variant="labelSmall">
-                {Math.min(dashboard.data.recentNotifications.length, 9)}
+                {Math.min(notifications.unreadCount, 9)}
               </Text>
             </View>
           ) : null}
         </View>
       </View>
+
+      {announcements.emergencyAnnouncement ? (
+        <Card mode="contained" style={styles.card}>
+          <Card.Content style={styles.cardContent}>
+            <Text style={{ color: theme.colors.primary }} variant="titleMedium">
+              Emergency Announcement
+            </Text>
+            <Text variant="bodyLarge">{announcements.emergencyAnnouncement.title}</Text>
+            <Text variant="bodyMedium">{announcements.emergencyAnnouncement.body}</Text>
+            <Button mode="contained-tonal" onPress={() => router.push('/(app)/announcements')}>
+              View Announcements
+            </Button>
+          </Card.Content>
+        </Card>
+      ) : null}
 
       <Card mode="outlined" style={styles.card}>
         <Card.Content style={styles.cardContent}>
@@ -153,6 +172,12 @@ export function DashboardScreen() {
           <Text style={{ color: theme.colors.primary }} variant="labelLarge">
             {isOffline ? 'Offline shell available' : 'Online'}
           </Text>
+          {isOffline ? (
+            <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+              Server actions such as booking responses, QR scan, checkout, room updates, photo
+              upload, and notification read actions are paused until online.
+            </Text>
+          ) : null}
         </Card.Content>
       </Card>
 
@@ -187,11 +212,25 @@ export function DashboardScreen() {
           View Bookings
         </Button>
         <Button
+          icon="bell-outline"
+          mode="contained-tonal"
+          onPress={() => router.push('/(app)/notifications')}
+        >
+          Notifications
+        </Button>
+        <Button
           icon="qrcode-scan"
           mode="contained-tonal"
           onPress={() => router.push('/(app)/scan')}
         >
           Scan QR
+        </Button>
+        <Button
+          icon="book-open-variant"
+          mode="contained-tonal"
+          onPress={() => router.push('/(app)/register-dashboard')}
+        >
+          Register Dashboard
         </Button>
         <Button
           icon="bed-outline"
@@ -200,8 +239,15 @@ export function DashboardScreen() {
         >
           Manage Rooms
         </Button>
-        <Button disabled icon="chart-box-outline" mode="outlined">
-          View Reports
+        <Button
+          icon="chart-box-outline"
+          mode="outlined"
+          onPress={() => router.push('/(app)/reports')}
+        >
+          Reports
+        </Button>
+        <Button icon="cog-outline" mode="outlined" onPress={() => router.push('/(app)/settings')}>
+          Settings
         </Button>
       </View>
     </ScrollView>

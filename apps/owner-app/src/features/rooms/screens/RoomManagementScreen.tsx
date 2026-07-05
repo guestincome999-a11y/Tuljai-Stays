@@ -2,7 +2,7 @@ import type { LodgePhoto, PhotoCategory, Room, RoomStatus, RoomType } from '@tul
 import { EmptyState, radius, spacing } from '@tuljai/ui';
 import type { PropsWithChildren } from 'react';
 import { useState } from 'react';
-import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
   Button,
@@ -443,21 +443,44 @@ function GalleryTab({ onAdd, photos }: { onAdd: () => void; photos: LodgePhoto[]
         <EmptyState title="No photos" description="Submitted lodge photos will appear here." />
       ) : null}
       {photos.map((photo) => (
-        <Card key={photo.id} mode="outlined" style={styles.card}>
-          <Card.Content style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <Text variant="titleMedium">{formatStatus(photo.category)}</Text>
-              <Chip>{getPhotoStatusLabel(photo)}</Chip>
-            </View>
-            <Text variant="bodySmall">{photo.fileUrl}</Text>
-            {photo.isCover ? <Text variant="bodySmall">Cover photo</Text> : null}
-            {photo.rejectionReason ? (
-              <Text variant="bodySmall">{photo.rejectionReason}</Text>
-            ) : null}
-          </Card.Content>
-        </Card>
+        <GalleryPhotoCard key={photo.id} photo={photo} />
       ))}
     </View>
+  );
+}
+
+function GalleryPhotoCard({ photo }: { photo: LodgePhoto }) {
+  const theme = useTheme();
+  const [failed, setFailed] = useState(false);
+  const imageUrl = photo.thumbnailUrl ?? photo.fileUrl;
+
+  return (
+    <Card key={photo.id} mode="outlined" style={styles.card}>
+      <Card.Content style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <Text variant="titleMedium">{formatStatus(photo.category)}</Text>
+          <Chip>{getPhotoStatusLabel(photo)}</Chip>
+        </View>
+        {failed ? (
+          <View style={[styles.imageFallback, { backgroundColor: theme.colors.surfaceVariant }]}>
+            <Text variant="bodyMedium">Image preview unavailable</Text>
+          </View>
+        ) : (
+          <Image
+            accessibilityLabel={`${formatStatus(photo.category)} photo preview`}
+            resizeMode="cover"
+            source={{ uri: imageUrl }}
+            style={styles.galleryImage}
+            onError={() => setFailed(true)}
+          />
+        )}
+        <Text numberOfLines={2} variant="bodySmall">
+          {photo.fileUrl}
+        </Text>
+        {photo.isCover ? <Text variant="bodySmall">Cover photo</Text> : null}
+        {photo.rejectionReason ? <Text variant="bodySmall">{photo.rejectionReason}</Text> : null}
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -769,6 +792,18 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: spacing.xs,
+  },
+  galleryImage: {
+    aspectRatio: 16 / 9,
+    borderRadius: radius.sm,
+    width: '100%',
+  },
+  imageFallback: {
+    alignItems: 'center',
+    aspectRatio: 16 / 9,
+    borderRadius: radius.sm,
+    justifyContent: 'center',
+    width: '100%',
   },
   modalBackdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
