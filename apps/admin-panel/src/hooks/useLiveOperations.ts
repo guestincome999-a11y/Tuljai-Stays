@@ -4,6 +4,7 @@ import type {
   AdminBookingSummary,
   AdminDashboardSummary,
   Announcement,
+  FeatureFlag,
   Lodge,
   NotificationMetrics,
   PresenceSummary,
@@ -18,6 +19,7 @@ import {
   getPresenceSummary,
   listAdminBookings,
   listEmergencyAnnouncements,
+  listPublicFeatureFlags,
   listPublicLodges,
   listPublicSettings,
   listQrScanLogs,
@@ -42,6 +44,7 @@ interface LiveOperationsState {
   presence: PresenceSummary | null;
   qrScans: QrScanLogEntry[];
   settings: SystemSetting[];
+  featureFlags: FeatureFlag[];
   summary: AdminDashboardSummary | null;
 }
 
@@ -62,6 +65,7 @@ export function useLiveOperations() {
     presence: null,
     qrScans: [],
     settings: [],
+    featureFlags: [],
     summary: null,
   });
 
@@ -83,6 +87,7 @@ export function useLiveOperations() {
         qrScans,
         announcements,
         settings,
+        featureFlags,
       ] = await Promise.all([
         getAdminDashboardSummary(),
         getPresenceSummary(),
@@ -92,6 +97,7 @@ export function useLiveOperations() {
         listQrScanLogs(),
         listEmergencyAnnouncements(),
         listPublicSettings().catch(() => []),
+        listPublicFeatureFlags().catch(() => []),
       ]);
 
       setState({
@@ -106,6 +112,7 @@ export function useLiveOperations() {
         presence,
         qrScans: qrScans.items,
         settings,
+        featureFlags,
         summary,
       });
     } catch {
@@ -193,8 +200,9 @@ export function useLiveOperations() {
 
   const festivalModeEnabled = useMemo(
     () =>
+      state.featureFlags.some((flag) => flag.key === 'festival_mode' && flag.enabled) ||
       state.settings.some((setting) => setting.key === 'festival_mode' && setting.value === true),
-    [state.settings],
+    [state.featureFlags, state.settings],
   );
 
   return {

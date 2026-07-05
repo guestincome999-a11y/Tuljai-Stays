@@ -305,6 +305,13 @@ export class SettingsService {
     return flags.map((flag) => this.toFeatureFlag(flag));
   }
 
+  public async listPublicFeatureFlags(): Promise<FeatureFlag[]> {
+    await this.ensureDefaults();
+    const flags = await this.prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });
+
+    return flags.map((flag) => this.toFeatureFlag(flag));
+  }
+
   public async updateFeatureFlag(
     key: string,
     dto: UpdateFeatureFlagDto,

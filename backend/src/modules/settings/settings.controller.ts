@@ -36,6 +36,11 @@ export class SettingsController {
     return this.settingsService.listPublicSettings();
   }
 
+  @Get('feature-flags/public')
+  public publicFeatureFlags() {
+    return this.settingsService.listPublicFeatureFlags();
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Get('admin/feature-flags')

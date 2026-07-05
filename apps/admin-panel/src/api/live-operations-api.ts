@@ -2,6 +2,7 @@ import type {
   AdminBookingSummary,
   AdminDashboardSummary,
   Announcement,
+  FeatureFlag,
   BookingStatus,
   Lodge,
   NotificationMetrics,
@@ -60,4 +61,8 @@ export async function listEmergencyAnnouncements(): Promise<PaginatedResponse<An
 
 export async function listPublicSettings(): Promise<SystemSetting[]> {
   return apiClient.get<SystemSetting[]>('/settings/public');
+}
+
+export async function listPublicFeatureFlags(): Promise<FeatureFlag[]> {
+  return apiClient.get<FeatureFlag[]>('/feature-flags/public');
 }

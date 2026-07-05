@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 
-import { isFestivalModeEnabled, listPublicSettings } from './public-settings-api';
+import {
+  isFestivalModeEnabled,
+  listPublicFeatureFlags,
+  listPublicSettings,
+} from './public-settings-api';
 
 export function usePublicSettings() {
   const [festivalModeEnabled, setFestivalModeEnabled] = useState(false);
@@ -9,10 +13,13 @@ export function usePublicSettings() {
     let mounted = true;
 
     async function load() {
-      const settings = await listPublicSettings().catch(() => []);
+      const [settings, flags] = await Promise.all([
+        listPublicSettings().catch(() => []),
+        listPublicFeatureFlags().catch(() => []),
+      ]);
 
       if (mounted) {
-        setFestivalModeEnabled(isFestivalModeEnabled(settings));
+        setFestivalModeEnabled(isFestivalModeEnabled(settings, flags));
       }
     }
 

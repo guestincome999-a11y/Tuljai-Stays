@@ -12,13 +12,16 @@ export interface ApiRequestOptions extends Omit<AxiosRequestConfig, 'baseURL' | 
 }
 
 export class ApiClient {
+  private readonly baseUrlIncludesApiPrefix: boolean;
   private readonly client: AxiosInstance;
   private readonly getAccessToken?: ApiClientOptions['getAccessToken'];
 
   public constructor(options: ApiClientOptions) {
     this.getAccessToken = options.getAccessToken;
+    const normalizedBaseUrl = options.baseUrl.replace(/\/$/, '');
+    this.baseUrlIncludesApiPrefix = /\/api$/u.test(normalizedBaseUrl);
     this.client = axios.create({
-      baseURL: options.baseUrl.replace(/\/$/, ''),
+      baseURL: normalizedBaseUrl,
       headers: {
         Accept: 'application/json',
       },
@@ -51,7 +54,7 @@ export class ApiClient {
     try {
       const response = await this.client.request<ApiSuccessResponse<TResponse> | TResponse>({
         ...options,
-        url: path,
+        url: this.normalizePath(path),
         data: options.body,
       });
       const payload = response.data;
@@ -72,6 +75,25 @@ export class ApiClient {
     }
 
     return this.getAccessToken();
+  }
+
+  private normalizePath(path: string): string {
+    if (/^https?:\/\//u.test(path)) {
+      return path;
+    }
+
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const pathIncludesApiPrefix = normalizedPath === '/api' || normalizedPath.startsWith('/api/');
+
+    if (this.baseUrlIncludesApiPrefix && pathIncludesApiPrefix) {
+      return normalizedPath.replace(/^\/api/u, '') || '/';
+    }
+
+    if (!this.baseUrlIncludesApiPrefix && !pathIncludesApiPrefix) {
+      return `/api${normalizedPath}`;
+    }
+
+    return normalizedPath;
   }
 
   private normalizeError(error: unknown): ApplicationError {
