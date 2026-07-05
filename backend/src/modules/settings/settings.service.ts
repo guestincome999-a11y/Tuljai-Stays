@@ -244,28 +244,60 @@ const DEFAULT_FLAGS: FeatureFlag[] = [
   },
 ];
 
+const SETTINGS_CACHE_TTL_MS = 30_000;
+
+interface CacheEntry<TValue> {
+  expiresAt: number;
+  value: TValue;
+}
+
 @Injectable()
 export class SettingsService {
+  private allFeatureFlagsCache: CacheEntry<FeatureFlag[]> | null = null;
+  private allSettingsCache: CacheEntry<SystemSetting[]> | null = null;
+  private defaultsEnsured = false;
+  private defaultsPromise: Promise<void> | null = null;
+  private publicFeatureFlagsCache: CacheEntry<FeatureFlag[]> | null = null;
+  private publicSettingsCache: CacheEntry<SystemSetting[]> | null = null;
+
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly prisma: PrismaService,
   ) {}
 
   public async listSettings(): Promise<SystemSetting[]> {
+    const cached = this.readCache(this.allSettingsCache);
+
+    if (cached) {
+      return cached;
+    }
+
     await this.ensureDefaults();
     const settings = await this.prisma.systemSetting.findMany({ orderBy: { key: 'asc' } });
 
-    return settings.map((setting) => this.toSetting(setting));
+    const mapped = settings.map((setting) => this.toSetting(setting));
+    this.allSettingsCache = this.writeCache(mapped);
+
+    return mapped;
   }
 
   public async listPublicSettings(): Promise<SystemSetting[]> {
+    const cached = this.readCache(this.publicSettingsCache);
+
+    if (cached) {
+      return cached;
+    }
+
     await this.ensureDefaults();
     const settings = await this.prisma.systemSetting.findMany({
       orderBy: { key: 'asc' },
       where: { isPublic: true },
     });
 
-    return settings.map((setting) => this.toSetting(setting));
+    const mapped = settings.map((setting) => this.toSetting(setting));
+    this.publicSettingsCache = this.writeCache(mapped);
+
+    return mapped;
   }
 
   public async updateSetting(
@@ -294,22 +326,41 @@ export class SettingsService {
       entityType: 'system_setting',
       metadata: { key },
     });
+    this.invalidateSettingsCache();
 
     return this.toSetting(setting);
   }
 
   public async listFeatureFlags(): Promise<FeatureFlag[]> {
+    const cached = this.readCache(this.allFeatureFlagsCache);
+
+    if (cached) {
+      return cached;
+    }
+
     await this.ensureDefaults();
     const flags = await this.prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });
 
-    return flags.map((flag) => this.toFeatureFlag(flag));
+    const mapped = flags.map((flag) => this.toFeatureFlag(flag));
+    this.allFeatureFlagsCache = this.writeCache(mapped);
+
+    return mapped;
   }
 
   public async listPublicFeatureFlags(): Promise<FeatureFlag[]> {
+    const cached = this.readCache(this.publicFeatureFlagsCache);
+
+    if (cached) {
+      return cached;
+    }
+
     await this.ensureDefaults();
     const flags = await this.prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });
 
-    return flags.map((flag) => this.toFeatureFlag(flag));
+    const mapped = flags.map((flag) => this.toFeatureFlag(flag));
+    this.publicFeatureFlagsCache = this.writeCache(mapped);
+
+    return mapped;
   }
 
   public async updateFeatureFlag(
@@ -338,11 +389,28 @@ export class SettingsService {
       entityType: 'feature_flag',
       metadata: { enabled: flag.enabled, key },
     });
+    this.invalidateFeatureFlagsCache();
 
     return this.toFeatureFlag(flag);
   }
 
   private async ensureDefaults(): Promise<void> {
+    if (this.defaultsEnsured) {
+      return;
+    }
+
+    if (this.defaultsPromise) {
+      return this.defaultsPromise;
+    }
+
+    this.defaultsPromise = this.ensureDefaultsUncached().finally(() => {
+      this.defaultsPromise = null;
+    });
+    await this.defaultsPromise;
+    this.defaultsEnsured = true;
+  }
+
+  private async ensureDefaultsUncached(): Promise<void> {
     for (const setting of DEFAULT_SETTINGS) {
       await this.prisma.systemSetting.upsert({
         create: {
@@ -363,6 +431,31 @@ export class SettingsService {
         where: { key: flag.key },
       });
     }
+  }
+
+  private invalidateFeatureFlagsCache(): void {
+    this.allFeatureFlagsCache = null;
+    this.publicFeatureFlagsCache = null;
+  }
+
+  private invalidateSettingsCache(): void {
+    this.allSettingsCache = null;
+    this.publicSettingsCache = null;
+  }
+
+  private readCache<TValue>(entry: CacheEntry<TValue> | null): TValue | null {
+    if (!entry || entry.expiresAt <= Date.now()) {
+      return null;
+    }
+
+    return entry.value;
+  }
+
+  private writeCache<TValue>(value: TValue): CacheEntry<TValue> {
+    return {
+      expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
+      value,
+    };
   }
 
   private toFeatureFlag(flag: {

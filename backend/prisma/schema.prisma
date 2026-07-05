@@ -669,6 +669,9 @@ model Booking {
   @@index([roomId])
   @@index([cityId])
   @@index([checkInDate, checkOutDate])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([cityId, createdAt])
   @@index([ownerResponseDeadline])
   @@index([deletedAt])
   @@map("bookings")
@@ -809,6 +812,8 @@ model QrScanLog {
   @@index([scannedByUserId])
   @@index([lodgeId])
   @@index([result])
+  @@index([createdAt])
+  @@index([result, createdAt])
   @@map("qr_scan_logs")
 }
 
@@ -928,6 +933,7 @@ model Notification {
   @@index([lodgeId])
   @@index([bookingId])
   @@index([type])
+  @@index([createdAt])
   @@index([deletedAt])
   @@map("notifications")
 }
@@ -971,6 +977,7 @@ model NotificationDeliveryLog {
   @@index([userId])
   @@index([deviceTokenId])
   @@index([status])
+  @@index([status, createdAt])
   @@map("notification_delivery_logs")
 }
 
@@ -999,6 +1006,9 @@ model Announcement {
   @@index([targetCityId])
   @@index([targetLodgeId])
   @@index([isActive])
+  @@index([category, isActive])
+  @@index([startsAt, expiresAt])
+  @@index([createdAt])
   @@index([deletedAt])
   @@map("announcements")
 }
@@ -1229,5 +1239,6 @@ model AuditLog {
   @@index([actorUserId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([action])
   @@map("audit_logs")
 }
