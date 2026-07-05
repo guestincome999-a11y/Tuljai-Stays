@@ -13,15 +13,20 @@
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
+    "build:admin": "npm --workspace @tuljai/admin-panel run build",
+    "build:backend": "npm --workspace @tuljai/backend run build",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
     "verify:workspace": "node scripts/verify-workspace.mjs",
     "db:generate": "npm --workspace @tuljai/backend run db:generate",
+    "db:deploy": "npm --workspace @tuljai/backend run db:deploy",
     "db:migrate": "npm --workspace @tuljai/backend run db:migrate",
     "db:seed": "npm --workspace @tuljai/backend run db:seed",
-    "db:studio": "npm --workspace @tuljai/backend run db:studio"
+    "db:studio": "npm --workspace @tuljai/backend run db:studio",
+    "start:admin": "npm --workspace @tuljai/admin-panel run start",
+    "start:backend": "npm --workspace @tuljai/backend run start"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
