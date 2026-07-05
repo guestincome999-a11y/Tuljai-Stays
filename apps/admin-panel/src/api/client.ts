@@ -1,10 +1,10 @@
-import { ApiClient, readPublicEnvironment } from '@tuljai/shared';
+import { ApiClient } from '@tuljai/shared';
 
 import { tokenStorage } from '../auth/token-storage';
 
-const environment = readPublicEnvironment(process.env);
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
 
 export const apiClient = new ApiClient({
-  baseUrl: environment.apiBaseUrl,
+  baseUrl: apiBaseUrl,
   getAccessToken: () => tokenStorage.getAccessToken(),
 });
