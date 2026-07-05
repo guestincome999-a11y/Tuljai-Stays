@@ -52,6 +52,11 @@ input {
   font: inherit;
 }
 
+select,
+textarea {
+  font: inherit;
+}
+
 code {
   background: var(--color-surface-muted);
   border-radius: 4px;
@@ -770,6 +775,14 @@ p {
   grid-template-columns: 0.8fr 1.4fr 1fr 1fr 1fr 0.7fr 1.4fr 1.6fr;
 }
 
+.governance-lodge-table .admin-table-row {
+  grid-template-columns: 1.5fr 0.9fr 0.9fr 0.9fr 0.9fr 1.1fr;
+}
+
+.governance-room-table .admin-table-row {
+  grid-template-columns: 0.8fr 1.2fr 1.1fr 0.7fr 0.9fr 1.3fr;
+}
+
 .admin-table-head {
   color: var(--color-muted);
   font-size: 0.78rem;
@@ -869,6 +882,52 @@ p {
   padding-top: var(--space-md);
 }
 
+.governance-list {
+  display: grid;
+  gap: var(--space-xs);
+  margin: var(--space-md) 0 0;
+  padding-left: var(--space-lg);
+}
+
+.amenity-checklist,
+.photo-grid {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.amenity-checklist {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: var(--space-md) 0;
+}
+
+.amenity-checklist label,
+.checkbox-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.photo-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.photo-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.photo-card img {
+  aspect-ratio: 4 / 3;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  width: 100%;
+}
+
 @media (max-width: 960px) {
   .admin-shell {
     grid-template-columns: 1fr;
@@ -886,9 +945,11 @@ p {
 
   .grid-2,
   .grid-3,
+  .grid-4,
   .lodge-board,
   .map-foundation,
   .ops-kpi-grid,
+  .photo-grid,
   .roadmap-grid,
   .detail-list {
     grid-template-columns: 1fr;
