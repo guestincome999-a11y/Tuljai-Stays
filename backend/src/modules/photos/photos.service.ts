@@ -58,6 +58,19 @@ export class PhotosService {
     return photos.map((photo) => this.toPhoto(photo));
   }
 
+  public async listOwnerPhotos(lodgeId: string, user: AuthenticatedUser): Promise<LodgePhoto[]> {
+    await this.lodgeAccessService.assertCanManageLodge(user, lodgeId);
+    const photos = await this.prisma.lodgePhoto.findMany({
+      orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+      where: {
+        deletedAt: null,
+        lodgeId,
+      },
+    });
+
+    return photos.map((photo) => this.toPhoto(photo));
+  }
+
   public async approve(id: string, actorUserId: string): Promise<LodgePhoto> {
     const photo = await this.prisma.lodgePhoto.update({
       data: {
@@ -138,6 +151,7 @@ export class PhotosService {
     id: string;
     isCover: boolean;
     lodgeId: string;
+    rejectionReason?: string | null;
     roomId: string | null;
     roomTypeId: string | null;
     sortOrder: number;
@@ -150,6 +164,7 @@ export class PhotosService {
       id: photo.id,
       isCover: photo.isCover,
       lodgeId: photo.lodgeId,
+      rejectionReason: photo.rejectionReason ?? null,
       roomId: photo.roomId,
       roomTypeId: photo.roomTypeId,
       sortOrder: photo.sortOrder,

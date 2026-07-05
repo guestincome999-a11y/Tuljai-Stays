@@ -16,6 +16,7 @@ export type OwnerRealtimeEventName = Extract<
   | 'qr:scan-failed'
   | 'qr:scan-success'
   | 'room:availability-updated'
+  | 'room:status-updated'
 >;
 
 export type OwnerStatus = 'AVAILABLE' | 'BUSY' | 'OFFLINE';

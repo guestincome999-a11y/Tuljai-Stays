@@ -32,6 +32,16 @@ export class PhotosController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Get('owner/lodges/:lodgeId/photos')
+  public listOwnerPhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('lodgeId') lodgeId: string,
+  ): Promise<LodgePhoto[]> {
+    return this.photosService.listOwnerPhotos(lodgeId, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Patch('admin/photos/:id/approve')
   public approve(

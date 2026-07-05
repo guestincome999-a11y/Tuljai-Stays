@@ -1,11 +1,3 @@
-import { OperationalPlaceholderScreen } from '../../src/features/dashboard/screens/OperationalPlaceholderScreen';
+import { RoomManagementScreen } from '../../src/features/rooms/screens/RoomManagementScreen';
 
-export default function RoomsScreen() {
-  return (
-    <OperationalPlaceholderScreen
-      description="Room and availability management will be implemented in a later Module 04 sequence."
-      icon="bed-outline"
-      title="Rooms"
-    />
-  );
-}
+export default RoomManagementScreen;

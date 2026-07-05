@@ -48,6 +48,7 @@ const eventNames: OwnerRealtimeEventName[] = [
   'qr:scan-failed',
   'qr:scan-success',
   'room:availability-updated',
+  'room:status-updated',
 ];
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {

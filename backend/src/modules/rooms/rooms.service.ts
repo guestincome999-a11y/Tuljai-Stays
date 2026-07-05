@@ -4,6 +4,7 @@ import type { AuthenticatedUser, Room, RoomType } from '@tuljai/types';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
 import type {
   CreateRoomDto,
@@ -19,6 +20,7 @@ export class RoomsService {
     private readonly auditLogService: AuditLogService,
     private readonly lodgeAccessService: LodgeAccessService,
     private readonly prisma: PrismaService,
+    private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
 
   public async createRoomType(
@@ -169,6 +171,16 @@ export class RoomsService {
       entityId: id,
       entityType: 'room',
       metadata: { status: dto.status },
+    });
+    this.realtimeEventsService.publishToLodge(room.lodgeId, 'room:status-updated', {
+      lodgeId: room.lodgeId,
+      roomId: room.id,
+      status: room.status,
+    });
+    this.realtimeEventsService.publishToLodge(room.lodgeId, 'room:availability-updated', {
+      lodgeId: room.lodgeId,
+      roomId: room.id,
+      status: room.status,
     });
 
     return this.toRoom(room);

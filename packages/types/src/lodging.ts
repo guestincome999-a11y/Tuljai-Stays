@@ -106,6 +106,7 @@ export interface LodgePhoto {
   id: UUID;
   isCover: boolean;
   lodgeId: UUID;
+  rejectionReason: string | null;
   roomId: UUID | null;
   roomTypeId: UUID | null;
   sortOrder: number;
