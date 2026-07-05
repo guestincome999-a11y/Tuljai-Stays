@@ -137,6 +137,7 @@ export function QrScannerScreen() {
           <View style={styles.controls}>
             <Button
               accessibilityLabel="Toggle flash"
+              accessibilityHint="Turns the camera flash on or off for QR scanning."
               mode="contained-tonal"
               onPress={() => setTorchEnabled((current) => !current)}
             >
@@ -144,12 +145,18 @@ export function QrScannerScreen() {
             </Button>
             <Button
               accessibilityLabel="Switch camera"
+              accessibilityHint="Switches between front and back camera."
               mode="contained-tonal"
               onPress={() => setFacing((current) => (current === 'back' ? 'front' : 'back'))}
             >
               Switch
             </Button>
-            <Button mode="contained-tonal" onPress={() => router.push('/(app)/scan-history')}>
+            <Button
+              accessibilityHint="Opens recent QR scan attempts and results."
+              accessibilityLabel="Open QR scan history"
+              mode="contained-tonal"
+              onPress={() => router.push('/(app)/scan-history')}
+            >
               History
             </Button>
           </View>
@@ -178,6 +185,8 @@ export function QrScannerScreen() {
               </Text>
               <View style={styles.resultActions}>
                 <Button
+                  accessibilityHint="Opens the guest register unlocked by this QR check-in."
+                  accessibilityLabel="Open guest register after successful check-in"
                   mode="contained"
                   onPress={() =>
                     router.push({
@@ -188,7 +197,12 @@ export function QrScannerScreen() {
                 >
                   Open Guest Register
                 </Button>
-                <Button mode="contained-tonal" onPress={resetScanner}>
+                <Button
+                  accessibilityHint="Clears this result and scans another pilgrim QR pass."
+                  accessibilityLabel="Scan next guest QR"
+                  mode="contained-tonal"
+                  onPress={resetScanner}
+                >
                   Scan Next Guest
                 </Button>
               </View>
@@ -201,7 +215,12 @@ export function QrScannerScreen() {
               <Text style={{ color: theme.colors.error }} variant="titleLarge">
                 {outcome.message}
               </Text>
-              <Button mode="contained-tonal" onPress={resetScanner}>
+              <Button
+                accessibilityHint="Clears this failed scan and starts scanning again."
+                accessibilityLabel="Scan QR again"
+                mode="contained-tonal"
+                onPress={resetScanner}
+              >
                 Scan Again
               </Button>
             </Card.Content>

@@ -112,7 +112,7 @@ export function useOwnerNotifications(activeType: NotificationType | null) {
   const runAction = useCallback(
     async (action: () => Promise<unknown>) => {
       if (isOffline) {
-        setErrorMessage('Connect to the internet to update notifications.');
+        setErrorMessage('Connect to the internet to complete this action.');
         return;
       }
 

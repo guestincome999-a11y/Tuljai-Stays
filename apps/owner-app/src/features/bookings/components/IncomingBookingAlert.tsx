@@ -71,13 +71,15 @@ export function IncomingBookingAlert({
           </Text>
           {isOffline ? (
             <Text style={{ color: theme.colors.error }} variant="bodyMedium">
-              Connect to the internet to respond to bookings.
+              Connect to the internet to complete this action.
             </Text>
           ) : null}
         </View>
 
         <View style={styles.actions}>
           <Button
+            accessibilityHint="Accepts this pending booking request."
+            accessibilityLabel={`Accept booking ${booking.bookingCode}`}
             disabled={isOffline || isSubmitting}
             loading={isSubmitting}
             mode="contained"
@@ -86,6 +88,8 @@ export function IncomingBookingAlert({
             Accept
           </Button>
           <Button
+            accessibilityHint="Opens the rejection reason flow for this booking."
+            accessibilityLabel={`Reject booking ${booking.bookingCode}`}
             disabled={isOffline || isSubmitting}
             loading={isSubmitting}
             mode="outlined"
@@ -93,7 +97,13 @@ export function IncomingBookingAlert({
           >
             Reject
           </Button>
-          <Button disabled={isSubmitting} mode="text" onPress={onClose}>
+          <Button
+            accessibilityHint="Closes this booking alert without responding."
+            accessibilityLabel={`Close booking alert ${booking.bookingCode}`}
+            disabled={isSubmitting}
+            mode="text"
+            onPress={onClose}
+          >
             Close
           </Button>
         </View>

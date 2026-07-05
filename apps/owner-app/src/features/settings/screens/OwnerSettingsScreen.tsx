@@ -141,6 +141,8 @@ export function OwnerSettingsScreen() {
               }}
             />
             <Button
+              accessibilityHint="Restores default device preferences for the owner app."
+              accessibilityLabel="Reset owner app device preferences"
               mode="contained-tonal"
               onPress={() => {
                 void settings.update({

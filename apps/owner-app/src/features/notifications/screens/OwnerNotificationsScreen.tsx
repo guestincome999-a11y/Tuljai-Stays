@@ -1,6 +1,6 @@
 import type { Notification, NotificationPriority, NotificationType } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
@@ -47,6 +47,8 @@ export function OwnerNotificationsScreen() {
           </Text>
         </View>
         <Button
+          accessibilityHint="Marks every visible notification as read."
+          accessibilityLabel="Mark all owner notifications as read"
           disabled={isOffline || notifications.isSubmitting || unreadCount === 0}
           mode="contained-tonal"
           onPress={() => {
@@ -110,7 +112,7 @@ export function OwnerNotificationsScreen() {
   );
 }
 
-function NotificationCard({
+const NotificationCard = memo(function NotificationCard({
   disabled,
   notification,
   onDelete,
@@ -153,14 +155,20 @@ function NotificationCard({
               Mark Read
             </Button>
           ) : null}
-          <Button disabled={disabled} mode="outlined" onPress={onDelete}>
+          <Button
+            accessibilityHint="Removes this notification from the list."
+            accessibilityLabel={`Delete notification ${notification.title}`}
+            disabled={disabled}
+            mode="outlined"
+            onPress={onDelete}
+          >
             Delete
           </Button>
         </View>
       </Card.Content>
     </Card>
   );
-}
+});
 
 function sanitizePreview(value: string): string {
   return value.replace(/\b\d{10}\b/g, '**********');

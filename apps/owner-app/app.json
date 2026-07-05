@@ -9,10 +9,14 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "bundleIdentifier": "com.tuljaistays.owner",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Tuljai Stays Owner uses the camera to scan pilgrim QR passes for secure check-in."
+      },
       "supportsTablet": true
     },
     "android": {
       "package": "com.tuljaistays.owner",
+      "permissions": ["CAMERA", "VIBRATE"],
       "adaptiveIcon": {
         "backgroundColor": "#FFFBFE"
       }

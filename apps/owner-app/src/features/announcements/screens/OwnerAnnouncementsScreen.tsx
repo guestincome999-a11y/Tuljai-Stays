@@ -1,6 +1,6 @@
 import type { Announcement, AnnouncementCategory } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
@@ -95,7 +95,7 @@ export function OwnerAnnouncementsScreen() {
   );
 }
 
-function AnnouncementCard({
+const AnnouncementCard = memo(function AnnouncementCard({
   announcement,
   disabled,
   onRead,
@@ -134,14 +134,20 @@ function AnnouncementCard({
           </Text>
         ) : null}
         {!announcement.readAt ? (
-          <Button disabled={disabled} mode="contained-tonal" onPress={onRead}>
+          <Button
+            accessibilityHint="Marks this admin announcement as read."
+            accessibilityLabel={`Mark announcement ${announcement.title} as read`}
+            disabled={disabled}
+            mode="contained-tonal"
+            onPress={onRead}
+          >
             Mark Read
           </Button>
         ) : null}
       </Card.Content>
     </Card>
   );
-}
+});
 
 function formatCategory(category: AnnouncementCategory): string {
   return category

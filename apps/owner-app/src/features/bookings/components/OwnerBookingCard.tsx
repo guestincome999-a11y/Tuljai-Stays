@@ -54,12 +54,19 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
         </View>
 
         <View style={styles.actions}>
-          <Button mode="contained-tonal" onPress={() => onOpen(booking)}>
+          <Button
+            accessibilityHint="Opens the booking detail screen."
+            accessibilityLabel={`View details for booking ${booking.bookingCode}`}
+            mode="contained-tonal"
+            onPress={() => onOpen(booking)}
+          >
             View Details
           </Button>
           {isPending ? (
             <>
               <Button
+                accessibilityHint="Accepts this pending booking request."
+                accessibilityLabel={`Accept booking ${booking.bookingCode}`}
                 disabled={isActionDisabled}
                 loading={isSubmitting}
                 mode="contained"
@@ -68,6 +75,8 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
                 Accept
               </Button>
               <Button
+                accessibilityHint="Rejects this booking after entering a reason."
+                accessibilityLabel={`Reject booking ${booking.bookingCode}`}
                 disabled={isActionDisabled}
                 loading={isSubmitting}
                 mode="outlined"

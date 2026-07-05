@@ -149,7 +149,7 @@ export function useRoomOperations() {
       if (isOffline) {
         setState((current) => ({
           ...current,
-          errorMessage: 'Connect to the internet to update rooms.',
+          errorMessage: 'Connect to the internet to complete this action.',
         }));
         return false;
       }

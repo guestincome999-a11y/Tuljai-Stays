@@ -70,7 +70,7 @@ export function useOwnerAnnouncements(activeCategory: AnnouncementCategory | nul
     isRefreshing,
     markRead: async (announcementId: string) => {
       if (isOffline) {
-        setErrorMessage('Connect to the internet to mark announcements read.');
+        setErrorMessage('Connect to the internet to complete this action.');
         return;
       }
 

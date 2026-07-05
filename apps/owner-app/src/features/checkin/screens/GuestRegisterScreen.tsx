@@ -139,6 +139,8 @@ export function GuestRegisterScreen() {
               onChangeText={setGovernmentIdNumber}
             />
             <Button
+              accessibilityHint="Marks the guest government ID as checked by reception."
+              accessibilityLabel={`Mark ID verified for ${data.primaryGuestName}`}
               disabled={isOffline || register.isSubmitting}
               loading={register.isSubmitting}
               mode="contained-tonal"
@@ -179,6 +181,8 @@ export function GuestRegisterScreen() {
               onChangeText={setOwnerNotes}
             />
             <Button
+              accessibilityHint="Saves private owner notes for this guest register."
+              accessibilityLabel={`Save owner notes for ${data.primaryGuestName}`}
               disabled={isOffline || register.isSubmitting}
               loading={register.isSubmitting}
               mode="contained-tonal"
@@ -200,6 +204,8 @@ export function GuestRegisterScreen() {
 
         {data.status === 'CHECKED_IN' ? (
           <Button
+            accessibilityHint="Marks this guest stay as checked out."
+            accessibilityLabel={`Checkout guest ${data.primaryGuestName}`}
             disabled={isOffline || register.isSubmitting}
             loading={register.isSubmitting}
             mode="contained"

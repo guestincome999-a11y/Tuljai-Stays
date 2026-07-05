@@ -73,7 +73,7 @@ export function OwnerBookingsScreen() {
         <FormErrorBanner message={bookings.errorMessage ?? actions.errorMessage} />
         {actions.isOffline ? (
           <Text style={{ color: theme.colors.error }} variant="bodyMedium">
-            Connect to the internet to respond to bookings.
+            Connect to the internet to complete this action.
           </Text>
         ) : null}
 

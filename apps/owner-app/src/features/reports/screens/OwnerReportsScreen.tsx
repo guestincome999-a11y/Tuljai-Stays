@@ -1,5 +1,6 @@
 import type { BookingReportRow } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { memo } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Card, Chip, Text, useTheme } from 'react-native-paper';
 
@@ -82,7 +83,13 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReportTable({ rows, title }: { rows: BookingReportRow[]; title: string }) {
+const ReportTable = memo(function ReportTable({
+  rows,
+  title,
+}: {
+  rows: BookingReportRow[];
+  title: string;
+}) {
   return (
     <Card mode="outlined" style={styles.card}>
       <Card.Content style={styles.cardContent}>
@@ -105,7 +112,7 @@ function ReportTable({ rows, title }: { rows: BookingReportRow[]; title: string 
       </Card.Content>
     </Card>
   );
-}
+});
 
 function formatMoney(value: string | null): string {
   if (!value) {

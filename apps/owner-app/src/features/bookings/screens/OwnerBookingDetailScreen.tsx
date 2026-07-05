@@ -140,6 +140,8 @@ export function OwnerBookingDetailScreen() {
                 <Text variant="bodyMedium">Guest ID details are available in Guest Register.</Text>
                 {registerId ? (
                   <Button
+                    accessibilityHint="Opens the verified guest register for this booking."
+                    accessibilityLabel={`Open guest register for booking ${booking.bookingCode}`}
                     mode="contained-tonal"
                     onPress={() =>
                       router.push({ pathname: '/(app)/register/[id]', params: { id: registerId } })
@@ -176,6 +178,8 @@ export function OwnerBookingDetailScreen() {
         {isPending ? (
           <View style={styles.actions}>
             <Button
+              accessibilityHint="Accepts this pending booking request."
+              accessibilityLabel={`Accept booking ${booking.bookingCode}`}
               disabled={actions.isOffline || Boolean(actions.submittingBookingId)}
               loading={actions.submittingBookingId === booking.id}
               mode="contained"
@@ -186,6 +190,8 @@ export function OwnerBookingDetailScreen() {
               Accept Booking
             </Button>
             <Button
+              accessibilityHint="Opens the rejection reason form."
+              accessibilityLabel={`Reject booking ${booking.bookingCode}`}
               disabled={actions.isOffline || Boolean(actions.submittingBookingId)}
               loading={actions.submittingBookingId === booking.id}
               mode="outlined"

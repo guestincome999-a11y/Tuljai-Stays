@@ -1,7 +1,7 @@
 import type { GuestRegister } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
@@ -76,7 +76,12 @@ export function RegisterDashboardScreen() {
             {registerDashboard.summary.upcomingCheckoutReminders} active guests have checkout times
             that need reception monitoring.
           </Text>
-          <Button mode="contained-tonal" onPress={() => setFilter('UPCOMING_CHECKOUT')}>
+          <Button
+            accessibilityHint="Filters the register list to active guests with upcoming checkout."
+            accessibilityLabel="View upcoming checkout reminders"
+            mode="contained-tonal"
+            onPress={() => setFilter('UPCOMING_CHECKOUT')}
+          >
             View Upcoming Checkouts
           </Button>
         </Card.Content>
@@ -154,7 +159,13 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function RegisterCard({ onOpen, register }: { onOpen: () => void; register: GuestRegister }) {
+const RegisterCard = memo(function RegisterCard({
+  onOpen,
+  register,
+}: {
+  onOpen: () => void;
+  register: GuestRegister;
+}) {
   const theme = useTheme();
   const checkoutState = getCheckoutState(register);
 
@@ -180,17 +191,37 @@ function RegisterCard({ onOpen, register }: { onOpen: () => void; register: Gues
         </Text>
         {checkoutState ? <Chip icon="clock-alert-outline">{checkoutState}</Chip> : null}
         <View style={styles.actions}>
-          <Button mode="contained-tonal" onPress={onOpen}>
+          <Button
+            accessibilityHint="Opens the full guest register detail."
+            accessibilityLabel={`View register for ${register.primaryGuestName}`}
+            mode="contained-tonal"
+            onPress={onOpen}
+          >
             View Register
           </Button>
-          <Button mode="outlined" onPress={onOpen}>
+          <Button
+            accessibilityHint="Opens the register note editor."
+            accessibilityLabel={`Add note for ${register.primaryGuestName}`}
+            mode="outlined"
+            onPress={onOpen}
+          >
             Add Note
           </Button>
-          <Button mode="outlined" onPress={onOpen}>
+          <Button
+            accessibilityHint="Opens the ID verification controls."
+            accessibilityLabel={`Mark ID verified for ${register.primaryGuestName}`}
+            mode="outlined"
+            onPress={onOpen}
+          >
             Mark ID Verified
           </Button>
           {register.status === 'CHECKED_IN' ? (
-            <Button mode="outlined" onPress={onOpen}>
+            <Button
+              accessibilityHint="Opens checkout controls for this register."
+              accessibilityLabel={`Mark checkout for ${register.primaryGuestName}`}
+              mode="outlined"
+              onPress={onOpen}
+            >
               Mark Checkout
             </Button>
           ) : null}
@@ -198,7 +229,7 @@ function RegisterCard({ onOpen, register }: { onOpen: () => void; register: Gues
       </Card.Content>
     </Card>
   );
-}
+});
 
 function getCheckoutState(register: GuestRegister): string | null {
   if (!register.expectedCheckoutAt || register.status !== 'CHECKED_IN') {

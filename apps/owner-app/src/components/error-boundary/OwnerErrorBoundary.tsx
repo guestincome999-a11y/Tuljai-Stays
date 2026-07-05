@@ -23,9 +23,9 @@ export class OwnerErrorBoundary extends Component<
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    void error;
-    void errorInfo;
-    // Crash details stay out of the user interface and can be routed to a logger later.
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Owner app error boundary caught an error', error, errorInfo);
+    }
   }
 
   public render() {
@@ -38,11 +38,18 @@ export class OwnerErrorBoundary extends Component<
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.content}>
             <Text variant="headlineSmall">Something went wrong.</Text>
-            <Text variant="bodyMedium">Please try again or restart the app.</Text>
-            <Button mode="contained" onPress={() => this.setState({ hasError: false })}>
+            <Text variant="bodyMedium">Please try again or return to the dashboard.</Text>
+            <Button
+              accessibilityHint="Attempts to show the current screen again."
+              accessibilityLabel="Retry after app error"
+              mode="contained"
+              onPress={() => this.setState({ hasError: false })}
+            >
               Retry
             </Button>
             <Button
+              accessibilityHint="Returns to the owner dashboard without showing error details."
+              accessibilityLabel="Go to owner dashboard after app error"
               mode="contained-tonal"
               onPress={() => {
                 this.setState({ hasError: false });

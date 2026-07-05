@@ -117,6 +117,8 @@ export function DashboardScreen() {
           <View style={styles.statusRow}>
             {(['AVAILABLE', 'BUSY', 'OFFLINE'] as const).map((status) => (
               <Button
+                accessibilityHint={`Sets owner status to ${formatOwnerStatus(status)} for live presence.`}
+                accessibilityLabel={`Set owner status ${formatOwnerStatus(status)}`}
                 key={status}
                 mode={realtime.ownerStatus === status ? 'contained' : 'outlined'}
                 onPress={() => realtime.setOwnerStatus(status)}
@@ -205,6 +207,8 @@ export function DashboardScreen() {
 
       <View style={styles.actions}>
         <Button
+          accessibilityHint="Opens the owner booking list."
+          accessibilityLabel="Open owner bookings"
           icon="clipboard-list-outline"
           mode="contained"
           onPress={() => router.push('/(app)/bookings')}
@@ -212,6 +216,8 @@ export function DashboardScreen() {
           View Bookings
         </Button>
         <Button
+          accessibilityHint="Opens owner notification center."
+          accessibilityLabel="Open owner notifications"
           icon="bell-outline"
           mode="contained-tonal"
           onPress={() => router.push('/(app)/notifications')}
@@ -219,6 +225,8 @@ export function DashboardScreen() {
           Notifications
         </Button>
         <Button
+          accessibilityHint="Opens the QR scanner for pilgrim check-in."
+          accessibilityLabel="Open QR scanner"
           icon="qrcode-scan"
           mode="contained-tonal"
           onPress={() => router.push('/(app)/scan')}
@@ -226,6 +234,8 @@ export function DashboardScreen() {
           Scan QR
         </Button>
         <Button
+          accessibilityHint="Opens arrivals, departures, and guest register summary."
+          accessibilityLabel="Open register dashboard"
           icon="book-open-variant"
           mode="contained-tonal"
           onPress={() => router.push('/(app)/register-dashboard')}
@@ -233,6 +243,8 @@ export function DashboardScreen() {
           Register Dashboard
         </Button>
         <Button
+          accessibilityHint="Opens room status and gallery management."
+          accessibilityLabel="Open room management"
           icon="bed-outline"
           mode="contained-tonal"
           onPress={() => router.push('/(app)/rooms')}
@@ -240,13 +252,21 @@ export function DashboardScreen() {
           Manage Rooms
         </Button>
         <Button
+          accessibilityHint="Opens owner booking and commission reports."
+          accessibilityLabel="Open owner reports"
           icon="chart-box-outline"
           mode="outlined"
           onPress={() => router.push('/(app)/reports')}
         >
           Reports
         </Button>
-        <Button icon="cog-outline" mode="outlined" onPress={() => router.push('/(app)/settings')}>
+        <Button
+          accessibilityHint="Opens local owner app preferences."
+          accessibilityLabel="Open owner settings"
+          icon="cog-outline"
+          mode="outlined"
+          onPress={() => router.push('/(app)/settings')}
+        >
           Settings
         </Button>
       </View>
