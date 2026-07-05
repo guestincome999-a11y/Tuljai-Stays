@@ -70,7 +70,21 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     label: 'Announcements',
     permission: 'announcements.manage',
     section: 'Operations',
-    status: 'placeholder',
+    status: 'ready',
+  },
+  {
+    href: '/admin/festival-control',
+    label: 'Festival Control',
+    permission: 'settings.manage',
+    section: 'Operations',
+    status: 'ready',
+  },
+  {
+    href: '/admin/emergency-control',
+    label: 'Emergency Control',
+    permission: 'security.manage',
+    section: 'Operations',
+    status: 'ready',
   },
   {
     href: '/admin/reports',
@@ -119,13 +133,13 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     label: 'Settings',
     permission: 'settings.manage',
     section: 'Governance',
-    status: 'placeholder',
+    status: 'ready',
   },
   {
     href: '/admin/feature-flags',
     label: 'Feature Flags',
     permission: 'feature_flags.manage',
     section: 'Governance',
-    status: 'placeholder',
+    status: 'ready',
   },
 ];

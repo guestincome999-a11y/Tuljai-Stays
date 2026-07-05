@@ -52,6 +52,103 @@ const DEFAULT_SETTINGS: SystemSetting[] = [
   },
   { description: 'Multi-city enabled', isPublic: true, key: 'enable_multi_city', value: false },
   { description: 'Enabled city slug', isPublic: true, key: 'enabled_city_slug', value: 'tuljapur' },
+  { description: 'Support phone', isPublic: true, key: 'support_phone', value: '+910000000000' },
+  {
+    description: 'Support email',
+    isPublic: true,
+    key: 'support_email',
+    value: 'support@tuljaistays.com',
+  },
+  { description: 'Privacy policy URL', isPublic: true, key: 'privacy_policy_url', value: '' },
+  { description: 'Terms URL', isPublic: true, key: 'terms_url', value: '' },
+  {
+    description: 'Minimum supported app version',
+    isPublic: true,
+    key: 'minimum_app_version',
+    value: '1.0.0',
+  },
+  {
+    description: 'Force app update enabled',
+    isPublic: true,
+    key: 'force_update_enabled',
+    value: false,
+  },
+  {
+    description: 'App maintenance message',
+    isPublic: true,
+    key: 'app_maintenance_message',
+    value: '',
+  },
+  {
+    description: 'App welcome message',
+    isPublic: true,
+    key: 'app_welcome_message',
+    value: 'Welcome to Tuljai Stays',
+  },
+  { description: 'Festival banner text', isPublic: true, key: 'festival_banner_text', value: '' },
+  { description: 'Emergency banner text', isPublic: true, key: 'emergency_banner_text', value: '' },
+  { description: 'Force update message', isPublic: true, key: 'force_update_message', value: '' },
+  { description: 'Help text', isPublic: true, key: 'help_text', value: '' },
+  { description: 'QR instruction text', isPublic: true, key: 'qr_instruction_text', value: '' },
+  {
+    description: 'Booking instruction text',
+    isPublic: true,
+    key: 'booking_instruction_text',
+    value: '',
+  },
+  {
+    description: 'Festival announcement text',
+    isPublic: true,
+    key: 'festival_announcement',
+    value: '',
+  },
+  {
+    description: 'Temple advisory message',
+    isPublic: true,
+    key: 'temple_advisory_message',
+    value: '',
+  },
+  { description: 'Crowd warning message', isPublic: true, key: 'crowd_warning_message', value: '' },
+  {
+    description: 'Festival emergency contact text',
+    isPublic: true,
+    key: 'festival_emergency_contact_text',
+    value: '',
+  },
+  {
+    description: 'Festival support instructions',
+    isPublic: true,
+    key: 'festival_support_instructions',
+    value: '',
+  },
+  { description: 'Festival start date', isPublic: true, key: 'festival_start_date', value: '' },
+  { description: 'Festival end date', isPublic: true, key: 'festival_end_date', value: '' },
+  { description: 'Festival UI color', isPublic: true, key: 'festival_ui_color', value: '#245b4f' },
+  { description: 'Booking pause reason', isPublic: true, key: 'booking_pause_reason', value: '' },
+  {
+    description: 'Pilgrim app maintenance message',
+    isPublic: true,
+    key: 'pilgrim_app_maintenance_message',
+    value: '',
+  },
+  {
+    description: 'Owner app maintenance message',
+    isPublic: true,
+    key: 'owner_app_maintenance_message',
+    value: '',
+  },
+  {
+    description: 'Admin panel maintenance message',
+    isPublic: false,
+    key: 'admin_panel_maintenance_message',
+    value: '',
+  },
+  {
+    description: 'Backend maintenance notice',
+    isPublic: true,
+    key: 'backend_maintenance_notice',
+    value: '',
+  },
 ];
 
 const DEFAULT_FLAGS: FeatureFlag[] = [
@@ -95,6 +192,54 @@ const DEFAULT_FLAGS: FeatureFlag[] = [
     description: 'Advanced analytics',
     enabled: false,
     key: 'advanced_analytics',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'Reviews and review prompts',
+    enabled: true,
+    key: 'reviews_enabled',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'QR check-in workflow',
+    enabled: true,
+    key: 'qr_checkin_enabled',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'New booking creation',
+    enabled: true,
+    key: 'booking_enabled',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'Pilgrim app availability',
+    enabled: true,
+    key: 'pilgrim_app_enabled',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'Owner app availability',
+    enabled: true,
+    key: 'owner_app_enabled',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'Admin panel availability',
+    enabled: true,
+    key: 'admin_panel_enabled',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'Emergency platform mode',
+    enabled: false,
+    key: 'emergency_mode',
+    rolloutPercentage: null,
+  },
+  {
+    description: 'Maintenance mode notice',
+    enabled: false,
+    key: 'maintenance_mode',
     rolloutPercentage: null,
   },
 ];
@@ -214,29 +359,37 @@ export class SettingsService {
   }
 
   private toFeatureFlag(flag: {
+    createdAt?: Date;
     description: string | null;
     enabled: boolean;
     key: string;
     rolloutPercentage: number | null;
+    updatedAt?: Date;
   }): FeatureFlag {
     return {
+      createdAt: flag.createdAt?.toISOString(),
       description: flag.description,
       enabled: flag.enabled,
       key: flag.key,
       rolloutPercentage: flag.rolloutPercentage,
+      updatedAt: flag.updatedAt?.toISOString(),
     };
   }
 
   private toSetting(setting: {
+    createdAt?: Date;
     description: string | null;
     isPublic: boolean;
     key: string;
+    updatedAt?: Date;
     value: Prisma.JsonValue;
   }): SystemSetting {
     return {
+      createdAt: setting.createdAt?.toISOString(),
       description: setting.description,
       isPublic: setting.isPublic,
       key: setting.key,
+      updatedAt: setting.updatedAt?.toISOString(),
       value: setting.value,
     };
   }

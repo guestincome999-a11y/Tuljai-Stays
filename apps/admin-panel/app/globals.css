@@ -928,6 +928,39 @@ p {
   width: 100%;
 }
 
+.settings-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.settings-card input,
+.settings-card select {
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-sm);
+  min-height: 42px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.settings-preview-table .admin-table-row {
+  grid-template-columns: 1.1fr 1.8fr 0.8fr;
+}
+
+.announcement-table .admin-table-row {
+  grid-template-columns: 1.4fr 0.9fr 0.8fr 0.9fr 1fr 0.7fr;
+}
+
 @media (max-width: 960px) {
   .admin-shell {
     grid-template-columns: 1fr;
@@ -951,6 +984,7 @@ p {
   .ops-kpi-grid,
   .photo-grid,
   .roadmap-grid,
+  .settings-grid,
   .detail-list {
     grid-template-columns: 1fr;
   }

@@ -102,17 +102,21 @@ export interface CommissionSummary {
 }
 
 export interface SystemSetting {
+  createdAt?: string;
   description: string | null;
   isPublic: boolean;
   key: string;
+  updatedAt?: string;
   value: unknown;
 }
 
 export interface FeatureFlag {
+  createdAt?: string;
   description: string | null;
   enabled: boolean;
   key: string;
   rolloutPercentage: number | null;
+  updatedAt?: string;
 }
 
 export interface NotificationMetrics {
