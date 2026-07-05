@@ -24,6 +24,11 @@
   box-sizing: border-box;
 }
 
+*:focus-visible {
+  outline: 3px solid #d19b20;
+  outline-offset: 3px;
+}
+
 html {
   background: var(--color-background);
 }
@@ -57,10 +62,35 @@ textarea {
   font: inherit;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  box-shadow: 0 0 0 4px rgba(209, 155, 32, 0.22);
+}
+
 code {
   background: var(--color-surface-muted);
   border-radius: 4px;
   padding: 2px 5px;
+}
+
+.skip-link {
+  background: var(--color-primary-strong);
+  border-radius: var(--radius-sm);
+  color: #ffffff;
+  font-weight: 900;
+  left: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  position: fixed;
+  top: var(--space-md);
+  transform: translateY(-160%);
+  z-index: 20;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 .auth-shell {

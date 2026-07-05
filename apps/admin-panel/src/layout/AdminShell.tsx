@@ -21,6 +21,9 @@ export function AdminShell({ children }: PropsWithChildren) {
   return (
     <AdminProtectedRoute>
       <div className="admin-shell">
+        <a className="skip-link" href="#admin-main-content">
+          Skip to main content
+        </a>
         <aside className="admin-sidebar" aria-label="Admin navigation">
           <div className="brand-block">
             <span className="brand-mark">TS</span>
@@ -83,7 +86,9 @@ export function AdminShell({ children }: PropsWithChildren) {
             </div>
           </header>
 
-          <main className="admin-content">{children}</main>
+          <main className="admin-content" id="admin-main-content" tabIndex={-1}>
+            {children}
+          </main>
         </div>
       </div>
     </AdminProtectedRoute>
@@ -104,6 +109,12 @@ function groupNavigation(
 }
 
 function getCurrentSection(pathname: string): string {
+  const currentItem = getCurrentNavigationItem(pathname);
+
+  if (currentItem) {
+    return currentItem.section;
+  }
+
   if (pathname.includes('/audit')) {
     return 'Audit Logs';
   }
@@ -124,6 +135,12 @@ function getCurrentSection(pathname: string): string {
 }
 
 function getCurrentTitle(pathname: string): string {
+  const currentItem = getCurrentNavigationItem(pathname);
+
+  if (currentItem) {
+    return currentItem.label;
+  }
+
   if (pathname.includes('/audit')) {
     return 'Audit Log Foundation';
   }
@@ -141,4 +158,10 @@ function getCurrentTitle(pathname: string): string {
   }
 
   return 'Live Operations Center';
+}
+
+function getCurrentNavigationItem(pathname: string) {
+  return adminNavigationItems
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((first, second) => second.href.length - first.href.length)[0];
 }
