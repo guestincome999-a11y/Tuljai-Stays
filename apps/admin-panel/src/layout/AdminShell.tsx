@@ -124,5 +124,5 @@ function getCurrentTitle(pathname: string): string {
     return 'Account & Session';
   }
 
-  return 'Dashboard Shell';
+  return 'Live Operations Center';
 }
