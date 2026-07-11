@@ -31,7 +31,9 @@ export async function requestAndRegisterPushToken(): Promise<{
 
   const permissions = await Notifications.requestPermissionsAsync();
 
-  if (!permissions.granted) {
+  const permissionStatus = hasNotificationPermission(permissions);
+
+  if (!permissionStatus) {
     return {
       message: 'Notifications can be enabled later from your device settings.',
       registered: false,
@@ -81,4 +83,26 @@ function readExpoProjectId(): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
+}
+
+function hasNotificationPermission(permissions: unknown): boolean {
+  if (!isRecord(permissions)) {
+    return false;
+  }
+
+  if (typeof permissions.granted === 'boolean') {
+    return permissions.granted;
+  }
+
+  if (permissions.status === 'granted') {
+    return true;
+  }
+
+  const ios = permissions.ios;
+
+  if (isRecord(ios) && typeof ios.status === 'number') {
+    return ios.status === 2 || ios.status === 3 || ios.status === 4;
+  }
+
+  return false;
 }
