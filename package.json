@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build --workspace @tuljai/types && npm run build --workspace @tuljai/utils && npm run build --workspace @tuljai/shared && npm run build --workspace @tuljai/ui && npm run build --workspace @tuljai/admin-panel && npm run build --workspace @tuljai/backend",
     "build:admin": "npm --workspace @tuljai/admin-panel run build",
     "build:backend": "npm --workspace @tuljai/backend run build",
     "lint": "npm run lint --workspaces --if-present",

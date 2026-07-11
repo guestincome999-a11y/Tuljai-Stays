@@ -16,6 +16,7 @@ async function bootstrap(): Promise<void> {
   );
   const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('api.port');
+  const host = configService.getOrThrow<string>('api.host');
   const allowedOrigins = configService.getOrThrow<string[]>('api.security.allowedOrigins');
   const nodeEnv = configService.getOrThrow<string>('api.nodeEnv');
 
@@ -49,7 +50,7 @@ async function bootstrap(): Promise<void> {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  await app.listen(port);
+  await app.listen(port, host);
 }
 
 void bootstrap();

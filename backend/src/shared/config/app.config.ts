@@ -5,6 +5,7 @@ import { parseAllowedOrigins } from '../security/cors.config';
 export const appConfig = registerAs('api', () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.API_PORT ?? 4000),
+  host: process.env.API_HOST ?? '0.0.0.0',
   security: {
     allowedOrigins: parseAllowedOrigins(
       process.env.ALLOWED_ORIGINS,

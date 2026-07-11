@@ -11,6 +11,10 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  API_HOST?: string;
+
+  @IsOptional()
+  @IsString()
   ALLOWED_ORIGINS?: string;
 
   @IsOptional()
