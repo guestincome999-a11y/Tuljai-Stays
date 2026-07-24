@@ -1,3 +1,1 @@
-import { AnnouncementsScreen } from '../../src/features/announcements/screens/AnnouncementsScreen';
-
-export default AnnouncementsScreen;
+export { PilgrimAnnouncementsScreen as default } from '../../src/pilgrim-ui/screens/PilgrimAnnouncementsScreen';

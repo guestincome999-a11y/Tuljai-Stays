@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type {
   AdminDashboardSummary,
   AuthenticatedUser,
@@ -12,7 +13,6 @@ import type {
 } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import { Prisma } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { PrismaService } from '../prisma/prisma.service';

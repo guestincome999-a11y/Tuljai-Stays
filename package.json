@@ -19,6 +19,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
+    "postinstall": "patch-package",
     "verify:workspace": "node scripts/verify-workspace.mjs",
     "db:generate": "npm --workspace @tuljai/backend run db:generate",
     "db:deploy": "npm --workspace @tuljai/backend run db:deploy",
@@ -35,8 +36,23 @@
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.31.0",
+    "expo-router": "~57.0.6",
+    "patch-package": "^8.0.0",
     "prettier": "^3.6.2",
+    "react": "19.2.3",
+    "react-native-gesture-handler": "2.32.0",
+    "react-native-reanimated": "4.5.0",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "4.26.0",
+    "react-native-svg": "15.15.4",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.49.0"
+  },
+  "overrides": {
+    "react-native-gesture-handler": "2.32.0",
+    "react-native-reanimated": "4.5.0",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "4.26.0",
+    "react-native-svg": "15.15.4"
   }
 }

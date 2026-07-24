@@ -1,4 +1,11 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  NotificationChannel,
+  NotificationPriority,
+  NotificationType,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 import type {
   AuthenticatedUser,
   Notification as SharedNotification,
@@ -7,13 +14,6 @@ import type {
 } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import {
-  NotificationChannel,
-  NotificationPriority,
-  NotificationType,
-  Prisma,
-  UserRole,
-} from '../../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';
 

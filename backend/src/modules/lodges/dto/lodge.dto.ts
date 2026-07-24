@@ -1,3 +1,4 @@
+import { LodgeStatus, PropertyType, VerificationStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
@@ -12,8 +13,6 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-
-import { LodgeStatus, PropertyType, VerificationStatus } from '../../../../generated/prisma';
 
 export class LodgeAddressDto {
   @IsString()
@@ -226,11 +225,13 @@ export class ListLodgesQueryDto {
   @IsInt()
   @IsOptional()
   @Min(1)
+  @Type(() => Number)
   page?: number;
 
   @IsInt()
   @IsOptional()
   @Min(1)
   @Max(100)
+  @Type(() => Number)
   pageSize?: number;
 }

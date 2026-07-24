@@ -1,6 +1,7 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Allow, IsBoolean, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class UpdateSystemSettingDto {
+  @Allow()
   value!: unknown;
 
   @IsOptional()

@@ -9,6 +9,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import {
+  AppType,
+  DevicePlatform,
+  OtpPurpose,
+  Prisma,
+  type RefreshToken,
+  type User,
+} from '@prisma/client';
 import type {
   AuthTokens,
   AuthUserProfile,
@@ -18,14 +26,6 @@ import type {
   VerifyOtpResponse,
 } from '@tuljai/types';
 
-import {
-  AppType,
-  DevicePlatform,
-  OtpPurpose,
-  Prisma,
-  type RefreshToken,
-  type User,
-} from '../../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
@@ -33,6 +33,7 @@ import type {
   RefreshTokenDto,
   RegisterDeviceTokenDto,
   RequestOtpDto,
+  UpdateProfileDto,
   VerifyOtpDto,
 } from './dto/auth.dto';
 
@@ -340,6 +341,35 @@ export class AuthService {
     }
 
     return this.toUserProfile(user);
+  }
+
+  public async updateProfile(userId: string, dto: UpdateProfileDto): Promise<AuthUserProfile> {
+    const existing = await this.prisma.user.findFirst({
+      where: { deletedAt: null, id: userId, isActive: true },
+    });
+
+    if (!existing) {
+      throw new UnauthorizedException('User is not active');
+    }
+
+    const displayName = dto.displayName.trim().replace(/\s+/gu, ' ');
+    if (displayName.length < 2) {
+      throw new BadRequestException('Display name must contain at least 2 characters');
+    }
+
+    const updated = await this.prisma.user.update({
+      data: { displayName },
+      where: { id: userId },
+    });
+    await this.createAuditLog({
+      action: 'PROFILE_UPDATED',
+      actorUserId: userId,
+      entityId: userId,
+      entityType: 'user',
+      metadata: { displayName },
+    });
+
+    return this.toUserProfile(updated);
   }
 
   public async registerDeviceToken(

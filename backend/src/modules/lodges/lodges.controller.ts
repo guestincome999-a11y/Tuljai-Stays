@@ -29,6 +29,20 @@ export class LodgesController {
     return this.lodgesService.create(dto, user.id);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/lodges')
+  public listAdmin(@Query() query: ListLodgesQueryDto): Promise<PaginatedResponse<Lodge>> {
+    return this.lodgesService.listAdmin(query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/lodges/:id')
+  public getAdminById(@Param('id') id: string): Promise<LodgeDetails> {
+    return this.lodgesService.getAdminById(id);
+  }
+
   @Get('lodges')
   public list(@Query() query: ListLodgesQueryDto): Promise<PaginatedResponse<Lodge>> {
     return this.lodgesService.listPublic(query);

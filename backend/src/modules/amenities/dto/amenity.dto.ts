@@ -1,6 +1,6 @@
+import { AmenityCategory } from '@prisma/client';
 import { IsArray, IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
-import { AmenityCategory } from '../../../../generated/prisma';
 
 export class CreateAmenityDto {
   @IsString()

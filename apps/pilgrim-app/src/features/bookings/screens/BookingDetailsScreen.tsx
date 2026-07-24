@@ -116,7 +116,12 @@ export function BookingDetailsScreen() {
         rows={[
           ['Next step', getBookingNextStep(data.booking.status, data.booking.rejectedReason)],
           ['Room type', data.roomTypeName],
-          ['Dates', `${data.booking.checkInDate} to ${data.booking.checkOutDate}`],
+          [
+            'Dates',
+            `${data.booking.checkInDate} to ${
+              data.booking.checkoutDateFlexible ? 'checkout not fixed' : data.booking.checkOutDate
+            }`,
+          ],
           [
             'Guests',
             `${data.booking.numberOfAdults} adults, ${data.booking.numberOfChildren} children`,

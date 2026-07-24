@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Announcement, Prisma } from '@prisma/client';
 import type {
   Announcement as SharedAnnouncement,
   AuthenticatedUser,
@@ -6,7 +7,6 @@ import type {
 } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import { Announcement, Prisma } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';

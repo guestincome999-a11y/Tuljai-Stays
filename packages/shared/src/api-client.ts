@@ -5,6 +5,7 @@ import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } f
 export interface ApiClientOptions {
   baseUrl: string;
   getAccessToken?: () => Promise<string | null> | string | null;
+  refreshAccessToken?: () => Promise<string | null>;
 }
 
 export interface ApiRequestOptions extends Omit<AxiosRequestConfig, 'baseURL' | 'data' | 'url'> {
@@ -15,9 +16,12 @@ export class ApiClient {
   private readonly baseUrlIncludesApiPrefix: boolean;
   private readonly client: AxiosInstance;
   private readonly getAccessToken?: ApiClientOptions['getAccessToken'];
+  private readonly refreshAccessToken?: ApiClientOptions['refreshAccessToken'];
+  private refreshPromise: Promise<string | null> | null = null;
 
   public constructor(options: ApiClientOptions) {
     this.getAccessToken = options.getAccessToken;
+    this.refreshAccessToken = options.refreshAccessToken;
     const normalizedBaseUrl = options.baseUrl.replace(/\/$/, '');
     this.baseUrlIncludesApiPrefix = /\/api$/u.test(normalizedBaseUrl);
     this.client = axios.create({
@@ -51,6 +55,14 @@ export class ApiClient {
     path: string,
     options: ApiRequestOptions = {},
   ): Promise<TResponse> {
+    return this.executeRequest<TResponse>(path, options, true);
+  }
+
+  private async executeRequest<TResponse>(
+    path: string,
+    options: ApiRequestOptions,
+    allowTokenRefresh: boolean,
+  ): Promise<TResponse> {
     try {
       const response = await this.client.request<ApiSuccessResponse<TResponse> | TResponse>({
         ...options,
@@ -65,8 +77,39 @@ export class ApiClient {
 
       return payload;
     } catch (error) {
+      if (
+        allowTokenRefresh &&
+        this.refreshAccessToken &&
+        this.isUnauthorized(error) &&
+        !this.isAuthenticationEndpoint(path)
+      ) {
+        const refreshedToken = await this.refreshAfterUnauthorized();
+
+        if (refreshedToken) {
+          return this.executeRequest<TResponse>(path, options, false);
+        }
+      }
+
       throw this.normalizeError(error);
     }
+  }
+
+  private async refreshAfterUnauthorized(): Promise<string | null> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.refreshAccessToken!().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+
+    return this.refreshPromise;
+  }
+
+  private isUnauthorized(error: unknown): boolean {
+    return axios.isAxiosError(error) && error.response?.status === 401;
+  }
+
+  private isAuthenticationEndpoint(path: string): boolean {
+    return /\/(?:auth\/)?(?:logout|refresh-token|request-otp|verify-otp)$/u.test(path);
   }
 
   private async resolveAccessToken(): Promise<string | null> {

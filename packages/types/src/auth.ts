@@ -24,6 +24,10 @@ export interface AuthUserProfile extends AuthenticatedUser {
   lastLoginAt: ISODateTime | null;
 }
 
+export interface UpdateAuthProfileRequest {
+  displayName: string;
+}
+
 export interface RequestOtpRequest {
   appType: AppType;
   phoneNumber: string;

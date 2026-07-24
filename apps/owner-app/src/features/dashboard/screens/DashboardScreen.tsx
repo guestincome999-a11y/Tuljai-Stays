@@ -205,71 +205,6 @@ export function DashboardScreen() {
         </Card.Content>
       </Card>
 
-      <View style={styles.actions}>
-        <Button
-          accessibilityHint="Opens the owner booking list."
-          accessibilityLabel="Open owner bookings"
-          icon="clipboard-list-outline"
-          mode="contained"
-          onPress={() => router.push('/(app)/bookings')}
-        >
-          View Bookings
-        </Button>
-        <Button
-          accessibilityHint="Opens owner notification center."
-          accessibilityLabel="Open owner notifications"
-          icon="bell-outline"
-          mode="contained-tonal"
-          onPress={() => router.push('/(app)/notifications')}
-        >
-          Notifications
-        </Button>
-        <Button
-          accessibilityHint="Opens the QR scanner for pilgrim check-in."
-          accessibilityLabel="Open QR scanner"
-          icon="qrcode-scan"
-          mode="contained-tonal"
-          onPress={() => router.push('/(app)/scan')}
-        >
-          Scan QR
-        </Button>
-        <Button
-          accessibilityHint="Opens arrivals, departures, and guest register summary."
-          accessibilityLabel="Open register dashboard"
-          icon="book-open-variant"
-          mode="contained-tonal"
-          onPress={() => router.push('/(app)/register-dashboard')}
-        >
-          Register Dashboard
-        </Button>
-        <Button
-          accessibilityHint="Opens room status and gallery management."
-          accessibilityLabel="Open room management"
-          icon="bed-outline"
-          mode="contained-tonal"
-          onPress={() => router.push('/(app)/rooms')}
-        >
-          Manage Rooms
-        </Button>
-        <Button
-          accessibilityHint="Opens owner booking and commission reports."
-          accessibilityLabel="Open owner reports"
-          icon="chart-box-outline"
-          mode="outlined"
-          onPress={() => router.push('/(app)/reports')}
-        >
-          Reports
-        </Button>
-        <Button
-          accessibilityHint="Opens local owner app preferences."
-          accessibilityLabel="Open owner settings"
-          icon="cog-outline"
-          mode="outlined"
-          onPress={() => router.push('/(app)/settings')}
-        >
-          Settings
-        </Button>
-      </View>
     </ScrollView>
   );
 }
@@ -362,9 +297,6 @@ function formatOwnerStatus(status: 'AVAILABLE' | 'BUSY' | 'OFFLINE'): string {
 }
 
 const styles = StyleSheet.create({
-  actions: {
-    gap: spacing.md,
-  },
   badge: {
     alignItems: 'center',
     borderRadius: radius.full,

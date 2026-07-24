@@ -28,6 +28,10 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 
+# Local repair and backup artifacts
+.codex-temp/
+package-lock.before-audit-force.json
+
 # Environment
 .env
 .env.*

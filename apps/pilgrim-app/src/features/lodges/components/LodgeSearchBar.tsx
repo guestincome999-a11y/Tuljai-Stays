@@ -1,4 +1,4 @@
-import { Searchbar } from 'react-native-paper';
+import { PilgrimSearchBar } from '../../../components/pilgrim-ui';
 
 interface LodgeSearchBarProps {
   onChangeSearch: (search: string) => void;
@@ -8,7 +8,7 @@ interface LodgeSearchBarProps {
 
 export function LodgeSearchBar({ onChangeSearch, onSubmit, value }: LodgeSearchBarProps) {
   return (
-    <Searchbar
+    <PilgrimSearchBar
       accessibilityLabel="Search lodges"
       autoCapitalize="words"
       inputMode="search"

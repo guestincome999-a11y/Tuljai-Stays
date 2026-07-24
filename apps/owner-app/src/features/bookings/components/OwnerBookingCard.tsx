@@ -41,7 +41,8 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
           <Text variant="bodyMedium">Guests: {booking.totalGuests}</Text>
           <Text variant="bodyMedium">Room: {booking.roomTypeName}</Text>
           <Text variant="bodyMedium">
-            Stay: {booking.checkInDate} to {booking.checkOutDate}
+            Stay: {booking.checkInDate} to{' '}
+            {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
           </Text>
           <Text variant="bodyMedium">
             Request: {booking.specialRequest ?? 'No special request'}

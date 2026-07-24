@@ -64,7 +64,10 @@ export function IncomingBookingAlert({
             Check-in: {booking.checkInDate}
           </Text>
           <Text style={styles.centerText} variant="bodyLarge">
-            Check-out: {booking.checkOutDate}
+            Check-out:{' '}
+            {booking.checkoutDateFlexible
+              ? 'Not fixed — confirm with pilgrim'
+              : booking.checkOutDate}
           </Text>
           <Text style={styles.centerText} variant="bodyMedium">
             Special Request: {booking.specialRequest ?? 'No special request'}

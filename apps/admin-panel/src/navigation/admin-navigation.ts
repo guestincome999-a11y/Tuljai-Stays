@@ -38,6 +38,13 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     status: 'ready',
   },
   {
+    href: '/admin/lodges/new',
+    label: 'Add Lodge',
+    permission: 'lodges.manage',
+    section: 'Operations',
+    status: 'ready',
+  },
+  {
     href: '/admin/owners',
     label: 'Owners',
     permission: 'owners.view',

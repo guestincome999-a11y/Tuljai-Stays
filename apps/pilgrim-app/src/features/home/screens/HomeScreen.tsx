@@ -1,33 +1,32 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { radius, spacing } from '@tuljai/ui';
+import { spacing } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import {
-  ActivityIndicator,
-  Button,
-  Card,
-  Chip,
-  IconButton,
-  Text,
-  useTheme,
-} from 'react-native-paper';
+import { Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
 import { useAuth } from '../../../auth/auth-context';
+import {
+  AppHeader,
+  LoadingSkeleton,
+  SectionHeading,
+  StateCard,
+} from '../../../components/pilgrim-ui';
 import { PushPermissionCard } from '../../../notifications/PushPermissionCard';
 import { usePublicSettings } from '../../../settings/usePublicSettings';
+import { pilgrimColors, pilgrimRadius, pilgrimSpacing } from '../../../theme/pilgrim-theme';
 import { LodgeCard } from '../../lodges/components/LodgeCard';
 import { LodgeSearchBar } from '../../lodges/components/LodgeSearchBar';
 import { useHomeDiscovery } from '../../lodges/hooks/useLodgeDiscovery';
 import { useUnreadNotificationCount } from '../../notifications/hooks/useNotifications';
 
 const quickFilters = [
-  { label: 'Near Temple', quick: 'near-temple' },
-  { label: 'Family Rooms', quick: 'family' },
-  { label: 'Parking', quick: 'parking' },
-  { label: 'AC', quick: 'ac' },
-  { label: 'Budget', quick: 'budget' },
-  { label: 'Bhakt Niwas', quick: 'bhakt-niwas' },
+  { icon: 'temple-hindu', label: 'Near Temple', quick: 'near-temple' },
+  { icon: 'account-group-outline', label: 'Family', quick: 'family' },
+  { icon: 'car-outline', label: 'Parking', quick: 'parking' },
+  { icon: 'snowflake', label: 'AC', quick: 'ac' },
+  { icon: 'wallet-outline', label: 'Budget', quick: 'budget' },
+  { icon: 'home-heart', label: 'Bhakt Niwas', quick: 'bhakt-niwas' },
 ];
 
 export function HomeScreen() {
@@ -54,29 +53,15 @@ export function HomeScreen() {
         />
       }
     >
-      <View style={styles.header}>
-        <View style={styles.greeting}>
-          <Text style={{ color: theme.colors.primary }} variant="headlineSmall">
-            Namaste
-          </Text>
-          <Text numberOfLines={1} variant="titleMedium">
-            {displayName}
-          </Text>
-        </View>
-        <View style={styles.bellWrap}>
-          <IconButton
-            accessibilityLabel="Notifications"
-            icon="bell-outline"
-            mode="contained-tonal"
-            onPress={() => router.push('/(app)/notifications')}
-          />
-          <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
-            <Text style={{ color: theme.colors.onPrimary }} variant="labelSmall">
-              {Math.min(notifications.unreadCount, 9)}
-            </Text>
-          </View>
-        </View>
-      </View>
+      <AppHeader
+        actionIcon="bell-outline"
+        actionLabel="Notifications"
+        badgeCount={notifications.unreadCount}
+        eyebrow="Namaste · नमस्कार · नमस्ते"
+        onAction={() => router.push('/(app)/notifications')}
+        subtitle="Plan a peaceful stay near Tulja Bhavani Temple"
+        title={displayName}
+      />
 
       <LodgeSearchBar
         onChangeSearch={setSearch}
@@ -90,44 +75,52 @@ export function HomeScreen() {
         value={search}
       />
 
-      <PushPermissionCard />
-
-      {publicSettings.festivalModeEnabled ? (
-        <Card mode="contained" style={styles.festivalCard}>
-          <Card.Content style={styles.cardContent}>
-            <View style={styles.festivalHeader}>
-              <MaterialCommunityIcons
-                color={theme.colors.primary}
-                name="star-four-points"
-                size={24}
-              />
-              <Text variant="titleMedium">Festival Mode</Text>
-            </View>
-            <Text variant="bodyMedium">
-              Festival updates and important temple announcements will be highlighted here.
-            </Text>
-          </Card.Content>
-        </Card>
-      ) : null}
-
-      <Card mode="contained" style={styles.heroCard}>
+      <Card mode="contained" style={[styles.heroCard, { backgroundColor: theme.colors.primary }]}>
         <Card.Content style={styles.heroContent}>
-          <View style={styles.heroIcon}>
-            <MaterialCommunityIcons color={theme.colors.onPrimary} name="temple-hindu" size={36} />
-          </View>
-          <View style={styles.heroText}>
-            <Text variant="titleLarge">Trusted stays for Tuljapur darshan</Text>
-            <Text variant="bodyMedium">
-              Compare verified lodges and Bhakt Niwas options before the festival rush.
+          <View style={styles.heroCopy}>
+            <View style={styles.heroLabel}>
+              <MaterialCommunityIcons color={pilgrimColors.goldSoft} name="candle" size={18} />
+              <Text style={{ color: pilgrimColors.goldSoft }} variant="labelLarge">
+                Your darshan, thoughtfully planned
+              </Text>
+            </View>
+            <Text style={{ color: theme.colors.onPrimary }} variant="headlineSmall">
+              Trusted stays in Tuljapur
             </Text>
+            <Text style={styles.heroDescription} variant="bodyMedium">
+              Compare verified lodges and Bhakt Niwas options close to the temple.
+            </Text>
+          </View>
+          <View style={styles.heroTemple}>
+            <MaterialCommunityIcons color={pilgrimColors.goldSoft} name="temple-hindu" size={52} />
           </View>
         </Card.Content>
       </Card>
 
+      {publicSettings.festivalModeEnabled ? (
+        <Card mode="contained" style={styles.festivalCard}>
+          <Card.Content style={styles.festivalContent}>
+            <MaterialCommunityIcons
+              color={theme.colors.tertiary}
+              name="star-four-points"
+              size={22}
+            />
+            <View style={styles.festivalCopy}>
+              <Text variant="titleSmall">Festival updates are active</Text>
+              <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+                Important temple and travel notices will appear first.
+              </Text>
+            </View>
+          </Card.Content>
+        </Card>
+      ) : null}
+
       <View style={styles.quickFilters}>
         {quickFilters.map((filter) => (
           <Chip
+            icon={filter.icon}
             key={filter.quick}
+            mode="outlined"
             onPress={() =>
               router.push({ pathname: '/(app)/lodges', params: { quick: filter.quick } })
             }
@@ -138,26 +131,19 @@ export function HomeScreen() {
       </View>
 
       {discovery.errorMessage ? (
-        <Card mode="outlined" style={styles.statusCard}>
-          <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">Discovery is taking longer than expected</Text>
-            <Text variant="bodyMedium">{discovery.errorMessage}</Text>
-            <Button
-              mode="contained-tonal"
-              onPress={() => {
-                void discovery.refresh();
-              }}
-            >
-              Try Again
-            </Button>
-          </Card.Content>
-        </Card>
+        <StateCard
+          actionLabel="Try again"
+          description={discovery.errorMessage}
+          icon="cloud-alert-outline"
+          onAction={() => void discovery.refresh()}
+          title="We couldn't refresh stays"
+        />
       ) : null}
 
-      {discovery.isLoading ? <ActivityIndicator animating size="large" /> : null}
+      {discovery.isLoading ? <LoadingSkeleton /> : null}
 
       {discovery.data?.announcements[0] ? (
-        <Card mode="outlined" style={styles.statusCard}>
+        <Card mode="outlined" style={styles.announcementCard}>
           <Card.Content style={styles.cardContent}>
             <Text style={{ color: theme.colors.primary }} variant="labelLarge">
               Announcement
@@ -173,7 +159,7 @@ export function HomeScreen() {
         </Card>
       ) : null}
 
-      <SectionHeader
+      <SectionHeading
         actionLabel="View all"
         onAction={() => router.push('/(app)/lodges')}
         title="Featured Lodges"
@@ -190,7 +176,7 @@ export function HomeScreen() {
         ))}
       </View>
 
-      <SectionHeader
+      <SectionHeading
         actionLabel="Explore"
         onAction={() =>
           router.push({ pathname: '/(app)/lodges', params: { quick: 'near-temple' } })
@@ -208,40 +194,16 @@ export function HomeScreen() {
           />
         ))}
       </View>
+
+      <PushPermissionCard />
     </ScrollView>
   );
 }
 
-function SectionHeader({
-  actionLabel,
-  onAction,
-  title,
-}: {
-  actionLabel: string;
-  onAction: () => void;
-  title: string;
-}) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text variant="titleLarge">{title}</Text>
-      <Button onPress={onAction}>{actionLabel}</Button>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  badge: {
-    alignItems: 'center',
-    borderRadius: radius.full,
-    height: 20,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: 4,
-    top: 4,
-    width: 20,
-  },
-  bellWrap: {
-    position: 'relative',
+  announcementCard: {
+    borderColor: pilgrimColors.line,
+    borderRadius: pilgrimRadius.lg,
   },
   cardContent: {
     gap: spacing.sm,
@@ -249,61 +211,47 @@ const styles = StyleSheet.create({
   cardList: {
     gap: spacing.md,
   },
-  greeting: {
-    flex: 1,
-    gap: spacing.xs,
-    minWidth: 0,
-  },
   festivalCard: {
-    borderRadius: radius.sm,
+    backgroundColor: pilgrimColors.goldSoft,
+    borderRadius: pilgrimRadius.md,
   },
-  festivalHeader: {
+  festivalContent: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: pilgrimSpacing.md,
   },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
+  festivalCopy: { flex: 1, gap: 2 },
   heroCard: {
-    borderRadius: radius.sm,
+    borderRadius: pilgrimRadius.xl,
+    overflow: 'hidden',
   },
   heroContent: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: pilgrimSpacing.lg,
+    minHeight: 176,
+    paddingVertical: pilgrimSpacing.xl,
   },
-  heroIcon: {
+  heroCopy: { flex: 1, gap: pilgrimSpacing.sm },
+  heroDescription: { color: '#FFE8DA', lineHeight: 21 },
+  heroLabel: { alignItems: 'center', flexDirection: 'row', gap: pilgrimSpacing.sm },
+  heroTemple: {
     alignItems: 'center',
-    backgroundColor: '#B95713',
-    borderRadius: radius.full,
-    height: 64,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: pilgrimRadius.full,
+    height: 92,
     justifyContent: 'center',
-    width: 64,
-  },
-  heroText: {
-    flex: 1,
-    gap: spacing.xs,
+    width: 92,
   },
   quickFilters: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: pilgrimSpacing.sm,
   },
   screen: {
     flexGrow: 1,
-    gap: spacing.lg,
-    padding: spacing.lg,
-  },
-  sectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statusCard: {
-    borderRadius: radius.sm,
+    gap: pilgrimSpacing.xl,
+    padding: pilgrimSpacing.lg,
+    paddingBottom: pilgrimSpacing.xxl,
   },
 });

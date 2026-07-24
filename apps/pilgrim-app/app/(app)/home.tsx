@@ -1,3 +1,1 @@
-import { HomeScreen } from '../../src/features/home/screens/HomeScreen';
-
-export default HomeScreen;
+export { PilgrimHomeScreen as default } from '../../src/pilgrim-ui/screens/PilgrimHomeScreen';

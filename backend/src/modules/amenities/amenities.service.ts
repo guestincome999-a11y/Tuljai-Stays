@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { Amenity } from '@tuljai/types';
+import type { Amenity, AuthenticatedUser } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
+import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { AssignLodgeAmenitiesDto, CreateAmenityDto } from './dto/amenity.dto';
@@ -10,6 +11,7 @@ import type { AssignLodgeAmenitiesDto, CreateAmenityDto } from './dto/amenity.dt
 export class AmenitiesService {
   public constructor(
     private readonly auditLogService: AuditLogService,
+    private readonly lodgeAccessService: LodgeAccessService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -63,6 +65,15 @@ export class AmenitiesService {
     });
 
     return { success: true };
+  }
+
+  public async assignToOwnerLodge(
+    lodgeId: string,
+    dto: AssignLodgeAmenitiesDto,
+    user: AuthenticatedUser,
+  ): Promise<{ success: true }> {
+    await this.lodgeAccessService.assertCanManageLodge(user, lodgeId);
+    return this.assignToLodge(lodgeId, dto, user.id);
   }
 
   private toAmenity(amenity: {

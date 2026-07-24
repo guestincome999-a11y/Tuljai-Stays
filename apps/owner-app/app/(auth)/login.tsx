@@ -1,122 +1,130 @@
-import { AppScreen, spacing } from '@tuljai/ui';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Button, Card, Text, TextInput, useTheme } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
 
 import { requestOwnerLoginOtp } from '../../src/auth/auth-api';
 import { useAuth } from '../../src/auth/auth-context';
-import { FormErrorBanner } from '../../src/components/FormErrorBanner';
-import { useConnectivity } from '../../src/connectivity/connectivity-context';
-
-function normalizeIndianMobile(value: string): string | null {
-  const digits = value.replace(/\D/g, '');
-
-  if (/^[6-9]\d{9}$/.test(digits)) {
-    return `+91${digits}`;
-  }
-
-  if (/^91[6-9]\d{9}$/.test(digits)) {
-    return `+${digits}`;
-  }
-
-  return null;
-}
+import { LanguagePill, PrimaryButton, Screen } from '../../src/owner-ui/components';
+import { useOwnerApp } from '../../src/owner-ui/OwnerAppProvider';
 
 export default function LoginScreen() {
-  const auth = useAuth();
   const router = useRouter();
-  const theme = useTheme();
-  const { isOffline } = useConnectivity();
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const auth = useAuth();
+  const { t } = useOwnerApp();
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [devOtp, setDevOtp] = useState<string | null>(null);
 
-  async function handleRequestOtp() {
-    const phoneNumber = normalizeIndianMobile(mobileNumber);
+  async function continueToOtp() {
+    const digits = phone.replace(/\D/g, '');
 
-    if (!phoneNumber) {
-      setError('Enter a valid 10 digit Indian mobile number.');
+    if (!/^[6-9]\d{9}$/.test(digits)) {
+      setError(t('Enter a valid 10-digit mobile number.', 'वैध १० अंकी मोबाईल नंबर टाका.'));
       return;
     }
 
-    setError(null);
-    setDevOtp(null);
     setIsSubmitting(true);
+    setError('');
+    const phoneNumber = `+91${digits}`;
 
     try {
       const response = await requestOwnerLoginOtp(phoneNumber);
-      setDevOtp(response.otpForTesting ?? null);
       router.push({
         pathname: '/(auth)/verify-otp',
-        params: { devOtp: response.otpForTesting ?? '', phoneNumber },
+        params: {
+          phone: phoneNumber,
+          ...(response.otpForTesting ? { testingOtp: response.otpForTesting } : {}),
+        },
       });
-    } catch {
-      setError('Could not send OTP. Please check the number and try again.');
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : t('OTP could not be sent. Please try again.', 'OTP पाठवता आला नाही. पुन्हा प्रयत्न करा.'),
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <AppScreen scrollable style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={{ color: theme.colors.primary }} variant="headlineLarge">
-          Tuljai Stays Owner
-        </Text>
-        <Text variant="bodyLarge">Sign in to manage your lodge operations.</Text>
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="flex-1 bg-warm-50"
+    >
+      <Screen contentContainerClassName="min-h-full justify-between gap-8 px-5 pb-10 pt-16">
+        <View className="items-end">
+          <LanguagePill />
+        </View>
+        <View className="items-center gap-4">
+          <View className="h-20 w-20 items-center justify-center rounded-2xl bg-saffron-500">
+            <MaterialCommunityIcons color="#7A1F2B" name="temple-hindu" size={42} />
+          </View>
+          <View className="items-center gap-1">
+            <Text className="font-heading text-3xl font-bold text-maroon-700">Tuljai Stays</Text>
+            <Text className="font-devanagari text-base text-warm-600">
+              {t('Lodge Owner App', 'लॉज मालक अॅप')}
+            </Text>
+          </View>
+        </View>
 
-      <Card mode="contained" style={styles.card}>
-        <Card.Content style={styles.form}>
-          <TextInput
-            accessibilityLabel="Owner mobile number"
-            keyboardType="phone-pad"
-            label="Mobile number"
-            mode="outlined"
-            placeholder="9876543210"
-            value={mobileNumber}
-            onChangeText={setMobileNumber}
+        <View className="gap-5 rounded-2xl border border-warm-200 bg-white p-5">
+          <View className="gap-1">
+            <Text className="font-heading text-2xl font-bold text-warm-900">
+              {t('Welcome', 'नमस्कार')}
+            </Text>
+            <Text className="font-body text-base leading-6 text-warm-600">
+              {t(
+                'Enter your registered mobile number to manage your lodge.',
+                'तुमचे लॉज व्यवस्थापित करण्यासाठी नोंदणीकृत मोबाईल नंबर टाका.',
+              )}
+            </Text>
+          </View>
+          <View className="gap-2">
+            <Text className="font-body text-sm font-bold text-warm-700">
+              {t('Mobile number', 'मोबाईल नंबर')}
+            </Text>
+            <View className="min-h-14 flex-row items-center rounded-xl border border-warm-300 bg-warm-50 px-4">
+              <Text className="font-body text-base font-bold text-warm-700">+91</Text>
+              <View className="mx-3 h-7 w-px bg-warm-300" />
+              <TextInput
+                accessibilityLabel="Mobile number"
+                className="flex-1 font-body text-lg text-warm-900"
+                keyboardType="phone-pad"
+                maxLength={10}
+                value={phone}
+                onChangeText={(value) => {
+                  setPhone(value.replace(/\D/g, ''));
+                  setError('');
+                }}
+              />
+            </View>
+            {error ? <Text className="font-body text-sm text-danger-500">{error}</Text> : null}
+          </View>
+          <PrimaryButton
+            disabled={isSubmitting}
+            icon="arrow-right"
+            label={
+              isSubmitting
+                ? t('Sending OTP...', 'OTP पाठवत आहे...')
+                : t('Get OTP', 'OTP मिळवा')
+            }
+            onPress={() => void continueToOtp()}
           />
-          <FormErrorBanner message={auth.accessDeniedMessage ?? error} />
-          {devOtp ? (
-            <Text style={{ color: theme.colors.primary }} variant="bodyMedium">
-              Development OTP: {devOtp}
+          <Text className="text-center font-body text-xs leading-5 text-warm-500">
+            {t(
+              'Use the number registered with your approved owner account.',
+              'तुमच्या मंजूर मालक खात्याशी नोंदणीकृत नंबर वापरा.',
+            )}
+          </Text>
+          {auth.accessDeniedMessage ? (
+            <Text className="text-center font-body text-sm text-danger-500">
+              {auth.accessDeniedMessage}
             </Text>
           ) : null}
-          <Button
-            accessibilityLabel="Send owner login OTP"
-            disabled={isSubmitting || isOffline}
-            loading={isSubmitting}
-            mode="contained"
-            onPress={() => {
-              void handleRequestOtp();
-            }}
-          >
-            Send OTP
-          </Button>
-          {isOffline ? (
-            <Text variant="bodySmall">Connect to the internet to request OTP.</Text>
-          ) : null}
-        </Card.Content>
-      </Card>
-    </AppScreen>
+        </View>
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: 8,
-  },
-  form: {
-    gap: spacing.md,
-  },
-  header: {
-    gap: spacing.sm,
-  },
-  screen: {
-    gap: spacing.xl,
-    justifyContent: 'center',
-  },
-});

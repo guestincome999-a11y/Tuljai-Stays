@@ -1,6 +1,6 @@
+import { PhotoCategory } from '@prisma/client';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUrl, Min } from 'class-validator';
 
-import { PhotoCategory } from '../../../../generated/prisma';
 
 export class CreateLodgePhotoDto {
   @IsOptional()

@@ -1,14 +1,11 @@
 const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
+const { withNativeWind } = require('nativewind/metro');
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
-const config = getDefaultConfig(projectRoot);
+const config = getDefaultConfig(__dirname);
 
-config.watchFolders = [workspaceRoot];
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
-];
+// Expo resolves workspace imports on demand. Restricting the initial watch
+// scope to this app prevents Windows from timing out while subscribing to the
+// entire monorepo and root node_modules tree.
+config.watchFolders = [__dirname];
 
-module.exports = config;
+module.exports = withNativeWind(config, { input: './global.css' });

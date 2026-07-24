@@ -27,8 +27,10 @@ export async function listBookingReport(
 ): Promise<PaginatedResponse<BookingReportRow>> {
   return apiClient.get<PaginatedResponse<BookingReportRow>>('/admin/reports/bookings', {
     params: {
+      cityId: query.cityId,
       endDate: query.endDate,
       limit: query.limit ?? 200,
+      lodgeId: query.lodgeId,
       page: query.page ?? 1,
       startDate: query.startDate,
     },
@@ -40,8 +42,10 @@ export async function listOccupancyReport(
 ): Promise<PaginatedResponse<BookingReportRow>> {
   return apiClient.get<PaginatedResponse<BookingReportRow>>('/admin/reports/occupancy', {
     params: {
+      cityId: query.cityId,
       endDate: query.endDate,
       limit: query.limit ?? 200,
+      lodgeId: query.lodgeId,
       page: query.page ?? 1,
       startDate: query.startDate,
     },
@@ -53,7 +57,9 @@ export async function listCommissionReport(
 ): Promise<CommissionSummary[]> {
   return apiClient.get<CommissionSummary[]>('/admin/reports/commission', {
     params: {
+      cityId: query.cityId,
       endDate: query.endDate,
+      lodgeId: query.lodgeId,
       startDate: query.startDate,
     },
   });

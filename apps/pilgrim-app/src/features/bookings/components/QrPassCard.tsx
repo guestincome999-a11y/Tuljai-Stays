@@ -112,7 +112,8 @@ export function QrPassCard({
           <Text variant="bodySmall">{lodgeName}</Text>
           <Text variant="bodySmall">{roomTypeName}</Text>
           <Text variant="bodySmall">
-            {booking.checkInDate} to {booking.checkOutDate}
+            {booking.checkInDate} to{' '}
+            {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
           </Text>
           <Text variant="bodySmall">{booking.guestName}</Text>
           {metadata ? (

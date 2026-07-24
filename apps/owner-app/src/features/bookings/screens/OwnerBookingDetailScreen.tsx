@@ -114,7 +114,8 @@ export function OwnerBookingDetailScreen() {
             <Text variant="bodyMedium">Adults: {booking.numberOfAdults}</Text>
             <Text variant="bodyMedium">Children: {booking.numberOfChildren}</Text>
             <Text variant="bodyMedium">
-              Stay: {booking.checkInDate} to {booking.checkOutDate}
+              Stay: {booking.checkInDate} to{' '}
+              {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
             </Text>
             <Text variant="bodyMedium">
               Special Request: {booking.specialRequest ?? 'No special request'}

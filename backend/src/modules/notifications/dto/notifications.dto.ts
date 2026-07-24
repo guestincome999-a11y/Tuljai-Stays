@@ -1,3 +1,9 @@
+import {
+  AnnouncementCategory,
+  AnnouncementTargetAudience,
+  NotificationPriority,
+  NotificationType,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBooleanString,
@@ -11,12 +17,6 @@ import {
   Min,
 } from 'class-validator';
 
-import {
-  AnnouncementCategory,
-  AnnouncementTargetAudience,
-  NotificationPriority,
-  NotificationType,
-} from '../../../../generated/prisma';
 
 export class ListNotificationsQueryDto {
   @IsBooleanString()

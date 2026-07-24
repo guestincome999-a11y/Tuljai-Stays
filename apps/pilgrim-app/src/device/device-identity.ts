@@ -1,6 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+import { getWebSessionStorage } from '../auth/web-session-storage';
+
 const DEVICE_ID_KEY = 'tuljai.pilgrim.deviceId';
 
 export async function getOrCreateDeviceId(): Promise<string> {
@@ -16,7 +18,13 @@ export async function getOrCreateDeviceId(): Promise<string> {
     return nextId;
   }
 
-  return createDeviceId();
+  const webStorage = getWebSessionStorage();
+  const existing = webStorage?.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
+
+  const nextId = createDeviceId();
+  webStorage?.setItem(DEVICE_ID_KEY, nextId);
+  return nextId;
 }
 
 export function getDeviceName(): string {

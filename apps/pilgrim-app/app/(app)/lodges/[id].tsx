@@ -1,3 +1,1 @@
-import { LodgeDetailsScreen } from '../../../src/features/lodges/screens/LodgeDetailsScreen';
-
-export default LodgeDetailsScreen;
+export { PilgrimLodgeDetailScreen as default } from '../../../src/pilgrim-ui/screens/PilgrimLodgeDetailScreen';

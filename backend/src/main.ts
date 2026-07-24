@@ -1,4 +1,5 @@
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -25,11 +26,18 @@ async function bootstrap(): Promise<void> {
   }
 
   app.setGlobalPrefix('api');
+  await app.register(multipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+      files: 1,
+    },
+  });
   app.enableCors({
     origin: (origin, callback) => {
       callback(null, isCorsOriginAllowed(origin, allowedOrigins));
     },
     credentials: true,
+    methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
   await app.register(helmet, {
     hsts:

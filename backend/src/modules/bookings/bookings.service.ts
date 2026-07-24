@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BookingStatus, Prisma } from '@prisma/client';
 import type {
   AdminBookingSummary,
   AuthenticatedUser,
@@ -17,7 +18,6 @@ import type {
 } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import { BookingStatus, Prisma } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { NotificationEventsService } from '../notifications/notification-events.service';
@@ -27,11 +27,13 @@ import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingHistoryService } from './booking-history.service';
 import type {
   AdminBookingsQueryDto,
+  CancelBookingDto,
   CreateBookingDto,
   OwnerBookingsQueryDto,
   RejectBookingDto,
   UpdateBookingStatusDto,
 } from './dto/booking.dto';
+import { GuestIdProofService } from './guest-id-proof.service';
 
 const OWNER_VISIBLE_CONTACT_STATUSES: BookingStatus[] = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'];
 
@@ -61,6 +63,7 @@ export class BookingsService {
     private readonly availabilityService: BookingAvailabilityService,
     private readonly bookingHistoryService: BookingHistoryService,
     private readonly configService: ConfigService,
+    private readonly guestIdProofService: GuestIdProofService,
     private readonly lodgeAccessService: LodgeAccessService,
     private readonly notificationEventsService: NotificationEventsService,
     private readonly prisma: PrismaService,
@@ -112,12 +115,19 @@ export class BookingsService {
       throw new ConflictException('Room type is no longer available');
     }
 
+    await this.guestIdProofService.assertOwnedUpload(
+      user.id,
+      dto.guestIdProofStoragePath,
+      dto.guestIdProofMimeType,
+    );
+
     const booking = await this.prisma.$transaction(async (tx) => {
       const created = await tx.booking.create({
         data: {
           bookingCode: await this.generateBookingCode(),
           checkInDate: lock.checkInDate,
           checkOutDate: lock.checkOutDate,
+          checkoutDateFlexible: dto.checkoutDateFlexible,
           cityId: lock.lodge.cityId,
           commissionAmount: this.getConfiguredCommissionAmount(),
           guestAddress: dto.guestAddress,
@@ -140,6 +150,10 @@ export class BookingsService {
           guests: {
             create: {
               fullName: dto.guestName,
+              idProofMimeType: dto.guestIdProofMimeType,
+              idProofOriginalName: dto.guestIdProofOriginalName,
+              idProofSizeBytes: dto.guestIdProofSizeBytes,
+              idProofStoragePath: dto.guestIdProofStoragePath,
               isPrimaryGuest: true,
               phone: dto.guestPhone,
             },
@@ -192,6 +206,51 @@ export class BookingsService {
     await this.assertCanViewBooking(booking, user);
 
     return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
+  }
+
+  public async cancelBooking(
+    id: string,
+    dto: CancelBookingDto,
+    user: AuthenticatedUser,
+  ): Promise<Booking> {
+    const existing = await this.findBookingOrThrow(id);
+    if (existing.pilgrimUserId !== user.id && !this.lodgeAccessService.isAdmin(user)) {
+      throw new ForbiddenException('You cannot cancel this booking');
+    }
+    if (!['PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED'].includes(existing.status)) {
+      throw new BadRequestException('This booking can no longer be cancelled');
+    }
+
+    const booking = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.update({
+        data: { cancellationReason: dto.reason ?? 'Cancelled by pilgrim', status: 'CANCELLED' },
+        include: this.bookingInclude,
+        where: { id },
+      });
+      if (existing.roomId) {
+        await tx.room.update({ data: { status: 'AVAILABLE' }, where: { id: existing.roomId } });
+      }
+      await tx.bookingHistory.create({
+        data: {
+          action: 'BOOKING_CANCELLED_BY_PILGRIM',
+          actorUserId: user.id,
+          bookingId: id,
+          fromStatus: existing.status,
+          notes: dto.reason,
+          toStatus: 'CANCELLED',
+        },
+      });
+      return updated;
+    });
+    await this.auditLogService.create({
+      action: 'BOOKING_CANCELLED_BY_PILGRIM',
+      actorUserId: user.id,
+      entityId: id,
+      entityType: 'booking',
+    });
+    await this.notificationEventsService.bookingCancelled(id);
+
+    return this.toBooking(booking);
   }
 
   public async getOwnerSafeBookingView(id: string, user: AuthenticatedUser): Promise<Booking> {
@@ -629,6 +688,7 @@ export class BookingsService {
       cancellationReason: booking.cancellationReason,
       checkInDate: booking.checkInDate.toISOString().slice(0, 10),
       checkOutDate: booking.checkOutDate.toISOString().slice(0, 10),
+      checkoutDateFlexible: booking.checkoutDateFlexible,
       checkedInAt: booking.checkedInAt?.toISOString() ?? null,
       checkedOutAt: booking.checkedOutAt?.toISOString() ?? null,
       cityId: booking.cityId,

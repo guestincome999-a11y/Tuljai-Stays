@@ -1,3 +1,1 @@
-import { NewBookingScreen } from '../../../src/features/bookings/screens/NewBookingScreen';
-
-export default NewBookingScreen;
+export { PilgrimCheckoutScreen as default } from '../../../src/pilgrim-ui/screens/PilgrimCheckoutScreen';

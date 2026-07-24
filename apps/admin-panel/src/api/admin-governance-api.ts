@@ -1,5 +1,6 @@
 import type {
   Amenity,
+  City,
   Lodge,
   LodgeDetails,
   LodgePhoto,
@@ -18,6 +19,34 @@ export interface LodgeGovernanceQuery {
   page?: number;
   pageSize?: number;
   search?: string;
+}
+
+export interface CreateLodgeInput {
+  address?: {
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    country: string;
+    district: string;
+    landmark?: string;
+    pincode: string;
+    state: string;
+  };
+  checkInTime?: string;
+  checkOutTime?: string;
+  cityId: string;
+  description?: string;
+  distanceFromTempleMeters?: number;
+  email?: string;
+  latitude?: number;
+  longitude?: number;
+  name: string;
+  primaryPhone: string;
+  propertyType: Lodge['propertyType'];
+  rules?: string;
+  secondaryPhone?: string;
+  slug: string;
+  whatsappNumber?: string;
 }
 
 export interface LodgeStatusInput {
@@ -57,7 +86,7 @@ export type PendingPhoto = LodgePhoto & {
 export async function listGovernanceLodges(
   query: LodgeGovernanceQuery = {},
 ): Promise<PaginatedResponse<Lodge>> {
-  return apiClient.get<PaginatedResponse<Lodge>>('/lodges', {
+  return apiClient.get<PaginatedResponse<Lodge>>('/admin/lodges', {
     params: {
       page: query.page ?? 1,
       pageSize: query.pageSize ?? 20,
@@ -66,8 +95,16 @@ export async function listGovernanceLodges(
   });
 }
 
+export async function listLodgeCities(): Promise<City[]> {
+  return apiClient.get<City[]>('/cities');
+}
+
+export async function createGovernanceLodge(input: CreateLodgeInput): Promise<LodgeDetails> {
+  return apiClient.post<LodgeDetails>('/admin/lodges', input);
+}
+
 export async function getGovernanceLodge(lodgeId: string): Promise<LodgeDetails> {
-  return apiClient.get<LodgeDetails>(`/lodges/${lodgeId}`);
+  return apiClient.get<LodgeDetails>(`/admin/lodges/${lodgeId}`);
 }
 
 export async function updateGovernanceLodgeStatus(

@@ -36,8 +36,11 @@ export function BookingCard({ booking, onPress }: BookingCardProps) {
         </View>
         <Text variant="bodyMedium">{booking.roomTypeName}</Text>
         <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-          {booking.booking.checkInDate} to {booking.booking.checkOutDate} ·{' '}
-          {booking.booking.totalGuests} guests
+          {booking.booking.checkInDate} to{' '}
+          {booking.booking.checkoutDateFlexible
+            ? 'checkout not fixed'
+            : booking.booking.checkOutDate}{' '}
+          · {booking.booking.totalGuests} guests
         </Text>
         <View style={styles.badgeRow}>
           {booking.booking.status === 'QR_GENERATED' ? <Chip compact>QR Ready</Chip> : null}

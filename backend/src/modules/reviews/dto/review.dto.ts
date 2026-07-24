@@ -1,7 +1,7 @@
+import { ReviewReportReason, ReviewStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
-import { ReviewReportReason, ReviewStatus } from '../../../../generated/prisma';
 
 export class CreateReviewDto {
   @IsString()

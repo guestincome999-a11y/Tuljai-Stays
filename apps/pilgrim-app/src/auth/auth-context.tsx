@@ -3,7 +3,7 @@ import type { AuthUserProfile } from '@tuljai/types';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { logoutFromApi, refreshAccessToken, verifyLoginOtp } from './auth-api';
+import { logoutFromApi, refreshAccessToken, updateAuthProfile, verifyLoginOtp } from './auth-api';
 import { clearAuthSession, restoreAuthSession, saveAuthSession } from './auth-session-store';
 
 interface AuthContextValue {
@@ -12,6 +12,7 @@ interface AuthContextValue {
   logout(): Promise<void>;
   session: AuthSession;
   signInWithOtp(phoneNumber: string, otp: string): Promise<void>;
+  updateProfile(displayName: string): Promise<void>;
   user: AuthUserProfile | null;
 }
 
@@ -91,6 +92,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace('/(auth)/login');
   }, [router, session.tokens?.refreshToken]);
 
+  const updateProfile = useCallback(
+    async (displayName: string) => {
+      const user = await updateAuthProfile({ displayName });
+      const nextSession = { ...session, user };
+      await saveAuthSession(nextSession);
+      setSession(nextSession);
+    },
+    [session],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       bootstrapComplete,
@@ -98,9 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       session,
       signInWithOtp,
+      updateProfile,
       user: session.user,
     }),
-    [bootstrapComplete, logout, session, signInWithOtp],
+    [bootstrapComplete, logout, session, signInWithOtp, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, ReviewStatus } from '@prisma/client';
 import type { AuthenticatedUser, PaginatedResponse, Review, ReviewReport } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import { Prisma, ReviewStatus } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 

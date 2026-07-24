@@ -4,6 +4,7 @@ export type OwnerRealtimeEventName = Extract<
   SocketEventName,
   | 'announcement:new'
   | 'booking:accepted'
+  | 'booking:cancelled'
   | 'booking:expired'
   | 'booking:new'
   | 'booking:rejected'
@@ -34,6 +35,10 @@ export function getRealtimeMessage(event: OwnerRealtimeEvent): string | null {
 
   if (event.name === 'booking:accepted') {
     return 'Booking accepted.';
+  }
+
+  if (event.name === 'booking:cancelled') {
+    return 'A pilgrim cancelled a booking.';
   }
 
   if (event.name === 'booking:rejected') {

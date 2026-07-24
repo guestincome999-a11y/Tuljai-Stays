@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type { FeatureFlag, SystemSetting } from '@tuljai/types';
 
-import { Prisma } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -411,26 +411,24 @@ export class SettingsService {
   }
 
   private async ensureDefaultsUncached(): Promise<void> {
-    for (const setting of DEFAULT_SETTINGS) {
-      await this.prisma.systemSetting.upsert({
-        create: {
+    await this.prisma.$transaction([
+      this.prisma.systemSetting.createMany({
+        data: DEFAULT_SETTINGS.map((setting) => ({
           description: setting.description,
           isPublic: setting.isPublic,
           key: setting.key,
-          value: setting.value as Prisma.InputJsonValue,
-        },
-        update: {},
-        where: { key: setting.key },
-      });
-    }
-
-    for (const flag of DEFAULT_FLAGS) {
-      await this.prisma.featureFlag.upsert({
-        create: flag,
-        update: {},
-        where: { key: flag.key },
-      });
-    }
+          value:
+            setting.value === null
+              ? Prisma.JsonNull
+              : (setting.value as Prisma.InputJsonValue),
+        })),
+        skipDuplicates: true,
+      }),
+      this.prisma.featureFlag.createMany({
+        data: DEFAULT_FLAGS,
+        skipDuplicates: true,
+      }),
+    ]);
   }
 
   private invalidateFeatureFlagsCache(): void {

@@ -1,14 +1,31 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "baseUrl": "../..",
+    "allowJs": true,
     "paths": {
-      "@tuljai/shared": ["packages/shared/src/index.ts"],
-      "@tuljai/types": ["packages/types/src/index.ts"],
-      "@tuljai/ui": ["packages/ui/src/index.ts"],
-      "@tuljai/utils": ["packages/utils/src/index.ts"]
+      "@tuljai/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@tuljai/types": [
+        "../../packages/types/src/index.ts"
+      ],
+      "@tuljai/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@tuljai/utils": [
+        "../../packages/utils/src/index.ts"
+      ]
     },
     "strict": true
   },
-  "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "expo-env.d.ts"]
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts",
+    "tailwind.config.js",
+    ".expo/types/**/*.ts"
+  ]
 }

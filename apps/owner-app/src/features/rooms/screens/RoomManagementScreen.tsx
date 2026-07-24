@@ -15,12 +15,14 @@ import {
 } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { useOwnerAmenities } from '../../lodge-management/hooks/useOwnerAmenities';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { useRoomOperations } from '../hooks/useRoomOperations';
 
-type RoomTab = 'ROOM_TYPES' | 'ROOMS' | 'AVAILABILITY' | 'GALLERY';
+type RoomTab = 'AMENITIES' | 'ROOM_TYPES' | 'ROOMS' | 'AVAILABILITY' | 'GALLERY';
 
 const tabs: Array<{ label: string; value: RoomTab }> = [
+  { label: 'Amenities', value: 'AMENITIES' },
   { label: 'Room Types', value: 'ROOM_TYPES' },
   { label: 'Rooms', value: 'ROOMS' },
   { label: 'Availability', value: 'AVAILABILITY' },
@@ -47,9 +49,10 @@ const photoCategories: PhotoCategory[] = [
 
 export function RoomManagementScreen() {
   const assignedLodges = useAssignedLodges();
+  const amenities = useOwnerAmenities();
   const rooms = useRoomOperations();
   const theme = useTheme();
-  const [activeTab, setActiveTab] = useState<RoomTab>('ROOM_TYPES');
+  const [activeTab, setActiveTab] = useState<RoomTab>('AMENITIES');
   const [roomTypeFormVisible, setRoomTypeFormVisible] = useState(false);
   const [roomFormVisible, setRoomFormVisible] = useState(false);
   const [photoFormVisible, setPhotoFormVisible] = useState(false);
@@ -64,23 +67,25 @@ export function RoomManagementScreen() {
           <RefreshControl
             onRefresh={() => {
               void rooms.refresh();
+              void amenities.refresh();
             }}
-            refreshing={rooms.isRefreshing}
+            refreshing={rooms.isRefreshing || amenities.isRefreshing}
             tintColor={theme.colors.primary}
           />
         }
       >
         <View style={styles.header}>
-          <Text variant="headlineSmall">Room Management</Text>
+          <Text variant="headlineSmall">Lodge Management</Text>
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
-            {selectedLodgeName}
+            {selectedLodgeName} · amenities, rooms, pricing and availability
           </Text>
         </View>
 
         <View style={styles.summaryGrid}>
           <SummaryCard label="Room Types" value={rooms.roomTypes.length.toString()} />
-          <SummaryCard label="Rooms" value={rooms.rooms.length.toString()} />
+          <SummaryCard label="Total Rooms" value={rooms.rooms.length.toString()} />
           <SummaryCard label="Available" value={(statusCounts.AVAILABLE ?? 0).toString()} />
+          <SummaryCard label="Amenities" value={amenities.selectedAmenities.length.toString()} />
           <SummaryCard
             label="Maintenance/Blocked"
             value={`${statusCounts.MAINTENANCE ?? 0}/${statusCounts.BLOCKED ?? 0}`}
@@ -104,11 +109,24 @@ export function RoomManagementScreen() {
         <FormErrorBanner
           message={
             rooms.errorMessage ??
+            amenities.errorMessage ??
             (rooms.isOffline ? 'Connect to the internet to update rooms.' : null)
           }
         />
 
-        {rooms.isLoading ? <ActivityIndicator animating size="large" /> : null}
+        {rooms.isLoading || amenities.isLoading ? <ActivityIndicator animating size="large" /> : null}
+
+        {activeTab === 'AMENITIES' ? (
+          <AmenitiesTab
+            amenities={amenities.allAmenities}
+            isSaving={amenities.isSaving}
+            selectedAmenityIds={amenities.selectedAmenityIds}
+            onSave={() => {
+              void amenities.save();
+            }}
+            onToggle={amenities.toggleAmenity}
+          />
+        ) : null}
 
         {activeTab === 'ROOM_TYPES' ? (
           <RoomTypesTab
@@ -206,6 +224,62 @@ export function RoomManagementScreen() {
       >
         {rooms.successMessage}
       </Snackbar>
+      <Snackbar
+        onDismiss={() => amenities.setSuccessMessage(null)}
+        visible={Boolean(amenities.successMessage)}
+      >
+        {amenities.successMessage}
+      </Snackbar>
+    </View>
+  );
+}
+
+function AmenitiesTab({
+  amenities,
+  isSaving,
+  onSave,
+  onToggle,
+  selectedAmenityIds,
+}: {
+  amenities: Array<{ category: string; id: string; name: string }>;
+  isSaving: boolean;
+  onSave: () => void;
+  onToggle: (amenityId: string) => void;
+  selectedAmenityIds: string[];
+}) {
+  return (
+    <View style={styles.section}>
+      <Text variant="titleMedium">Amenities shown to pilgrims</Text>
+      <Text variant="bodyMedium">
+        Select every facility currently available at your lodge, then save the changes.
+      </Text>
+      <View style={styles.chips}>
+        {amenities.map((amenity) => (
+          <Chip
+            icon={selectedAmenityIds.includes(amenity.id) ? 'check-circle' : 'circle-outline'}
+            key={amenity.id}
+            selected={selectedAmenityIds.includes(amenity.id)}
+            onPress={() => onToggle(amenity.id)}
+          >
+            {amenity.name}
+          </Chip>
+        ))}
+      </View>
+      {amenities.length === 0 ? (
+        <EmptyState
+          title="No amenities configured"
+          description="Ask an administrator to create the amenity catalogue first."
+        />
+      ) : null}
+      <Button
+        disabled={isSaving}
+        icon="content-save-outline"
+        loading={isSaving}
+        mode="contained"
+        onPress={onSave}
+      >
+        Save Amenities
+      </Button>
     </View>
   );
 }

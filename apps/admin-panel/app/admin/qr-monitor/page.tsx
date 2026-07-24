@@ -4,12 +4,19 @@ import type { QrScanLogEntry } from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { listMonitoringQrScanLogs } from '../../../src/api/admin-monitoring-api';
+import {
+  createAdminRealtimeSocket,
+  subscribeAdminRealtimeEvents,
+} from '../../../src/api/realtime-client';
+import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
+import { tokenStorage } from '../../../src/auth/token-storage';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import { formatMonitoringLabel, summarizeQrScans } from '../../../src/monitoring/monitoring-utils';
 
 const resultFilters = ['', 'SUCCESS', 'INVALID', 'EXPIRED', 'USED', 'UNAUTHORIZED', 'WRONG_LODGE'];
 
 export default function AdminQrMonitorPage() {
+  const auth = useAdminAuth();
   const [logs, setLogs] = useState<QrScanLogEntry[]>([]);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState('');
@@ -27,6 +34,42 @@ export default function AdminQrMonitorPage() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return undefined;
+
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
+    if (!apiBaseUrl) return undefined;
+
+    let active = true;
+    let cleanup: (() => void) | undefined;
+
+    void tokenStorage.getAccessToken().then((accessToken) => {
+      if (!active || !accessToken) return;
+
+      const socket = createAdminRealtimeSocket(accessToken, apiBaseUrl);
+      subscribeAdminRealtimeEvents(socket, (event) => {
+        if (
+          event.name === 'qr:scan-success' ||
+          event.name === 'qr:scan-failed' ||
+          event.name === 'dashboard:update'
+        ) {
+          void load();
+        }
+      });
+      cleanup = () => socket.disconnect();
+    });
+
+    return () => {
+      active = false;
+      cleanup?.();
+    };
+  }, [auth.isAuthenticated, load]);
+
+  useEffect(() => {
+    const interval = setInterval(() => void load(), 30_000);
+    return () => clearInterval(interval);
   }, [load]);
 
   const filteredLogs = useMemo(() => {

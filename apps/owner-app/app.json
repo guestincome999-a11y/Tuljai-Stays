@@ -5,7 +5,7 @@
     "scheme": "tuljaistays-owner",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "bundleIdentifier": "com.tuljaistays.owner",
@@ -18,10 +18,20 @@
       "package": "com.tuljaistays.owner",
       "permissions": ["CAMERA", "VIBRATE"],
       "adaptiveIcon": {
-        "backgroundColor": "#FFFBFE"
+        "backgroundColor": "#FAF7F2"
       }
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "barcodeScannerEnabled": true,
+          "cameraPermission": "Allow Tuljai Stays Owner to use the camera for pilgrim QR check-in.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

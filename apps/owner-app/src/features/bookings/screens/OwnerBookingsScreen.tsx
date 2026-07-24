@@ -14,6 +14,7 @@ import { useOwnerBookingActions, useOwnerBookings } from '../hooks/useOwnerBooki
 const filters: Array<{ label: string; status: BookingStatus }> = [
   { label: 'Pending', status: 'PENDING_OWNER_APPROVAL' },
   { label: 'Accepted', status: 'ACCEPTED' },
+  { label: 'QR Ready', status: 'QR_GENERATED' },
   { label: 'Checked In', status: 'CHECKED_IN' },
   { label: 'Checked Out', status: 'CHECKED_OUT' },
   { label: 'Rejected', status: 'REJECTED' },

@@ -21,6 +21,10 @@ import {
 
 import { getAdminProfile, logoutAdmin, requestAdminOtp, verifyAdminOtp } from './admin-auth-api';
 import { getOrCreateAdminDeviceId } from './admin-device';
+import {
+  ADMIN_SESSION_EXPIRED_EVENT,
+  ADMIN_SESSION_REFRESHED_EVENT,
+} from './admin-session-events';
 import { clearAuthSession, getAuthSession, setAuthSession } from './auth-session-store';
 import { tokenStorage } from './token-storage';
 
@@ -66,6 +70,26 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
     await tokenStorage.clear();
     setSession(emptyAuthSession);
   }, []);
+
+  useEffect(() => {
+    const handleSessionRefreshed = () => {
+      setSession(getAuthSession());
+      setErrorMessage(null);
+    };
+    const handleSessionExpired = () => {
+      setSession(emptyAuthSession);
+      setErrorMessage('Your session expired. Please log in again.');
+      router.replace('/login');
+    };
+
+    window.addEventListener(ADMIN_SESSION_REFRESHED_EVENT, handleSessionRefreshed);
+    window.addEventListener(ADMIN_SESSION_EXPIRED_EVENT, handleSessionExpired);
+
+    return () => {
+      window.removeEventListener(ADMIN_SESSION_REFRESHED_EVENT, handleSessionRefreshed);
+      window.removeEventListener(ADMIN_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    };
+  }, [router]);
 
   useEffect(() => {
     let mounted = true;

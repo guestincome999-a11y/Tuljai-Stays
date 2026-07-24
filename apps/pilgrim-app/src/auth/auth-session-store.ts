@@ -2,6 +2,7 @@ import { emptyAuthSession, type AuthSession } from '@tuljai/shared';
 import * as SecureStore from 'expo-secure-store';
 
 import { secureTokenStore } from './secure-token-store';
+import { getWebSessionStorage } from './web-session-storage';
 
 const SESSION_KEY = 'tuljai.pilgrim.authSession';
 
@@ -13,8 +14,7 @@ async function isSecureStoreAvailable(): Promise<boolean> {
 
 export async function restoreAuthSession(): Promise<AuthSession> {
   if (!(await isSecureStoreAvailable())) {
-    cachedSession = emptyAuthSession;
-    return cachedSession;
+    return parseStoredSession(getWebSessionStorage()?.getItem(SESSION_KEY) ?? null);
   }
 
   const storedSession = await SecureStore.getItemAsync(SESSION_KEY);
@@ -24,13 +24,7 @@ export async function restoreAuthSession(): Promise<AuthSession> {
     return cachedSession;
   }
 
-  try {
-    cachedSession = JSON.parse(storedSession) as AuthSession;
-    return cachedSession;
-  } catch {
-    await clearAuthSession();
-    return emptyAuthSession;
-  }
+  return parseStoredSession(storedSession);
 }
 
 export function getAuthSession(): AuthSession {
@@ -46,6 +40,8 @@ export async function saveAuthSession(nextSession: AuthSession): Promise<void> {
 
   if (await isSecureStoreAvailable()) {
     await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(nextSession));
+  } else {
+    getWebSessionStorage()?.setItem(SESSION_KEY, JSON.stringify(nextSession));
   }
 }
 
@@ -55,5 +51,43 @@ export async function clearAuthSession(): Promise<void> {
 
   if (await isSecureStoreAvailable()) {
     await SecureStore.deleteItemAsync(SESSION_KEY);
+  } else {
+    getWebSessionStorage()?.removeItem(SESSION_KEY);
+  }
+}
+
+export async function updateStoredAccessToken(accessToken: string): Promise<void> {
+  if (!cachedSession.tokens) {
+    return;
+  }
+
+  cachedSession = {
+    ...cachedSession,
+    tokens: {
+      ...cachedSession.tokens,
+      accessToken,
+    },
+  };
+  await secureTokenStore.setAccessToken(accessToken);
+
+  if (await isSecureStoreAvailable()) {
+    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(cachedSession));
+  } else {
+    getWebSessionStorage()?.setItem(SESSION_KEY, JSON.stringify(cachedSession));
+  }
+}
+
+async function parseStoredSession(storedSession: string | null): Promise<AuthSession> {
+  if (!storedSession) {
+    cachedSession = emptyAuthSession;
+    return cachedSession;
+  }
+
+  try {
+    cachedSession = JSON.parse(storedSession) as AuthSession;
+    return cachedSession;
+  } catch {
+    await clearAuthSession();
+    return emptyAuthSession;
   }
 }

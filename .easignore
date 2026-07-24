@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+web-build/
+
+# Expo and native generated output
+.expo/
+android/
+ios/
+
+# Coverage and caches
+coverage/
+.turbo/
+.cache/
+.parcel-cache/
+.eslintcache
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Prisma generated output
+backend/generated/
+
+# Local repository and audit artifacts
+.git/
+.codex-temp/
+package-lock.before-audit-force.json
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json

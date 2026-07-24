@@ -87,8 +87,8 @@ export default function AdminSettingsPage() {
       });
       await load();
       setSuccessMessage(`${formatControlLabel(definition.key)} updated.`);
-    } catch {
-      setErrorMessage('Setting update failed.');
+    } catch (error) {
+      setErrorMessage(getAdminActionError(error, 'Setting update failed.'));
     }
   }
 
@@ -205,6 +205,14 @@ export default function AdminSettingsPage() {
       </div>
     </PermissionGate>
   );
+}
+
+function getAdminActionError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return `${fallback} ${error.message}`;
+  }
+
+  return fallback;
 }
 
 function SettingInput({

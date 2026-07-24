@@ -1,8 +1,11 @@
+import { BookingStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -11,8 +14,6 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-
-import { BookingStatus } from '../../../../generated/prisma';
 
 export class CreateBookingLockDto {
   @IsString()
@@ -31,6 +32,10 @@ export class CreateBookingLockDto {
 export class CreateBookingDto {
   @IsString()
   lockCode!: string;
+
+  @Type(() => Boolean)
+  @IsBoolean()
+  checkoutDateFlexible!: boolean;
 
   @IsString()
   @MaxLength(120)
@@ -68,6 +73,32 @@ export class CreateBookingDto {
   @IsString()
   @MaxLength(500)
   specialRequest?: string;
+
+  @IsString()
+  @MaxLength(500)
+  guestIdProofStoragePath!: string;
+
+  @IsString()
+  @MaxLength(255)
+  guestIdProofOriginalName!: string;
+
+  @IsString()
+  @IsIn(['application/pdf', 'image/jpeg', 'image/png'])
+  @MaxLength(100)
+  guestIdProofMimeType!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5 * 1024 * 1024)
+  guestIdProofSizeBytes!: number;
+}
+
+export class CancelBookingDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class RejectBookingDto {

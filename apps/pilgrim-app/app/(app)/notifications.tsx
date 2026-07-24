@@ -1,3 +1,1 @@
-import { NotificationsScreen } from '../../src/features/notifications/screens/NotificationsScreen';
-
-export default NotificationsScreen;
+export { PilgrimNotificationsScreen as default } from '../../src/pilgrim-ui/screens/PilgrimNotificationsScreen';

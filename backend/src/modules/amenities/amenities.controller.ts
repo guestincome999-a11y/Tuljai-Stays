@@ -38,4 +38,15 @@ export class AmenitiesController {
   ): Promise<{ success: true }> {
     return this.amenitiesService.assignToLodge(lodgeId, dto, user.id);
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Post('owner/lodges/:lodgeId/amenities')
+  public assignToOwnerLodge(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('lodgeId') lodgeId: string,
+    @Body() dto: AssignLodgeAmenitiesDto,
+  ): Promise<{ success: true }> {
+    return this.amenitiesService.assignToOwnerLodge(lodgeId, dto, user);
+  }
 }

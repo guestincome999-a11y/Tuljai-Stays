@@ -1,3 +1,4 @@
+import { RoomStatus } from '@prisma/client';
 import {
   IsBoolean,
   IsEnum,
@@ -9,7 +10,6 @@ import {
   Min,
 } from 'class-validator';
 
-import { RoomStatus } from '../../../../generated/prisma';
 
 export class CreateRoomTypeDto {
   @IsString()

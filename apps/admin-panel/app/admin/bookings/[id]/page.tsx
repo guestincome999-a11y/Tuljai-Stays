@@ -2,7 +2,7 @@
 
 import type { BookingStatus } from '@tuljai/types';
 import Link from 'next/link';
-import { useState } from 'react';
+import { use, useState } from 'react';
 
 import { useAdminAuth } from '../../../../src/auth/AdminAuthProvider';
 import {
@@ -34,9 +34,10 @@ const rejectReasons = [
   'Pilgrim cancelled by phone',
 ];
 
-export default function AdminBookingDetailPage({ params }: { params: { id: string } }) {
+export default function AdminBookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: bookingId } = use(params);
   const auth = useAdminAuth();
-  const bookingDetail = useAdminBookingDetail(params.id);
+  const bookingDetail = useAdminBookingDetail(bookingId);
   const booking = bookingDetail.data;
   const [selectedStatus, setSelectedStatus] = useState<BookingStatus>('ACCEPTED');
   const [reason, setReason] = useState('');
@@ -92,7 +93,8 @@ export default function AdminBookingDetailPage({ params }: { params: { id: strin
             <p className="eyebrow">Booking Detail</p>
             <h2>{booking.bookingCode}</h2>
             <p>
-              {booking.guestName} / {booking.checkInDate} to {booking.checkOutDate}
+              {booking.guestName} / {booking.checkInDate} to{' '}
+              {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
             </p>
           </div>
           <div className="hero-actions">

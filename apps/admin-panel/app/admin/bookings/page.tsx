@@ -191,7 +191,9 @@ function BookingRow({
       </span>
       <span>
         {booking.checkInDate}
-        <small>to {booking.checkOutDate}</small>
+        <small>
+          to {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
+        </small>
       </span>
       <span className="status-card">{formatStatus(booking.status)}</span>
       <span className={ownerState.overdue ? 'text-danger' : undefined}>

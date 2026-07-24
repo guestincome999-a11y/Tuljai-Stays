@@ -41,9 +41,9 @@ export async function listAdminBookings(
   });
 }
 
-export async function listPublicLodges(): Promise<PaginatedResponse<Lodge>> {
-  return apiClient.get<PaginatedResponse<Lodge>>('/lodges', {
-    params: { limit: 18, page: 1 },
+export async function listAdminLodges(): Promise<PaginatedResponse<Lodge>> {
+  return apiClient.get<PaginatedResponse<Lodge>>('/admin/lodges', {
+    params: { page: 1, pageSize: 18 },
   });
 }
 

@@ -9,7 +9,9 @@ export type RealtimeSocket = Socket<
 >;
 
 export function createRealtimeSocket(accessToken: string): RealtimeSocket {
-  const environment = readPublicEnvironment(process.env);
+  const environment = readPublicEnvironment({
+    EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  });
   const serverUrl = environment.apiBaseUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
   return io(`${serverUrl}/realtime`, {

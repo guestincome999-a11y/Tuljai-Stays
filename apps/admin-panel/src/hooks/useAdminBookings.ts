@@ -4,6 +4,9 @@ import type { AdminBookingSummary, BookingStatus, PaginatedResponse } from '@tul
 import { useCallback, useEffect, useState } from 'react';
 
 import { listAdminBookings, type AdminBookingsQuery } from '../api/admin-bookings-api';
+import { createAdminRealtimeSocket, subscribeAdminRealtimeEvents } from '../api/realtime-client';
+import { useAdminAuth } from '../auth/AdminAuthProvider';
+import { tokenStorage } from '../auth/token-storage';
 
 interface AdminBookingsState {
   data: PaginatedResponse<AdminBookingSummary> | null;
@@ -20,6 +23,7 @@ export interface AdminBookingFilters {
 }
 
 export function useAdminBookings(filters: AdminBookingFilters, page: number) {
+  const auth = useAdminAuth();
   const [state, setState] = useState<AdminBookingsState>({
     data: null,
     errorMessage: null,
@@ -65,6 +69,35 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return undefined;
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
+    if (!apiBaseUrl) return undefined;
+
+    let active = true;
+    let cleanup: (() => void) | undefined;
+    void tokenStorage.getAccessToken().then((accessToken) => {
+      if (!active || !accessToken) return;
+      const socket = createAdminRealtimeSocket(accessToken, apiBaseUrl);
+      subscribeAdminRealtimeEvents(socket, (event) => {
+        if (event.name.startsWith('booking:') || event.name === 'dashboard:update') {
+          void load(true);
+        }
+      });
+      cleanup = () => socket.disconnect();
+    });
+
+    return () => {
+      active = false;
+      cleanup?.();
+    };
+  }, [auth.isAuthenticated, load]);
+
+  useEffect(() => {
+    const interval = setInterval(() => void load(true), 30_000);
+    return () => clearInterval(interval);
   }, [load]);
 
   return {

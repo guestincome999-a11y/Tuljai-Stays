@@ -1,4 +1,9 @@
-import type { AvailabilityResponse, Booking, BookingLock } from '@tuljai/types';
+import type {
+  AvailabilityResponse,
+  Booking,
+  BookingGuestIdProofUpload,
+  BookingLock,
+} from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
 import {
@@ -16,14 +21,27 @@ export interface BookingLockRequest {
 
 export interface CreateBookingRequest {
   alternatePhone?: string;
+  checkoutDateFlexible: boolean;
   guestAddress?: string;
   guestEmail?: string;
   guestName: string;
   guestPhone: string;
+  guestIdProofMimeType: string;
+  guestIdProofOriginalName: string;
+  guestIdProofSizeBytes: number;
+  guestIdProofStoragePath: string;
   lockCode: string;
   numberOfAdults: number;
   numberOfChildren: number;
   specialRequest?: string;
+}
+
+export interface GuestIdProofFile {
+  mimeType: string;
+  name: string;
+  sizeBytes?: number;
+  uri: string;
+  webFile?: File;
 }
 
 export interface EnrichedBooking {
@@ -36,7 +54,7 @@ export interface EnrichedBooking {
 
 export async function checkAvailability(input: BookingLockRequest): Promise<AvailabilityResponse> {
   return apiClient.get<AvailabilityResponse>(
-    `/api/lodges/${input.lodgeId}/room-types/${input.roomTypeId}/availability`,
+    `/lodges/${input.lodgeId}/room-types/${input.roomTypeId}/availability`,
     {
       params: {
         checkInDate: input.checkInDate,
@@ -47,23 +65,45 @@ export async function checkAvailability(input: BookingLockRequest): Promise<Avai
 }
 
 export async function createBookingLock(input: BookingLockRequest): Promise<BookingLock> {
-  return apiClient.post<BookingLock>('/api/bookings/lock', input);
+  return apiClient.post<BookingLock>('/bookings/lock', input);
 }
 
 export async function createBooking(input: CreateBookingRequest): Promise<Booking> {
-  return apiClient.post<Booking>('/api/bookings', input);
+  return apiClient.post<Booking>('/bookings', input);
+}
+
+export async function uploadGuestIdProof(
+  proof: GuestIdProofFile,
+): Promise<BookingGuestIdProofUpload> {
+  const formData = new FormData();
+
+  if (proof.webFile) {
+    formData.append('file', proof.webFile, proof.name);
+  } else {
+    formData.append('file', {
+      name: proof.name,
+      type: proof.mimeType,
+      uri: proof.uri,
+    } as unknown as Blob);
+  }
+
+  return apiClient.post<BookingGuestIdProofUpload>('/bookings/guest-id-proof', formData);
 }
 
 export async function listMyBookings(): Promise<EnrichedBooking[]> {
-  const bookings = await apiClient.get<Booking[]>('/api/bookings/my');
+  const bookings = await apiClient.get<Booking[]>('/bookings/my');
 
   return Promise.all(bookings.map((booking) => enrichBooking(booking)));
 }
 
 export async function getBooking(bookingId: string): Promise<EnrichedBooking> {
-  const booking = await apiClient.get<Booking>(`/api/bookings/${bookingId}`);
+  const booking = await apiClient.get<Booking>(`/bookings/${bookingId}`);
 
   return enrichBooking(booking);
+}
+
+export async function cancelBooking(bookingId: string, reason?: string): Promise<Booking> {
+  return apiClient.post<Booking>(`/bookings/${bookingId}/cancel`, { reason });
 }
 
 async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {

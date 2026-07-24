@@ -36,6 +36,7 @@ const RealtimeContext = createContext<RealtimeContextValue>({
 const eventNames: OwnerRealtimeEventName[] = [
   'announcement:new',
   'booking:accepted',
+  'booking:cancelled',
   'booking:expired',
   'booking:new',
   'booking:rejected',

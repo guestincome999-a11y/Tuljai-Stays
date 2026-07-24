@@ -6,6 +6,7 @@ import {
   IsString,
   Matches,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 const appTypes = ['PILGRIM_APP', 'OWNER_APP', 'ADMIN_PANEL'] as const;
@@ -96,4 +97,11 @@ export class RegisterDeviceTokenDto {
 
   @IsIn(platforms)
   platform!: (typeof platforms)[number];
+}
+
+export class UpdateProfileDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  displayName!: string;
 }

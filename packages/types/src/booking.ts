@@ -60,6 +60,13 @@ export interface BookingGuest {
   phone: string | null;
 }
 
+export interface BookingGuestIdProofUpload {
+  mimeType: string;
+  originalName: string;
+  sizeBytes: number;
+  storagePath: string;
+}
+
 export interface Booking {
   acceptedByUserId: UUID | null;
   advanceAmount: string | null;
@@ -69,6 +76,7 @@ export interface Booking {
   cancellationReason: string | null;
   checkInDate: string;
   checkOutDate: string;
+  checkoutDateFlexible: boolean;
   checkedInAt: ISODateTime | null;
   checkedOutAt: ISODateTime | null;
   cityId: UUID;

@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { type BookingQrToken, Prisma, QrScanResult as PrismaQrScanResult } from '@prisma/client';
 import type {
   AuthenticatedUser,
   CheckInResponse,
@@ -18,7 +19,6 @@ import type {
 } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import { Prisma, QrScanResult as PrismaQrScanResult } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { NotificationEventsService } from '../notifications/notification-events.service';
@@ -169,17 +169,14 @@ export class QrCheckinService {
       throw new BadRequestException('QR is available only for accepted bookings');
     }
 
-    const qrToken = await this.prisma.bookingQrToken.findFirst({
-      orderBy: { createdAt: 'desc' },
-      where: {
-        bookingId,
-        status: 'ACTIVE',
-      },
-    });
-
-    if (!qrToken) {
-      throw new NotFoundException('Active QR token not found');
+    if (!booking.lodge.isActive || booking.lodge.deletedAt) {
+      throw new BadRequestException('Lodge is not active');
     }
+    if (booking.lodge.status !== 'VERIFIED' || booking.lodge.verificationStatus !== 'VERIFIED') {
+      throw new BadRequestException('Lodge is not verified');
+    }
+
+    const qrToken = await this.ensureActiveQrToken(booking);
 
     return {
       bookingCode: booking.bookingCode,
@@ -392,6 +389,7 @@ export class QrCheckinService {
     await this.notificationEventsService.checkinCompleted(
       qrToken.bookingId,
       qrToken.booking.lodgeId,
+      user.id,
     );
 
     return {
@@ -494,6 +492,78 @@ export class QrCheckinService {
     }
 
     return booking;
+  }
+
+  private async ensureActiveQrToken(booking: BookingForQr): Promise<BookingQrToken> {
+    const now = new Date();
+    const activeToken = await this.prisma.bookingQrToken.findFirst({
+      orderBy: { createdAt: 'desc' },
+      where: {
+        bookingId: booking.id,
+        expiresAt: { gt: now },
+        status: 'ACTIVE',
+      },
+    });
+
+    if (activeToken) return activeToken;
+
+    const defaultTtlSeconds = this.configService.get<number>(
+      'api.booking.qrTokenTtlSeconds',
+      86400,
+    );
+    const endOfStay = new Date(booking.checkOutDate);
+    endOfStay.setUTCHours(23, 59, 59, 999);
+    const expiresAt = new Date(
+      Math.max(now.getTime() + defaultTtlSeconds * 1000, endOfStay.getTime()),
+    );
+    const rawToken = randomBytes(32).toString('base64url');
+    const action = booking.status === 'ACCEPTED' ? 'QR_GENERATED' : 'QR_REISSUED';
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await tx.bookingQrToken.updateMany({
+        data: { status: 'EXPIRED' },
+        where: {
+          bookingId: booking.id,
+          expiresAt: { lte: now },
+          status: 'ACTIVE',
+        },
+      });
+      const token = await tx.bookingQrToken.create({
+        data: {
+          bookingId: booking.id,
+          expiresAt,
+          tokenHash: this.hashToken(rawToken),
+          tokenVersion: 1,
+        },
+      });
+
+      if (booking.status === 'ACCEPTED') {
+        await tx.booking.update({
+          data: { status: 'QR_GENERATED' },
+          where: { id: booking.id },
+        });
+      }
+      await tx.bookingHistory.create({
+        data: {
+          action,
+          bookingId: booking.id,
+          fromStatus: booking.status,
+          toStatus: 'QR_GENERATED',
+        },
+      });
+
+      return token;
+    });
+
+    await this.auditLogService.create({
+      action,
+      entityId: booking.id,
+      entityType: 'booking',
+      metadata: { qrTokenId: created.id },
+    });
+    await this.notificationEventsService.qrGenerated(booking.id);
+
+    return created;
   }
 
   private hashToken(token: string): string {

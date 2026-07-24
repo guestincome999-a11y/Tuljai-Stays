@@ -3,6 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 const realtimeEvents = [
   'announcement:new',
   'booking:accepted',
+  'booking:cancelled',
   'booking:expired',
   'booking:new',
   'booking:rejected',

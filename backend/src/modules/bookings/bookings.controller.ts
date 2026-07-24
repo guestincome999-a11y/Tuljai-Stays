@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthenticatedUser } from '@tuljai/types';
 import type { FastifyRequest } from 'fastify';
 
@@ -13,6 +24,7 @@ import { BookingsService } from './bookings.service';
 import {
   AdminBookingsQueryDto,
   BookingAvailabilityQueryDto,
+  CancelBookingDto,
   CreateBookingDto,
   CreateBookingLockDto,
   OwnerBookingsQueryDto,
@@ -27,6 +39,7 @@ import {
   ScanQrDto,
   UpdateRegisterNotesDto,
 } from './dto/qr-register.dto';
+import { GuestIdProofService } from './guest-id-proof.service';
 import { GuestRegisterService } from './guest-register.service';
 import { QrCheckinService } from './qr-checkin.service';
 
@@ -36,6 +49,7 @@ export class BookingsController {
     private readonly availabilityService: BookingAvailabilityService,
     private readonly bookingLocksService: BookingLocksService,
     private readonly bookingsService: BookingsService,
+    private readonly guestIdProofService: GuestIdProofService,
     private readonly guestRegisterService: GuestRegisterService,
     private readonly qrCheckinService: QrCheckinService,
   ) {}
@@ -44,6 +58,20 @@ export class BookingsController {
   @Post('bookings/lock')
   public createLock(@Body() dto: CreateBookingLockDto, @CurrentUser() user: AuthenticatedUser) {
     return this.bookingLocksService.createLock(dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('bookings/guest-id-proof')
+  public async uploadGuestIdProof(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: FastifyRequest,
+  ) {
+    const file = await request.file();
+    if (!file) {
+      throw new BadRequestException('Select an ID proof to upload');
+    }
+
+    return this.guestIdProofService.upload(file, user);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -62,6 +90,16 @@ export class BookingsController {
   @Get('bookings/:id')
   public getBooking(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.bookingsService.getBookingById(id, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('bookings/:id/cancel')
+  public cancelBooking(
+    @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.cancelBooking(id, dto, user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { AppType, type DeviceToken } from '@prisma/client';
 
-import { AppType, type DeviceToken } from '../../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()

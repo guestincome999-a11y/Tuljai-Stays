@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
@@ -25,6 +27,7 @@ import { StorageModule } from './storage/storage.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
+      envFilePath: [resolve(process.cwd(), 'backend/.env'), resolve(process.cwd(), '.env')],
       isGlobal: true,
       load: [appConfig],
       validate: validateEnvironment,

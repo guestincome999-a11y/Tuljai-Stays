@@ -1,14 +1,11 @@
 const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
+const { withNativeWind } = require('nativewind/metro');
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
-const config = getDefaultConfig(projectRoot);
+const config = getDefaultConfig(__dirname);
 
-config.watchFolders = [workspaceRoot];
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
-];
+// Expo's on-demand filesystem resolves workspace imports lazily. Keeping the
+// initial watch scope local avoids Windows timing out while subscribing to
+// every workspace and the root node_modules directory.
+config.watchFolders = [__dirname];
 
-module.exports = config;
+module.exports = withNativeWind(config, { input: './global.css' });

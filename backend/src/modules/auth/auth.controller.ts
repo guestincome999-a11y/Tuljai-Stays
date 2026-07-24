@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type {
   AuthUserProfile,
   RefreshTokenResponse,
@@ -14,6 +14,7 @@ import {
   RefreshTokenDto,
   RegisterDeviceTokenDto,
   RequestOtpDto,
+  UpdateProfileDto,
   VerifyOtpDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -56,6 +57,15 @@ export class AuthController {
   @Get('me')
   public me(@CurrentUser() user: AuthUserProfile): Promise<AuthUserProfile> {
     return this.authService.getProfile(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  public updateMe(
+    @CurrentUser() user: AuthUserProfile,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<AuthUserProfile> {
+    return this.authService.updateProfile(user.id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

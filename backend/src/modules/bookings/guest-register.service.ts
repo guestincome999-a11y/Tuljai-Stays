@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type {
   AuthenticatedUser,
   CheckoutResponse,
@@ -7,7 +8,6 @@ import type {
 } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import { Prisma } from '../../../generated/prisma';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -355,6 +355,7 @@ export class GuestRegisterService {
       cancellationReason: booking.cancellationReason,
       checkInDate: booking.checkInDate.toISOString().slice(0, 10),
       checkOutDate: booking.checkOutDate.toISOString().slice(0, 10),
+      checkoutDateFlexible: booking.checkoutDateFlexible,
       checkedInAt: booking.checkedInAt?.toISOString() ?? null,
       checkedOutAt: booking.checkedOutAt?.toISOString() ?? null,
       cityId: booking.cityId,

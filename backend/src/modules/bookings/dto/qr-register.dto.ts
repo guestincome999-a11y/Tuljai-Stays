@@ -1,3 +1,4 @@
+import { GuestIdType, GuestRegisterStatus, QrScanResult } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
@@ -10,7 +11,6 @@ import {
   Min,
 } from 'class-validator';
 
-import { GuestIdType, GuestRegisterStatus, QrScanResult } from '../../../../generated/prisma';
 
 export class GenerateQrDto {
   @IsOptional()

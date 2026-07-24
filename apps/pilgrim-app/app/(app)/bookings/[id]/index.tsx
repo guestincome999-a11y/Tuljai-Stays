@@ -1,3 +1,1 @@
-import { BookingDetailsScreen } from '../../../../src/features/bookings/screens/BookingDetailsScreen';
-
-export default BookingDetailsScreen;
+export { PilgrimBookingDetailScreen as default } from '../../../../src/pilgrim-ui/screens/PilgrimBookingDetailScreen';

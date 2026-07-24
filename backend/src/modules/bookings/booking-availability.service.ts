@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BookingStatus, Prisma, RoomStatus } from '@prisma/client';
 import type { AvailabilityResponse } from '@tuljai/types';
 
-import { BookingStatus, Prisma, RoomStatus } from '../../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [

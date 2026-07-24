@@ -91,6 +91,7 @@ export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) 
       eventName === 'booking:new' ||
       eventName === 'owner:alert' ||
       eventName === 'booking:accepted' ||
+      eventName === 'booking:cancelled' ||
       eventName === 'booking:rejected' ||
       eventName === 'booking:expired' ||
       eventName === 'checkin:completed' ||

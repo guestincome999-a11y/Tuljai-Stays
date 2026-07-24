@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -630,6 +629,7 @@ model Booking {
   totalGuests           Int                 @map("total_guests")
   checkInDate           DateTime            @map("check_in_date") @db.Date
   checkOutDate          DateTime            @map("check_out_date") @db.Date
+  checkoutDateFlexible  Boolean             @default(false) @map("checkout_date_flexible")
   expectedCheckInTime   String?             @map("expected_check_in_time")
   expectedCheckOutTime  String?             @map("expected_check_out_time")
   specialRequest        String?             @map("special_request")
@@ -678,19 +678,23 @@ model Booking {
 }
 
 model BookingGuest {
-  id             String       @id @default(uuid()) @db.Uuid
-  bookingId      String       @map("booking_id") @db.Uuid
-  fullName       String       @map("full_name")
-  age            Int?
-  gender         String?
-  phone          String?
-  idType         GuestIdType? @map("id_type")
-  idNumber       String?      @map("id_number")
-  isPrimaryGuest Boolean      @default(false) @map("is_primary_guest")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  deletedAt      DateTime?    @map("deleted_at")
-  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(uuid()) @db.Uuid
+  bookingId           String       @map("booking_id") @db.Uuid
+  fullName            String       @map("full_name")
+  age                 Int?
+  gender              String?
+  phone               String?
+  idType              GuestIdType? @map("id_type")
+  idNumber            String?      @map("id_number")
+  idProofStoragePath  String?      @map("id_proof_storage_path")
+  idProofOriginalName String?      @map("id_proof_original_name")
+  idProofMimeType     String?      @map("id_proof_mime_type")
+  idProofSizeBytes    Int?         @map("id_proof_size_bytes")
+  isPrimaryGuest      Boolean      @default(false) @map("is_primary_guest")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  deletedAt           DateTime?    @map("deleted_at")
+  booking             Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@index([bookingId])
   @@index([deletedAt])

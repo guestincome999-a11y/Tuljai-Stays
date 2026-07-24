@@ -2,7 +2,7 @@
 
 import type { Amenity, LodgeDetails, LodgePhoto, Room, RoomStatus, RoomType } from '@tuljai/types';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   assignGovernanceAmenities,
@@ -42,7 +42,8 @@ interface LodgeDetailState {
   successMessage: string | null;
 }
 
-export default function AdminLodgeDetailPage({ params }: { params: { id: string } }) {
+export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: lodgeId } = use(params);
   const auth = useAdminAuth();
   const canManageLodges = hasPermission(auth.permissions, 'lodges.manage');
   const canManageRooms = hasPermission(auth.permissions, 'rooms.manage');
@@ -64,10 +65,10 @@ export default function AdminLodgeDetailPage({ params }: { params: { id: string 
     setState((current) => ({ ...current, errorMessage: null, isLoading: true }));
     try {
       const [lodge, roomTypes, rooms, photos, amenities] = await Promise.all([
-        getGovernanceLodge(params.id),
-        listGovernanceRoomTypes(params.id),
-        listGovernanceRooms(params.id),
-        listGovernanceLodgePhotos(params.id),
+        getGovernanceLodge(lodgeId),
+        listGovernanceRoomTypes(lodgeId),
+        listGovernanceRooms(lodgeId),
+        listGovernanceLodgePhotos(lodgeId),
         listGovernanceAmenities(),
       ]);
       setState({
@@ -88,7 +89,7 @@ export default function AdminLodgeDetailPage({ params }: { params: { id: string 
         isLoading: false,
       }));
     }
-  }, [params.id]);
+  }, [lodgeId]);
 
   useEffect(() => {
     void load();
@@ -219,7 +220,7 @@ export default function AdminLodgeDetailPage({ params }: { params: { id: string 
                   type="button"
                   onClick={() =>
                     void runAction(
-                      () => updateGovernanceLodgeStatus(params.id, { status }),
+                      () => updateGovernanceLodgeStatus(lodgeId, { status }),
                       `Lodge status changed to ${formatGovernanceStatus(status)}.`,
                     )
                   }
@@ -246,7 +247,7 @@ export default function AdminLodgeDetailPage({ params }: { params: { id: string 
                   onClick={() =>
                     void runAction(
                       () =>
-                        verifyGovernanceLodge(params.id, {
+                        verifyGovernanceLodge(lodgeId, {
                           notes: verificationNotes || undefined,
                           verificationStatus,
                         }),
@@ -288,7 +289,7 @@ export default function AdminLodgeDetailPage({ params }: { params: { id: string 
               type="button"
               onClick={() =>
                 void runAction(
-                  () => assignGovernanceAmenities(params.id, { amenityIds: selectedAmenityIds }),
+                  () => assignGovernanceAmenities(lodgeId, { amenityIds: selectedAmenityIds }),
                   'Amenities updated.',
                 )
               }
@@ -304,7 +305,7 @@ export default function AdminLodgeDetailPage({ params }: { params: { id: string 
               <p className="eyebrow">Rooms</p>
               <h3>Room status governance</h3>
             </div>
-            <Link className="ghost-control" href={`/admin/rooms?lodgeId=${params.id}`}>
+            <Link className="ghost-control" href={`/admin/rooms?lodgeId=${lodgeId}`}>
               Open Rooms Center
             </Link>
           </div>

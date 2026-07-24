@@ -34,7 +34,7 @@ export async function listCities(): Promise<City[]> {
     return citiesCache;
   }
 
-  const cities = await apiClient.get<City[]>('/api/cities');
+  const cities = await apiClient.get<City[]>('/cities');
   citiesCache = cities;
 
   return cities;
@@ -45,14 +45,14 @@ export async function listAmenities(): Promise<Amenity[]> {
     return amenitiesCache;
   }
 
-  const amenities = await apiClient.get<Amenity[]>('/api/amenities');
+  const amenities = await apiClient.get<Amenity[]>('/amenities');
   amenitiesCache = amenities;
 
   return amenities;
 }
 
 export async function listPublicLodges(query: PublicLodgeQuery): Promise<PaginatedResponse<Lodge>> {
-  return apiClient.get<PaginatedResponse<Lodge>>('/api/lodges', {
+  return apiClient.get<PaginatedResponse<Lodge>>('/lodges', {
     params: {
       citySlug: query.citySlug,
       page: query.page,
@@ -70,7 +70,7 @@ export async function getLodgeDetails(lodgeId: string): Promise<LodgeDetails> {
     return cached;
   }
 
-  const details = await apiClient.get<LodgeDetails>(`/api/lodges/${lodgeId}`);
+  const details = await apiClient.get<LodgeDetails>(`/lodges/${lodgeId}`);
   lodgeDetailsCache.set(lodgeId, details);
 
   return details;
@@ -83,7 +83,7 @@ export async function listLodgePhotos(lodgeId: string): Promise<LodgePhoto[]> {
     return cached;
   }
 
-  const photos = await apiClient.get<LodgePhoto[]>(`/api/lodges/${lodgeId}/photos`);
+  const photos = await apiClient.get<LodgePhoto[]>(`/lodges/${lodgeId}/photos`);
   const approvedPhotos = photos
     .filter((photo) => photo.approvalStatus === 'APPROVED')
     .sort(
@@ -102,7 +102,7 @@ export async function listLodgeRoomTypes(lodgeId: string): Promise<RoomType[]> {
     return cached;
   }
 
-  const roomTypes = await apiClient.get<RoomType[]>(`/api/lodges/${lodgeId}/room-types`);
+  const roomTypes = await apiClient.get<RoomType[]>(`/lodges/${lodgeId}/room-types`);
   const activeRoomTypes = roomTypes
     .filter((roomType) => roomType.isActive)
     .sort((left, right) => Number(left.basePrice) - Number(right.basePrice));
@@ -128,7 +128,7 @@ export async function getLodgePreview(lodgeId: string): Promise<LodgePreview> {
 }
 
 export async function listAnnouncementsPreview(): Promise<Announcement[]> {
-  const response = await apiClient.get<PaginatedResponse<Announcement>>('/api/announcements', {
+  const response = await apiClient.get<PaginatedResponse<Announcement>>('/announcements', {
     params: { limit: 3, page: 1 },
   });
 

@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser, Lodge, LodgeDetails, PaginatedResponse } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
-import { Prisma } from '../../../generated/prisma';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -22,6 +22,20 @@ export class LodgesService {
   ) {}
 
   public async create(dto: CreateLodgeDto, actorUserId: string): Promise<LodgeDetails> {
+    const duplicate = await this.prisma.lodge.findFirst({
+      select: { id: true },
+      where: {
+        cityId: dto.cityId,
+        slug: dto.slug,
+      },
+    });
+
+    if (duplicate) {
+      throw new ConflictException(
+        'This lodge URL slug is already in use for the selected city. Choose a different slug.',
+      );
+    }
+
     const lodge = await this.prisma.lodge.create({
       data: {
         checkInTime: dto.checkInTime,
@@ -100,6 +114,40 @@ export class LodgesService {
     };
   }
 
+  public async listAdmin(query: ListLodgesQueryDto): Promise<PaginatedResponse<Lodge>> {
+    const pagination = normalizePagination(query.page, query.pageSize);
+    const where: Prisma.LodgeWhereInput = {
+      deletedAt: null,
+      ...(query.propertyType ? { propertyType: query.propertyType } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { slug: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(query.citySlug ? { city: { slug: query.citySlug } } : {}),
+    };
+    const [items, totalItems] = await this.prisma.$transaction([
+      this.prisma.lodge.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: pagination.skip,
+        take: pagination.take,
+        where,
+      }),
+      this.prisma.lodge.count({ where }),
+    ]);
+
+    return {
+      items: items.map((lodge) => this.toLodge(lodge)),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems,
+      totalPages: Math.ceil(totalItems / pagination.pageSize),
+    };
+  }
+
   public async getPublicById(id: string): Promise<LodgeDetails> {
     const lodge = await this.prisma.lodge.findFirst({
       include: this.detailInclude,
@@ -109,6 +157,22 @@ export class LodgesService {
         isActive: true,
         status: 'VERIFIED',
         verificationStatus: 'VERIFIED',
+      },
+    });
+
+    if (!lodge) {
+      throw new NotFoundException('Lodge not found');
+    }
+
+    return this.toLodgeDetails(lodge);
+  }
+
+  public async getAdminById(id: string): Promise<LodgeDetails> {
+    const lodge = await this.prisma.lodge.findFirst({
+      include: this.detailInclude,
+      where: {
+        deletedAt: null,
+        id,
       },
     });
 

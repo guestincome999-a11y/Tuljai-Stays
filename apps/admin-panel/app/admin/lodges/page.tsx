@@ -57,9 +57,16 @@ export default function AdminLodgesPage() {
               Review lodge readiness, verification state, room coverage, and publication health.
             </p>
           </div>
-          <button className="button button-primary" type="button" onClick={() => void load()}>
-            Refresh
-          </button>
+          <div className="row-actions">
+            {canManage ? (
+              <Link className="button button-primary" href="/admin/lodges/new">
+                Add Lodge
+              </Link>
+            ) : null}
+            <button className="button button-secondary" type="button" onClick={() => void load()}>
+              Refresh
+            </button>
+          </div>
         </section>
 
         <section className="grid grid-4">

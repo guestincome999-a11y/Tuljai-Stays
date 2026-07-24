@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { BookingStatus, Prisma } from '@prisma/client';
 
-import { BookingStatus, Prisma } from '../../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface CreateBookingHistoryInput {
