@@ -1,18 +1,26 @@
 import { randomUUID } from 'node:crypto';
 
 import type { MultipartFile } from '@fastify/multipart';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthenticatedUser, BookingGuestIdProofUpload } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/providers/supabase-storage.service';
 
 const MAX_ID_PROOF_SIZE_BYTES = 5 * 1024 * 1024;
+
+interface GuestIdProofDownload {
+  contents: Buffer;
+  mimeType: string;
+  originalName: string;
+}
 
 @Injectable()
 export class GuestIdProofService {
   public constructor(
     private readonly auditLogService: AuditLogService,
+    private readonly prisma: PrismaService,
     private readonly storageService: SupabaseStorageService,
   ) {}
 
@@ -34,8 +42,22 @@ export class GuestIdProofService {
     }
 
     const originalName = this.sanitizeFileName(file.filename);
-    const storagePath = `guest-id-proofs/${user.id}/${randomUUID()}.${detectedFile.extension}`;
-    await this.storageService.uploadPrivateObject(storagePath, contents, detectedFile.mimeType);
+    const storagePath = this.buildStoragePath(user.id, detectedFile.extension);
+    if (this.storageService.getClient()) {
+      await this.storageService.uploadPrivateObject(storagePath, contents, detectedFile.mimeType);
+    } else {
+      await this.prisma.guestIdProofUpload.create({
+        data: {
+          contents: Uint8Array.from(contents),
+          mimeType: detectedFile.mimeType,
+          originalName,
+          sizeBytes: contents.length,
+          storagePath,
+          userId: user.id,
+        },
+      });
+    }
+
     await this.auditLogService.create({
       action: 'GUEST_ID_PROOF_UPLOADED',
       actorUserId: user.id,
@@ -60,6 +82,10 @@ export class GuestIdProofService {
     storagePath: string,
     mimeType: string,
   ): Promise<void> {
+    if (await this.isDatabaseUploadOwnedByUser(userId, storagePath, mimeType)) {
+      return;
+    }
+
     const expectedPrefix = `guest-id-proofs/${userId}/`;
     if (!storagePath.startsWith(expectedPrefix) || storagePath.includes('..')) {
       throw new BadRequestException('The uploaded ID proof is invalid');
@@ -75,6 +101,56 @@ export class GuestIdProofService {
     if (!(await this.storageService.privateObjectExists(storagePath))) {
       throw new BadRequestException('Upload the guest ID proof again');
     }
+  }
+
+  public async downloadBookingProofForAdmin(bookingId: string): Promise<GuestIdProofDownload> {
+    const guest = await this.prisma.bookingGuest.findFirst({
+      where: {
+        bookingId,
+        deletedAt: null,
+        idProofMimeType: { not: null },
+        idProofOriginalName: { not: null },
+        idProofStoragePath: { not: null },
+        isPrimaryGuest: true,
+      },
+    });
+
+    if (!guest?.idProofStoragePath || !guest.idProofMimeType || !guest.idProofOriginalName) {
+      throw new NotFoundException('ID proof is not available for this booking');
+    }
+
+    const databaseUpload = await this.prisma.guestIdProofUpload.findUnique({
+      where: { storagePath: guest.idProofStoragePath },
+    });
+
+    return {
+      contents: databaseUpload
+        ? Buffer.from(databaseUpload.contents)
+        : await this.storageService.downloadPrivateObject(guest.idProofStoragePath),
+      mimeType: guest.idProofMimeType,
+      originalName: guest.idProofOriginalName,
+    };
+  }
+
+  private buildStoragePath(userId: string, extension: 'jpg' | 'pdf' | 'png'): string {
+    return `guest-id-proofs/${userId}/${randomUUID()}.${extension}`;
+  }
+
+  private async isDatabaseUploadOwnedByUser(
+    userId: string,
+    storagePath: string,
+    mimeType: string,
+  ): Promise<boolean> {
+    const upload = await this.prisma.guestIdProofUpload.findFirst({
+      where: {
+        deletedAt: null,
+        mimeType,
+        storagePath,
+        userId,
+      },
+    });
+
+    return Boolean(upload);
   }
 
   private detectFileType(

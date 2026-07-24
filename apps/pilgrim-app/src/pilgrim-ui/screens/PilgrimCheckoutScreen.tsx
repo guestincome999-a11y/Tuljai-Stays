@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useAuth } from '../../auth/auth-context';
 import type { GuestIdProofFile } from '../../features/bookings/api/bookings-api';
@@ -13,6 +13,7 @@ const allowedIdProofTypes = ['application/pdf', 'image/jpeg', 'image/png'] as co
 const maxIdProofSizeBytes = 5 * 1024 * 1024;
 const initialCheckInDate = toDateOnly(addDays(startOfToday(), 1));
 const initialCheckOutDate = toDateOnly(addDays(startOfToday(), 2));
+let guestIdProofPickerOpen = false;
 
 export function PilgrimCheckoutScreen() {
   const params = useLocalSearchParams<{ lodgeId?: string; roomTypeId?: string }>();
@@ -96,16 +97,17 @@ export function PilgrimCheckoutScreen() {
   }
 
   async function pickGuestIdProof() {
-    if (documentPickerActiveRef.current) return;
+    if (documentPickerActiveRef.current || guestIdProofPickerOpen) return;
 
+    guestIdProofPickerOpen = true;
     documentPickerActiveRef.current = true;
     setIsDocumentPickerActive(true);
     try {
       const DocumentPicker = await import('expo-document-picker');
       const result = await DocumentPicker.getDocumentAsync({
-        copyToCacheDirectory: true,
+        copyToCacheDirectory: Platform.OS !== 'android',
         multiple: false,
-        type: [...allowedIdProofTypes],
+        type: Platform.OS === 'android' ? '*/*' : [...allowedIdProofTypes],
       });
       if (result.canceled) return;
 
@@ -140,8 +142,11 @@ export function PilgrimCheckoutScreen() {
         t('Please try choosing the ID proof again.', 'कृपया ओळखपत्र पुन्हा निवडा.'),
       );
     } finally {
-      documentPickerActiveRef.current = false;
-      setIsDocumentPickerActive(false);
+      setTimeout(() => {
+        guestIdProofPickerOpen = false;
+        documentPickerActiveRef.current = false;
+        setIsDocumentPickerActive(false);
+      }, 750);
     }
   }
 

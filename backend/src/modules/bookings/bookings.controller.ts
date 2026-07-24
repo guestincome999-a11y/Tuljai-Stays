@@ -8,10 +8,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '@tuljai/types';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -202,6 +203,24 @@ export class BookingsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
+  @Get('admin/bookings/:id/guest-id-proof')
+  public async downloadAdminGuestIdProof(
+    @Param('id') id: string,
+    @Res() reply: FastifyReply,
+  ) {
+    const proof = await this.guestIdProofService.downloadBookingProofForAdmin(id);
+    reply.header('Content-Type', proof.mimeType);
+    reply.header('Content-Length', String(proof.contents.length));
+    reply.header(
+      'Content-Disposition',
+      `attachment; filename="${this.safeDownloadName(proof.originalName)}"`,
+    );
+
+    return reply.send(proof.contents);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Get('admin/register')
   public listAdminRegisters(@Query() query: RegisterQueryDto) {
     return this.guestRegisterService.listAdminRegisters(query);
@@ -255,5 +274,9 @@ export class BookingsController {
       ipAddress: request.ip,
       userAgent: request.headers['user-agent'],
     });
+  }
+
+  private safeDownloadName(fileName: string): string {
+    return fileName.replace(/["\\\r\n]/gu, '_');
   }
 }

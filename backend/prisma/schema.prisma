@@ -701,6 +701,22 @@ model BookingGuest {
   @@map("booking_guests")
 }
 
+model GuestIdProofUpload {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  storagePath  String    @unique @map("storage_path")
+  originalName String    @map("original_name")
+  mimeType     String    @map("mime_type")
+  sizeBytes    Int       @map("size_bytes")
+  contents     Bytes
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("guest_id_proof_uploads")
+}
+
 model BookingLock {
   id            String            @id @default(uuid()) @db.Uuid
   lockCode      String            @unique @map("lock_code")

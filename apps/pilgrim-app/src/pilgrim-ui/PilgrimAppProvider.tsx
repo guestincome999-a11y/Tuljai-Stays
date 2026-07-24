@@ -139,15 +139,21 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     setSyncError(null);
     try {
       const backendLodges = await loadLodges();
-      await loadPrivateData(backendLodges);
       setIsBackendConnected(true);
+      try {
+        await loadPrivateData(backendLodges);
+      } catch {
+        if (auth.isAuthenticated) {
+          setSyncError('Account updates are temporarily unavailable. Lodge details are live.');
+        }
+      }
     } catch {
       setIsBackendConnected(false);
       setSyncError('Live data is temporarily unavailable. Showing saved lodge information.');
     } finally {
       setIsSyncing(false);
     }
-  }, [loadLodges, loadPrivateData]);
+  }, [auth.isAuthenticated, loadLodges, loadPrivateData]);
 
   useEffect(() => {
     void refresh();

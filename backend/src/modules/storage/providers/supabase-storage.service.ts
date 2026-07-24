@@ -77,6 +77,18 @@ export class SupabaseStorageService {
     return data.some((object) => object.name === fileName);
   }
 
+  public async downloadPrivateObject(storagePath: string): Promise<Buffer> {
+    const client = this.getRequiredClient();
+    const { data, error } = await client.storage.from(this.bucket).download(storagePath);
+
+    if (error) {
+      this.logger.error(`Supabase download failed: ${error.message}`);
+      throw new InternalServerErrorException('Unable to download the uploaded file');
+    }
+
+    return Buffer.from(await data.arrayBuffer());
+  }
+
   private getRequiredClient(): SupabaseClient {
     if (!this.client) {
       throw new ServiceUnavailableException('File storage is not configured');

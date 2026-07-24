@@ -2,11 +2,12 @@ import { ApiClient, readPublicEnvironment } from '@tuljai/shared';
 import type { RefreshTokenResponse } from '@tuljai/types';
 
 import { updateStoredAccessToken } from '../auth/auth-session-store';
+import { resolvePilgrimApiBaseUrl } from '../config/api-base-url';
 import { secureTokenStore } from '../auth/secure-token-store';
 import { getOrCreateDeviceId } from '../device/device-identity';
 
 const environment = readPublicEnvironment({
-  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  EXPO_PUBLIC_API_BASE_URL: resolvePilgrimApiBaseUrl(),
 });
 const publicApiClient = new ApiClient({ baseUrl: environment.apiBaseUrl });
 

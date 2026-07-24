@@ -18,6 +18,7 @@ import {
 import { PermissionGate } from '../../../../src/components/PermissionGate';
 import { useAdminBookingDetail } from '../../../../src/hooks/useAdminBookingDetail';
 import { hasPermission } from '../../../../src/permissions/permissions';
+import { tokenStorage } from '../../../../src/auth/token-storage';
 
 const acceptReasons = [
   'Owner confirmed by phone',
@@ -46,6 +47,7 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
   const [noteCategory, setNoteCategory] = useState(noteCategories[0] ?? 'General');
   const [escalationReason, setEscalationReason] = useState(escalationReasons[0] ?? 'Other');
   const [escalationLevel, setEscalationLevel] = useState<'NORMAL' | 'HIGH' | 'CRITICAL'>('HIGH');
+  const [isDownloadingProof, setIsDownloadingProof] = useState(false);
   const canManage = hasPermission(auth.permissions, 'bookings.manage');
   const canOverride = hasPermission(auth.permissions, 'bookings.override');
   const canSupport = hasPermission(auth.permissions, 'support.manage');
@@ -84,6 +86,42 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
   const priority = getBookingPriority(booking);
   const ownerState = getOwnerResponseState(booking);
   const timeline = buildBookingTimeline(booking);
+  const primaryGuest = booking.guests.find((guest) => guest.isPrimaryGuest) ?? booking.guests[0];
+  const canDownloadProof = canSeeContact && Boolean(primaryGuest?.idProofOriginalName);
+  const currentBookingCode = booking.bookingCode;
+  const currentBookingId = booking.id;
+
+  async function downloadIdProof() {
+    const accessToken = tokenStorage.getAccessToken();
+    if (!accessToken) {
+      window.alert('Admin session expired. Please login again.');
+      return;
+    }
+
+    setIsDownloadingProof(true);
+    try {
+      const response = await fetch(buildAdminIdProofDownloadUrl(currentBookingId), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = primaryGuest?.idProofOriginalName ?? `${currentBookingCode}-id-proof`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.alert('ID proof could not be downloaded. Please retry.');
+    } finally {
+      setIsDownloadingProof(false);
+    }
+  }
 
   return (
     <PermissionGate permission="bookings.view">
@@ -172,6 +210,29 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
                     : 'Hidden for read-only role'
                 }
               />
+              <Field
+                label="ID Proof"
+                value={
+                  canSeeContact
+                    ? formatGuestIdProof(primaryGuest)
+                    : 'Hidden for read-only role'
+                }
+              />
+              {canDownloadProof ? (
+                <div>
+                  <dt>ID Proof File</dt>
+                  <dd>
+                    <button
+                      className="ghost-control"
+                      disabled={isDownloadingProof}
+                      type="button"
+                      onClick={() => void downloadIdProof()}
+                    >
+                      {isDownloadingProof ? 'Downloading...' : 'Download uploaded proof'}
+                    </button>
+                  </dd>
+                </div>
+              ) : null}
               <Field
                 label="QR Status"
                 value={booking.status === 'QR_GENERATED' ? 'Generated' : 'Not active'}
@@ -585,6 +646,48 @@ function OverrideControls({ canOverride }: { canOverride: boolean }) {
       </p>
     </section>
   );
+}
+
+function formatGuestIdProof(
+  guest:
+    | {
+        idProofMimeType: string | null;
+        idProofOriginalName: string | null;
+        idProofSizeBytes: number | null;
+      }
+    | undefined,
+): string {
+  if (!guest?.idProofOriginalName) {
+    return 'Not uploaded';
+  }
+
+  const parts = [
+    guest.idProofOriginalName,
+    guest.idProofMimeType,
+    guest.idProofSizeBytes ? formatFileSize(guest.idProofSizeBytes) : null,
+  ].filter(Boolean);
+
+  return parts.join(' / ');
+}
+
+function formatFileSize(sizeBytes: number): string {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function buildAdminIdProofDownloadUrl(bookingId: string): string {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
+  const apiBaseUrl = configuredBaseUrl.replace(/\/$/, '');
+  const serverBaseUrl = apiBaseUrl.replace(/\/api$/u, '');
+
+  return `${serverBaseUrl}/api/admin/bookings/${bookingId}/guest-id-proof`;
 }
 
 function getDefaultReason(status: BookingStatus): string {

@@ -55,6 +55,10 @@ export interface BookingGuest {
   gender: string | null;
   id: UUID;
   idNumber: string | null;
+  idProofMimeType: string | null;
+  idProofOriginalName: string | null;
+  idProofSizeBytes: number | null;
+  idProofStoragePath: string | null;
   idType: GuestIdType | null;
   isPrimaryGuest: boolean;
   phone: string | null;
