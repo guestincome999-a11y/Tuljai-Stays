@@ -6,13 +6,28 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://tuljai-stays-backend.onrender.com/api",
+        "EXPO_PUBLIC_USE_MOCKS": "false"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://tuljai-stays-backend.onrender.com/api",
+        "EXPO_PUBLIC_USE_MOCKS": "false"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://tuljai-stays-backend.onrender.com/api",
+        "EXPO_PUBLIC_USE_MOCKS": "false"
+      }
     }
   },
   "submit": {
