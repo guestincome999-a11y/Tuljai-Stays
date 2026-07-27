@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "Tuljai Stays Owner",
+    "owner": "jay9529",
     "slug": "tuljai-stays-owner",
     "scheme": "tuljaistays-owner",
     "version": "0.1.0",
@@ -23,6 +24,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-camera",
         {
@@ -34,6 +36,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e698d5d7-6619-4881-ae1d-75a76661046b"
+      }
     }
   }
 }

@@ -12,7 +12,7 @@ export interface OwnerAnnouncementQuery {
 export async function listAnnouncements(
   query: OwnerAnnouncementQuery = {},
 ): Promise<PaginatedResponse<Announcement>> {
-  return apiClient.get<PaginatedResponse<Announcement>>('/api/announcements', {
+  return apiClient.get<PaginatedResponse<Announcement>>('/announcements', {
     params: {
       category: query.category,
       limit: query.limit ?? 30,
@@ -23,5 +23,5 @@ export async function listAnnouncements(
 }
 
 export async function markAnnouncementRead(announcementId: string): Promise<{ success: true }> {
-  return apiClient.post<{ success: true }>(`/api/announcements/${announcementId}/read`);
+  return apiClient.post<{ success: true }>(`/announcements/${announcementId}/read`);
 }

@@ -1,6 +1,8 @@
 import { readPublicEnvironment } from '@tuljai/shared';
 import { io, type Socket } from 'socket.io-client';
 
+import { resolveOwnerApiBaseUrl } from '../config/api-base-url';
+
 import type { OwnerRealtimeEventName, OwnerStatus } from './realtime-events';
 
 interface OwnerClientEvents {
@@ -14,7 +16,9 @@ export type RealtimeSocket = Socket<
 >;
 
 export function createRealtimeSocket(accessToken: string): RealtimeSocket {
-  const environment = readPublicEnvironment(process.env);
+  const environment = readPublicEnvironment({
+    EXPO_PUBLIC_API_BASE_URL: resolveOwnerApiBaseUrl(),
+  });
   const serverUrl = environment.apiBaseUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
   return io(`${serverUrl}/realtime`, {

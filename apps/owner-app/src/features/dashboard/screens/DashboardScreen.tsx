@@ -1,9 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { OwnerDashboardSummary } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Card, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
 import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
@@ -28,6 +27,7 @@ export function DashboardScreen() {
   const displayName = auth.user?.displayName ?? auth.user?.phoneNumber ?? 'Owner';
   const selectedLodge = assignedLodges.selectedLodge;
   const stats = getDashboardStats(dashboard.data);
+  const bellAlertCount = Math.max(notifications.unreadCount, dashboard.data?.pendingBookings ?? 0);
 
   if (assignedLodges.isLoading || dashboard.isLoading) {
     return (
@@ -85,11 +85,21 @@ export function DashboardScreen() {
           </Text>
         </View>
         <View style={styles.notificationIcon}>
-          <MaterialCommunityIcons color={theme.colors.primary} name="bell-outline" size={28} />
-          {notifications.unreadCount ? (
-            <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
+          <IconButton
+            accessibilityHint="Opens booking alerts and owner notifications."
+            accessibilityLabel={`Open notifications, ${bellAlertCount} alerts`}
+            icon="bell-outline"
+            iconColor={theme.colors.primary}
+            size={28}
+            onPress={() => router.push('/(app)/notifications')}
+          />
+          {bellAlertCount ? (
+            <View
+              pointerEvents="none"
+              style={[styles.badge, { backgroundColor: theme.colors.primary }]}
+            >
               <Text style={{ color: theme.colors.onPrimary }} variant="labelSmall">
-                {Math.min(notifications.unreadCount, 9)}
+                {Math.min(bellAlertCount, 9)}
               </Text>
             </View>
           ) : null}
@@ -204,7 +214,6 @@ export function DashboardScreen() {
           <ReceptionRows title="Upcoming Check-outs" registers={reception.upcomingCheckOuts} />
         </Card.Content>
       </Card>
-
     </ScrollView>
   );
 }

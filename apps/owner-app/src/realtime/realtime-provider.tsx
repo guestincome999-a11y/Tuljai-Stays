@@ -21,6 +21,7 @@ import {
 
 interface RealtimeContextValue {
   connected: boolean;
+  lastBookingRequest: OwnerRealtimeEvent | null;
   lastEvent: OwnerRealtimeEvent | null;
   ownerStatus: OwnerStatus;
   setOwnerStatus(status: OwnerStatus): void;
@@ -28,6 +29,7 @@ interface RealtimeContextValue {
 
 const RealtimeContext = createContext<RealtimeContextValue>({
   connected: false,
+  lastBookingRequest: null,
   lastEvent: null,
   ownerStatus: 'AVAILABLE',
   setOwnerStatus: () => undefined,
@@ -55,6 +57,7 @@ const eventNames: OwnerRealtimeEventName[] = [
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const [connected, setConnected] = useState(false);
+  const [lastBookingRequest, setLastBookingRequest] = useState<OwnerRealtimeEvent | null>(null);
   const [lastEvent, setLastEvent] = useState<OwnerRealtimeEvent | null>(null);
   const [ownerStatus, setOwnerStatusState] = useState<OwnerStatus>('AVAILABLE');
   const [socket, setSocket] = useState<RealtimeSocket | null>(null);
@@ -68,7 +71,16 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       return undefined;
     }
 
-    const nextSocket: RealtimeSocket = createRealtimeSocket(accessToken);
+    let nextSocket: RealtimeSocket;
+
+    try {
+      nextSocket = createRealtimeSocket(accessToken);
+    } catch {
+      setConnected(false);
+      setSocket(null);
+      return undefined;
+    }
+
     setSocket(nextSocket);
 
     nextSocket.on('connect', () => setConnected(true));
@@ -82,6 +94,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           receivedAt: Date.now(),
         };
         setLastEvent(event);
+        if (isBookingRequestEvent(event)) {
+          setLastBookingRequest(event);
+        }
         const message = getRealtimeMessage(event);
 
         if (message) {
@@ -107,8 +122,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ connected, lastEvent, ownerStatus, setOwnerStatus }),
-    [connected, lastEvent, ownerStatus, setOwnerStatus],
+    () => ({ connected, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus }),
+    [connected, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus],
   );
 
   return (
@@ -123,6 +138,20 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
+}
+
+function isBookingRequestEvent(event: OwnerRealtimeEvent): boolean {
+  if (event.name === 'booking:new' || event.name === 'owner:alert') {
+    return true;
+  }
+
+  if (event.name !== 'notification:new') {
+    return false;
+  }
+
+  const notification = event.payload.notification;
+
+  return isRecord(notification) && notification.type === 'BOOKING_REQUEST';
 }
 
 export function useRealtime(): RealtimeContextValue {

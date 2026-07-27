@@ -1,7 +1,12 @@
 import type { OwnerBookingSummary } from '@tuljai/types';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import {
+  type BookingAlertSignal,
+  subscribeToBookingAlerts,
+} from '../../../notifications/booking-alert-events';
 import { getEventBookingId } from '../../../realtime/realtime-events';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
@@ -15,6 +20,8 @@ export function IncomingBookingAlertHost() {
   const assignedLodges = useAssignedLodges();
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
+  const handledBookingIdsRef = useRef(new Set<string>());
+  const isPollingRef = useRef(false);
   const [alertBooking, setAlertBooking] = useState<OwnerBookingSummary | null>(null);
   const [rejectBooking, setRejectBooking] = useState<OwnerBookingSummary | null>(null);
 
@@ -25,26 +32,21 @@ export function IncomingBookingAlertHost() {
 
   const actions = useOwnerBookingActions(closeAlert);
 
-  useEffect(() => {
-    const event = realtime.lastEvent;
-    const eventName = event?.name;
+  const loadBookingAlert = useCallback(
+    async ({ bookingId, lodgeId: requestedLodgeId, receivedAt }: BookingAlertSignal) => {
+      const lodgeId = requestedLodgeId ?? assignedLodges.selectedLodge?.id ?? null;
+      if (!lodgeId || isOffline) {
+        return;
+      }
 
-    if (!event || (eventName !== 'booking:new' && eventName !== 'owner:alert')) {
-      return;
-    }
+      const requestKey = bookingId || `event:${receivedAt}`;
 
-    const lodgeId =
-      typeof event.payload.lodgeId === 'string'
-        ? event.payload.lodgeId
-        : assignedLodges.selectedLodge?.id;
+      if (handledBookingIdsRef.current.has(requestKey)) {
+        return;
+      }
 
-    if (!lodgeId || isOffline) {
-      return;
-    }
+      handledBookingIdsRef.current.add(requestKey);
 
-    const bookingId = getEventBookingId(event);
-
-    async function loadAlertBooking() {
       const response = await listOwnerBookings({
         limit: 10,
         lodgeId,
@@ -53,17 +55,111 @@ export function IncomingBookingAlertHost() {
       }).catch(() => null);
 
       if (!response) {
+        handledBookingIdsRef.current.delete(requestKey);
         return;
       }
 
-      const nextBooking =
-        response.items.find((booking) => booking.id === bookingId) ?? response.items[0] ?? null;
+      const nextBooking = response.items.find((booking) => booking.id === bookingId) ?? null;
+
+      if (!nextBooking) {
+        return;
+      }
 
       setAlertBooking(nextBooking);
+    },
+    [assignedLodges.selectedLodge?.id, isOffline],
+  );
+
+  const pollPendingBookings = useCallback(async () => {
+    const lodgeId = assignedLodges.selectedLodge?.id ?? null;
+
+    if (!lodgeId || isOffline || isPollingRef.current || alertBooking || rejectBooking) {
+      return;
     }
 
-    void loadAlertBooking();
-  }, [assignedLodges.selectedLodge?.id, isOffline, realtime.lastEvent]);
+    isPollingRef.current = true;
+
+    try {
+      const response = await listOwnerBookings({
+        limit: 30,
+        lodgeId,
+        page: 1,
+        status: 'PENDING_OWNER_APPROVAL',
+      });
+      const nextBooking =
+        response.items.find((booking) => !handledBookingIdsRef.current.has(booking.id)) ?? null;
+
+      if (!nextBooking) {
+        return;
+      }
+
+      handledBookingIdsRef.current.add(nextBooking.id);
+      setAlertBooking(nextBooking);
+    } catch {
+      // Push and realtime delivery remain active while the next poll retries.
+    } finally {
+      isPollingRef.current = false;
+    }
+  }, [alertBooking, assignedLodges.selectedLodge?.id, isOffline, rejectBooking]);
+
+  useEffect(() => {
+    if (!assignedLodges.selectedLodge?.id || isOffline) {
+      return undefined;
+    }
+
+    void pollPendingBookings();
+    const interval = setInterval(() => {
+      void pollPendingBookings();
+    }, 5_000);
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void pollPendingBookings();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      appStateSubscription.remove();
+    };
+  }, [assignedLodges.selectedLodge?.id, isOffline, pollPendingBookings]);
+
+  useEffect(() => {
+    const event = realtime.lastBookingRequest;
+
+    if (!event) {
+      return;
+    }
+
+    const nestedNotification = isRecord(event.payload.notification)
+      ? event.payload.notification
+      : null;
+    const bookingId =
+      getEventBookingId(event) ??
+      (typeof nestedNotification?.bookingId === 'string' ? nestedNotification.bookingId : null);
+
+    if (!bookingId) {
+      return;
+    }
+
+    void loadBookingAlert({
+      bookingId,
+      lodgeId:
+        typeof event.payload.lodgeId === 'string'
+          ? event.payload.lodgeId
+          : typeof nestedNotification?.lodgeId === 'string'
+            ? nestedNotification.lodgeId
+            : null,
+      receivedAt: event.receivedAt,
+    });
+  }, [loadBookingAlert, realtime.lastBookingRequest]);
+
+  useEffect(
+    () =>
+      subscribeToBookingAlerts((signal) => {
+        void loadBookingAlert(signal);
+      }),
+    [loadBookingAlert],
+  );
 
   return (
     <>
@@ -75,7 +171,10 @@ export function IncomingBookingAlertHost() {
           void actions.accept(booking.id);
         }}
         onClose={closeAlert}
-        onReject={setRejectBooking}
+        onReject={(booking) => {
+          setAlertBooking(null);
+          setRejectBooking(booking);
+        }}
       />
       <RejectBookingModal
         bookingCode={rejectBooking?.bookingCode ?? null}
@@ -90,4 +189,8 @@ export function IncomingBookingAlertHost() {
       />
     </>
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
 }

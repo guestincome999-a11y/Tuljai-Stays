@@ -6,6 +6,7 @@ import { AuthProvider } from '../src/auth/auth-context';
 import { OwnerErrorBoundary } from '../src/components/error-boundary/OwnerErrorBoundary';
 import { OfflineBanner } from '../src/components/OfflineBanner';
 import { ConnectivityProvider } from '../src/connectivity/connectivity-context';
+import { OwnerPushNotifications } from '../src/notifications/OwnerPushNotifications';
 import { OwnerAppProvider } from '../src/owner-ui/OwnerAppProvider';
 import { RealtimeProvider } from '../src/realtime/realtime-provider';
 
@@ -21,6 +22,7 @@ export default function RootLayout() {
           <OwnerAppProvider>
             <AuthProvider>
               <RealtimeProvider>
+                <OwnerPushNotifications />
                 <OfflineBanner />
                 <Stack
                   screenOptions={{

@@ -3,10 +3,11 @@ import type { RefreshTokenResponse } from '@tuljai/types';
 
 import { updateStoredAccessToken } from '../auth/auth-session-store';
 import { secureTokenStore } from '../auth/secure-token-store';
+import { resolveOwnerApiBaseUrl } from '../config/api-base-url';
 import { getOrCreateDeviceId } from '../device/device-identity';
 
 const environment = readPublicEnvironment({
-  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  EXPO_PUBLIC_API_BASE_URL: resolveOwnerApiBaseUrl(),
 });
 const publicApiClient = new ApiClient({ baseUrl: environment.apiBaseUrl });
 

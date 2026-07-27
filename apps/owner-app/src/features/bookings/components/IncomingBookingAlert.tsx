@@ -29,7 +29,7 @@ export function IncomingBookingAlert({
       return undefined;
     }
 
-    Vibration.vibrate([0, 700, 600, 700, 600, 700], false);
+    Vibration.vibrate([0, 700, 600, 700, 600, 700], true);
 
     return () => Vibration.cancel();
   }, [booking]);
@@ -39,7 +39,7 @@ export function IncomingBookingAlert({
   }
 
   return (
-    <Modal animationType="fade" visible>
+    <Modal animationType="fade" visible onRequestClose={onClose}>
       <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
           <Text style={{ color: theme.colors.onPrimary }} variant="labelLarge">
