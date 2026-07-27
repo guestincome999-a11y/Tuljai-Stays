@@ -9,6 +9,7 @@ import { NotificationEventsService } from './notification-events.service';
 import { NotificationTemplatesService } from './notification-templates.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
+import { ExpoPushService } from './providers/expo-push.service';
 import { FcmService } from './providers/fcm.service';
 
 @Module({
@@ -17,6 +18,7 @@ import { FcmService } from './providers/fcm.service';
   providers: [
     AnnouncementsService,
     DeviceTargetingService,
+    ExpoPushService,
     FcmService,
     NotificationDeliveryService,
     NotificationEventsService,
@@ -25,6 +27,7 @@ import { FcmService } from './providers/fcm.service';
   ],
   exports: [
     AnnouncementsService,
+    ExpoPushService,
     FcmService,
     NotificationDeliveryService,
     NotificationEventsService,

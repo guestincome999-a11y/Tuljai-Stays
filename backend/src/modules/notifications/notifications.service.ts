@@ -43,15 +43,24 @@ export class NotificationsService {
 
   public async create(input: CreateNotificationInput): Promise<SharedNotification> {
     const dedupeWindowStart = new Date(Date.now() - 120_000);
-    const existing = await this.prisma.notification.findFirst({
-      where: {
-        bookingId: input.bookingId,
-        createdAt: { gte: dedupeWindowStart },
-        deletedAt: null,
-        recipientUserId: input.recipientUserId,
-        type: input.type,
-      },
-    });
+    const announcementId =
+      typeof input.data?.announcementId === 'string' ? input.data.announcementId : null;
+    const dedupeIdentity: Prisma.NotificationWhereInput | null = input.bookingId
+      ? { bookingId: input.bookingId }
+      : announcementId
+        ? { data: { equals: announcementId, path: ['announcementId'] } }
+        : null;
+    const existing = dedupeIdentity
+      ? await this.prisma.notification.findFirst({
+          where: {
+            ...dedupeIdentity,
+            createdAt: { gte: dedupeWindowStart },
+            deletedAt: null,
+            recipientUserId: input.recipientUserId,
+            type: input.type,
+          },
+        })
+      : null;
 
     if (existing) {
       return this.toNotification(existing);
@@ -124,9 +133,28 @@ export class NotificationsService {
       }),
       this.prisma.notification.count({ where }),
     ]);
+    const bookingStatuses = new Map(
+      (
+        await this.prisma.booking.findMany({
+          select: { id: true, status: true },
+          where: {
+            id: {
+              in: items.flatMap((notification) =>
+                notification.bookingId ? [notification.bookingId] : [],
+              ),
+            },
+          },
+        })
+      ).map((booking) => [booking.id, booking.status]),
+    );
 
     return {
-      items: items.map((notification) => this.toNotification(notification)),
+      items: items.map((notification) =>
+        this.toNotification(
+          notification,
+          notification.bookingId ? bookingStatuses.get(notification.bookingId) : undefined,
+        ),
+      ),
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalItems,
@@ -195,33 +223,38 @@ export class NotificationsService {
     });
   }
 
-  private toNotification(notification: {
-    body: string;
-    bookingId: string | null;
-    channel: NotificationChannel;
-    createdAt: Date;
-    data: Prisma.JsonValue | null;
-    deliveredAt: Date | null;
-    failedAt: Date | null;
-    failureReason: string | null;
-    id: string;
-    lodgeId: string | null;
-    priority: NotificationPriority;
-    readAt: Date | null;
-    recipientRole: UserRole | null;
-    recipientUserId: string | null;
-    title: string;
-    type: NotificationType;
-  }): SharedNotification {
+  private toNotification(
+    notification: {
+      body: string;
+      bookingId: string | null;
+      channel: NotificationChannel;
+      createdAt: Date;
+      data: Prisma.JsonValue | null;
+      deliveredAt: Date | null;
+      failedAt: Date | null;
+      failureReason: string | null;
+      id: string;
+      lodgeId: string | null;
+      priority: NotificationPriority;
+      readAt: Date | null;
+      recipientRole: UserRole | null;
+      recipientUserId: string | null;
+      title: string;
+      type: NotificationType;
+    },
+    bookingStatus?: string,
+  ): SharedNotification {
+    const notificationData =
+      notification.data && typeof notification.data === 'object'
+        ? (notification.data as Record<string, unknown>)
+        : null;
+
     return {
       body: notification.body,
       bookingId: notification.bookingId,
       channel: notification.channel,
       createdAt: notification.createdAt.toISOString(),
-      data:
-        notification.data && typeof notification.data === 'object'
-          ? (notification.data as Record<string, unknown>)
-          : null,
+      data: bookingStatus ? { ...(notificationData ?? {}), bookingStatus } : notificationData,
       deliveredAt: notification.deliveredAt?.toISOString() ?? null,
       failedAt: notification.failedAt?.toISOString() ?? null,
       failureReason: notification.failureReason,

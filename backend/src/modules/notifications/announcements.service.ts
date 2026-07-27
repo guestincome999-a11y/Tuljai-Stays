@@ -214,7 +214,9 @@ export class AnnouncementsService {
       this.realtimeEventsService.publishToRole('ADMIN', 'announcement:new', payload);
     }
 
-    await this.notificationsService.create({
+    const recipientUserIds = await this.getRecipientUserIds(announcement);
+
+    await this.notificationsService.createManyForUsers(recipientUserIds, {
       body: announcement.body,
       data: payload,
       priority: announcement.priority,
@@ -248,7 +250,61 @@ export class AnnouncementsService {
       return 'ADMIN';
     }
 
+    if (targetAudience === 'LODGE_SPECIFIC' || targetAudience === 'CITY_SPECIFIC') {
+      return 'OWNER';
+    }
+
     return undefined;
+  }
+
+  private async getRecipientUserIds(announcement: Announcement): Promise<string[]> {
+    const baseWhere: Prisma.UserWhereInput = {
+      deletedAt: null,
+      isActive: true,
+    };
+    let audienceWhere: Prisma.UserWhereInput;
+
+    if (announcement.targetAudience === 'PILGRIMS') {
+      audienceWhere = { roles: { has: 'PILGRIM' } };
+    } else if (announcement.targetAudience === 'OWNERS') {
+      audienceWhere = { roles: { has: 'OWNER' } };
+    } else if (announcement.targetAudience === 'ADMINS') {
+      audienceWhere = { roles: { hasSome: ['ADMIN', 'SUPER_ADMIN'] } };
+    } else if (announcement.targetAudience === 'LODGE_SPECIFIC') {
+      audienceWhere = {
+        ownedLodges: {
+          some: {
+            deletedAt: null,
+            isActive: true,
+            lodgeId: announcement.targetLodgeId ?? undefined,
+          },
+        },
+      };
+    } else if (announcement.targetAudience === 'CITY_SPECIFIC') {
+      audienceWhere = {
+        ownedLodges: {
+          some: {
+            deletedAt: null,
+            isActive: true,
+            lodge: {
+              cityId: announcement.targetCityId ?? undefined,
+            },
+          },
+        },
+      };
+    } else {
+      audienceWhere = {};
+    }
+
+    const users = await this.prisma.user.findMany({
+      select: { id: true },
+      where: {
+        ...baseWhere,
+        ...audienceWhere,
+      },
+    });
+
+    return users.map((user) => user.id);
   }
 
   private toAnnouncement(
