@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getMessaging, type Message, type Messaging } from 'firebase-admin/messaging';
 
+import { resolveAndroidNotificationChannel } from '../notification-routing';
+
 @Injectable()
 export class FcmService {
   private readonly logger = new Logger(FcmService.name);
@@ -31,6 +33,7 @@ export class FcmService {
   }
 
   public async sendToToken(input: {
+    badge?: number;
     body: string;
     data: Record<string, string>;
     fcmToken: string;
@@ -52,11 +55,21 @@ export class FcmService {
         },
         data: input.data,
         android: {
+          notification: {
+            channelId: resolveAndroidNotificationChannel(input.data),
+            notificationCount: input.badge,
+          },
           priority: input.highPriority ? 'high' : 'normal',
         },
         apns: {
           headers: {
             'apns-priority': input.highPriority ? '10' : '5',
+          },
+          payload: {
+            aps: {
+              badge: input.badge,
+              sound: 'default',
+            },
           },
         },
       };

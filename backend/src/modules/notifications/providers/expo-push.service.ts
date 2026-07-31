@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { resolveAndroidNotificationChannel } from '../notification-routing';
+
 interface ExpoPushTicket {
   details?: { error?: string };
   id?: string;
@@ -16,6 +18,7 @@ export class ExpoPushService {
   }
 
   public async sendToToken(input: {
+    badge?: number;
     body: string;
     data: Record<string, string>;
     expoPushToken: string;
@@ -25,9 +28,10 @@ export class ExpoPushService {
     try {
       const response = await fetch('https://exp.host/--/api/v2/push/send', {
         body: JSON.stringify({
+          badge: input.badge,
           body: input.body,
           categoryId: input.data.type === 'BOOKING_REQUEST' ? 'BOOKING_REQUEST' : undefined,
-          channelId: input.data.type === 'BOOKING_REQUEST' ? 'booking-requests-v2' : 'default',
+          channelId: resolveAndroidNotificationChannel(input.data),
           data: input.data,
           priority: input.highPriority ? 'high' : 'default',
           sound: 'default',

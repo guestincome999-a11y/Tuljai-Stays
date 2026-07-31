@@ -183,10 +183,12 @@ export class AnnouncementsService {
       return;
     }
 
+    const notificationPriority =
+      announcement.category === 'EMERGENCY' ? 'CRITICAL' : announcement.priority;
     const payload = {
       announcementId: announcement.id,
       category: announcement.category,
-      priority: announcement.priority,
+      priority: notificationPriority,
       title: announcement.title,
     };
 
@@ -219,7 +221,7 @@ export class AnnouncementsService {
     await this.notificationsService.createManyForUsers(recipientUserIds, {
       body: announcement.body,
       data: payload,
-      priority: announcement.priority,
+      priority: notificationPriority,
       recipientRole: this.mapTargetAudienceToRole(announcement.targetAudience),
       title: announcement.title,
       type: announcement.category === 'EMERGENCY' ? 'EMERGENCY_ALERT' : 'ADMIN_ANNOUNCEMENT',

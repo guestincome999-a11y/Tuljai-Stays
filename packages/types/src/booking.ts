@@ -192,6 +192,20 @@ export interface GuestIdDocument {
   verifiedByUserId: UUID | null;
 }
 
+export interface GuestRegisterGuest {
+  age: number | null;
+  fullName: string;
+  gender: string | null;
+  id: UUID;
+  idNumber: string | null;
+  idProofAvailable: boolean;
+  idProofMimeType: string | null;
+  idProofOriginalName: string | null;
+  idType: GuestIdType | null;
+  isPrimaryGuest: boolean;
+  phone: string | null;
+}
+
 export interface GuestRegister {
   actualCheckoutAt: ISODateTime | null;
   alternatePhone: string | null;
@@ -203,6 +217,7 @@ export interface GuestRegister {
   governmentIdType: GuestIdType | null;
   guestAddress: string | null;
   guestEmail: string | null;
+  guests: GuestRegisterGuest[];
   id: UUID;
   idDocuments: GuestIdDocument[];
   idVerified: boolean;

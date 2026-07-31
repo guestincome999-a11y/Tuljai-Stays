@@ -2,13 +2,15 @@ import { randomUUID } from 'node:crypto';
 
 import type { MultipartFile } from '@fastify/multipart';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { AuthenticatedUser, BookingGuestIdProofUpload } from '@tuljai/types';
+import type { AuthenticatedUser, BookingGuestIdProofUpload, BookingStatus } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
+import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/providers/supabase-storage.service';
 
 const MAX_ID_PROOF_SIZE_BYTES = 5 * 1024 * 1024;
+const OWNER_VISIBLE_PROOF_STATUSES: BookingStatus[] = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'];
 
 interface GuestIdProofDownload {
   contents: Buffer;
@@ -20,6 +22,7 @@ interface GuestIdProofDownload {
 export class GuestIdProofService {
   public constructor(
     private readonly auditLogService: AuditLogService,
+    private readonly lodgeAccessService: LodgeAccessService,
     private readonly prisma: PrismaService,
     private readonly storageService: SupabaseStorageService,
   ) {}
@@ -104,6 +107,37 @@ export class GuestIdProofService {
   }
 
   public async downloadBookingProofForAdmin(bookingId: string): Promise<GuestIdProofDownload> {
+    return this.downloadBookingProof(bookingId);
+  }
+
+  public async downloadBookingProofForOwner(
+    bookingId: string,
+    user: AuthenticatedUser,
+  ): Promise<GuestIdProofDownload> {
+    const booking = await this.prisma.booking.findFirst({
+      select: {
+        lodgeId: true,
+        status: true,
+      },
+      where: {
+        deletedAt: null,
+        id: bookingId,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
+    if (!OWNER_VISIBLE_PROOF_STATUSES.includes(booking.status)) {
+      throw new BadRequestException('Guest ID proof is available after check-in');
+    }
+
+    return this.downloadBookingProof(bookingId);
+  }
+
+  private async downloadBookingProof(bookingId: string): Promise<GuestIdProofDownload> {
     const guest = await this.prisma.bookingGuest.findFirst({
       where: {
         bookingId,

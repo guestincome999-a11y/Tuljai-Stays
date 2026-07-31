@@ -46,12 +46,21 @@ export class NotificationDeliveryService {
       return;
     }
 
+    const badge = await this.prisma.notification.count({
+      where: {
+        deletedAt: null,
+        readAt: null,
+        recipientUserId: notification.recipientUserId,
+      },
+    });
+
     for (const device of devices) {
       const data = this.toFcmData(notification);
       const highPriority = ['HIGH', 'CRITICAL'].includes(notification.priority);
       const usesExpoPush = this.expoPushService.isExpoPushToken(device.fcmToken);
       const result = usesExpoPush
         ? await this.expoPushService.sendToToken({
+            badge,
             body: notification.body,
             data,
             expoPushToken: device.fcmToken,
@@ -59,6 +68,7 @@ export class NotificationDeliveryService {
             title: notification.title,
           })
         : await this.fcmService.sendToToken({
+            badge,
             body: notification.body,
             data,
             fcmToken: device.fcmToken,

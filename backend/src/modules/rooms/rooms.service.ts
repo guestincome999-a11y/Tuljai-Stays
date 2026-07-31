@@ -3,6 +3,8 @@ import type { AuthenticatedUser, Room, RoomType } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
+import { isOperationalRoomStatusTransition } from '../notifications/notification-policy';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
@@ -19,6 +21,7 @@ export class RoomsService {
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly lodgeAccessService: LodgeAccessService,
+    private readonly notificationsService: NotificationsService,
     private readonly prisma: PrismaService,
     private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
@@ -173,15 +176,65 @@ export class RoomsService {
       metadata: { status: dto.status },
     });
     this.realtimeEventsService.publishToLodge(room.lodgeId, 'room:status-updated', {
+      blocked: room.status === 'BLOCKED',
       lodgeId: room.lodgeId,
       roomId: room.id,
+      roomTypeId: room.roomTypeId,
       status: room.status,
+      updatedAt: new Date().toISOString(),
     });
     this.realtimeEventsService.publishToLodge(room.lodgeId, 'room:availability-updated', {
+      blocked: room.status === 'BLOCKED',
       lodgeId: room.lodgeId,
       roomId: room.id,
+      roomTypeId: room.roomTypeId,
       status: room.status,
+      updatedAt: new Date().toISOString(),
     });
+    if (isOperationalRoomStatusTransition(existing.status, room.status)) {
+      const ownerUserIds = (
+        await this.prisma.lodgeOwner.findMany({
+          select: { userId: true },
+          where: {
+            deletedAt: null,
+            isActive: true,
+            lodgeId: room.lodgeId,
+            userId: { not: user.id },
+          },
+        })
+      ).map((owner) => owner.userId);
+      await this.notificationsService.createManyForUsers(ownerUserIds, {
+        body:
+          room.status === 'BLOCKED'
+            ? `Room ${room.roomNumber} was blocked.`
+            : room.status === 'MAINTENANCE'
+              ? `Room ${room.roomNumber} requires maintenance.`
+              : `Room ${room.roomNumber} returned to service.`,
+        data: {
+          blocked: room.status === 'BLOCKED',
+          context: 'ROOM_ALERT',
+          lodgeId: room.lodgeId,
+          operationallyImportant: true,
+          previousStatus: existing.status,
+          roomId: room.id,
+          roomTypeId: room.roomTypeId,
+          status: room.status,
+        },
+        lodgeId: room.lodgeId,
+        priority:
+          room.status === 'BLOCKED' || room.status === 'MAINTENANCE'
+            ? 'HIGH'
+            : 'NORMAL',
+        recipientRole: 'OWNER',
+        title:
+          room.status === 'BLOCKED'
+            ? 'Room blocked'
+            : room.status === 'MAINTENANCE'
+              ? 'Room maintenance alert'
+              : 'Room available again',
+        type: 'SYSTEM',
+      });
+    }
 
     return this.toRoom(room);
   }

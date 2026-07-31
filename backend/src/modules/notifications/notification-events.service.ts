@@ -46,6 +46,7 @@ export class NotificationEventsService {
         data: payload,
         lodgeId: booking.lodgeId,
         priority: 'HIGH',
+        recipientRole: 'OWNER',
         recipientUserId: owner.userId,
         title: 'New booking request',
         type: 'BOOKING_REQUEST',
@@ -88,6 +89,22 @@ export class NotificationEventsService {
       lodgeId: booking.lodgeId,
       status: booking.status,
     };
+    this.realtimeEventsService.publishToUser(
+      booking.pilgrimUserId,
+      'booking:cancelled',
+      payload,
+    );
+    await this.notificationsService.create({
+      body: `Booking ${booking.bookingCode} was cancelled.`,
+      bookingId: booking.id,
+      data: payload,
+      lodgeId: booking.lodgeId,
+      priority: 'HIGH',
+      recipientRole: 'PILGRIM',
+      recipientUserId: booking.pilgrimUserId,
+      title: 'Booking cancelled',
+      type: 'BOOKING_CANCELLED',
+    });
     for (const owner of booking.lodge.owners) {
       this.realtimeEventsService.publishToUser(owner.userId, 'booking:cancelled', payload);
       await this.notificationsService.create({
@@ -96,6 +113,7 @@ export class NotificationEventsService {
         data: payload,
         lodgeId: booking.lodgeId,
         priority: 'HIGH',
+        recipientRole: 'OWNER',
         recipientUserId: owner.userId,
         title: 'Booking cancelled',
         type: 'BOOKING_CANCELLED',
@@ -138,16 +156,11 @@ export class NotificationEventsService {
       'Check-in completed',
     );
     const payload = { bookingId, lodgeId };
-    await this.publishToLodgeOwners(lodgeId, 'checkin:completed', payload);
     this.realtimeEventsService.publishToLodge(lodgeId, 'checkin:completed', payload);
     if (scannedByUserId) {
       this.realtimeEventsService.publishToUser(scannedByUserId, 'qr:scan-success', payload);
     }
     this.realtimeEventsService.publishToRole('ADMIN', 'qr:scan-success', payload);
-    this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
-      bookingId,
-      type: 'checkin:completed',
-    });
   }
 
   public qrScanFailed(userId: string, bookingId?: string): void {
@@ -167,14 +180,8 @@ export class NotificationEventsService {
       bookingId,
       lodgeId,
     };
-    await this.publishToLodgeOwners(lodgeId, 'checkout:completed', payload);
-    await this.publishToLodgeOwners(lodgeId, 'room:availability-updated', payload);
     this.realtimeEventsService.publishToLodge(lodgeId, 'checkout:completed', payload);
     this.realtimeEventsService.publishToLodge(lodgeId, 'room:availability-updated', payload);
-    this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
-      bookingId,
-      type: 'checkout:completed',
-    });
   }
 
   public async photoReviewed(lodgeId: string, photoId: string, approved: boolean): Promise<void> {
@@ -189,6 +196,7 @@ export class NotificationEventsService {
         data: { lodgeId, photoId },
         lodgeId,
         priority: 'NORMAL',
+        recipientRole: 'OWNER',
         recipientUserId: owner.userId,
         title: approved ? 'Photo approved' : 'Photo rejected',
         type,
@@ -221,7 +229,10 @@ export class NotificationEventsService {
     const payload = {
       bookingCode: booking.bookingCode,
       bookingId: booking.id,
+      lodgeId: booking.lodgeId,
+      qrReady: booking.status === 'ACCEPTED' || booking.status === 'QR_GENERATED',
       status: booking.status,
+      updatedAt: booking.updatedAt.toISOString(),
     };
     this.realtimeEventsService.publishToUser(booking.pilgrimUserId, event, payload);
     this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
@@ -234,24 +245,11 @@ export class NotificationEventsService {
       data: payload,
       lodgeId: booking.lodgeId,
       priority: 'NORMAL',
+      recipientRole: 'PILGRIM',
       recipientUserId: booking.pilgrimUserId,
       title,
       type,
     });
   }
 
-  private async publishToLodgeOwners(
-    lodgeId: string,
-    event: string,
-    payload: Record<string, unknown>,
-  ): Promise<void> {
-    const owners = await this.prisma.lodgeOwner.findMany({
-      select: { userId: true },
-      where: { deletedAt: null, isActive: true, lodgeId },
-    });
-
-    for (const owner of owners) {
-      this.realtimeEventsService.publishToUser(owner.userId, event, payload);
-    }
-  }
 }

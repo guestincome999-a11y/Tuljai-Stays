@@ -21,6 +21,11 @@ import type {
 
 type GuestRegisterWithRelations = Prisma.GuestRegisterGetPayload<{
   include: {
+    booking: {
+      include: {
+        guests: true;
+      };
+    };
     idDocuments: true;
     room: true;
     roomType: true;
@@ -261,6 +266,13 @@ export class GuestRegisterService {
   }
 
   private readonly registerInclude = {
+    booking: {
+      include: {
+        guests: {
+          where: { deletedAt: null },
+        },
+      },
+    },
     idDocuments: {
       where: { deletedAt: null },
     },
@@ -412,6 +424,19 @@ export class GuestRegisterService {
       governmentIdType: register.governmentIdType,
       guestAddress: register.guestAddress,
       guestEmail: register.guestEmail,
+      guests: register.booking.guests.map((guest) => ({
+        age: guest.age,
+        fullName: guest.fullName,
+        gender: guest.gender,
+        id: guest.id,
+        idNumber: guest.idNumber,
+        idProofAvailable: Boolean(guest.idProofStoragePath),
+        idProofMimeType: guest.idProofMimeType,
+        idProofOriginalName: guest.idProofOriginalName,
+        idType: guest.idType,
+        isPrimaryGuest: guest.isPrimaryGuest,
+        phone: guest.phone,
+      })),
       id: register.id,
       idDocuments: register.idDocuments.map((document) => ({
         documentHolderName: document.documentHolderName,

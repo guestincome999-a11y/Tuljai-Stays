@@ -12,6 +12,7 @@ import type { AuthenticatedUser, JwtPayload, PresenceSummary } from '@tuljai/typ
 import type { Server, Socket } from 'socket.io';
 
 import { resolveSocketCorsOrigins } from '../../shared/security/cors.config';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface RealtimeSocketData {
   user?: AuthenticatedUser;
@@ -48,13 +49,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   public constructor(
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
   ) {}
 
-  public handleConnection(client: AuthenticatedSocket): void {
+  public async handleConnection(client: AuthenticatedSocket): Promise<void> {
     const token = this.extractToken(client);
 
     if (!token) {
-      client.emit('connection:ready', { authenticated: false, connected: true });
+      client.emit('system:error', { message: 'Realtime authentication required' });
+      client.disconnect(true);
       return;
     }
 
@@ -62,20 +65,41 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       const payload = this.jwtService.verify<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('api.jwt.accessSecret'),
       });
+      const activeUser = await this.prisma.user.findFirst({
+        select: { id: true, isActive: true, phoneNumber: true, roles: true },
+        where: { deletedAt: null, id: payload.sub, isActive: true },
+      });
+
+      if (!activeUser) {
+        client.emit('system:error', { message: 'Realtime user is no longer active' });
+        client.disconnect(true);
+        return;
+      }
+
       const user: AuthenticatedUser = {
-        id: payload.sub,
-        isActive: true,
-        phoneNumber: payload.phoneNumber,
-        roles: payload.roles,
+        id: activeUser.id,
+        isActive: activeUser.isActive,
+        phoneNumber: activeUser.phoneNumber,
+        roles: activeUser.roles,
       };
       client.data.user = user;
       this.presence.set(client.id, { connectedAt: new Date(), lastSeenAt: new Date(), user });
-      void client.join(`user:${user.id}`);
+      await client.join(`user:${user.id}`);
       for (const role of user.roles) {
-        void client.join(`role:${role}`);
+        await client.join(`role:${role}`);
       }
-      client.emit('connection:ready', { authenticated: true, connected: true });
-    } catch {
+      const lodgeIds = await this.joinAuthorizedLodgeRooms(client, user);
+      client.emit('connection:ready', {
+        authenticated: true,
+        connected: true,
+        lodgeIds,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Rejected realtime connection ${client.id}: ${
+          error instanceof Error ? error.message : 'unknown authentication error'
+        }`,
+      );
       client.emit('system:error', { message: 'Invalid realtime token' });
       client.disconnect(true);
     }
@@ -151,6 +175,99 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     client.emit('owner:status-update', payload);
+  }
+
+  @SubscribeMessage('lodge:join')
+  public async handleLodgeJoin(
+    client: AuthenticatedSocket,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const user = client.data.user;
+    const lodgeId = payload.lodgeId;
+
+    if (!user) {
+      client.emit('system:error', { message: 'Authentication required' });
+      return;
+    }
+
+    if (typeof lodgeId !== 'string' || !lodgeId) {
+      client.emit('system:error', { message: 'A lodge ID is required' });
+      return;
+    }
+
+    const authorized = await this.canAccessLodgeRoom(user, lodgeId);
+
+    if (!authorized) {
+      client.emit('system:error', { message: 'Lodge realtime access denied' });
+      return;
+    }
+
+    await client.join(`lodge:${lodgeId}`);
+    client.emit('lodge:joined', { lodgeId });
+  }
+
+  private async joinAuthorizedLodgeRooms(
+    client: AuthenticatedSocket,
+    user: AuthenticatedUser,
+  ): Promise<string[]> {
+    let lodgeIds: string[] = [];
+
+    if (this.isAdmin(user)) {
+      const lodges = await this.prisma.lodge.findMany({
+        select: { id: true },
+        where: { deletedAt: null },
+      });
+      lodgeIds = lodges.map((lodge) => lodge.id);
+    } else if (user.roles.includes('OWNER')) {
+      const assignments = await this.prisma.lodgeOwner.findMany({
+        select: { lodgeId: true },
+        where: {
+          deletedAt: null,
+          isActive: true,
+          lodge: { deletedAt: null },
+          userId: user.id,
+        },
+      });
+      lodgeIds = assignments.map((assignment) => assignment.lodgeId);
+    }
+
+    for (const lodgeId of lodgeIds) {
+      await client.join(`lodge:${lodgeId}`);
+    }
+    return lodgeIds;
+  }
+
+  private async canAccessLodgeRoom(
+    user: AuthenticatedUser,
+    lodgeId: string,
+  ): Promise<boolean> {
+    if (this.isAdmin(user)) {
+      const lodge = await this.prisma.lodge.findFirst({
+        select: { id: true },
+        where: { deletedAt: null, id: lodgeId },
+      });
+      return Boolean(lodge);
+    }
+
+    if (!user.roles.includes('OWNER')) {
+      return false;
+    }
+
+    const assignment = await this.prisma.lodgeOwner.findFirst({
+      select: { id: true },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        lodge: { deletedAt: null },
+        lodgeId,
+        userId: user.id,
+      },
+    });
+    return Boolean(assignment);
+  }
+
+  private isAdmin(user: AuthenticatedUser): boolean {
+    return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
   }
 
   private extractToken(client: AuthenticatedSocket): string | null {

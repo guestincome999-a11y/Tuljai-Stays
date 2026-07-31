@@ -19,6 +19,10 @@ import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
 import type { ListNotificationsQueryDto } from './dto/notifications.dto';
 import { NotificationDeliveryService } from './notification-delivery.service';
+import {
+  resolveNotificationPriority,
+  shouldDeliverPush,
+} from './notification-policy';
 
 export interface CreateNotificationInput {
   body: string;
@@ -73,7 +77,10 @@ export class NotificationsService {
         channel: input.channel ?? 'IN_APP',
         data: input.data as Prisma.InputJsonValue | undefined,
         lodgeId: input.lodgeId,
-        priority: input.priority ?? 'NORMAL',
+        priority: resolveNotificationPriority(
+          input.type,
+          input.priority ?? 'NORMAL',
+        ),
         recipientRole: input.recipientRole,
         recipientUserId: input.recipientUserId,
         title: input.title,
@@ -92,7 +99,9 @@ export class NotificationsService {
           unreadCount: await this.getUnreadCountForUser(notification.recipientUserId),
         },
       );
-      void this.deliveryService.sendPushToUser(notification);
+      if (shouldDeliverPush(notification.type, notification.data)) {
+        void this.deliveryService.sendPushToUser(notification);
+      }
     }
 
     if (notification.recipientRole) {
@@ -172,6 +181,7 @@ export class NotificationsService {
       data: { readAt: new Date() },
       where: { id },
     });
+    await this.publishUnreadCount(user.id);
 
     return this.toNotification(notification);
   }
@@ -185,8 +195,11 @@ export class NotificationsService {
         recipientUserId: user.id,
       },
     });
-
-    return this.unreadCount(user);
+    const result = await this.unreadCount(user);
+    this.realtimeEventsService.publishToUser(user.id, 'notification:unread-count', {
+      unreadCount: result.unreadCount,
+    });
+    return result;
   }
 
   public async softDelete(id: string, user: AuthenticatedUser): Promise<{ success: true }> {
@@ -195,8 +208,15 @@ export class NotificationsService {
       data: { deletedAt: new Date() },
       where: { id },
     });
+    await this.publishUnreadCount(user.id);
 
     return { success: true };
+  }
+
+  private async publishUnreadCount(userId: string): Promise<void> {
+    this.realtimeEventsService.publishToUser(userId, 'notification:unread-count', {
+      unreadCount: await this.getUnreadCountForUser(userId),
+    });
   }
 
   private async assertCanAccessNotification(id: string, userId: string): Promise<void> {

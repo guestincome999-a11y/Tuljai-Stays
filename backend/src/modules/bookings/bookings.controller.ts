@@ -178,6 +178,25 @@ export class BookingsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'ADMIN')
+  @Get('owner/bookings/:id/guest-id-proof')
+  public async downloadOwnerGuestIdProof(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() reply: FastifyReply,
+  ) {
+    const proof = await this.guestIdProofService.downloadBookingProofForOwner(id, user);
+    reply.header('Content-Type', proof.mimeType);
+    reply.header('Content-Length', String(proof.contents.length));
+    reply.header(
+      'Content-Disposition',
+      `inline; filename="${this.safeDownloadName(proof.originalName)}"`,
+    );
+
+    return reply.send(proof.contents);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
   @Post('owner/bookings/:id/accept')
   public acceptBooking(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.bookingsService.acceptBooking(id, user);
@@ -204,10 +223,7 @@ export class BookingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Get('admin/bookings/:id/guest-id-proof')
-  public async downloadAdminGuestIdProof(
-    @Param('id') id: string,
-    @Res() reply: FastifyReply,
-  ) {
+  public async downloadAdminGuestIdProof(@Param('id') id: string, @Res() reply: FastifyReply) {
     const proof = await this.guestIdProofService.downloadBookingProofForAdmin(id);
     reply.header('Content-Type', proof.mimeType);
     reply.header('Content-Length', String(proof.contents.length));
