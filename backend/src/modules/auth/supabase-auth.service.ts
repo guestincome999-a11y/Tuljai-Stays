@@ -20,10 +20,12 @@ export class SupabaseAuthService {
   public constructor(configService: ConfigService) {
     const url = configService.get<string>('api.supabase.url');
     const serviceRoleKey = configService.get<string>('api.supabase.serviceRoleKey');
+    const publishableKey = configService.get<string>('api.supabase.publishableKey');
+    const clientKey = serviceRoleKey ?? publishableKey;
 
     this.client =
-      url && serviceRoleKey
-        ? createClient(url, serviceRoleKey, {
+      url && clientKey
+        ? createClient(url, clientKey, {
             auth: {
               autoRefreshToken: false,
               detectSessionInUrl: false,

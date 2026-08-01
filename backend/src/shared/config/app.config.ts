@@ -2,6 +2,9 @@ import { registerAs } from '@nestjs/config';
 
 import { parseAllowedOrigins } from '../security/cors.config';
 
+const defaultSupabaseUrl = 'https://heypsutewmttbscuwqje.supabase.co';
+const defaultSupabasePublishableKey = 'sb_publishable_aY9YxBLfSZnJ2_GQ5IaWSw_tqIjvuuL';
+
 export const appConfig = registerAs('api', () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.API_PORT ?? 4000),
@@ -44,7 +47,8 @@ export const appConfig = registerAs('api', () => ({
     privateKey: process.env.FCM_PRIVATE_KEY,
   },
   supabase: {
-    url: process.env.SUPABASE_URL,
+    url: process.env.SUPABASE_URL ?? defaultSupabaseUrl,
+    publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? defaultSupabasePublishableKey,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     storageBucket: process.env.SUPABASE_STORAGE_BUCKET ?? 'tuljai-stays',
   },
