@@ -47,7 +47,7 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
   const [noteCategory, setNoteCategory] = useState(noteCategories[0] ?? 'General');
   const [escalationReason, setEscalationReason] = useState(escalationReasons[0] ?? 'Other');
   const [escalationLevel, setEscalationLevel] = useState<'NORMAL' | 'HIGH' | 'CRITICAL'>('HIGH');
-  const [isDownloadingProof, setIsDownloadingProof] = useState(false);
+  const [isOpeningProof, setIsOpeningProof] = useState(false);
   const canManage = hasPermission(auth.permissions, 'bookings.manage');
   const canOverride = hasPermission(auth.permissions, 'bookings.override');
   const canSupport = hasPermission(auth.permissions, 'support.manage');
@@ -87,12 +87,19 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
   const ownerState = getOwnerResponseState(booking);
   const timeline = buildBookingTimeline(booking);
   const primaryGuest = booking.guests.find((guest) => guest.isPrimaryGuest) ?? booking.guests[0];
-  const canDownloadProof = canSeeContact && Boolean(primaryGuest?.idProofOriginalName);
-  const currentBookingCode = booking.bookingCode;
+  const canOpenProof = canSeeContact && Boolean(primaryGuest?.idProofOriginalName);
   const currentBookingId = booking.id;
 
-  async function downloadIdProof() {
-    setIsDownloadingProof(true);
+  async function openIdProof() {
+    const proofWindow = window.open('about:blank', '_blank');
+    if (!proofWindow) {
+      window.alert('Please allow pop-ups to open the ID proof.');
+      return;
+    }
+
+    proofWindow.opener = null;
+    proofWindow.document.title = 'Opening ID proof...';
+    setIsOpeningProof(true);
     try {
       const blob = await apiClient.request<Blob>(
         `/admin/bookings/${currentBookingId}/guest-id-proof`,
@@ -102,24 +109,17 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
         },
       );
       if (!(blob instanceof Blob) || blob.size === 0) {
-        throw new Error('The downloaded ID proof is empty');
+        throw new Error('The ID proof is empty');
       }
 
       const objectUrl = URL.createObjectURL(blob);
-      try {
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = primaryGuest?.idProofOriginalName ?? `${currentBookingCode}-id-proof`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } finally {
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
-      }
+      proofWindow.location.replace(objectUrl);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     } catch {
-      window.alert('ID proof could not be downloaded. Please retry.');
+      proofWindow.close();
+      window.alert('ID proof could not be opened. Please retry.');
     } finally {
-      setIsDownloadingProof(false);
+      setIsOpeningProof(false);
     }
   }
 
@@ -218,17 +218,17 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
                     : 'Hidden for read-only role'
                 }
               />
-              {canDownloadProof ? (
+              {canOpenProof ? (
                 <div>
                   <dt>ID Proof File</dt>
                   <dd>
                     <button
                       className="ghost-control"
-                      disabled={isDownloadingProof}
+                      disabled={isOpeningProof}
                       type="button"
-                      onClick={() => void downloadIdProof()}
+                      onClick={() => void openIdProof()}
                     >
-                      {isDownloadingProof ? 'Downloading...' : 'Download uploaded proof'}
+                      {isOpeningProof ? 'Opening...' : 'Open uploaded proof'}
                     </button>
                   </dd>
                 </div>
