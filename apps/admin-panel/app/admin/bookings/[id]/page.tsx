@@ -4,6 +4,7 @@ import type { BookingStatus } from '@tuljai/types';
 import Link from 'next/link';
 import { use, useState } from 'react';
 
+import { apiClient } from '../../../../src/api/client';
 import { useAdminAuth } from '../../../../src/auth/AdminAuthProvider';
 import {
   buildBookingTimeline,
@@ -18,7 +19,6 @@ import {
 import { PermissionGate } from '../../../../src/components/PermissionGate';
 import { useAdminBookingDetail } from '../../../../src/hooks/useAdminBookingDetail';
 import { hasPermission } from '../../../../src/permissions/permissions';
-import { tokenStorage } from '../../../../src/auth/token-storage';
 
 const acceptReasons = [
   'Owner confirmed by phone',
@@ -92,30 +92,30 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
   const currentBookingId = booking.id;
 
   async function downloadIdProof() {
-    const accessToken = tokenStorage.getAccessToken();
-    if (!accessToken) {
-      window.alert('Admin session expired. Please login again.');
-      return;
-    }
-
     setIsDownloadingProof(true);
     try {
-      const response = await fetch(buildAdminIdProofDownloadUrl(currentBookingId), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!response.ok) {
-        throw new Error('Download failed');
+      const blob = await apiClient.request<Blob>(
+        `/admin/bookings/${currentBookingId}/guest-id-proof`,
+        {
+          method: 'GET',
+          responseType: 'blob',
+        },
+      );
+      if (!(blob instanceof Blob) || blob.size === 0) {
+        throw new Error('The downloaded ID proof is empty');
       }
 
-      const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = primaryGuest?.idProofOriginalName ?? `${currentBookingCode}-id-proof`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(objectUrl);
+      try {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = primaryGuest?.idProofOriginalName ?? `${currentBookingCode}-id-proof`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } finally {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      }
     } catch {
       window.alert('ID proof could not be downloaded. Please retry.');
     } finally {
@@ -680,14 +680,6 @@ function formatFileSize(sizeBytes: number): string {
   }
 
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function buildAdminIdProofDownloadUrl(bookingId: string): string {
-  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
-  const apiBaseUrl = configuredBaseUrl.replace(/\/$/, '');
-  const serverBaseUrl = apiBaseUrl.replace(/\/api$/u, '');
-
-  return `${serverBaseUrl}/api/admin/bookings/${bookingId}/guest-id-proof`;
 }
 
 function getDefaultReason(status: BookingStatus): string {
