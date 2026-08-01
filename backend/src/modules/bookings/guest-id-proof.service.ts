@@ -48,18 +48,20 @@ export class GuestIdProofService {
     const storagePath = this.buildStoragePath(user.id, detectedFile.extension);
     if (this.storageService.getClient()) {
       await this.storageService.uploadPrivateObject(storagePath, contents, detectedFile.mimeType);
-    } else {
-      await this.prisma.guestIdProofUpload.create({
-        data: {
-          contents: Uint8Array.from(contents),
-          mimeType: detectedFile.mimeType,
-          originalName,
-          sizeBytes: contents.length,
-          storagePath,
-          userId: user.id,
-        },
-      });
     }
+
+    // Keep a durable private copy so a booking remains downloadable if its
+    // storage object is moved, removed, or temporarily unavailable later.
+    await this.prisma.guestIdProofUpload.create({
+      data: {
+        contents: Uint8Array.from(contents),
+        mimeType: detectedFile.mimeType,
+        originalName,
+        sizeBytes: contents.length,
+        storagePath,
+        userId: user.id,
+      },
+    });
 
     await this.auditLogService.create({
       action: 'GUEST_ID_PROOF_UPLOADED',
