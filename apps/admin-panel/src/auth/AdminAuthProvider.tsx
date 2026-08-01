@@ -163,8 +163,8 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
         otpForTesting: result.otpForTesting,
         success: true,
       };
-    } catch {
-      setErrorMessage('We could not send OTP. Please check the number and try again.');
+    } catch (error) {
+      setErrorMessage(getOtpRequestErrorMessage(error));
       return { expiresAt: null, success: false };
     } finally {
       setIsSubmitting(false);
@@ -268,4 +268,18 @@ export function useAdminAuth(): AdminAuthState {
 
 export function getAdminDisplayName(user: AuthUserProfile | null): string {
   return user?.displayName ?? user?.phoneNumber ?? 'Admin';
+}
+
+function getOtpRequestErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+
+  if (/too many otp requests/iu.test(message)) {
+    return 'Too many OTP requests. Please wait 15 minutes before trying again.';
+  }
+
+  if (/phoneNumber|phone number|must match/iu.test(message)) {
+    return 'Enter a valid 10-digit Indian mobile number.';
+  }
+
+  return 'We could not generate an OTP right now. Please try again shortly.';
 }

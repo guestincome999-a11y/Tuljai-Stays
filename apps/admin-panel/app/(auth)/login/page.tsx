@@ -55,7 +55,7 @@ export default function AdminLoginPage() {
             <input
               autoComplete="tel"
               inputMode="tel"
-              placeholder="+919999999999"
+              placeholder="9876543210 or +919876543210"
               value={phoneNumber}
               onChange={(event) => setPhoneNumber(event.target.value)}
             />
