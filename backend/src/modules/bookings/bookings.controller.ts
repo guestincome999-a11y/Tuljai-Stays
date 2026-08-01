@@ -229,7 +229,7 @@ export class BookingsController {
     reply.header('Content-Length', String(proof.contents.length));
     reply.header(
       'Content-Disposition',
-      `attachment; filename="${this.safeDownloadName(proof.originalName)}"`,
+      `inline; filename="${this.safeDownloadName(proof.originalName)}"`,
     );
 
     return reply.send(proof.contents);
