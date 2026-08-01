@@ -13,6 +13,10 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum AuthProvider {
+  GOOGLE
+}
+
 enum OtpPurpose {
   LOGIN
   REGISTER
@@ -259,7 +263,7 @@ enum ReviewReportStatus {
 
 model User {
   id                       String                    @id @default(uuid()) @db.Uuid
-  phoneNumber              String                    @unique @map("phone_number")
+  phoneNumber              String?                   @unique @map("phone_number")
   displayName              String?                   @map("display_name")
   roles                    UserRole[]                @default([PILGRIM])
   isActive                 Boolean                   @default(true) @map("is_active")
@@ -298,11 +302,28 @@ model User {
   reviews                  Review[]                  @relation("PilgrimReviews")
   reviewReports            ReviewReport[]            @relation("ReportedReviews")
   reviewedReviewReports    ReviewReport[]            @relation("ReviewedReviewReports")
+  authIdentities           AuthIdentity[]
 
   @@index([phoneNumber])
   @@index([isActive])
   @@index([deletedAt])
   @@map("users")
+}
+
+model AuthIdentity {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  provider        AuthProvider
+  providerSubject String       @map("provider_subject")
+  email           String?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+  @@index([email])
+  @@map("auth_identities")
 }
 
 model City {

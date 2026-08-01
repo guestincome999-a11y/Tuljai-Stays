@@ -53,6 +53,34 @@ export class VerifyOtpDto {
   platform!: (typeof platforms)[number];
 }
 
+export class GoogleLoginDto {
+  @IsIn(['PILGRIM_APP'] as const)
+  appType!: 'PILGRIM_APP';
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  deviceId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deviceName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  fcmToken?: string;
+
+  @IsIn(platforms)
+  platform!: (typeof platforms)[number];
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(8192)
+  supabaseAccessToken!: string;
+}
+
 export class RefreshTokenDto {
   @IsNotEmpty()
   @IsString()

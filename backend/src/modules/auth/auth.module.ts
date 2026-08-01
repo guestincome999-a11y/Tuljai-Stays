@@ -5,11 +5,12 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthStrategy } from './strategies/jwt-auth.strategy';
+import { SupabaseAuthService } from './supabase-auth.service';
 
 @Module({
   imports: [PassportModule, JwtModule.register({})],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthStrategy],
+  providers: [AuthService, JwtAuthStrategy, SupabaseAuthService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

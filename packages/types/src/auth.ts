@@ -3,7 +3,7 @@ import type { AppType, DevicePlatform, ISODateTime, OtpPurpose, UserRole, UUID }
 export interface AuthenticatedUser {
   id: UUID;
   isActive: boolean;
-  phoneNumber: string;
+  phoneNumber: string | null;
   roles: UserRole[];
 }
 
@@ -14,7 +14,7 @@ export interface AuthTokens {
 }
 
 export interface JwtPayload {
-  phoneNumber: string;
+  phoneNumber: string | null;
   roles: UserRole[];
   sub: UUID;
 }
@@ -53,6 +53,15 @@ export interface VerifyOtpResponse {
   session: UserSession;
   tokens: AuthTokens;
   user: AuthUserProfile;
+}
+
+export interface GoogleLoginRequest {
+  appType: 'PILGRIM_APP';
+  deviceId: string;
+  deviceName?: string;
+  fcmToken?: string;
+  platform: DevicePlatform;
+  supabaseAccessToken: string;
 }
 
 export interface RefreshTokenRequest {

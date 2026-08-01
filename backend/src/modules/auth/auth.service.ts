@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
   AppType,
+  AuthProvider,
   DevicePlatform,
   OtpPurpose,
   Prisma,
@@ -29,6 +30,7 @@ import type {
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
+  GoogleLoginDto,
   LogoutDto,
   RefreshTokenDto,
   RegisterDeviceTokenDto,
@@ -36,6 +38,7 @@ import type {
   UpdateProfileDto,
   VerifyOtpDto,
 } from './dto/auth.dto';
+import { SupabaseAuthService } from './supabase-auth.service';
 
 interface RequestContext {
   ipAddress?: string;
@@ -62,6 +65,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly supabaseAuth: SupabaseAuthService,
   ) {
     this.accessTokenTtl = this.configService.getOrThrow<string>('api.jwt.accessTokenTtl');
     this.refreshTokenTtl = this.configService.getOrThrow<string>('api.jwt.refreshTokenTtl');
@@ -221,6 +225,110 @@ export class AuthService {
       entityId: user.id,
       entityType: 'user',
       metadata: { appType: dto.appType, deviceId: dto.deviceId },
+    });
+    await this.createAuditLog({
+      action: 'REFRESH_TOKEN_ISSUED',
+      actorUserId: user.id,
+      entityId: tokens.refreshTokenRecord.id,
+      entityType: 'refresh_token',
+      metadata: { deviceId: dto.deviceId },
+    });
+
+    return {
+      session: this.toSession(session),
+      tokens: tokens.response,
+      user: this.toUserProfile(user),
+    };
+  }
+
+  public async signInWithGoogle(
+    dto: GoogleLoginDto,
+    context: RequestContext,
+  ): Promise<VerifyOtpResponse> {
+    const googleProfile = await this.supabaseAuth.verifyGoogleAccessToken(dto.supabaseAccessToken);
+    const now = new Date();
+    const existingIdentity = await this.prisma.authIdentity.findUnique({
+      include: { user: true },
+      where: {
+        provider_providerSubject: {
+          provider: AuthProvider.GOOGLE,
+          providerSubject: googleProfile.providerSubject,
+        },
+      },
+    });
+
+    if (existingIdentity?.user.deletedAt || existingIdentity?.user.isActive === false) {
+      throw new UnauthorizedException('User is not active');
+    }
+
+    const user = existingIdentity
+      ? await this.prisma.user.update({
+          data: {
+            // Google is the source of truth for the pilgrim name on every Google sign-in.
+            displayName: googleProfile.fullName,
+            isActive: true,
+            lastLoginAt: now,
+          },
+          where: { id: existingIdentity.userId },
+        })
+      : await this.prisma.user.create({
+          data: {
+            authIdentities: {
+              create: {
+                email: googleProfile.email,
+                provider: AuthProvider.GOOGLE,
+                providerSubject: googleProfile.providerSubject,
+              },
+            },
+            displayName: googleProfile.fullName,
+            lastLoginAt: now,
+          },
+        });
+
+    if (existingIdentity && existingIdentity.email !== googleProfile.email) {
+      await this.prisma.authIdentity.update({
+        data: { email: googleProfile.email },
+        where: { id: existingIdentity.id },
+      });
+    }
+
+    const tokens = await this.issueTokens(user, dto.deviceId);
+    const session = await this.prisma.userSession.create({
+      data: {
+        appType: dto.appType,
+        deviceId: dto.deviceId,
+        deviceName: dto.deviceName,
+        ipAddress: context.ipAddress,
+        lastSeenAt: now,
+        platform: dto.platform,
+        refreshTokenId: tokens.refreshTokenRecord.id,
+        userAgent: context.userAgent,
+        userId: user.id,
+      },
+    });
+
+    if (dto.fcmToken) {
+      await this.saveDeviceToken(user.id, {
+        appType: dto.appType,
+        deviceId: dto.deviceId,
+        fcmToken: dto.fcmToken,
+        platform: dto.platform,
+      });
+    }
+
+    await this.createAuditLog({
+      action: 'GOOGLE_IDENTITY_VERIFIED',
+      actorUserId: user.id,
+      entityId: user.id,
+      entityType: 'user',
+      metadata: { appType: dto.appType, email: googleProfile.email },
+    });
+    await this.createAuditLog({
+      action: 'LOGIN_SUCCESSFUL',
+      actorUserId: user.id,
+      entityId: user.id,
+      entityType: 'user',
+      metadata: { appType: dto.appType, deviceId: dto.deviceId, method: 'GOOGLE' },
     });
     await this.createAuditLog({
       action: 'REFRESH_TOKEN_ISSUED',

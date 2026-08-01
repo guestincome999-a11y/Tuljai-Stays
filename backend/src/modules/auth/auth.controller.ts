@@ -10,6 +10,7 @@ import type { FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import {
+  GoogleLoginDto,
   LogoutDto,
   RefreshTokenDto,
   RegisterDeviceTokenDto,
@@ -37,6 +38,14 @@ export class AuthController {
     @Req() request: FastifyRequest,
   ): Promise<VerifyOtpResponse> {
     return this.authService.verifyOtp(dto, this.getRequestContext(request));
+  }
+
+  @Post('google')
+  public googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Req() request: FastifyRequest,
+  ): Promise<VerifyOtpResponse> {
+    return this.authService.signInWithGoogle(dto, this.getRequestContext(request));
   }
 
   @Post('refresh-token')
