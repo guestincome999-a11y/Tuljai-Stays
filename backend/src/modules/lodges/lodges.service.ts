@@ -1,12 +1,27 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { AuthenticatedUser, Lodge, LodgeDetails, PaginatedResponse } from '@tuljai/types';
+import type {
+  AuthenticatedUser,
+  BulkLodgeImportResult,
+  Lodge,
+  LodgeDetails,
+  PaginatedResponse,
+} from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
 import type {
+  BulkImportLodgesDto,
   CreateLodgeDto,
   ListLodgesQueryDto,
   UpdateLodgeDto,
@@ -19,6 +34,7 @@ export class LodgesService {
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly prisma: PrismaService,
+    private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
 
   public async create(dto: CreateLodgeDto, actorUserId: string): Promise<LodgeDetails> {
@@ -82,6 +98,263 @@ export class LodgesService {
     });
 
     return this.toLodgeDetails(lodge);
+  }
+
+  public async bulkImport(
+    dto: BulkImportLodgesDto,
+    actorUserId: string,
+  ): Promise<BulkLodgeImportResult> {
+    const citySlugs = [...new Set(dto.rows.map((row) => row.citySlug.toLowerCase()))];
+    const ownerPhones = [...new Set(dto.rows.map((row) => row.ownerPhone))];
+    const ownerEmails = [
+      ...new Set(
+        dto.rows
+          .map((row) => row.ownerEmail?.trim().toLowerCase())
+          .filter((email): email is string => Boolean(email)),
+      ),
+    ];
+    const amenitySlugs = [
+      ...new Set(
+        dto.rows.flatMap((row) => row.amenitySlugs ?? []).map((slug) => slug.toLowerCase()),
+      ),
+    ];
+
+    const [cities, owners, amenities] = await Promise.all([
+      this.prisma.city.findMany({
+        select: { id: true, slug: true },
+        where: { deletedAt: null, isActive: true, slug: { in: citySlugs } },
+      }),
+      this.prisma.user.findMany({
+        include: { authIdentities: { select: { email: true } } },
+        where: {
+          deletedAt: null,
+          isActive: true,
+          OR: [
+            { phoneNumber: { in: ownerPhones } },
+            ...(ownerEmails.length
+              ? [
+                  {
+                    authIdentities: {
+                      some: { email: { in: ownerEmails, mode: Prisma.QueryMode.insensitive } },
+                    },
+                  } satisfies Prisma.UserWhereInput,
+                ]
+              : []),
+          ],
+        },
+      }),
+      this.prisma.amenity.findMany({
+        select: { id: true, slug: true },
+        where: { deletedAt: null, isActive: true, slug: { in: amenitySlugs } },
+      }),
+    ]);
+
+    const citiesBySlug = new Map(cities.map((city) => [city.slug.toLowerCase(), city]));
+    const amenitiesBySlug = new Map(
+      amenities.map((amenity) => [amenity.slug.toLowerCase(), amenity]),
+    );
+    const ownersByPhone = new Map(
+      owners.filter((owner) => owner.phoneNumber).map((owner) => [owner.phoneNumber!, owner]),
+    );
+    const ownersByEmail = new Map<string, typeof owners>();
+
+    for (const owner of owners) {
+      for (const identity of owner.authIdentities) {
+        const email = identity.email?.trim().toLowerCase();
+        if (!email) continue;
+        ownersByEmail.set(email, [...(ownersByEmail.get(email) ?? []), owner]);
+      }
+    }
+
+    const resolvedRows = dto.rows.map((row) => {
+      const city = citiesBySlug.get(row.citySlug.toLowerCase());
+      const phoneOwner = ownersByPhone.get(row.ownerPhone);
+      const emailOwners = row.ownerEmail
+        ? (ownersByEmail.get(row.ownerEmail.trim().toLowerCase()) ?? [])
+        : [];
+      const owner = phoneOwner ?? (emailOwners.length === 1 ? emailOwners[0] : undefined);
+      const rowAmenities = (row.amenitySlugs ?? []).map((slug) =>
+        amenitiesBySlug.get(slug.toLowerCase()),
+      );
+
+      return { city, emailOwners, owner, phoneOwner, row, rowAmenities };
+    });
+
+    const errors: string[] = [];
+    const seenLodgeKeys = new Set<string>();
+
+    for (const item of resolvedRows) {
+      const { city, emailOwners, owner, phoneOwner, row, rowAmenities } = item;
+      if (!city) errors.push(`Row ${row.rowNumber}: city_slug "${row.citySlug}" was not found.`);
+      if (!owner) {
+        errors.push(
+          `Row ${row.rowNumber}: no active owner account matched ${row.ownerPhone}${
+            row.ownerEmail ? ` or ${row.ownerEmail}` : ''
+          }.`,
+        );
+      }
+      if (!phoneOwner && emailOwners.length > 1) {
+        errors.push(`Row ${row.rowNumber}: owner_email matches more than one account.`);
+      }
+      if (phoneOwner && emailOwners.some((emailOwner) => emailOwner.id !== phoneOwner.id)) {
+        errors.push(`Row ${row.rowNumber}: owner_phone and owner_email match different accounts.`);
+      }
+      const missingAmenities = (row.amenitySlugs ?? []).filter(
+        (_slug, index) => !rowAmenities[index],
+      );
+      if (missingAmenities.length) {
+        errors.push(
+          `Row ${row.rowNumber}: unknown amenity slug(s): ${missingAmenities.join(', ')}.`,
+        );
+      }
+      if (city) {
+        const lodgeKey = `${city.id}:${row.slug.toLowerCase()}`;
+        if (seenLodgeKeys.has(lodgeKey)) {
+          errors.push(`Row ${row.rowNumber}: the city and slug are duplicated in this file.`);
+        }
+        seenLodgeKeys.add(lodgeKey);
+      }
+    }
+
+    const existingLodges = await this.prisma.lodge.findMany({
+      select: { cityId: true, slug: true },
+      where: {
+        cityId: { in: cities.map((city) => city.id) },
+        deletedAt: null,
+        slug: { in: dto.rows.map((row) => row.slug) },
+      },
+    });
+    const existingKeys = new Set(
+      existingLodges.map((lodge) => `${lodge.cityId}:${lodge.slug.toLowerCase()}`),
+    );
+
+    for (const item of resolvedRows) {
+      if (item.city && existingKeys.has(`${item.city.id}:${item.row.slug.toLowerCase()}`)) {
+        errors.push(
+          `Row ${item.row.rowNumber}: slug "${item.row.slug}" already exists in that city.`,
+        );
+      }
+    }
+
+    if (errors.length) {
+      throw new BadRequestException({
+        error: 'LODGE_IMPORT_VALIDATION_FAILED',
+        message: errors.slice(0, 25),
+      });
+    }
+
+    const batchId = randomUUID();
+    const importedItems = await this.prisma.$transaction(
+      async (tx) => {
+        const promotedOwnerIds = new Set<string>();
+        const items: BulkLodgeImportResult['items'] = [];
+
+        for (const item of resolvedRows) {
+          const city = item.city!;
+          const owner = item.owner!;
+          const row = item.row;
+          const publishLive = row.publishLive ?? false;
+
+          if (!owner.roles.includes('OWNER') && !promotedOwnerIds.has(owner.id)) {
+            await tx.user.update({
+              data: { roles: { push: 'OWNER' } },
+              where: { id: owner.id },
+            });
+            promotedOwnerIds.add(owner.id);
+          }
+
+          const lodge = await tx.lodge.create({
+            data: {
+              address: { create: row.address },
+              amenities: {
+                create: item.rowAmenities.map((amenity) => ({ amenityId: amenity!.id })),
+              },
+              checkInTime: row.checkInTime,
+              checkOutTime: row.checkOutTime,
+              cityId: city.id,
+              description: row.description,
+              distanceFromTempleMeters: row.distanceFromTempleMeters,
+              email: row.email,
+              latitude: row.latitude,
+              longitude: row.longitude,
+              name: row.name,
+              ownerUserId: owner.id,
+              owners: {
+                create: {
+                  isPrimary: true,
+                  ownerEmail: row.ownerEmail,
+                  ownerName: row.ownerName ?? owner.displayName ?? 'Lodge owner',
+                  ownerPhone: row.ownerPhone,
+                  roleTitle: row.ownerRoleTitle ?? 'Primary owner',
+                  userId: owner.id,
+                },
+              },
+              primaryPhone: row.primaryPhone,
+              propertyType: row.propertyType,
+              rules: row.rules,
+              secondaryPhone: row.secondaryPhone,
+              slug: row.slug,
+              status: publishLive ? 'VERIFIED' : 'DRAFT',
+              verificationLogs: publishLive
+                ? {
+                    create: {
+                      notes: `Published during Excel bulk import ${batchId}`,
+                      reviewedByUserId: actorUserId,
+                      status: 'VERIFIED',
+                    },
+                  }
+                : undefined,
+              verificationStatus: publishLive ? 'VERIFIED' : 'PENDING',
+              whatsappNumber: row.whatsappNumber,
+            },
+            select: { id: true, name: true },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              action: 'LODGE_BULK_IMPORTED',
+              actorUserId,
+              entityId: lodge.id,
+              entityType: 'lodge',
+              metadata: { batchId, published: publishLive, rowNumber: row.rowNumber },
+            },
+          });
+
+          items.push({
+            lodgeId: lodge.id,
+            name: lodge.name,
+            ownerUserId: owner.id,
+            published: publishLive,
+            rowNumber: row.rowNumber,
+          });
+        }
+
+        return items;
+      },
+      { maxWait: 10_000, timeout: 120_000 },
+    );
+
+    const publishedCount = importedItems.filter((item) => item.published).length;
+    const payload = {
+      batchId,
+      importedCount: importedItems.length,
+      lodgeIds: importedItems.map((item) => item.lodgeId),
+      publishedCount,
+      updatedAt: new Date().toISOString(),
+    };
+    this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', payload);
+    this.realtimeEventsService.publishToRole('ADMIN', 'lodge:catalog-updated', payload);
+    for (const ownerUserId of new Set(importedItems.map((item) => item.ownerUserId))) {
+      this.realtimeEventsService.publishToUser(ownerUserId, 'lodge:catalog-updated', payload);
+    }
+
+    return {
+      batchId,
+      importedCount: importedItems.length,
+      items: importedItems,
+      ownerAssignments: importedItems.length,
+      publishedCount,
+    };
   }
 
   public async listPublic(query: ListLodgesQueryDto): Promise<PaginatedResponse<Lodge>> {

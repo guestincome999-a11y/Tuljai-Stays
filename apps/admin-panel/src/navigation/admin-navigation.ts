@@ -45,6 +45,13 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     status: 'ready',
   },
   {
+    href: '/admin/lodges/import',
+    label: 'Import Lodges (Excel)',
+    permission: 'lodges.manage',
+    section: 'Operations',
+    status: 'ready',
+  },
+  {
     href: '/admin/owners',
     label: 'Owners',
     permission: 'owners.view',

@@ -75,6 +75,57 @@ export interface LodgeDetails extends Lodge {
   whatsappNumber: string | null;
 }
 
+export interface BulkLodgeImportRow {
+  address: {
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    country: string;
+    district: string;
+    landmark?: string;
+    pincode: string;
+    state: string;
+  };
+  amenitySlugs?: string[];
+  checkInTime?: string;
+  checkOutTime?: string;
+  citySlug: string;
+  description?: string;
+  distanceFromTempleMeters?: number;
+  email?: string;
+  latitude?: number;
+  longitude?: number;
+  name: string;
+  ownerEmail?: string;
+  ownerName?: string;
+  ownerPhone: string;
+  ownerRoleTitle?: string;
+  primaryPhone: string;
+  propertyType: PropertyType;
+  publishLive?: boolean;
+  rowNumber: number;
+  rules?: string;
+  secondaryPhone?: string;
+  slug: string;
+  whatsappNumber?: string;
+}
+
+export interface BulkLodgeImportItem {
+  lodgeId: UUID;
+  name: string;
+  ownerUserId: UUID;
+  published: boolean;
+  rowNumber: number;
+}
+
+export interface BulkLodgeImportResult {
+  batchId: string;
+  importedCount: number;
+  items: BulkLodgeImportItem[];
+  ownerAssignments: number;
+  publishedCount: number;
+}
+
 export interface RoomType {
   basePrice: string;
   capacityAdults: number;

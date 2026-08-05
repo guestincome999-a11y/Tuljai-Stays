@@ -1,6 +1,11 @@
 import { LodgeStatus, PropertyType, VerificationStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsDefined,
   IsEmail,
   IsEnum,
   IsInt,
@@ -234,4 +239,112 @@ export class ListLodgesQueryDto {
   @Max(100)
   @Type(() => Number)
   pageSize?: number;
+}
+
+export class BulkImportLodgeRowDto {
+  @IsInt()
+  @Min(2)
+  rowNumber!: number;
+
+  @IsString()
+  citySlug!: string;
+
+  @IsString()
+  @MaxLength(150)
+  name!: string;
+
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  slug!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsEnum(PropertyType)
+  propertyType!: PropertyType;
+
+  @Matches(/^\+[1-9]\d{7,14}$/)
+  primaryPhone!: string;
+
+  @IsOptional()
+  @Matches(/^\+[1-9]\d{7,14}$/)
+  secondaryPhone?: string;
+
+  @IsOptional()
+  @Matches(/^\+[1-9]\d{7,14}$/)
+  whatsappNumber?: string;
+
+  @IsEmail()
+  @IsOptional()
+  email?: string;
+
+  @IsInt()
+  @IsOptional()
+  @Min(0)
+  distanceFromTempleMeters?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Max(90)
+  @Min(-90)
+  latitude?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Max(180)
+  @Min(-180)
+  longitude?: number;
+
+  @IsOptional()
+  @IsString()
+  checkInTime?: string;
+
+  @IsOptional()
+  @IsString()
+  checkOutTime?: string;
+
+  @IsOptional()
+  @IsString()
+  rules?: string;
+
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => LodgeAddressDto)
+  address!: LodgeAddressDto;
+
+  @Matches(/^\+[1-9]\d{7,14}$/)
+  ownerPhone!: string;
+
+  @IsEmail()
+  @IsOptional()
+  ownerEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  ownerName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  ownerRoleTitle?: string;
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  amenitySlugs?: string[];
+
+  @IsBoolean()
+  @IsOptional()
+  publishLive?: boolean;
+}
+
+export class BulkImportLodgesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => BulkImportLodgeRowDto)
+  rows!: BulkImportLodgeRowDto[];
 }
