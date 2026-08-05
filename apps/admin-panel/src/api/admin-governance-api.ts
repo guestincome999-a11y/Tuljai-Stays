@@ -1,5 +1,7 @@
 import type {
   Amenity,
+  BulkLodgeImportResult,
+  BulkLodgeImportRow,
   City,
   Lodge,
   LodgeDetails,
@@ -101,6 +103,16 @@ export async function listLodgeCities(): Promise<City[]> {
 
 export async function createGovernanceLodge(input: CreateLodgeInput): Promise<LodgeDetails> {
   return apiClient.post<LodgeDetails>('/admin/lodges', input);
+}
+
+export async function bulkImportGovernanceLodges(
+  rows: BulkLodgeImportRow[],
+): Promise<BulkLodgeImportResult> {
+  return apiClient.request<BulkLodgeImportResult>('/admin/lodges/bulk-import', {
+    body: { rows },
+    method: 'POST',
+    timeout: 120_000,
+  });
 }
 
 export async function getGovernanceLodge(lodgeId: string): Promise<LodgeDetails> {

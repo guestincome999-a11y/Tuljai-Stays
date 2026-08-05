@@ -809,6 +809,73 @@ p {
   grid-template-columns: 1.5fr 0.9fr 0.9fr 0.9fr 0.9fr 1.1fr;
 }
 
+.lodge-import-table .admin-table-row {
+  grid-template-columns: 0.4fr 1.5fr 0.9fr 1.2fr 0.7fr 0.8fr;
+}
+
+.import-step-card {
+  align-content: start;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.import-step-card .button {
+  margin-top: var(--space-md);
+  width: fit-content;
+}
+
+.import-step-number {
+  align-items: center;
+  background: var(--color-primary);
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-weight: 900;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.file-drop-field {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: 2px dashed var(--color-outline);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  font-weight: 800;
+  justify-content: space-between;
+  min-height: 96px;
+  padding: var(--space-lg);
+}
+
+.file-drop-field input {
+  max-width: 280px;
+}
+
+.import-error-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.import-error-list ul {
+  margin: 0;
+  padding-left: var(--space-lg);
+}
+
+.import-result-banner div {
+  display: grid;
+  gap: 4px;
+}
+
+.panel-heading-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-md);
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
 .governance-room-table .admin-table-row {
   grid-template-columns: 0.8fr 1.2fr 1.1fr 0.7fr 0.9fr 1.3fr;
 }

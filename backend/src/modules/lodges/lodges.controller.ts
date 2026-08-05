@@ -1,5 +1,11 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import type { AuthenticatedUser, Lodge, LodgeDetails, PaginatedResponse } from '@tuljai/types';
+import type {
+  AuthenticatedUser,
+  BulkLodgeImportResult,
+  Lodge,
+  LodgeDetails,
+  PaginatedResponse,
+} from '@tuljai/types';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -7,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
 import {
+  BulkImportLodgesDto,
   CreateLodgeDto,
   ListLodgesQueryDto,
   UpdateLodgeDto,
@@ -27,6 +34,16 @@ export class LodgesController {
     @Body() dto: CreateLodgeDto,
   ): Promise<LodgeDetails> {
     return this.lodgesService.create(dto, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('admin/lodges/bulk-import')
+  public bulkImport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BulkImportLodgesDto,
+  ): Promise<BulkLodgeImportResult> {
+    return this.lodgesService.bulkImport(dto, user.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -59,9 +59,14 @@ export default function AdminLodgesPage() {
           </div>
           <div className="row-actions">
             {canManage ? (
-              <Link className="button button-primary" href="/admin/lodges/new">
-                Add Lodge
-              </Link>
+              <>
+                <Link className="button button-primary" href="/admin/lodges/import">
+                  Import Lodges (Excel)
+                </Link>
+                <Link className="button button-secondary" href="/admin/lodges/new">
+                  Add Lodge
+                </Link>
+              </>
             ) : null}
             <button className="button button-secondary" type="button" onClick={() => void load()}>
               Refresh
