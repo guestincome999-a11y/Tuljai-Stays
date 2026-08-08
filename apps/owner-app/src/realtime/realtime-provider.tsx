@@ -84,6 +84,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     setSocket(nextSocket);
 
     nextSocket.on('connect', () => setConnected(true));
+    nextSocket.on('system:error', () => {
+      setConnected(false);
+      void auth.refreshSession();
+    });
     nextSocket.on('disconnect', () => setConnected(false));
 
     for (const eventName of eventNames) {
@@ -110,7 +114,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       setSocket(null);
       setConnected(false);
     };
-  }, [accessToken, auth.isAuthenticated]);
+  }, [accessToken, auth.isAuthenticated, auth.refreshSession]);
 
   const setOwnerStatus = useCallback(
     (status: OwnerStatus) => {

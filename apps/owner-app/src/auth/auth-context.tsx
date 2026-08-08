@@ -4,7 +4,12 @@ import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { logoutFromApi, refreshAccessToken, verifyOwnerLoginOtp } from './auth-api';
-import { clearAuthSession, restoreAuthSession, saveAuthSession } from './auth-session-store';
+import {
+  clearAuthSession,
+  restoreAuthSession,
+  saveAuthSession,
+  subscribeAuthSession,
+} from './auth-session-store';
 
 const allowedOwnerRoles: UserRole[] = ['OWNER', 'ADMIN', 'SUPER_ADMIN'];
 
@@ -14,6 +19,7 @@ interface AuthContextValue {
   hasOwnerAccess: boolean;
   isAuthenticated: boolean;
   logout(): Promise<void>;
+  refreshSession: () => Promise<string | null>;
   session: AuthSession;
   signInWithOtp(phoneNumber: string, otp: string): Promise<void>;
   user: AuthUserProfile | null;
@@ -26,6 +32,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession>(emptyAuthSession);
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
+
+  useEffect(() => subscribeAuthSession(setSession), []);
 
   useEffect(() => {
     let mounted = true;
@@ -44,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (restored.tokens?.refreshToken && !restored.tokens.accessToken) {
+      if (restored.tokens?.refreshToken) {
         const refreshed = await refreshAccessToken(restored.tokens.refreshToken).catch(() => null);
 
         if (refreshed) {
@@ -116,6 +124,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace('/(auth)/login');
   }, [router, session.tokens?.refreshToken]);
 
+  const refreshSession = useCallback(async (): Promise<string | null> => {
+    const refreshToken = session.tokens?.refreshToken;
+
+    if (!refreshToken || !session.tokens) {
+      return null;
+    }
+
+    const refreshed = await refreshAccessToken(refreshToken).catch(() => null);
+
+    if (!refreshed) {
+      return null;
+    }
+
+    const nextSession: AuthSession = {
+      ...session,
+      tokens: {
+        ...session.tokens,
+        accessToken: refreshed.accessToken,
+      },
+    };
+    await saveAuthSession(nextSession);
+    setSession(nextSession);
+    return refreshed.accessToken;
+  }, [session]);
+
   const hasOwnerAccess = hasAllowedOwnerRole(session.user);
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -124,11 +157,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasOwnerAccess,
       isAuthenticated: Boolean(session.tokens?.accessToken && session.user && hasOwnerAccess),
       logout,
+      refreshSession,
       session,
       signInWithOtp,
       user: session.user,
     }),
-    [accessDeniedMessage, bootstrapComplete, hasOwnerAccess, logout, session, signInWithOtp],
+    [
+      accessDeniedMessage,
+      bootstrapComplete,
+      hasOwnerAccess,
+      logout,
+      refreshSession,
+      session,
+      signInWithOtp,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

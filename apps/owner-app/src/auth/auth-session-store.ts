@@ -9,6 +9,21 @@ import { getWebSessionStorage } from './web-session-storage';
 const SESSION_KEY = 'tuljai.owner.authSession';
 
 let cachedSession: AuthSession = emptyAuthSession;
+const sessionListeners = new Set<(session: AuthSession) => void>();
+
+function notifySessionListeners(): void {
+  for (const listener of sessionListeners) {
+    listener(cachedSession);
+  }
+}
+
+export function subscribeAuthSession(listener: (session: AuthSession) => void): () => void {
+  sessionListeners.add(listener);
+
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
 
 async function isSecureStoreAvailable(): Promise<boolean> {
   return SecureStore.isAvailableAsync();
@@ -40,6 +55,8 @@ export async function saveAuthSession(nextSession: AuthSession): Promise<void> {
   } else {
     getWebSessionStorage()?.setItem(SESSION_KEY, JSON.stringify(nextSession));
   }
+
+  notifySessionListeners();
 }
 
 export async function clearAuthSession(): Promise<void> {
@@ -52,6 +69,8 @@ export async function clearAuthSession(): Promise<void> {
   } else {
     getWebSessionStorage()?.removeItem(SESSION_KEY);
   }
+
+  notifySessionListeners();
 }
 
 export async function updateStoredAccessToken(accessToken: string): Promise<void> {
@@ -73,6 +92,8 @@ export async function updateStoredAccessToken(accessToken: string): Promise<void
   } else {
     getWebSessionStorage()?.setItem(SESSION_KEY, JSON.stringify(cachedSession));
   }
+
+  notifySessionListeners();
 }
 
 async function parseStoredSession(storedSession: string | null): Promise<AuthSession> {

@@ -10,8 +10,15 @@ interface OwnerClientEvents {
   'presence:update': (payload: { status: OwnerStatus }) => void;
 }
 
+type OwnerServerEvents = Record<
+  OwnerRealtimeEventName,
+  (payload: Record<string, unknown>) => void
+> & {
+  'system:error': (payload: { message?: string }) => void;
+};
+
 export type RealtimeSocket = Socket<
-  Record<OwnerRealtimeEventName, (payload: Record<string, unknown>) => void>,
+  OwnerServerEvents,
   OwnerClientEvents
 >;
 
