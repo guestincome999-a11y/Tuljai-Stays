@@ -1,15 +1,16 @@
 import { RoomStatus } from '@prisma/client';
 import {
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  Matches,
   Min,
 } from 'class-validator';
-
 
 export class CreateRoomTypeDto {
   @IsString()
@@ -121,4 +122,24 @@ export class UpdateRoomDto {
 export class UpdateRoomStatusDto {
   @IsEnum(RoomStatus)
   status!: RoomStatus;
+}
+
+export class CreateManualBookingDto {
+  @IsDateString()
+  checkInDate!: string;
+
+  @IsDateString()
+  checkOutDate!: string;
+
+  @IsString()
+  @MaxLength(120)
+  guestName!: string;
+
+  @Matches(/^\+[1-9]\d{7,14}$/)
+  guestPhone!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }

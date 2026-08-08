@@ -1,21 +1,28 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { QrDisplayPayload } from '@tuljai/types';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { useAuth } from '../../auth/auth-context';
 import { getBookingQrMetadata } from '../../features/bookings/api/booking-qr-api';
-import { selectCurrentPassBooking } from '../booking-selection';
+import { isActionablePassBooking, selectCurrentPassBooking } from '../booking-selection';
 import { AppScreen, EmptyState, InfoRow, ui } from '../components';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 export function PilgrimPassScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ bookingId?: string }>();
   const auth = useAuth();
   const { bookings, isSyncing, refresh, t } = usePilgrimApp();
-  const booking = selectCurrentPassBooking(bookings);
+  const requestedBookingId =
+    typeof params.bookingId === 'string' ? params.bookingId : undefined;
+  const requestedBooking = bookings.find((item) => item.id === requestedBookingId);
+  const booking =
+    requestedBooking && isActionablePassBooking(requestedBooking)
+      ? requestedBooking
+      : selectCurrentPassBooking(bookings);
   const [payload, setPayload] = useState<QrDisplayPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -116,6 +123,38 @@ export function PilgrimPassScreen() {
             <MaterialCommunityIcons color="#FFFFFF" name="refresh" size={21} />
             <Text className="text-sm font-extrabold text-white">
               {t('Check status again', 'स्थिती पुन्हा तपासा')}
+            </Text>
+          </Pressable>
+        </View>
+      ) : booking.status === 'checked-in' ? (
+        <View className="overflow-hidden rounded-3xl border border-templeGreen-100 bg-white">
+          <View className="items-center bg-templeGreen-50 px-6 py-10">
+            <View className="h-20 w-20 items-center justify-center rounded-full bg-white">
+              <MaterialCommunityIcons color={ui.green} name="account-check" size={42} />
+            </View>
+            <Text className="mt-5 text-center text-xl font-extrabold text-warm-900">
+              {t('Check-in completed', 'चेक-इन पूर्ण झाले')}
+            </Text>
+            <Text className="mt-2 text-center text-sm leading-6 text-warm-600">
+              {t(
+                'You are checked in. No further check-in action or QR scan is required.',
+                'तुमचे चेक-इन पूर्ण झाले आहे. आता पुन्हा QR स्कॅन करण्याची गरज नाही.',
+              )}
+            </Text>
+          </View>
+          <View className="px-4">
+            <InfoRow icon="home-heart" label={t('Lodge', 'लॉज')} value={booking.lodgeName} />
+            <InfoRow icon="bed-outline" label={t('Room', 'खोली')} value={booking.roomName} last />
+          </View>
+          <Pressable
+            className="mx-4 mb-4 min-h-14 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700"
+            onPress={() =>
+              router.push({ pathname: '/(app)/bookings/[id]', params: { id: booking.id } })
+            }
+          >
+            <MaterialCommunityIcons color="#FFFFFF" name="book-open-outline" size={21} />
+            <Text className="text-sm font-extrabold text-white">
+              {t('View stay details', 'निवासाची माहिती पहा')}
             </Text>
           </Pressable>
         </View>

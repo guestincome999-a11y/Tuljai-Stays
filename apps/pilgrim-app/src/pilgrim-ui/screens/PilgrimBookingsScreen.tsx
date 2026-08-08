@@ -14,7 +14,7 @@ export function PilgrimBookingsScreen() {
   const visible = bookings
     .filter((booking) =>
       tab === 'upcoming'
-        ? booking.status === 'confirmed' || booking.status === 'pending'
+        ? ['confirmed', 'checked-in', 'pending'].includes(booking.status)
         : booking.status === 'completed' || booking.status === 'cancelled',
     )
     .sort((left, right) => {

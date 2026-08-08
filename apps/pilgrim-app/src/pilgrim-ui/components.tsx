@@ -338,85 +338,81 @@ export function LodgeCard({
   const { t } = usePilgrimApp();
   if (horizontal) {
     return (
-      <Pressable
-        accessibilityRole="button"
-        className="mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10"
-        onPress={onPress}
-      >
-        <View className="relative h-44">
-          <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
-          <FavoriteButton favorite={favorite} onPress={onFavorite} />
-          {lodge.badge ? (
-            <Text className="absolute bottom-3 left-3 rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
-              {lodge.badge}
-            </Text>
-          ) : null}
-        </View>
-        <View className="gap-2 p-4">
-          <View className="flex-row items-start justify-between gap-2">
-            <Text className="flex-1 text-base font-extrabold text-warm-900" numberOfLines={1}>
-              {lodge.name}
-            </Text>
-            <Rating rating={lodge.rating} />
+      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+        <Pressable accessibilityRole="button" onPress={onPress}>
+          <View className="relative h-44">
+            <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
+            {lodge.badge ? (
+              <Text className="absolute bottom-3 left-3 rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
+                {lodge.badge}
+              </Text>
+            ) : null}
           </View>
-          <Text className="text-sm text-warm-500">{lodge.distance}</Text>
-          <View className="flex-row items-end">
-            <Text className="text-lg font-extrabold text-maroon-700">
-              {formatRupees(lodge.price)}
-            </Text>
-            <Text className="mb-0.5 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+          <View className="gap-2 p-4">
+            <View className="flex-row items-start justify-between gap-2">
+              <Text className="flex-1 text-base font-extrabold text-warm-900" numberOfLines={1}>
+                {lodge.name}
+              </Text>
+              <Rating rating={lodge.rating} />
+            </View>
+            <Text className="text-sm text-warm-500">{lodge.distance}</Text>
+            <View className="flex-row items-end">
+              <Text className="text-lg font-extrabold text-maroon-700">
+                {formatRupees(lodge.price)}
+              </Text>
+              <Text className="mb-0.5 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+            </View>
           </View>
-        </View>
-      </Pressable>
+        </Pressable>
+        <FavoriteButton favorite={favorite} onPress={onFavorite} />
+      </View>
     );
   }
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10"
-      onPress={onPress}
-    >
-      <View className="relative h-48">
-        <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
-        <FavoriteButton favorite={favorite} onPress={onFavorite} />
-        <View className="absolute bottom-3 left-3 flex-row gap-2">
-          <Text className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-extrabold text-templeGreen-700">
-            ✓ {t('Verified stay', 'सत्यापित निवास')}
-          </Text>
-          {lodge.badge ? (
-            <Text className="rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
-              {lodge.badge}
+    <View className="relative overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+      <Pressable accessibilityRole="button" onPress={onPress}>
+        <View className="relative h-48">
+          <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
+          <View className="absolute bottom-3 left-3 flex-row gap-2">
+            <Text className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-extrabold text-templeGreen-700">
+              ✓ {t('Verified stay', 'सत्यापित निवास')}
             </Text>
-          ) : null}
-        </View>
-      </View>
-      <View className="gap-2 p-4">
-        <View className="flex-row items-start justify-between gap-3">
-          <View className="min-w-0 flex-1">
-            <Text className="text-lg font-extrabold text-warm-900" numberOfLines={1}>
-              {lodge.name}
-            </Text>
-            <Text className="mt-1 text-sm text-warm-500">
-              {lodge.type} · {lodge.location}
-            </Text>
-          </View>
-          <Rating rating={lodge.rating} />
-        </View>
-        <View className="flex-row items-center justify-between gap-3 border-t border-warm-100 pt-3">
-          <View className="flex-row items-center gap-1.5">
-            <MaterialCommunityIcons color={ui.saffronDeep} name="temple-hindu" size={17} />
-            <Text className="text-sm font-semibold text-warm-600">{lodge.distance}</Text>
-          </View>
-          <View className="flex-row items-end">
-            <Text className="text-xl font-extrabold text-maroon-700">
-              {formatRupees(lodge.price)}
-            </Text>
-            <Text className="mb-1 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+            {lodge.badge ? (
+              <Text className="rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
+                {lodge.badge}
+              </Text>
+            ) : null}
           </View>
         </View>
-      </View>
-    </Pressable>
+        <View className="gap-2 p-4">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <Text className="text-lg font-extrabold text-warm-900" numberOfLines={1}>
+                {lodge.name}
+              </Text>
+              <Text className="mt-1 text-sm text-warm-500">
+                {lodge.type} · {lodge.location}
+              </Text>
+            </View>
+            <Rating rating={lodge.rating} />
+          </View>
+          <View className="flex-row items-center justify-between gap-3 border-t border-warm-100 pt-3">
+            <View className="flex-row items-center gap-1.5">
+              <MaterialCommunityIcons color={ui.saffronDeep} name="temple-hindu" size={17} />
+              <Text className="text-sm font-semibold text-warm-600">{lodge.distance}</Text>
+            </View>
+            <View className="flex-row items-end">
+              <Text className="text-xl font-extrabold text-maroon-700">
+                {formatRupees(lodge.price)}
+              </Text>
+              <Text className="mb-1 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+      <FavoriteButton favorite={favorite} onPress={onFavorite} />
+    </View>
   );
 }
 
@@ -468,6 +464,12 @@ export function StatusBadge({ status }: { status: BookingStatus }) {
       shell: 'bg-warm-100',
       text: 'text-warm-600',
     },
+    'checked-in': {
+      icon: 'account-check',
+      label: t('Checked in', 'चेक-इन पूर्ण'),
+      shell: 'bg-templeGreen-50',
+      text: 'text-templeGreen-700',
+    },
     confirmed: {
       icon: 'check-circle',
       label: t('Confirmed', 'पुष्टी'),
@@ -483,7 +485,7 @@ export function StatusBadge({ status }: { status: BookingStatus }) {
   };
   const item = styles[status];
   const color =
-    status === 'confirmed'
+    status === 'confirmed' || status === 'checked-in'
       ? ui.green
       : status === 'cancelled'
         ? ui.danger

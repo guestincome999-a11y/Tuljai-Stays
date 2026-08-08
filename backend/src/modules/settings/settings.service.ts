@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { FeatureFlag, SystemSetting } from '@tuljai/types';
+import type { FeatureFlag, PromotionalBanner, SystemSetting } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -124,6 +124,12 @@ const DEFAULT_SETTINGS: SystemSetting[] = [
   { description: 'Festival start date', isPublic: true, key: 'festival_start_date', value: '' },
   { description: 'Festival end date', isPublic: true, key: 'festival_end_date', value: '' },
   { description: 'Festival UI color', isPublic: true, key: 'festival_ui_color', value: '#245b4f' },
+  {
+    description: 'Sliding promotional banners shown in the pilgrim app',
+    isPublic: true,
+    key: 'promotional_banners',
+    value: [],
+  },
   { description: 'Booking pause reason', isPublic: true, key: 'booking_pause_reason', value: '' },
   {
     description: 'Pilgrim app maintenance message',
@@ -305,6 +311,10 @@ export class SettingsService {
     dto: UpdateSystemSettingDto,
     actorUserId: string,
   ): Promise<SystemSetting> {
+    if (key === 'promotional_banners') {
+      await this.validatePromotionalBanners(dto.value);
+    }
+
     const setting = await this.prisma.systemSetting.upsert({
       create: {
         description: dto.description,
@@ -410,6 +420,87 @@ export class SettingsService {
     this.defaultsEnsured = true;
   }
 
+  private async validatePromotionalBanners(value: unknown): Promise<void> {
+    if (!Array.isArray(value) || value.length > 20) {
+      throw new BadRequestException('Promotional banners must be an array with at most 20 items');
+    }
+
+    const banners = value as Array<Partial<PromotionalBanner>>;
+    const ids = new Set<string>();
+    const lodgeSlugs: string[] = [];
+
+    for (const banner of banners) {
+      if (!banner.id || ids.has(banner.id)) {
+        throw new BadRequestException('Every promotional banner requires a unique ID');
+      }
+      ids.add(banner.id);
+
+      if (!['FESTIVAL', 'ANNOUNCEMENT', 'LODGE_PROMOTION'].includes(banner.category ?? '')) {
+        throw new BadRequestException('Select a valid promotional banner category');
+      }
+      if (!banner.title?.trim() || banner.title.length > 120) {
+        throw new BadRequestException('Every promotional banner requires a title');
+      }
+      if (banner.subtitle && banner.subtitle.length > 240) {
+        throw new BadRequestException('Promotional banner subtitles cannot exceed 240 characters');
+      }
+      if (!banner.imageUrl || !/^https:\/\//iu.test(banner.imageUrl)) {
+        throw new BadRequestException('Banner images must use a secure HTTPS URL');
+      }
+      if (banner.linkUrl && !/^https:\/\//iu.test(banner.linkUrl)) {
+        throw new BadRequestException('Banner links must use a secure HTTPS URL');
+      }
+      if (typeof banner.isActive !== 'boolean' || !Number.isInteger(banner.sortOrder)) {
+        throw new BadRequestException('Promotional banner status and order are required');
+      }
+
+      const startsAt = banner.startsAt ? new Date(banner.startsAt) : null;
+      const expiresAt = banner.expiresAt ? new Date(banner.expiresAt) : null;
+      if (
+        (startsAt && Number.isNaN(startsAt.getTime())) ||
+        (expiresAt && Number.isNaN(expiresAt.getTime())) ||
+        (startsAt && expiresAt && startsAt >= expiresAt)
+      ) {
+        throw new BadRequestException('Promotional banner dates must form a valid schedule');
+      }
+
+      if (banner.category === 'LODGE_PROMOTION') {
+        if (!banner.lodgeSlug?.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(banner.lodgeSlug)) {
+          throw new BadRequestException('Lodge promotions require a lodge URL slug');
+        }
+        lodgeSlugs.push(banner.lodgeSlug.trim().toLowerCase());
+      }
+    }
+
+    if (lodgeSlugs.length === 0) {
+      return;
+    }
+
+    const lodges = await this.prisma.lodge.findMany({
+      select: { slug: true },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        slug: { in: lodgeSlugs },
+        status: 'VERIFIED',
+        verificationStatus: 'VERIFIED',
+      },
+    });
+    const counts = lodges.reduce<Map<string, number>>((result, lodge) => {
+      const slug = lodge.slug.toLowerCase();
+      result.set(slug, (result.get(slug) ?? 0) + 1);
+      return result;
+    }, new Map());
+
+    for (const slug of lodgeSlugs) {
+      if (counts.get(slug) !== 1) {
+        throw new BadRequestException(
+          `Lodge slug \"${slug}\" must match one unique, live lodge before it can be promoted`,
+        );
+      }
+    }
+  }
+
   private async ensureDefaultsUncached(): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.systemSetting.createMany({
@@ -418,9 +509,7 @@ export class SettingsService {
           isPublic: setting.isPublic,
           key: setting.key,
           value:
-            setting.value === null
-              ? Prisma.JsonNull
-              : (setting.value as Prisma.InputJsonValue),
+            setting.value === null ? Prisma.JsonNull : (setting.value as Prisma.InputJsonValue),
         })),
         skipDuplicates: true,
       }),

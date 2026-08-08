@@ -41,6 +41,7 @@ export type SocketEventName =
   | 'room:status-updated'
   | 'room:availability-updated'
   | 'announcement:new'
+  | 'lodge:catalog-updated'
   | 'dashboard:update'
   | 'owner:alert'
   | 'system:error';

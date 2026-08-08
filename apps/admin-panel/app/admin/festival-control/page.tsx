@@ -1,6 +1,11 @@
 'use client';
 
-import type { FeatureFlag, SystemSetting } from '@tuljai/types';
+import type {
+  FeatureFlag,
+  PromotionalBanner,
+  PromotionalBannerCategory,
+  SystemSetting,
+} from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -16,10 +21,34 @@ import {
   stringifySettingValue,
 } from '../../../src/platform-control/platform-control-config';
 
+interface BannerFormState {
+  category: PromotionalBannerCategory;
+  expiresAt: string;
+  imageUrl: string;
+  linkUrl: string;
+  lodgeSlug: string;
+  startsAt: string;
+  subtitle: string;
+  title: string;
+}
+
+const initialBannerForm: BannerFormState = {
+  category: 'FESTIVAL',
+  expiresAt: '',
+  imageUrl: '',
+  linkUrl: '',
+  lodgeSlug: '',
+  startsAt: '',
+  subtitle: '',
+  title: '',
+};
+
 export default function AdminFestivalControlPage() {
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [banners, setBanners] = useState<PromotionalBanner[]>([]);
+  const [bannerForm, setBannerForm] = useState<BannerFormState>(initialBannerForm);
   const [reason, setReason] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -33,6 +62,7 @@ export default function AdminFestivalControlPage() {
       ]);
       setSettings(settingsResponse);
       setFlags(flagsResponse);
+      setBanners(readPromotionalBanners(settingsResponse));
       setDrafts(
         Object.fromEntries(
           settingsResponse
@@ -106,6 +136,77 @@ export default function AdminFestivalControlPage() {
     }
   }
 
+  function addBanner() {
+    const title = bannerForm.title.trim();
+    const imageUrl = bannerForm.imageUrl.trim();
+    const linkUrl = bannerForm.linkUrl.trim();
+    const lodgeSlug = bannerForm.lodgeSlug.trim().toLowerCase();
+
+    if (!title || !/^https:\/\//iu.test(imageUrl)) {
+      setErrorMessage('Banner title and a secure HTTPS image URL are required.');
+      return;
+    }
+    if (linkUrl && !/^https:\/\//iu.test(linkUrl)) {
+      setErrorMessage('Optional banner links must use HTTPS.');
+      return;
+    }
+    if (bannerForm.category === 'LODGE_PROMOTION' && !lodgeSlug) {
+      setErrorMessage('Lodge promotions require the unique lodge URL slug.');
+      return;
+    }
+    if (lodgeSlug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(lodgeSlug)) {
+      setErrorMessage('Lodge slugs can contain lowercase letters, numbers, and single hyphens.');
+      return;
+    }
+
+    const startsAt = toIsoDateTime(bannerForm.startsAt);
+    const expiresAt = toIsoDateTime(bannerForm.expiresAt);
+    if (startsAt && expiresAt && startsAt >= expiresAt) {
+      setErrorMessage('Banner end date must be after its start date.');
+      return;
+    }
+
+    setBanners((current) => [
+      ...current,
+      {
+        category: bannerForm.category,
+        expiresAt,
+        id: globalThis.crypto?.randomUUID?.() ?? `banner-${Date.now()}`,
+        imageUrl,
+        isActive: true,
+        linkUrl: bannerForm.category === 'LODGE_PROMOTION' ? null : linkUrl || null,
+        lodgeSlug: bannerForm.category === 'LODGE_PROMOTION' ? lodgeSlug : null,
+        sortOrder: current.length,
+        startsAt,
+        subtitle: bannerForm.subtitle.trim() || null,
+        title,
+      },
+    ]);
+    setBannerForm(initialBannerForm);
+    setErrorMessage(null);
+  }
+
+  async function savePromotionalBanners() {
+    if (!reason.trim()) {
+      setErrorMessage('Promotional banner changes require a reason.');
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      await updateAdminSetting('promotional_banners', {
+        description: 'Sliding promotional banners shown in the pilgrim app',
+        isPublic: true,
+        value: banners.map((banner, index) => ({ ...banner, sortOrder: index })),
+      });
+      await load();
+      setSuccessMessage('Promotional banners published to the pilgrim app.');
+    } catch {
+      setErrorMessage('Banner publishing failed. Check image URLs, links, dates, and lodge slugs.');
+    }
+  }
+
   return (
     <PermissionGate permission="settings.manage">
       <div className="page-stack">
@@ -149,6 +250,184 @@ export default function AdminFestivalControlPage() {
             >
               Disable Festival Mode
             </button>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Festival & Promotions</p>
+              <h3>Sliding pilgrim-app banners</h3>
+              <p className="muted-copy">
+                Festival and announcement banners stay informational unless an HTTPS link is
+                supplied. Lodge promotions always route through the lodge's unique URL slug.
+              </p>
+            </div>
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => void savePromotionalBanners()}
+            >
+              Publish Banners
+            </button>
+          </div>
+
+          <div className="settings-grid">
+            <label className="form-field">
+              <span>Banner category</span>
+              <select
+                value={bannerForm.category}
+                onChange={(event) =>
+                  setBannerForm((current) => ({
+                    ...current,
+                    category: event.target.value as PromotionalBannerCategory,
+                    linkUrl: '',
+                    lodgeSlug: '',
+                  }))
+                }
+              >
+                <option value="FESTIVAL">Festival</option>
+                <option value="ANNOUNCEMENT">Announcement</option>
+                <option value="LODGE_PROMOTION">Lodge Promotion</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Banner title</span>
+              <input
+                maxLength={120}
+                value={bannerForm.title}
+                onChange={(event) =>
+                  setBannerForm((current) => ({ ...current, title: event.target.value }))
+                }
+              />
+            </label>
+            <label className="form-field">
+              <span>Short description</span>
+              <input
+                maxLength={240}
+                value={bannerForm.subtitle}
+                onChange={(event) =>
+                  setBannerForm((current) => ({ ...current, subtitle: event.target.value }))
+                }
+              />
+            </label>
+            <label className="form-field">
+              <span>Banner image URL (HTTPS)</span>
+              <input
+                placeholder="https://.../banner.jpg"
+                type="url"
+                value={bannerForm.imageUrl}
+                onChange={(event) =>
+                  setBannerForm((current) => ({ ...current, imageUrl: event.target.value }))
+                }
+              />
+            </label>
+            {bannerForm.category === 'LODGE_PROMOTION' ? (
+              <label className="form-field">
+                <span>Unique lodge URL slug</span>
+                <input
+                  placeholder="example-lodge-tuljapur"
+                  value={bannerForm.lodgeSlug}
+                  onChange={(event) =>
+                    setBannerForm((current) => ({ ...current, lodgeSlug: event.target.value }))
+                  }
+                />
+                <small>Must match one verified, live lodge. The banner becomes clickable.</small>
+              </label>
+            ) : (
+              <label className="form-field">
+                <span>Optional promotion link</span>
+                <input
+                  placeholder="Leave blank for a non-clickable banner"
+                  type="url"
+                  value={bannerForm.linkUrl}
+                  onChange={(event) =>
+                    setBannerForm((current) => ({ ...current, linkUrl: event.target.value }))
+                  }
+                />
+              </label>
+            )}
+            <label className="form-field">
+              <span>Starts at (optional)</span>
+              <input
+                type="datetime-local"
+                value={bannerForm.startsAt}
+                onChange={(event) =>
+                  setBannerForm((current) => ({ ...current, startsAt: event.target.value }))
+                }
+              />
+            </label>
+            <label className="form-field">
+              <span>Expires at (optional)</span>
+              <input
+                type="datetime-local"
+                value={bannerForm.expiresAt}
+                onChange={(event) =>
+                  setBannerForm((current) => ({ ...current, expiresAt: event.target.value }))
+                }
+              />
+            </label>
+          </div>
+          <div className="quick-actions">
+            <button className="button button-secondary" type="button" onClick={addBanner}>
+              Add Banner to Draft
+            </button>
+          </div>
+
+          <div className="settings-grid">
+            {banners.map((banner, index) => (
+              <article className="settings-card" key={banner.id}>
+                <img
+                  alt=""
+                  src={banner.imageUrl}
+                  style={{
+                    aspectRatio: '16 / 6',
+                    borderRadius: 12,
+                    objectFit: 'cover',
+                    width: '100%',
+                  }}
+                />
+                <div className="section-header">
+                  <div>
+                    <strong>{banner.title}</strong>
+                    <p className="muted-copy">{formatControlLabel(banner.category)}</p>
+                  </div>
+                  <span className="status-card">Slide {index + 1}</span>
+                </div>
+                <p>{banner.subtitle ?? 'No description'}</p>
+                <p className="muted-copy">
+                  {banner.category === 'LODGE_PROMOTION'
+                    ? `Routes to /lodges/${banner.lodgeSlug}`
+                    : banner.linkUrl
+                      ? `Opens ${banner.linkUrl}`
+                      : 'Informational · not clickable'}
+                </p>
+                <div className="quick-actions">
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() =>
+                      setBanners((current) =>
+                        current.map((item) =>
+                          item.id === banner.id ? { ...item, isActive: !item.isActive } : item,
+                        ),
+                      )
+                    }
+                  >
+                    {banner.isActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() =>
+                      setBanners((current) => current.filter((item) => item.id !== banner.id))
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -209,4 +488,15 @@ export default function AdminFestivalControlPage() {
       </div>
     </PermissionGate>
   );
+}
+
+function readPromotionalBanners(settings: SystemSetting[]): PromotionalBanner[] {
+  const value = settings.find((setting) => setting.key === 'promotional_banners')?.value;
+  return Array.isArray(value) ? (value as unknown as PromotionalBanner[]) : [];
+}
+
+function toIsoDateTime(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }

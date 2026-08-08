@@ -12,7 +12,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const auth = useAuth();
   const { t } = useOwnerApp();
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(process.env.EXPO_PUBLIC_OWNER_PREVIEW_PHONE ?? '');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 

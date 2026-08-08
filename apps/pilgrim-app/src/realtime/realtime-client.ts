@@ -9,6 +9,7 @@ type PilgrimServerEvents = Record<
   PilgrimRealtimeEventName,
   (payload: Record<string, unknown>) => void
 > & {
+  'connection:ready': (payload: { authenticated: boolean; connected: boolean }) => void;
   'system:error': (payload: { message?: string }) => void;
 };
 
@@ -25,6 +26,7 @@ export function createRealtimeSocket(accessToken: string): RealtimeSocket {
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: Infinity,
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
+    tryAllTransports: true,
   });
 }

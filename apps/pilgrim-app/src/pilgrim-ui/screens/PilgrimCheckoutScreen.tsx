@@ -23,6 +23,7 @@ export function PilgrimCheckoutScreen() {
   const lodge = lodges.find((item) => item.id === params.lodgeId);
   const initialRoom = lodge?.rooms.find((item) => item.id === params.roomTypeId) ?? lodge?.rooms[0];
   const [step, setStep] = useState(1);
+  const [furthestStepReached, setFurthestStepReached] = useState(1);
   const [roomId, setRoomId] = useState(initialRoom?.id ?? '');
   const [checkInDate, setCheckInDate] = useState(initialCheckInDate);
   const [checkOutDate, setCheckOutDate] = useState(initialCheckOutDate);
@@ -93,7 +94,11 @@ export function PilgrimCheckoutScreen() {
       );
       return;
     }
-    setStep((current) => Math.min(3, current + 1));
+    setStep((current) => {
+      const nextStep = Math.min(3, current + 1);
+      setFurthestStepReached((furthest) => Math.max(furthest, nextStep));
+      return nextStep;
+    });
   }
 
   async function pickGuestIdProof() {
@@ -247,6 +252,7 @@ export function PilgrimCheckoutScreen() {
         {stepMeta.map((item, index) => {
           const number = index + 1;
           const active = number <= step;
+          const canOpen = number <= furthestStepReached;
           return (
             <View className="flex-1 items-center" key={item.label}>
               <View className="w-full flex-row items-center">
@@ -257,15 +263,20 @@ export function PilgrimCheckoutScreen() {
                 ) : (
                   <View className="flex-1" />
                 )}
-                <View
+                <Pressable
+                  accessibilityLabel={t(`Open ${item.label} step`, `${item.label} पायरी उघडा`)}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canOpen, selected: number === step }}
                   className={`h-11 w-11 items-center justify-center rounded-full ${active ? 'bg-saffron-500' : 'bg-warm-200'}`}
+                  disabled={!canOpen}
+                  onPress={() => setStep(number)}
                 >
                   <MaterialCommunityIcons
                     color={active ? '#FFFFFF' : ui.muted}
                     name={item.icon}
                     size={20}
                   />
-                </View>
+                </Pressable>
                 {index < stepMeta.length - 1 ? (
                   <View
                     className={`h-0.5 flex-1 ${number < step ? 'bg-saffron-500' : 'bg-warm-200'}`}
@@ -598,6 +609,84 @@ export function PilgrimCheckoutScreen() {
               offer={t('Room held until arrival time', 'आगमन वेळेपर्यंत खोली राखीव')}
               onPress={() => setPayment('lodge')}
             />
+          </View>
+
+          <View className="gap-3 rounded-3xl border border-warm-100 bg-white p-5">
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="flex-1">
+                <Text className="text-lg font-extrabold text-warm-900">
+                  {t('Review your details', 'तुमची माहिती तपासा')}
+                </Text>
+                <Text className="mt-1 text-xs leading-4 text-warm-500">
+                  {t(
+                    'Check everything before confirming the booking.',
+                    'बुकिंग निश्चित करण्यापूर्वी सर्व माहिती तपासा.',
+                  )}
+                </Text>
+              </View>
+              <MaterialCommunityIcons color={ui.green} name="shield-check-outline" size={25} />
+            </View>
+
+            <Pressable
+              accessibilityHint={t(
+                'Return to stay details to make changes',
+                'बदल करण्यासाठी निवास तपशीलांवर परत जा',
+              )}
+              accessibilityRole="button"
+              className="flex-row items-center gap-3 rounded-2xl bg-warm-50 p-4"
+              onPress={() => setStep(1)}
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                <MaterialCommunityIcons color={ui.saffronDeep} name="bed-outline" size={21} />
+              </View>
+              <View className="min-w-0 flex-1">
+                <Text className="text-xs font-bold uppercase tracking-wide text-warm-500">
+                  {t('Stay', 'निवास')}
+                </Text>
+                <Text className="mt-1 text-sm font-extrabold text-warm-900" numberOfLines={1}>
+                  {room.name} · {adults + children} {t('guests', 'पाहुणे')}
+                </Text>
+                <Text className="mt-0.5 text-xs text-warm-500" numberOfLines={1}>
+                  {stayLabel}
+                </Text>
+              </View>
+              <MaterialCommunityIcons color={ui.maroon} name="pencil-outline" size={20} />
+            </Pressable>
+
+            <Pressable
+              accessibilityHint={t(
+                'Return to personal details to edit the mobile number',
+                'मोबाइल क्रमांक बदलण्यासाठी वैयक्तिक माहितीवर परत जा',
+              )}
+              accessibilityRole="button"
+              className="flex-row items-center gap-3 rounded-2xl bg-saffron-50 p-4"
+              onPress={() => setStep(2)}
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                <MaterialCommunityIcons color={ui.saffronDeep} name="account-outline" size={21} />
+              </View>
+              <View className="min-w-0 flex-1">
+                <Text className="text-xs font-bold uppercase tracking-wide text-warm-500">
+                  {t('Personal details', 'वैयक्तिक माहिती')}
+                </Text>
+                <Text className="mt-1 text-sm font-extrabold text-warm-900" numberOfLines={1}>
+                  {name.trim()}
+                </Text>
+                <Text className="mt-0.5 text-xs text-warm-600">
+                  +91 {phone.slice(0, 5)} {phone.slice(5)}
+                  {email.trim() ? ` · ${email.trim()}` : ''}
+                </Text>
+                <Text
+                  className="mt-1 text-[11px] font-semibold text-templeGreen-700"
+                  numberOfLines={1}
+                >
+                  {guestIdProof
+                    ? t(`ID ready: ${guestIdProof.name}`, `ओळखपत्र तयार: ${guestIdProof.name}`)
+                    : t('ID proof not selected', 'ओळखपत्र निवडलेले नाही')}
+                </Text>
+              </View>
+              <MaterialCommunityIcons color={ui.maroon} name="pencil-outline" size={20} />
+            </Pressable>
           </View>
 
           <View className="rounded-3xl border border-warm-100 bg-white p-5">

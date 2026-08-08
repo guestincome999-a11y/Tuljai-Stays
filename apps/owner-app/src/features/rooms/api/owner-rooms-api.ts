@@ -1,4 +1,11 @@
-import type { LodgePhoto, PhotoCategory, Room, RoomStatus, RoomType } from '@tuljai/types';
+import type {
+  LodgePhoto,
+  ManualBookingBlock,
+  PhotoCategory,
+  Room,
+  RoomStatus,
+  RoomType,
+} from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
 
@@ -26,6 +33,14 @@ export interface PhotoMetadataInput {
   roomTypeId?: string;
   sortOrder?: number;
   thumbnailUrl?: string;
+}
+
+export interface ManualBookingInput {
+  checkInDate: string;
+  checkOutDate: string;
+  guestName: string;
+  guestPhone: string;
+  notes?: string;
 }
 
 export async function listRoomTypes(lodgeId: string): Promise<RoomType[]> {
@@ -65,6 +80,23 @@ export async function updateRoomStatus(roomId: string, status: RoomStatus): Prom
   return apiClient.request<Room>(`/owner/rooms/${roomId}/status`, {
     body: { status },
     method: 'PATCH',
+  });
+}
+
+export async function listManualBookings(lodgeId: string): Promise<ManualBookingBlock[]> {
+  return apiClient.get<ManualBookingBlock[]>(`/owner/lodges/${lodgeId}/manual-bookings`);
+}
+
+export async function createManualBooking(
+  roomId: string,
+  input: ManualBookingInput,
+): Promise<ManualBookingBlock> {
+  return apiClient.post<ManualBookingBlock>(`/owner/rooms/${roomId}/manual-bookings`, input);
+}
+
+export async function deleteManualBooking(bookingId: string): Promise<{ deleted: boolean }> {
+  return apiClient.request<{ deleted: boolean }>(`/owner/manual-bookings/${bookingId}`, {
+    method: 'DELETE',
   });
 }
 

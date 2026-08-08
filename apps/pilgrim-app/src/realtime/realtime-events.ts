@@ -4,10 +4,12 @@ export type PilgrimRealtimeEventName = Extract<
   SocketEventName,
   | 'announcement:new'
   | 'booking:accepted'
+  | 'booking:cancelled'
   | 'booking:expired'
   | 'booking:rejected'
   | 'checkin:completed'
   | 'checkout:completed'
+  | 'lodge:catalog-updated'
   | 'notification:new'
   | 'notification:unread-count'
   | 'qr:generated'
@@ -22,6 +24,10 @@ export interface PilgrimRealtimeEvent {
 export function getRealtimeMessage(event: PilgrimRealtimeEvent): string | null {
   if (event.name === 'booking:accepted') {
     return 'Your booking has been accepted!';
+  }
+
+  if (event.name === 'booking:cancelled') {
+    return 'Your booking was cancelled.';
   }
 
   if (event.name === 'qr:generated') {

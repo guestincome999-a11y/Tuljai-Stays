@@ -21,6 +21,7 @@ import {
 
 interface RealtimeContextValue {
   connected: boolean;
+  connectionRevision: number;
   lastBookingRequest: OwnerRealtimeEvent | null;
   lastEvent: OwnerRealtimeEvent | null;
   ownerStatus: OwnerStatus;
@@ -29,6 +30,7 @@ interface RealtimeContextValue {
 
 const RealtimeContext = createContext<RealtimeContextValue>({
   connected: false,
+  connectionRevision: 0,
   lastBookingRequest: null,
   lastEvent: null,
   ownerStatus: 'AVAILABLE',
@@ -45,6 +47,7 @@ const eventNames: OwnerRealtimeEventName[] = [
   'checkin:completed',
   'checkout:completed',
   'dashboard:update',
+  'lodge:catalog-updated',
   'notification:new',
   'notification:unread-count',
   'owner:alert',
@@ -57,6 +60,7 @@ const eventNames: OwnerRealtimeEventName[] = [
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const [connected, setConnected] = useState(false);
+  const [connectionRevision, setConnectionRevision] = useState(0);
   const [lastBookingRequest, setLastBookingRequest] = useState<OwnerRealtimeEvent | null>(null);
   const [lastEvent, setLastEvent] = useState<OwnerRealtimeEvent | null>(null);
   const [ownerStatus, setOwnerStatusState] = useState<OwnerStatus>('AVAILABLE');
@@ -83,12 +87,19 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     setSocket(nextSocket);
 
-    nextSocket.on('connect', () => setConnected(true));
+    nextSocket.on('connect', () => setConnected(false));
+    nextSocket.on('connection:ready', (payload) => {
+      setConnected(payload.authenticated);
+      if (payload.authenticated) {
+        setConnectionRevision((current) => current + 1);
+      }
+    });
+    nextSocket.on('connect_error', () => setConnected(false));
+    nextSocket.on('disconnect', () => setConnected(false));
     nextSocket.on('system:error', () => {
       setConnected(false);
       void auth.refreshSession();
     });
-    nextSocket.on('disconnect', () => setConnected(false));
 
     for (const eventName of eventNames) {
       nextSocket.on(eventName, (payload) => {
@@ -126,8 +137,15 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ connected, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus }),
-    [connected, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus],
+    () => ({
+      connected,
+      connectionRevision,
+      lastBookingRequest,
+      lastEvent,
+      ownerStatus,
+      setOwnerStatus,
+    }),
+    [connected, connectionRevision, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus],
   );
 
   return (

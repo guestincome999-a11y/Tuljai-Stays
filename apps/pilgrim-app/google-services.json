@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "864882590916",
+    "project_id": "tuljai-stays",
+    "storage_bucket": "tuljai-stays.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:864882590916:android:34bd5dc64973dcf1b6b591",
+        "android_client_info": {
+          "package_name": "com.tuljaistays.owner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCmr_9_Cx1_ewiXpz17gCS_g813qA9v9M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:864882590916:android:c50e65943c41a03fb6b591",
+        "android_client_info": {
+          "package_name": "com.tuljaistays.pilgrim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCmr_9_Cx1_ewiXpz17gCS_g813qA9v9M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

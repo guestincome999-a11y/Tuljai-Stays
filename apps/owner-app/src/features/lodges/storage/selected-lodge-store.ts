@@ -46,6 +46,14 @@ export async function saveSelectedLodge(lodge: Lodge): Promise<void> {
   ]);
 }
 
+export async function saveSelectedLodgeId(lodgeId: string): Promise<void> {
+  if (!(await isSecureStoreAvailable())) {
+    return;
+  }
+
+  await SecureStore.setItemAsync(SELECTED_LODGE_ID_KEY, lodgeId);
+}
+
 export async function clearSelectedLodge(): Promise<void> {
   if (!(await isSecureStoreAvailable())) {
     return;

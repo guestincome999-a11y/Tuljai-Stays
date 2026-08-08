@@ -1,10 +1,12 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
 
-import { requestLoginOtp } from '../../auth/auth-api';
+import { requestLoginOtp, useMockExperience } from '../../auth/auth-api';
 import { useAuth } from '../../auth/auth-context';
+import { GoogleLoginCancelledError, startGoogleLogin } from '../../auth/google-auth';
+import { AnimatedWelcomeSplash } from '../../components/AnimatedWelcomeSplash';
 import { AppScreen, BrandMark, Field, LanguageToggle, PrimaryButton, ui } from '../components';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
@@ -19,9 +21,11 @@ function normalizeIndianMobile(value: string): string | null {
 
 export function PilgrimLoginScreen() {
   const router = useRouter();
+  const auth = useAuth();
   const { t } = usePilgrimApp();
-  const [phone, setPhone] = useState('9876543210');
+  const [phone, setPhone] = useState(useMockExperience() ? '9876543210' : '');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   async function sendOtp() {
@@ -47,6 +51,26 @@ export function PilgrimLoginScreen() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function continueWithGoogle() {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const supabaseAccessToken = await startGoogleLogin();
+      await auth.signInWithGoogle(supabaseAccessToken);
+    } catch (loginError) {
+      if (!(loginError instanceof GoogleLoginCancelledError)) {
+        setError(
+          t(
+            'We could not sign you in with Google. Please try again.',
+            'Google सह साइन इन करता आले नाही. कृपया पुन्हा प्रयत्न करा.',
+          ),
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   }
 
@@ -80,8 +104,8 @@ export function PilgrimLoginScreen() {
         </Text>
         <Text className="mt-2 text-sm leading-5 text-warm-500">
           {t(
-            'Sign in securely with your mobile number.',
-            'तुमच्या मोबाइल क्रमांकाने सुरक्षितपणे साइन इन करा.',
+            'Sign in securely with your mobile number or Google account.',
+            'तुमच्या मोबाइल क्रमांकाने किंवा Google खात्याने सुरक्षितपणे साइन इन करा.',
           )}
         </Text>
       </View>
@@ -106,9 +130,39 @@ export function PilgrimLoginScreen() {
           </View>
         ) : null}
       </View>
-      <PrimaryButton icon="arrow-right" loading={loading} onPress={() => void sendOtp()}>
+      <PrimaryButton
+        disabled={googleLoading}
+        icon="arrow-right"
+        loading={loading}
+        onPress={() => void sendOtp()}
+      >
         {t('Send OTP', 'OTP पाठवा')}
       </PrimaryButton>
+
+      <View className="flex-row items-center gap-3">
+        <View className="h-px flex-1 bg-warm-200" />
+        <Text className="text-xs font-bold uppercase tracking-widest text-warm-400">
+          {t('or', 'किंवा')}
+        </Text>
+        <View className="h-px flex-1 bg-warm-200" />
+      </View>
+
+      <Pressable
+        accessibilityLabel={t('Continue with Google', 'Google सह पुढे चला')}
+        accessibilityRole="button"
+        className={`min-h-14 flex-row items-center justify-center gap-3 rounded-2xl border border-warm-200 bg-white px-5 ${loading || googleLoading ? 'opacity-60' : 'active:bg-warm-50'}`}
+        disabled={loading || googleLoading}
+        onPress={() => void continueWithGoogle()}
+      >
+        {googleLoading ? (
+          <ActivityIndicator color={ui.maroon} />
+        ) : (
+          <MaterialCommunityIcons color="#4285F4" name="google" size={23} />
+        )}
+        <Text className="text-base font-extrabold text-warm-900">
+          {t('Continue with Google', 'Google सह पुढे चला')}
+        </Text>
+      </Pressable>
 
       <View className="flex-row items-start gap-3 rounded-2xl bg-saffron-50 p-4">
         <MaterialCommunityIcons color={ui.saffronDeep} name="shield-lock-outline" size={22} />
@@ -275,27 +329,18 @@ export function PilgrimVerifyOtpScreen() {
 
 export function PilgrimBootstrapScreen() {
   const { bootstrapComplete, isAuthenticated } = useAuth();
-  const { t } = usePilgrimApp();
-  if (bootstrapComplete)
+  const [minimumDisplayComplete, setMinimumDisplayComplete] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setMinimumDisplayComplete(true), 2200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (bootstrapComplete && minimumDisplayComplete) {
     return <Redirect href={isAuthenticated ? '/(app)/home' : '/(auth)/login'} />;
-  return (
-    <AppScreen className="items-center justify-center" scroll={false}>
-      <View className="h-24 w-24 items-center justify-center rounded-[32px] bg-saffron-500 shadow-lg shadow-saffron-800/30">
-        <MaterialCommunityIcons color="#FFFFFF" name="temple-hindu" size={53} />
-      </View>
-      <Text className="mt-7 text-3xl font-extrabold tracking-tight text-warm-900">
-        Tuljai Stays
-      </Text>
-      <Text className="mt-2 text-center text-sm font-semibold text-maroon-700">
-        {t('Trusted stays for every darshan', 'प्रत्येक दर्शनासाठी विश्वासू निवास')}
-      </Text>
-      <View className="mt-9 flex-row gap-2">
-        <View className="h-2 w-2 rounded-full bg-saffron-500" />
-        <View className="h-2 w-2 rounded-full bg-saffron-300" />
-        <View className="h-2 w-2 rounded-full bg-saffron-200" />
-      </View>
-    </AppScreen>
-  );
+  }
+
+  return <AnimatedWelcomeSplash />;
 }
 
 function formatPhone(phone: string): string {

@@ -3,6 +3,7 @@
     "name": "Tuljai Stays",
     "slug": "tuljai-stays-pilgrim",
     "scheme": "tuljai-stays",
+    "icon": "./assets/icon.png",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -11,8 +12,10 @@
     ],
     "android": {
       "package": "com.tuljaistays.pilgrim",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#FAF7F2"
+        "backgroundColor": "#C95516",
+        "foregroundImage": "./assets/adaptive-icon.png"
       }
     },
     "ios": {
@@ -22,8 +25,25 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-splash-screen",
-      "expo-status-bar"
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F24A00",
+          "image": "./assets/splash-screen.png",
+          "imageWidth": 288,
+          "resizeMode": "cover"
+        }
+      ],
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "color": "#C95516",
+          "defaultChannel": "general-v1",
+          "icon": "./assets/notification-icon.png"
+        }
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

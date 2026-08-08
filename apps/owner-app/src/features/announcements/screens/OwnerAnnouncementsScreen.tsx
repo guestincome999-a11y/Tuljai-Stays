@@ -1,6 +1,7 @@
 import type { Announcement, AnnouncementCategory } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
-import { memo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
@@ -20,10 +21,43 @@ const categories: Array<{ label: string; value: AnnouncementCategory | null }> =
 ];
 
 export function OwnerAnnouncementsScreen() {
+  const params = useLocalSearchParams<{ announcementId?: string }>();
   const { isOffline } = useConnectivity();
   const theme = useTheme();
   const [activeCategory, setActiveCategory] = useState<AnnouncementCategory | null>(null);
   const announcements = useOwnerAnnouncements(activeCategory);
+  const markedAnnouncementIdRef = useRef<string | null>(null);
+  const focusedAnnouncementId =
+    typeof params.announcementId === 'string' ? params.announcementId : null;
+  const displayedAnnouncements = useMemo(
+    () =>
+      focusedAnnouncementId
+        ? [...announcements.data].sort((left, right) => {
+            if (left.id === focusedAnnouncementId) return -1;
+            if (right.id === focusedAnnouncementId) return 1;
+            return 0;
+          })
+        : announcements.data,
+    [announcements.data, focusedAnnouncementId],
+  );
+  const focusedAnnouncement = useMemo(
+    () =>
+      announcements.data.find(
+        (announcement) => announcement.id === focusedAnnouncementId,
+      ),
+    [announcements.data, focusedAnnouncementId],
+  );
+
+  useEffect(() => {
+    if (
+      focusedAnnouncement &&
+      !focusedAnnouncement.readAt &&
+      markedAnnouncementIdRef.current !== focusedAnnouncement.id
+    ) {
+      markedAnnouncementIdRef.current = focusedAnnouncement.id;
+      void announcements.markRead(focusedAnnouncement.id);
+    }
+  }, [announcements, focusedAnnouncement]);
 
   return (
     <ScrollView
@@ -80,10 +114,11 @@ export function OwnerAnnouncementsScreen() {
       ) : null}
 
       <View style={styles.list}>
-        {announcements.data.map((announcement) => (
+        {displayedAnnouncements.map((announcement) => (
           <AnnouncementCard
             announcement={announcement}
             disabled={isOffline}
+            focused={announcement.id === focusedAnnouncementId}
             key={announcement.id}
             onRead={() => {
               void announcements.markRead(announcement.id);
@@ -98,10 +133,12 @@ export function OwnerAnnouncementsScreen() {
 const AnnouncementCard = memo(function AnnouncementCard({
   announcement,
   disabled,
+  focused,
   onRead,
 }: {
   announcement: Announcement;
   disabled: boolean;
+  focused: boolean;
   onRead: () => void;
 }) {
   const theme = useTheme();
@@ -111,7 +148,10 @@ const AnnouncementCard = memo(function AnnouncementCard({
     announcement.priority === 'CRITICAL';
 
   return (
-    <Card mode={prominent ? 'contained' : 'outlined'} style={styles.card}>
+    <Card
+      mode={prominent ? 'contained' : 'outlined'}
+      style={[styles.card, focused ? styles.focusedCard : undefined]}
+    >
       <Card.Content style={styles.cardContent}>
         <View style={styles.chips}>
           <Chip compact>{formatCategory(announcement.category)}</Chip>
@@ -171,6 +211,10 @@ const styles = StyleSheet.create({
   filters: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  focusedCard: {
+    borderColor: '#F97316',
+    borderWidth: 2,
   },
   header: {
     gap: spacing.xs,

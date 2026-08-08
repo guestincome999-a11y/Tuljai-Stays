@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { useRealtime } from '../../../realtime/realtime-provider';
 import { listAssignedLodges } from '../api/owner-lodges-api';
 import {
   getCachedSelectedLodge,
@@ -21,6 +22,7 @@ interface AssignedLodgesState {
 export function useAssignedLodges() {
   const auth = useAuth();
   const { isOffline } = useConnectivity();
+  const realtime = useRealtime();
   const [state, setState] = useState<AssignedLodgesState>({
     errorMessage: null,
     isLoading: true,
@@ -99,6 +101,12 @@ export function useAssignedLodges() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (realtime.lastEvent?.name === 'lodge:catalog-updated') {
+      void load(true);
+    }
+  }, [load, realtime.lastEvent]);
 
   return {
     ...state,

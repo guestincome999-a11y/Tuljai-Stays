@@ -2,6 +2,7 @@ import type { Notification, NotificationType } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { syncOwnerNotificationBadge } from '../../../notifications/push-registration';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import {
   deleteNotification,
@@ -31,6 +32,10 @@ export function useUnreadNotificationCount() {
   }, [refresh]);
 
   useEffect(() => {
+    void syncOwnerNotificationBadge(unreadCount);
+  }, [unreadCount]);
+
+  useEffect(() => {
     const event = realtime.lastEvent;
 
     if (event?.name === 'notification:unread-count') {
@@ -47,6 +52,12 @@ export function useUnreadNotificationCount() {
       void refresh();
     }
   }, [realtime.lastEvent, refresh]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) {
+      void refresh();
+    }
+  }, [realtime.connectionRevision, refresh]);
 
   return { refresh, unreadCount };
 }
@@ -108,6 +119,12 @@ export function useOwnerNotifications(activeType: NotificationType | null) {
       void load(true);
     }
   }, [load, realtime.lastEvent]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) {
+      void load(true);
+    }
+  }, [load, realtime.connectionRevision]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>) => {

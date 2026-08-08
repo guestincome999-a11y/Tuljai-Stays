@@ -97,9 +97,13 @@ export async function listMyBookings(): Promise<EnrichedBooking[]> {
 }
 
 export async function getBooking(bookingId: string): Promise<EnrichedBooking> {
-  const booking = await apiClient.get<Booking>(`/bookings/${bookingId}`);
+  const booking = await getBookingRecord(bookingId);
 
   return enrichBooking(booking);
+}
+
+export async function getBookingRecord(bookingId: string): Promise<Booking> {
+  return apiClient.get<Booking>(`/bookings/${bookingId}`);
 }
 
 export async function cancelBooking(bookingId: string, reason?: string): Promise<Booking> {

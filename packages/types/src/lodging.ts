@@ -18,6 +18,21 @@ export type PriceType = 'NORMAL' | 'WEEKEND' | 'FESTIVAL' | 'MANUAL_OVERRIDE';
 export type PhotoCategory =
   'COVER' | 'EXTERIOR' | 'RECEPTION' | 'ROOM' | 'BATHROOM' | 'PARKING' | 'AMENITY' | 'OTHER';
 export type PhotoApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type PromotionalBannerCategory = 'FESTIVAL' | 'ANNOUNCEMENT' | 'LODGE_PROMOTION';
+
+export interface PromotionalBanner {
+  category: PromotionalBannerCategory;
+  expiresAt: string | null;
+  id: string;
+  imageUrl: string;
+  isActive: boolean;
+  linkUrl: string | null;
+  lodgeSlug: string | null;
+  sortOrder: number;
+  startsAt: string | null;
+  subtitle: string | null;
+  title: string;
+}
 
 export interface City {
   country: string;
@@ -148,6 +163,20 @@ export interface Room {
   roomNumber: string;
   roomTypeId: UUID;
   status: RoomStatus;
+}
+
+export interface ManualBookingBlock {
+  checkInDate: string;
+  checkOutDate: string;
+  createdAt: ISODateTime;
+  guestName: string;
+  guestPhone: string;
+  id: UUID;
+  lodgeId: UUID;
+  notes: string | null;
+  roomId: UUID;
+  roomNumber: string;
+  roomTypeId: UUID;
 }
 
 export interface LodgePhoto {

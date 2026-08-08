@@ -67,6 +67,12 @@ export function useOwnerBookingDetail(bookingId: string | null) {
     void load(true);
   }, [bookingId, load, realtime.lastEvent]);
 
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) {
+      void load(true);
+    }
+  }, [load, realtime.connectionRevision]);
+
   return {
     ...state,
     refresh: () => load(true),

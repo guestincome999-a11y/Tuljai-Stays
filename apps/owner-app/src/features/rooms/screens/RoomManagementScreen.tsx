@@ -1,7 +1,15 @@
-import type { LodgePhoto, PhotoCategory, Room, RoomStatus, RoomType } from '@tuljai/types';
+import type {
+  LodgePhoto,
+  ManualBookingBlock,
+  PhotoCategory,
+  Room,
+  RoomStatus,
+  RoomType,
+} from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { useLocalSearchParams } from 'expo-router';
 import type { PropsWithChildren } from 'react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
@@ -48,6 +56,7 @@ const photoCategories: PhotoCategory[] = [
 ];
 
 export function RoomManagementScreen() {
+  const params = useLocalSearchParams<{ roomId?: string; roomTypeId?: string }>();
   const assignedLodges = useAssignedLodges();
   const amenities = useOwnerAmenities();
   const rooms = useRoomOperations();
@@ -55,9 +64,30 @@ export function RoomManagementScreen() {
   const [activeTab, setActiveTab] = useState<RoomTab>('AMENITIES');
   const [roomTypeFormVisible, setRoomTypeFormVisible] = useState(false);
   const [roomFormVisible, setRoomFormVisible] = useState(false);
+  const [manualBookingFormVisible, setManualBookingFormVisible] = useState(false);
   const [photoFormVisible, setPhotoFormVisible] = useState(false);
   const selectedLodgeName = assignedLodges.selectedLodge?.name ?? 'No lodge selected';
   const statusCounts = getRoomStatusCounts(rooms.rooms);
+  const focusedRoomId = typeof params.roomId === 'string' ? params.roomId : null;
+  const focusedRoomTypeId = typeof params.roomTypeId === 'string' ? params.roomTypeId : null;
+  const displayedRooms = useMemo(
+    () =>
+      focusedRoomId || focusedRoomTypeId
+        ? [...rooms.rooms].sort((left, right) => {
+            const leftFocused = left.id === focusedRoomId || left.roomTypeId === focusedRoomTypeId;
+            const rightFocused =
+              right.id === focusedRoomId || right.roomTypeId === focusedRoomTypeId;
+            return Number(rightFocused) - Number(leftFocused);
+          })
+        : rooms.rooms,
+    [focusedRoomId, focusedRoomTypeId, rooms.rooms],
+  );
+
+  useEffect(() => {
+    if (focusedRoomId || focusedRoomTypeId) {
+      setActiveTab('ROOMS');
+    }
+  }, [focusedRoomId, focusedRoomTypeId]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -114,7 +144,9 @@ export function RoomManagementScreen() {
           }
         />
 
-        {rooms.isLoading || amenities.isLoading ? <ActivityIndicator animating size="large" /> : null}
+        {rooms.isLoading || amenities.isLoading ? (
+          <ActivityIndicator animating size="large" />
+        ) : null}
 
         {activeTab === 'AMENITIES' ? (
           <AmenitiesTab
@@ -143,8 +175,10 @@ export function RoomManagementScreen() {
           <RoomsTab
             housekeepingNotes={rooms.housekeepingNotes}
             isSubmitting={rooms.isSubmitting}
+            focusedRoomId={focusedRoomId}
+            focusedRoomTypeId={focusedRoomTypeId}
             roomTypeById={rooms.roomTypeById}
-            rooms={rooms.rooms}
+            rooms={displayedRooms}
             onAdd={() => setRoomFormVisible(true)}
             onSaveNote={(roomId, note) => {
               void rooms.saveHousekeepingNote(roomId, note);
@@ -173,7 +207,29 @@ export function RoomManagementScreen() {
         ) : null}
 
         {activeTab === 'AVAILABILITY' ? (
-          <AvailabilityTab rooms={rooms.rooms} roomTypeById={rooms.roomTypeById} />
+          <AvailabilityTab
+            isSubmitting={rooms.isSubmitting}
+            manualBookings={rooms.manualBookings}
+            roomTypeById={rooms.roomTypeById}
+            rooms={rooms.rooms}
+            onAdd={() => setManualBookingFormVisible(true)}
+            onRemove={(booking) => {
+              Alert.alert(
+                'Remove offline booking?',
+                `Room ${booking.roomNumber} will become available again for ${booking.checkInDate} to ${booking.checkOutDate}.`,
+                [
+                  { style: 'cancel', text: 'Keep booking' },
+                  {
+                    onPress: () => {
+                      void rooms.deleteManualBooking(booking.id);
+                    },
+                    style: 'destructive',
+                    text: 'Remove booking',
+                  },
+                ],
+              );
+            }}
+          />
         ) : null}
 
         {activeTab === 'GALLERY' ? (
@@ -202,6 +258,19 @@ export function RoomManagementScreen() {
           void rooms.createRoom(roomTypeId, input).then((saved) => {
             if (saved) {
               setRoomFormVisible(false);
+            }
+          });
+        }}
+      />
+      <ManualBookingModal
+        isSubmitting={rooms.isSubmitting}
+        rooms={rooms.rooms}
+        visible={manualBookingFormVisible}
+        onClose={() => setManualBookingFormVisible(false)}
+        onSubmit={(roomId, input) => {
+          void rooms.createManualBooking(roomId, input).then((saved) => {
+            if (saved) {
+              setManualBookingFormVisible(false);
             }
           });
         }}
@@ -355,6 +424,8 @@ function RoomTypesTab({
 }
 
 function RoomsTab({
+  focusedRoomId,
+  focusedRoomTypeId,
   housekeepingNotes,
   isSubmitting,
   onAdd,
@@ -363,6 +434,8 @@ function RoomsTab({
   roomTypeById,
   rooms,
 }: {
+  focusedRoomId: string | null;
+  focusedRoomTypeId: string | null;
   housekeepingNotes: Record<string, string>;
   isSubmitting: boolean;
   onAdd: () => void;
@@ -379,6 +452,7 @@ function RoomsTab({
       {rooms.map((room) => (
         <RoomCard
           housekeepingNote={housekeepingNotes[room.id] ?? ''}
+          focused={room.id === focusedRoomId || room.roomTypeId === focusedRoomTypeId}
           isSubmitting={isSubmitting}
           key={room.id}
           room={room}
@@ -392,6 +466,7 @@ function RoomsTab({
 }
 
 function RoomCard({
+  focused,
   housekeepingNote,
   isSubmitting,
   onSaveNote,
@@ -399,6 +474,7 @@ function RoomCard({
   room,
   roomType,
 }: {
+  focused: boolean;
   housekeepingNote: string;
   isSubmitting: boolean;
   onSaveNote: (roomId: string, note: string) => void;
@@ -409,7 +485,7 @@ function RoomCard({
   const [note, setNote] = useState(housekeepingNote);
 
   return (
-    <Card mode="outlined" style={styles.card}>
+    <Card mode="outlined" style={[styles.card, focused ? styles.focusedCard : undefined]}>
       <Card.Content style={styles.cardContent}>
         <View style={styles.cardHeader}>
           <View style={styles.titleBlock}>
@@ -449,21 +525,63 @@ function RoomCard({
 }
 
 function AvailabilityTab({
+  isSubmitting,
+  manualBookings,
+  onAdd,
+  onRemove,
   roomTypeById,
   rooms,
 }: {
+  isSubmitting: boolean;
+  manualBookings: ManualBookingBlock[];
+  onAdd: () => void;
+  onRemove: (booking: ManualBookingBlock) => void;
   roomTypeById: Map<string, RoomType>;
   rooms: Room[];
 }) {
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() + index);
-    return date;
-  });
-  const counts = getRoomStatusCounts(rooms);
-
   return (
     <View style={styles.section}>
+      <Button disabled={rooms.length === 0} icon="calendar-plus" mode="contained" onPress={onAdd}>
+        Add Offline Booking
+      </Button>
+      <Text variant="bodyMedium">
+        Record phone or walk-in bookings here. The selected room is blocked for those nights in live
+        pilgrim availability.
+      </Text>
+      {manualBookings.length === 0 ? (
+        <EmptyState
+          title="No offline bookings"
+          description="Bookings received outside the app will appear here."
+        />
+      ) : null}
+      {manualBookings.map((booking) => (
+        <Card key={booking.id} mode="outlined" style={styles.card}>
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+              <View style={styles.titleBlock}>
+                <Text variant="titleMedium">{booking.guestName}</Text>
+                <Text variant="bodySmall">
+                  Room {booking.roomNumber} · {booking.guestPhone}
+                </Text>
+              </View>
+              <Chip>Offline booking</Chip>
+            </View>
+            <Text variant="bodyMedium">
+              {formatBookingDate(booking.checkInDate)} to {formatBookingDate(booking.checkOutDate)}
+            </Text>
+            {booking.notes ? <Text variant="bodySmall">{booking.notes}</Text> : null}
+            <Button
+              disabled={isSubmitting}
+              icon="calendar-remove"
+              mode="outlined"
+              textColor="#B3261E"
+              onPress={() => onRemove(booking)}
+            >
+              Remove and release room
+            </Button>
+          </Card.Content>
+        </Card>
+      ))}
       <Text variant="titleMedium">Room Board</Text>
       {rooms.map((room) => (
         <Card key={room.id} mode="outlined" style={styles.card}>
@@ -478,28 +596,6 @@ function AvailabilityTab({
           </Card.Content>
         </Card>
       ))}
-      <Text variant="titleMedium">Next 7 Days Foundation</Text>
-      {days.map((day) => (
-        <Card key={day.toISOString()} mode="outlined" style={styles.card}>
-          <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">
-              {day.toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                weekday: 'short',
-              })}
-            </Text>
-            <Text variant="bodyMedium">
-              Available {counts.AVAILABLE ?? 0} | Reserved {counts.RESERVED ?? 0} | Occupied{' '}
-              {counts.OCCUPIED ?? 0} | Maintenance/Blocked{' '}
-              {(counts.MAINTENANCE ?? 0) + (counts.BLOCKED ?? 0)}
-            </Text>
-          </Card.Content>
-        </Card>
-      ))}
-      <Text variant="bodySmall">
-        Date-wise pricing and reservation overlays will use booking inventory APIs when available.
-      </Text>
     </View>
   );
 }
@@ -707,6 +803,109 @@ function RoomModal({
   );
 }
 
+function ManualBookingModal({
+  isSubmitting,
+  onClose,
+  onSubmit,
+  rooms,
+  visible,
+}: {
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (
+    roomId: string,
+    input: {
+      checkInDate: string;
+      checkOutDate: string;
+      guestName: string;
+      guestPhone: string;
+      notes?: string;
+    },
+  ) => void;
+  rooms: Room[];
+  visible: boolean;
+}) {
+  const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
+  const [guestName, setGuestName] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
+  const [checkInDate, setCheckInDate] = useState(toDateInput(new Date()));
+  const [checkOutDate, setCheckOutDate] = useState(toDateInput(new Date(Date.now() + 86_400_000)));
+  const [notes, setNotes] = useState('');
+  const normalizedPhone = normalizeIndianPhone(guestPhone);
+  const datesValid =
+    /^\d{4}-\d{2}-\d{2}$/u.test(checkInDate) &&
+    /^\d{4}-\d{2}-\d{2}$/u.test(checkOutDate) &&
+    checkInDate < checkOutDate;
+
+  useEffect(() => {
+    if (!rooms.some((room) => room.id === roomId)) {
+      setRoomId(rooms[0]?.id ?? '');
+    }
+  }, [roomId, rooms]);
+
+  return (
+    <FormModal title="Offline Booking" visible={visible} onClose={onClose}>
+      <Text variant="bodySmall">
+        Use this for bookings received by phone, at the counter, or through another channel.
+      </Text>
+      <View style={styles.chips}>
+        {rooms.map((room) => (
+          <Chip key={room.id} selected={roomId === room.id} onPress={() => setRoomId(room.id)}>
+            Room {room.roomNumber}
+          </Chip>
+        ))}
+      </View>
+      <TextInput label="Guest name" mode="outlined" value={guestName} onChangeText={setGuestName} />
+      <TextInput
+        keyboardType="phone-pad"
+        label="Guest mobile number"
+        mode="outlined"
+        placeholder="9876543210"
+        value={guestPhone}
+        onChangeText={setGuestPhone}
+      />
+      <TextInput
+        autoCapitalize="none"
+        label="Check-in date (YYYY-MM-DD)"
+        mode="outlined"
+        value={checkInDate}
+        onChangeText={setCheckInDate}
+      />
+      <TextInput
+        autoCapitalize="none"
+        label="Check-out date (YYYY-MM-DD)"
+        mode="outlined"
+        value={checkOutDate}
+        onChangeText={setCheckOutDate}
+      />
+      <TextInput
+        label="Notes (optional)"
+        mode="outlined"
+        multiline
+        value={notes}
+        onChangeText={setNotes}
+      />
+      <Button
+        disabled={!roomId || !guestName.trim() || !normalizedPhone || !datesValid || isSubmitting}
+        loading={isSubmitting}
+        mode="contained"
+        onPress={() =>
+          normalizedPhone &&
+          onSubmit(roomId, {
+            checkInDate,
+            checkOutDate,
+            guestName: guestName.trim(),
+            guestPhone: normalizedPhone,
+            notes: notes.trim() || undefined,
+          })
+        }
+      >
+        Save and block room
+      </Button>
+    </FormModal>
+  );
+}
+
 function PhotoMetadataModal({
   isSubmitting,
   onClose,
@@ -835,6 +1034,27 @@ function formatMoney(value: string): string {
   return parsed.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
+function formatBookingDate(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function normalizeIndianPhone(value: string): string | null {
+  const digits = value.replace(/\D/gu, '');
+  const nationalDigits = digits.startsWith('91') ? digits.slice(2) : digits;
+  return /^[6-9]\d{9}$/u.test(nationalDigits) ? `+91${nationalDigits}` : null;
+}
+
+function toDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function slugify(value: string): string {
   return value
     .trim()
@@ -863,6 +1083,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  focusedCard: {
+    borderColor: '#F97316',
+    borderWidth: 2,
   },
   header: {
     gap: spacing.xs,

@@ -1,4 +1,9 @@
-import type { Notification as ApiNotification, PropertyType, RoomType } from '@tuljai/types';
+import type {
+  Booking,
+  Notification as ApiNotification,
+  PropertyType,
+  RoomType,
+} from '@tuljai/types';
 
 import { listMyBookings, type EnrichedBooking } from '../features/bookings/api/bookings-api';
 import { getLodgeDetailsView, listPublicLodges } from '../features/lodges/api/lodge-discovery-api';
@@ -100,6 +105,7 @@ export function mapBooking(enriched: EnrichedBooking, lodges: PilgrimLodge[]): P
     checkOut: formatBookingDate(booking.checkOutDate),
     checkOutDate: booking.checkOutDate,
     checkoutDateFlexible: booking.checkoutDateFlexible,
+    createdAt: booking.createdAt,
     guests: `${booking.numberOfAdults} ${booking.numberOfAdults === 1 ? 'adult' : 'adults'}${
       booking.numberOfChildren > 0
         ? ` · ${booking.numberOfChildren} ${booking.numberOfChildren === 1 ? 'child' : 'children'}`
@@ -118,6 +124,33 @@ export function mapBooking(enriched: EnrichedBooking, lodges: PilgrimLodge[]): P
     qrReady: booking.status === 'ACCEPTED' || booking.status === 'QR_GENERATED',
     roomName: enriched.roomTypeName,
     status: mapBookingStatus(booking.status),
+    updatedAt: booking.updatedAt,
+  };
+}
+
+export function applyBackendBookingRecord(
+  current: PilgrimBooking,
+  booking: Booking,
+): PilgrimBooking {
+  const currentUpdatedAt = Date.parse(current.updatedAt);
+  const backendUpdatedAt = Date.parse(booking.updatedAt);
+  if (
+    Number.isFinite(currentUpdatedAt) &&
+    Number.isFinite(backendUpdatedAt) &&
+    currentUpdatedAt > backendUpdatedAt
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    checkIn: formatBookingDate(booking.checkInDate),
+    checkInDate: booking.checkInDate,
+    checkOut: formatBookingDate(booking.checkOutDate),
+    checkOutDate: booking.checkOutDate,
+    qrReady: booking.status === 'ACCEPTED' || booking.status === 'QR_GENERATED',
+    status: mapBookingStatus(booking.status),
+    updatedAt: booking.updatedAt,
   };
 }
 
@@ -176,7 +209,8 @@ function mapPropertyType(propertyType: PropertyType): PilgrimLodge['type'] {
 
 function mapBookingStatus(status: EnrichedBooking['booking']['status']): PilgrimBooking['status'] {
   if (status === 'PENDING_OWNER_APPROVAL' || status === 'DRAFT') return 'pending';
-  if (['ACCEPTED', 'QR_GENERATED', 'CHECKED_IN'].includes(status)) return 'confirmed';
+  if (status === 'CHECKED_IN') return 'checked-in';
+  if (['ACCEPTED', 'QR_GENERATED'].includes(status)) return 'confirmed';
   if (['CHECKED_OUT', 'COMPLETED'].includes(status)) return 'completed';
   return 'cancelled';
 }

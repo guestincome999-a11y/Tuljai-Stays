@@ -1,6 +1,7 @@
-import type { GuestIdType, GuestRegister } from '@tuljai/types';
+import type { Booking, GuestIdType, GuestRegister } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
+import { getOwnerBooking } from '../../bookings/api/owner-bookings-api';
 import {
   checkoutRegister,
   getGuestRegister,
@@ -9,6 +10,7 @@ import {
 } from '../api/checkin-api';
 
 interface GuestRegisterState {
+  booking: Booking | null;
   data: GuestRegister | null;
   errorMessage: string | null;
   isLoading: boolean;
@@ -17,6 +19,7 @@ interface GuestRegisterState {
 
 export function useGuestRegister(registerId: string | null) {
   const [state, setState] = useState<GuestRegisterState>({
+    booking: null,
     data: null,
     errorMessage: null,
     isLoading: true,
@@ -29,6 +32,7 @@ export function useGuestRegister(registerId: string | null) {
     async (refreshing = false) => {
       if (!registerId) {
         setState({
+          booking: null,
           data: null,
           errorMessage: 'This guest register could not be opened.',
           isLoading: false,
@@ -45,8 +49,10 @@ export function useGuestRegister(registerId: string | null) {
       }));
 
       try {
-        const data = await getGuestRegister(registerId);
-        setState({ data, errorMessage: null, isLoading: false, isRefreshing: false });
+        const register = await getGuestRegister(registerId);
+        const booking = await getOwnerBooking(register.bookingId).catch(() => null);
+        const data = hydrateRegisterGuests(register, booking);
+        setState({ booking, data, errorMessage: null, isLoading: false, isRefreshing: false });
       } catch {
         setState((current) => ({
           ...current,
@@ -78,7 +84,13 @@ export function useGuestRegister(registerId: string | null) {
 
       try {
         const data = await markRegisterIdVerified(registerId, input);
-        setState({ data, errorMessage: null, isLoading: false, isRefreshing: false });
+        setState((current) => ({
+          ...current,
+          data: hydrateRegisterGuests(data, current.booking),
+          errorMessage: null,
+          isLoading: false,
+          isRefreshing: false,
+        }));
         setSuccessMessage('Guest ID marked as verified.');
       } catch {
         setState((current) => ({
@@ -103,7 +115,13 @@ export function useGuestRegister(registerId: string | null) {
 
       try {
         const data = await updateRegisterNotes(registerId, ownerNotes);
-        setState({ data, errorMessage: null, isLoading: false, isRefreshing: false });
+        setState((current) => ({
+          ...current,
+          data: hydrateRegisterGuests(data, current.booking),
+          errorMessage: null,
+          isLoading: false,
+          isRefreshing: false,
+        }));
         setSuccessMessage('Owner notes saved.');
       } catch {
         setState((current) => ({
@@ -128,7 +146,8 @@ export function useGuestRegister(registerId: string | null) {
     try {
       const result = await checkoutRegister(registerId);
       setState({
-        data: result.register,
+        booking: result.booking,
+        data: hydrateRegisterGuests(result.register, result.booking),
         errorMessage: null,
         isLoading: false,
         isRefreshing: false,
@@ -153,5 +172,28 @@ export function useGuestRegister(registerId: string | null) {
     saveNotes,
     setSuccessMessage,
     successMessage,
+  };
+}
+
+function hydrateRegisterGuests(register: GuestRegister, booking: Booking | null): GuestRegister {
+  if (register.guests.length > 0 || !booking || !Array.isArray(booking.guests)) {
+    return register;
+  }
+
+  return {
+    ...register,
+    guests: booking.guests.map((guest) => ({
+      age: guest.age,
+      fullName: guest.fullName,
+      gender: guest.gender,
+      id: guest.id,
+      idNumber: guest.idNumber,
+      idProofAvailable: Boolean(guest.idProofStoragePath),
+      idProofMimeType: guest.idProofMimeType,
+      idProofOriginalName: guest.idProofOriginalName,
+      idType: guest.idType,
+      isPrimaryGuest: guest.isPrimaryGuest,
+      phone: guest.phone,
+    })),
   };
 }

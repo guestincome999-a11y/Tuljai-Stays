@@ -7,6 +7,9 @@ build/
 .next/
 out/
 web-build/
+*.apk
+*.aab
+outputs/
 
 # Expo and native generated output
 .expo/

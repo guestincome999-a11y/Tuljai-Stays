@@ -3,7 +3,13 @@ import type { AuthUserProfile } from '@tuljai/types';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { logoutFromApi, refreshAccessToken, updateAuthProfile, verifyLoginOtp } from './auth-api';
+import {
+  exchangeGoogleLogin,
+  logoutFromApi,
+  refreshAccessToken,
+  updateAuthProfile,
+  verifyLoginOtp,
+} from './auth-api';
 import {
   clearAuthSession,
   restoreAuthSession,
@@ -17,6 +23,7 @@ interface AuthContextValue {
   logout(): Promise<void>;
   refreshSession: () => Promise<string | null>;
   session: AuthSession;
+  signInWithGoogle(supabaseAccessToken: string): Promise<void>;
   signInWithOtp(phoneNumber: string, otp: string): Promise<void>;
   updateProfile(displayName: string): Promise<void>;
   user: AuthUserProfile | null;
@@ -88,6 +95,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [router],
   );
 
+  const signInWithGoogle = useCallback(
+    async (supabaseAccessToken: string) => {
+      const response = await exchangeGoogleLogin(supabaseAccessToken);
+      const nextSession: AuthSession = {
+        activeSession: response.session,
+        tokens: response.tokens,
+        user: response.user,
+      };
+
+      await saveAuthSession(nextSession);
+      setSession(nextSession);
+      router.replace('/(app)/home');
+    },
+    [router],
+  );
+
   const logout = useCallback(async () => {
     const refreshToken = session.tokens?.refreshToken;
 
@@ -142,11 +165,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshSession,
       session,
+      signInWithGoogle,
       signInWithOtp,
       updateProfile,
       user: session.user,
     }),
-    [bootstrapComplete, logout, refreshSession, session, signInWithOtp, updateProfile],
+    [
+      bootstrapComplete,
+      logout,
+      refreshSession,
+      session,
+      signInWithGoogle,
+      signInWithOtp,
+      updateProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

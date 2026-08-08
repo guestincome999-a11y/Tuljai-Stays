@@ -4,10 +4,13 @@
     "owner": "jay9529",
     "slug": "tuljai-stays-owner",
     "scheme": "tuljaistays-owner",
+    "icon": "./assets/icon.png",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "bundleIdentifier": "com.tuljaistays.owner",
       "infoPlist": {
@@ -17,14 +20,35 @@
     },
     "android": {
       "package": "com.tuljaistays.owner",
-      "permissions": ["CAMERA", "VIBRATE"],
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "CAMERA",
+        "VIBRATE"
+      ],
       "adaptiveIcon": {
-        "backgroundColor": "#FAF7F2"
+        "backgroundColor": "#7A1F2B",
+        "foregroundImage": "./assets/adaptive-icon.png"
       }
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F24A00",
+          "image": "./assets/splash-screen.png",
+          "imageWidth": 288,
+          "resizeMode": "cover"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#7A1F2B",
+          "defaultChannel": "general-v1",
+          "icon": "./assets/notification-icon.png"
+        }
+      ],
       [
         "expo-camera",
         {
@@ -32,7 +56,8 @@
           "cameraPermission": "Allow Tuljai Stays Owner to use the camera for pilgrim QR check-in.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

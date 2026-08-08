@@ -61,10 +61,11 @@ export function useMyBookings() {
   }, [load]);
 
   useEffect(() => {
-    const eventName = realtime.lastEvent?.name;
+    const eventName = realtime.lastBookingEvent?.name;
 
     if (
       eventName === 'booking:accepted' ||
+      eventName === 'booking:cancelled' ||
       eventName === 'booking:rejected' ||
       eventName === 'booking:expired' ||
       eventName === 'qr:generated' ||
@@ -73,7 +74,7 @@ export function useMyBookings() {
     ) {
       void load(true);
     }
-  }, [load, realtime.lastEvent]);
+  }, [load, realtime.lastBookingEvent]);
 
   return {
     ...state,
@@ -129,12 +130,12 @@ export function useBookingDetail(bookingId: string | null) {
   }, [load]);
 
   useEffect(() => {
-    if (!bookingId || getEventBookingId(realtime.lastEvent) !== bookingId) {
+    if (!bookingId || getEventBookingId(realtime.lastBookingEvent) !== bookingId) {
       return;
     }
 
     void load(true);
-  }, [bookingId, load, realtime.lastEvent]);
+  }, [bookingId, load, realtime.lastBookingEvent]);
 
   return {
     ...state,
@@ -249,16 +250,17 @@ export function useBookingQr(bookingId: string | null, enabled: boolean) {
   }, [load]);
 
   useEffect(() => {
-    if (!bookingId || realtime.lastEvent?.name !== 'qr:generated') {
+    const event = realtime.lastBookingEvent;
+    if (!bookingId || (event?.name !== 'booking:accepted' && event?.name !== 'qr:generated')) {
       return;
     }
 
-    const eventBookingId = getEventBookingId(realtime.lastEvent);
+    const eventBookingId = getEventBookingId(event);
 
     if (!eventBookingId || eventBookingId === bookingId) {
       void load(true);
     }
-  }, [bookingId, load, realtime.lastEvent]);
+  }, [bookingId, load, realtime.lastBookingEvent]);
 
   return {
     data,

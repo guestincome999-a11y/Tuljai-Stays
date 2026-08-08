@@ -1,8 +1,19 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { PromotionalBanner } from '@tuljai/types';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { useAuth } from '../../auth/auth-context';
+import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
   AppScreen,
   BrandMark,
@@ -13,7 +24,7 @@ import {
   StatusBadge,
   ui,
 } from '../components';
-import { formatRupees } from '../mock-data';
+import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 const categories = [
@@ -36,6 +47,7 @@ const categories = [
 export function PilgrimHomeScreen() {
   const router = useRouter();
   const auth = useAuth();
+  const publicSettings = usePublicSettings();
   const {
     bookings,
     favoriteIds,
@@ -47,7 +59,9 @@ export function PilgrimHomeScreen() {
     t,
     toggleFavorite,
   } = usePilgrimApp();
-  const upcoming = bookings.find((booking) => booking.status === 'confirmed');
+  const upcoming = bookings.find(
+    (booking) => booking.status === 'checked-in' || booking.status === 'confirmed',
+  );
   const unread = notifications.filter((item) => !item.read).length;
   const firstName = auth.user?.displayName?.trim().split(/\s+/)[0];
 
@@ -114,41 +128,45 @@ export function PilgrimHomeScreen() {
         </View>
       ) : null}
 
-      <View className="overflow-hidden rounded-3xl bg-maroon-700 p-5">
-        <View className="absolute -right-8 -top-7 h-32 w-32 rounded-full bg-saffron-500/20" />
-        <View className="absolute -bottom-12 right-12 h-28 w-28 rounded-full bg-white/5" />
-        <View className="flex-row items-start gap-4">
-          <View className="min-w-0 flex-1">
-            <View className="self-start rounded-full bg-white/10 px-3 py-1.5">
-              <Text className="text-xs font-bold text-orange-100">
-                NAVRATRI 2026 · EARLY ACCESS
+      {publicSettings.promotionalBanners.length > 0 ? (
+        <PromotionalBannerCarousel banners={publicSettings.promotionalBanners} lodges={lodges} />
+      ) : (
+        <View className="overflow-hidden rounded-3xl bg-maroon-700 p-5">
+          <View className="absolute -right-8 -top-7 h-32 w-32 rounded-full bg-saffron-500/20" />
+          <View className="absolute -bottom-12 right-12 h-28 w-28 rounded-full bg-white/5" />
+          <View className="flex-row items-start gap-4">
+            <View className="min-w-0 flex-1">
+              <View className="self-start rounded-full bg-white/10 px-3 py-1.5">
+                <Text className="text-xs font-bold text-orange-100">
+                  NAVRATRI 2026 · EARLY ACCESS
+                </Text>
+              </View>
+              <Text className="mt-3 text-2xl font-extrabold leading-8 text-white">
+                {t('Book early. Travel with peace of mind.', 'लवकर बुक करा. निश्चिंत प्रवास करा.')}
               </Text>
+              <Text className="mt-2 text-sm leading-5 text-orange-100">
+                {t(
+                  'Free cancellation on selected stays until 30 September.',
+                  'निवडक निवासांवर ३० सप्टेंबरपर्यंत मोफत रद्दीकरण.',
+                )}
+              </Text>
+              <Pressable
+                className="mt-4 min-h-11 self-start justify-center rounded-xl bg-white px-4"
+                onPress={() =>
+                  router.push({ pathname: '/(app)/lodges', params: { quick: 'family' } })
+                }
+              >
+                <Text className="text-sm font-extrabold text-maroon-700">
+                  {t('Explore Navratri stays', 'नवरात्र निवास पहा')}
+                </Text>
+              </Pressable>
             </View>
-            <Text className="mt-3 text-2xl font-extrabold leading-8 text-white">
-              {t('Book early. Travel with peace of mind.', 'लवकर बुक करा. निश्चिंत प्रवास करा.')}
-            </Text>
-            <Text className="mt-2 text-sm leading-5 text-orange-100">
-              {t(
-                'Free cancellation on selected stays until 30 September.',
-                'निवडक निवासांवर ३० सप्टेंबरपर्यंत मोफत रद्दीकरण.',
-              )}
-            </Text>
-            <Pressable
-              className="mt-4 min-h-11 self-start justify-center rounded-xl bg-white px-4"
-              onPress={() =>
-                router.push({ pathname: '/(app)/lodges', params: { quick: 'family' } })
-              }
-            >
-              <Text className="text-sm font-extrabold text-maroon-700">
-                {t('Explore Navratri stays', 'नवरात्र निवास पहा')}
-              </Text>
-            </Pressable>
-          </View>
-          <View className="h-20 w-20 items-center justify-center rounded-full bg-white/10">
-            <MaterialCommunityIcons color="#FFE8C8" name="temple-hindu" size={47} />
+            <View className="h-20 w-20 items-center justify-center rounded-full bg-white/10">
+              <MaterialCommunityIcons color="#FFE8C8" name="temple-hindu" size={47} />
+            </View>
           </View>
         </View>
-      </View>
+      )}
 
       <View className="gap-4">
         <SectionTitle title={t('Find your kind of stay', 'तुमच्या पसंतीचा निवास')} />
@@ -266,5 +284,114 @@ export function PilgrimHomeScreen() {
         </Text>
       </View>
     </AppScreen>
+  );
+}
+
+function PromotionalBannerCarousel({
+  banners,
+  lodges,
+}: {
+  banners: PromotionalBanner[];
+  lodges: PilgrimLodge[];
+}) {
+  const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
+  const { width } = useWindowDimensions();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const cardWidth = Math.max(width - 40, 280);
+
+  useEffect(() => {
+    if (banners.length < 2) return undefined;
+    const interval = setInterval(() => {
+      setActiveIndex((current) => {
+        const next = (current + 1) % banners.length;
+        scrollRef.current?.scrollTo({ animated: true, x: next * cardWidth });
+        return next;
+      });
+    }, 5_000);
+    return () => clearInterval(interval);
+  }, [banners.length, cardWidth]);
+
+  async function openBanner(banner: PromotionalBanner) {
+    if (banner.category === 'LODGE_PROMOTION' && banner.lodgeSlug) {
+      const lodge = lodges.find((item) => item.slug === banner.lodgeSlug);
+      if (lodge) {
+        router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } });
+      }
+      return;
+    }
+
+    if (banner.linkUrl) {
+      await Linking.openURL(banner.linkUrl).catch(() => undefined);
+    }
+  }
+
+  return (
+    <View className="gap-3">
+      <ScrollView
+        horizontal
+        pagingEnabled
+        ref={scrollRef}
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={cardWidth}
+        onMomentumScrollEnd={(event) =>
+          setActiveIndex(Math.round(event.nativeEvent.contentOffset.x / cardWidth))
+        }
+      >
+        {banners.map((banner) => {
+          const clickable = Boolean(
+            (banner.category === 'LODGE_PROMOTION' && banner.lodgeSlug) || banner.linkUrl,
+          );
+          return (
+            <Pressable
+              accessibilityRole={clickable ? 'button' : undefined}
+              className="overflow-hidden rounded-3xl bg-maroon-800"
+              disabled={!clickable}
+              key={banner.id}
+              style={{ height: 210, width: cardWidth }}
+              onPress={() => void openBanner(banner)}
+            >
+              <Image
+                className="absolute inset-0 h-full w-full"
+                resizeMode="cover"
+                source={{ uri: banner.imageUrl }}
+              />
+              <View className="absolute inset-0 bg-black/40" />
+              <View className="flex-1 justify-end p-5">
+                <View className="self-start rounded-full bg-white/90 px-3 py-1.5">
+                  <Text className="text-[11px] font-extrabold text-maroon-700">
+                    {banner.category.replace('_', ' ')}
+                  </Text>
+                </View>
+                <Text className="mt-3 text-2xl font-extrabold leading-8 text-white">
+                  {banner.title}
+                </Text>
+                {banner.subtitle ? (
+                  <Text className="mt-1 text-sm leading-5 text-white/90" numberOfLines={2}>
+                    {banner.subtitle}
+                  </Text>
+                ) : null}
+                {clickable ? (
+                  <View className="mt-3 flex-row items-center gap-1.5">
+                    <Text className="text-xs font-extrabold text-white">View details</Text>
+                    <MaterialCommunityIcons color="#FFFFFF" name="arrow-right" size={16} />
+                  </View>
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {banners.length > 1 ? (
+        <View className="flex-row justify-center gap-1.5">
+          {banners.map((banner, index) => (
+            <View
+              className={`h-2 rounded-full ${index === activeIndex ? 'w-6 bg-saffron-500' : 'w-2 bg-warm-200'}`}
+              key={banner.id}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
