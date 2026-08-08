@@ -4,7 +4,7 @@ import { File, Paths } from 'expo-file-system';
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
   Button,
@@ -16,9 +16,7 @@ import {
   useTheme,
 } from 'react-native-paper';
 
-import { useAuth } from '../../../auth/auth-context';
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
-import { resolveOwnerApiUrl } from '../../../config/api-base-url';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { downloadGuestIdProof } from '../api/checkin-api';
 import { useGuestRegister } from '../hooks/useGuestRegister';
@@ -37,14 +35,12 @@ export function GuestRegisterScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const registerId = typeof params.id === 'string' ? params.id : null;
   const register = useGuestRegister(registerId);
-  const auth = useAuth();
   const { isOffline } = useConnectivity();
   const theme = useTheme();
   const [governmentIdType, setGovernmentIdType] = useState<GuestIdType>('AADHAAR');
   const [governmentIdNumber, setGovernmentIdNumber] = useState('');
   const [documentHolderName, setDocumentHolderName] = useState('');
   const [ownerNotes, setOwnerNotes] = useState('');
-  const [proofImageFailed, setProofImageFailed] = useState(false);
   const [isOpeningProof, setIsOpeningProof] = useState(false);
 
   const guests = useMemo(
@@ -65,7 +61,6 @@ export function GuestRegisterScreen() {
     setGovernmentIdType(data.governmentIdType ?? primaryGuest?.idType ?? 'AADHAAR');
     setGovernmentIdNumber(data.governmentIdNumber ?? primaryGuest?.idNumber ?? '');
     setDocumentHolderName(primaryGuest?.fullName ?? data.primaryGuestName);
-    setProofImageFailed(false);
   }, [primaryGuest, register.data]);
 
   if (register.isLoading) {
@@ -94,20 +89,13 @@ export function GuestRegisterScreen() {
   const data = register.data;
   const booking = register.booking;
   const notesValue = ownerNotes || data.ownerNotes || '';
-  const proofIsImage = primaryGuest?.idProofMimeType?.startsWith('image/') ?? false;
-  const proofSource =
-    primaryGuest?.idProofAvailable && proofIsImage && auth.session.tokens?.accessToken
-      ? {
-          headers: { Authorization: `Bearer ${auth.session.tokens.accessToken}` },
-          uri: resolveOwnerApiUrl(`/owner/bookings/${data.bookingId}/guest-id-proof`),
-        }
-      : null;
 
   async function openUploadedProof() {
     if (!primaryGuest?.idProofAvailable || isOpeningProof) return;
 
     setIsOpeningProof(true);
     let downloadedFile: File | null = null;
+    let keepDownloadedFile = false;
     try {
       const contents = await downloadGuestIdProof(data.bookingId);
       const file = new File(
@@ -126,6 +114,7 @@ export function GuestRegisterScreen() {
             flags: 1,
             type: primaryGuest.idProofMimeType ?? undefined,
           });
+          keepDownloadedFile = true;
           return;
         } catch {
           // Fall back to the system share sheet when no Android viewer handles the file directly.
@@ -145,7 +134,7 @@ export function GuestRegisterScreen() {
         'The uploaded pilgrim ID could not be opened. Please try again.',
       );
     } finally {
-      if (downloadedFile?.exists) {
+      if (!keepDownloadedFile && downloadedFile?.exists) {
         downloadedFile.delete();
       }
       setIsOpeningProof(false);
@@ -219,9 +208,7 @@ export function GuestRegisterScreen() {
               <Text variant="bodyMedium">Total: {formatAmount(booking.totalAmount)}</Text>
               <Text variant="bodyMedium">Advance: {formatAmount(booking.advanceAmount)}</Text>
               <Text variant="bodyMedium">Balance: {formatAmount(booking.balanceAmount)}</Text>
-              <Text variant="bodyMedium">
-                Special request: {booking.specialRequest ?? 'None'}
-              </Text>
+              <Text variant="bodyMedium">Special request: {booking.specialRequest ?? 'None'}</Text>
               {booking.rejectedReason || booking.cancellationReason ? (
                 <Text variant="bodyMedium">
                   Status reason: {booking.rejectedReason ?? booking.cancellationReason}
@@ -265,26 +252,11 @@ export function GuestRegisterScreen() {
               </Chip>
             </View>
 
-            {proofSource && !proofImageFailed ? (
-              <Image
-                accessibilityLabel={`Uploaded ID proof for ${data.primaryGuestName}`}
-                resizeMode="contain"
-                source={proofSource}
-                style={[styles.proofImage, { backgroundColor: theme.colors.surfaceVariant }]}
-                onError={() => setProofImageFailed(true)}
-              />
-            ) : primaryGuest?.idProofAvailable ? (
-              <View
-                style={[styles.proofFallback, { backgroundColor: theme.colors.surfaceVariant }]}
-              >
-                <Text variant="titleSmall">
-                  {proofImageFailed ? 'ID preview could not be loaded' : 'ID document uploaded'}
-                </Text>
-                <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-                  {primaryGuest.idProofOriginalName ?? 'Government ID proof'}
-                  {primaryGuest.idProofMimeType === 'application/pdf' ? ' (PDF)' : ''}
-                </Text>
-              </View>
+            {primaryGuest?.idProofAvailable ? (
+              <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
+                {primaryGuest.idProofOriginalName ?? 'Government ID proof'}
+                {primaryGuest.idProofMimeType === 'application/pdf' ? ' (PDF)' : ''}
+              </Text>
             ) : (
               <Text variant="bodyMedium">No uploaded ID proof is attached to this booking.</Text>
             )}
@@ -300,7 +272,7 @@ export function GuestRegisterScreen() {
                 void openUploadedProof();
               }}
             >
-              Open Uploaded Document
+              Open Document
             </Button>
 
             <View style={styles.chips}>
@@ -508,19 +480,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.md,
     justifyContent: 'space-between',
-  },
-  proofFallback: {
-    alignItems: 'center',
-    borderRadius: radius.sm,
-    gap: spacing.xs,
-    justifyContent: 'center',
-    minHeight: 150,
-    padding: spacing.lg,
-  },
-  proofImage: {
-    borderRadius: radius.sm,
-    height: 260,
-    width: '100%',
   },
   screen: {
     flexGrow: 1,
