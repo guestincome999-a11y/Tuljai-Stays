@@ -7,6 +7,7 @@ import { listMonitoringQrScanLogs } from '../../../src/api/admin-monitoring-api'
 import {
   createAdminRealtimeSocket,
   subscribeAdminRealtimeEvents,
+  subscribeAdminRealtimeSessionRecovery,
 } from '../../../src/api/realtime-client';
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
 import { tokenStorage } from '../../../src/auth/token-storage';
@@ -21,6 +22,7 @@ export default function AdminQrMonitorPage() {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   const load = useCallback(async () => {
     setErrorMessage(null);
@@ -37,10 +39,10 @@ export default function AdminQrMonitorPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!auth.isAuthenticated) return undefined;
-
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
-    if (!apiBaseUrl) return undefined;
+    if (!auth.isAuthenticated) {
+      setRealtimeConnected(false);
+      return undefined;
+    }
 
     let active = true;
     let cleanup: (() => void) | undefined;
@@ -48,7 +50,13 @@ export default function AdminQrMonitorPage() {
     void tokenStorage.getAccessToken().then((accessToken) => {
       if (!active || !accessToken) return;
 
-      const socket = createAdminRealtimeSocket(accessToken, apiBaseUrl);
+      const socket = createAdminRealtimeSocket(accessToken);
+      socket.on('connect', () => setRealtimeConnected(true));
+      socket.on('disconnect', () => setRealtimeConnected(false));
+      subscribeAdminRealtimeSessionRecovery(socket, async () => {
+        setRealtimeConnected(false);
+        return auth.refreshSession();
+      });
       subscribeAdminRealtimeEvents(socket, (event) => {
         if (
           event.name === 'qr:scan-success' ||
@@ -64,13 +72,18 @@ export default function AdminQrMonitorPage() {
     return () => {
       active = false;
       cleanup?.();
+      setRealtimeConnected(false);
     };
-  }, [auth.isAuthenticated, load]);
+  }, [auth.isAuthenticated, auth.refreshSession, auth.session.tokens?.accessToken, load]);
 
   useEffect(() => {
-    const interval = setInterval(() => void load(), 30_000);
+    if (realtimeConnected) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => void load(), 45_000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, realtimeConnected]);
 
   const filteredLogs = useMemo(() => {
     const normalized = query.trim().toLowerCase();

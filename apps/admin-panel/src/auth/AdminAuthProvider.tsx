@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 
+import { refreshAdminAccessToken } from '../api/client';
 import {
   getPermissionsForRoles,
   hasAdminAccess,
@@ -21,10 +22,7 @@ import {
 
 import { getAdminProfile, logoutAdmin, requestAdminOtp, verifyAdminOtp } from './admin-auth-api';
 import { getOrCreateAdminDeviceId } from './admin-device';
-import {
-  ADMIN_SESSION_EXPIRED_EVENT,
-  ADMIN_SESSION_REFRESHED_EVENT,
-} from './admin-session-events';
+import { ADMIN_SESSION_EXPIRED_EVENT, ADMIN_SESSION_REFRESHED_EVENT } from './admin-session-events';
 import { clearAuthSession, getAuthSession, setAuthSession } from './auth-session-store';
 import { tokenStorage } from './token-storage';
 
@@ -35,6 +33,7 @@ interface AdminAuthState {
   isAuthenticated: boolean;
   isSubmitting: boolean;
   permissions: AdminPermission[];
+  refreshSession: () => Promise<string | null>;
   requestOtp: (phoneNumber: string) => Promise<RequestOtpResult>;
   session: AuthSession;
   signOut: () => Promise<void>;
@@ -70,6 +69,7 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
     await tokenStorage.clear();
     setSession(emptyAuthSession);
   }, []);
+  const refreshSession = useCallback(() => refreshAdminAccessToken(), []);
 
   useEffect(() => {
     const handleSessionRefreshed = () => {
@@ -234,6 +234,7 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
       isAuthenticated,
       isSubmitting,
       permissions,
+      refreshSession,
       requestOtp,
       session,
       signOut,
@@ -246,6 +247,7 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
       isAuthenticated,
       isSubmitting,
       permissions,
+      refreshSession,
       requestOtp,
       session,
       signOut,

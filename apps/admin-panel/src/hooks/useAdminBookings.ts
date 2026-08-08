@@ -4,7 +4,11 @@ import type { AdminBookingSummary, BookingStatus, PaginatedResponse } from '@tul
 import { useCallback, useEffect, useState } from 'react';
 
 import { listAdminBookings, type AdminBookingsQuery } from '../api/admin-bookings-api';
-import { createAdminRealtimeSocket, subscribeAdminRealtimeEvents } from '../api/realtime-client';
+import {
+  createAdminRealtimeSocket,
+  subscribeAdminRealtimeEvents,
+  subscribeAdminRealtimeSessionRecovery,
+} from '../api/realtime-client';
 import { useAdminAuth } from '../auth/AdminAuthProvider';
 import { tokenStorage } from '../auth/token-storage';
 
@@ -24,6 +28,7 @@ export interface AdminBookingFilters {
 
 export function useAdminBookings(filters: AdminBookingFilters, page: number) {
   const auth = useAdminAuth();
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [state, setState] = useState<AdminBookingsState>({
     data: null,
     errorMessage: null,
@@ -72,15 +77,22 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
   }, [load]);
 
   useEffect(() => {
-    if (!auth.isAuthenticated) return undefined;
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
-    if (!apiBaseUrl) return undefined;
+    if (!auth.isAuthenticated) {
+      setRealtimeConnected(false);
+      return undefined;
+    }
 
     let active = true;
     let cleanup: (() => void) | undefined;
     void tokenStorage.getAccessToken().then((accessToken) => {
       if (!active || !accessToken) return;
-      const socket = createAdminRealtimeSocket(accessToken, apiBaseUrl);
+      const socket = createAdminRealtimeSocket(accessToken);
+      socket.on('connect', () => setRealtimeConnected(true));
+      socket.on('disconnect', () => setRealtimeConnected(false));
+      subscribeAdminRealtimeSessionRecovery(socket, async () => {
+        setRealtimeConnected(false);
+        return auth.refreshSession();
+      });
       subscribeAdminRealtimeEvents(socket, (event) => {
         if (event.name.startsWith('booking:') || event.name === 'dashboard:update') {
           void load(true);
@@ -92,13 +104,18 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
     return () => {
       active = false;
       cleanup?.();
+      setRealtimeConnected(false);
     };
-  }, [auth.isAuthenticated, load]);
+  }, [auth.isAuthenticated, auth.refreshSession, auth.session.tokens?.accessToken, load]);
 
   useEffect(() => {
-    const interval = setInterval(() => void load(true), 30_000);
+    if (realtimeConnected) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => void load(true), 45_000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, realtimeConnected]);
 
   return {
     ...state,

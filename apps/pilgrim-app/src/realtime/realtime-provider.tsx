@@ -48,6 +48,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     const socket: RealtimeSocket = createRealtimeSocket(accessToken);
 
     socket.on('connect', () => setConnected(true));
+    socket.on('system:error', () => {
+      setConnected(false);
+      void auth.refreshSession();
+    });
     socket.on('disconnect', () => setConnected(false));
 
     for (const eventName of eventNames) {
@@ -70,7 +74,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       socket.disconnect();
       setConnected(false);
     };
-  }, [accessToken, auth.isAuthenticated]);
+  }, [accessToken, auth.isAuthenticated, auth.refreshSession]);
 
   const value = useMemo(() => ({ connected, lastEvent }), [connected, lastEvent]);
 

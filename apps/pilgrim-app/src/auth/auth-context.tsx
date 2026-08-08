@@ -4,12 +4,18 @@ import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { logoutFromApi, refreshAccessToken, updateAuthProfile, verifyLoginOtp } from './auth-api';
-import { clearAuthSession, restoreAuthSession, saveAuthSession } from './auth-session-store';
+import {
+  clearAuthSession,
+  restoreAuthSession,
+  saveAuthSession,
+  subscribeAuthSession,
+} from './auth-session-store';
 
 interface AuthContextValue {
   bootstrapComplete: boolean;
   isAuthenticated: boolean;
   logout(): Promise<void>;
+  refreshSession: () => Promise<string | null>;
   session: AuthSession;
   signInWithOtp(phoneNumber: string, otp: string): Promise<void>;
   updateProfile(displayName: string): Promise<void>;
@@ -23,6 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession>(emptyAuthSession);
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
 
+  useEffect(() => subscribeAuthSession(setSession), []);
+
   useEffect(() => {
     let mounted = true;
 
@@ -33,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (restored.tokens?.refreshToken && !restored.tokens.accessToken) {
+      if (restored.tokens?.refreshToken) {
         const refreshed = await refreshAccessToken(restored.tokens.refreshToken).catch(() => null);
 
         if (refreshed) {
@@ -92,6 +100,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace('/(auth)/login');
   }, [router, session.tokens?.refreshToken]);
 
+  const refreshSession = useCallback(async (): Promise<string | null> => {
+    const refreshToken = session.tokens?.refreshToken;
+
+    if (!refreshToken || !session.tokens) {
+      return null;
+    }
+
+    const refreshed = await refreshAccessToken(refreshToken).catch(() => null);
+
+    if (!refreshed) {
+      return null;
+    }
+
+    const nextSession: AuthSession = {
+      ...session,
+      tokens: {
+        ...session.tokens,
+        accessToken: refreshed.accessToken,
+      },
+    };
+    await saveAuthSession(nextSession);
+    setSession(nextSession);
+    return refreshed.accessToken;
+  }, [session]);
+
   const updateProfile = useCallback(
     async (displayName: string) => {
       const user = await updateAuthProfile({ displayName });
@@ -107,12 +140,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       bootstrapComplete,
       isAuthenticated: Boolean(session.tokens?.accessToken && session.user),
       logout,
+      refreshSession,
       session,
       signInWithOtp,
       updateProfile,
       user: session.user,
     }),
-    [bootstrapComplete, logout, session, signInWithOtp, updateProfile],
+    [bootstrapComplete, logout, refreshSession, session, signInWithOtp, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

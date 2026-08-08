@@ -5,10 +5,14 @@ import { resolvePilgrimApiBaseUrl } from '../config/api-base-url';
 
 import type { PilgrimRealtimeEventName } from './realtime-events';
 
-export type RealtimeSocket = Socket<
-  Record<string, never>,
-  Record<PilgrimRealtimeEventName, (payload: Record<string, unknown>) => void>
->;
+type PilgrimServerEvents = Record<
+  PilgrimRealtimeEventName,
+  (payload: Record<string, unknown>) => void
+> & {
+  'system:error': (payload: { message?: string }) => void;
+};
+
+export type RealtimeSocket = Socket<PilgrimServerEvents, Record<string, never>>;
 
 export function createRealtimeSocket(accessToken: string): RealtimeSocket {
   const environment = readPublicEnvironment({

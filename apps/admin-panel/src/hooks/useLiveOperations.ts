@@ -27,6 +27,7 @@ import {
 import {
   createAdminRealtimeSocket,
   subscribeAdminRealtimeEvents,
+  subscribeAdminRealtimeSessionRecovery,
   type AdminRealtimeEvent,
 } from '../api/realtime-client';
 import { useAdminAuth } from '../auth/AdminAuthProvider';
@@ -169,13 +170,6 @@ export function useLiveOperations() {
       return undefined;
     }
 
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
-
-    if (!apiBaseUrl) {
-      setConnected(false);
-      return undefined;
-    }
-
     let mounted = true;
     let socketCleanup: (() => void) | null = null;
 
@@ -186,9 +180,13 @@ export function useLiveOperations() {
         return;
       }
 
-      const socket = createAdminRealtimeSocket(accessToken, apiBaseUrl);
+      const socket = createAdminRealtimeSocket(accessToken);
       socket.on('connect', () => setConnected(true));
       socket.on('disconnect', () => setConnected(false));
+      subscribeAdminRealtimeSessionRecovery(socket, async () => {
+        setConnected(false);
+        return auth.refreshSession();
+      });
       subscribeAdminRealtimeEvents(socket, (event) => {
         setLastEvent(event);
         scheduleRealtimeRefresh();
@@ -208,7 +206,12 @@ export function useLiveOperations() {
         clearTimeout(refreshTimeoutRef.current);
       }
     };
-  }, [auth.isAuthenticated, auth.session.tokens?.accessToken, scheduleRealtimeRefresh]);
+  }, [
+    auth.isAuthenticated,
+    auth.refreshSession,
+    auth.session.tokens?.accessToken,
+    scheduleRealtimeRefresh,
+  ]);
 
   useEffect(() => {
     if (connected) {

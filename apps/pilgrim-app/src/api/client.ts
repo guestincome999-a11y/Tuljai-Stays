@@ -2,8 +2,8 @@ import { ApiClient, readPublicEnvironment } from '@tuljai/shared';
 import type { RefreshTokenResponse } from '@tuljai/types';
 
 import { updateStoredAccessToken } from '../auth/auth-session-store';
-import { resolvePilgrimApiBaseUrl } from '../config/api-base-url';
 import { secureTokenStore } from '../auth/secure-token-store';
+import { resolvePilgrimApiBaseUrl } from '../config/api-base-url';
 import { getOrCreateDeviceId } from '../device/device-identity';
 
 const environment = readPublicEnvironment({

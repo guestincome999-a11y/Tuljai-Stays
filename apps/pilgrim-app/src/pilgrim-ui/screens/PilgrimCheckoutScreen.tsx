@@ -30,7 +30,7 @@ export function PilgrimCheckoutScreen() {
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
   const [name, setName] = useState(auth.user?.displayName?.trim() ?? '');
-  const [phone, setPhone] = useState(auth.user?.phoneNumber.replace(/\D/gu, '').slice(-10) ?? '');
+  const [phone, setPhone] = useState(auth.user?.phoneNumber?.replace(/\D/gu, '').slice(-10) ?? '');
   const [email, setEmail] = useState('');
   const [guestIdProof, setGuestIdProof] = useState<GuestIdProofFile | null>(null);
   const documentPickerActiveRef = useRef(false);

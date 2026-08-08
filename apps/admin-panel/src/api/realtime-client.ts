@@ -1,5 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 
+import { resolveAdminApiBaseUrl } from '../config/api-base-url';
+
 const realtimeEvents = [
   'announcement:new',
   'booking:accepted',
@@ -29,14 +31,17 @@ export interface AdminRealtimeEvent {
   receivedAt: number;
 }
 
-export type AdminRealtimeSocket = Socket<
-  Record<AdminRealtimeEventName, (payload: Record<string, unknown>) => void>
->;
+type AdminServerEvents = Record<
+  AdminRealtimeEventName,
+  (payload: Record<string, unknown>) => void
+> & {
+  'system:error': (payload: { message?: string }) => void;
+};
 
-export function createAdminRealtimeSocket(
-  accessToken: string,
-  apiBaseUrl: string,
-): AdminRealtimeSocket {
+export type AdminRealtimeSocket = Socket<AdminServerEvents, Record<string, never>>;
+
+export function createAdminRealtimeSocket(accessToken: string): AdminRealtimeSocket {
+  const apiBaseUrl = resolveAdminApiBaseUrl();
   const serverUrl = apiBaseUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
   return io(`${serverUrl}/realtime`, {
@@ -45,6 +50,17 @@ export function createAdminRealtimeSocket(
     reconnection: true,
     reconnectionAttempts: Infinity,
     transports: ['websocket'],
+  });
+}
+
+export function subscribeAdminRealtimeSessionRecovery(
+  socket: AdminRealtimeSocket,
+  refreshSession: () => Promise<string | null>,
+): void {
+  socket.on('system:error', (payload) => {
+    if (/(?:auth|session|token)/iu.test(payload.message ?? '')) {
+      void refreshSession();
+    }
   });
 }
 
