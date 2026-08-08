@@ -26,7 +26,12 @@ export class BookingSchedulerService implements OnModuleInit, OnModuleDestroy {
       60,
     );
     this.intervalRef = setInterval(() => {
-      void this.runExpiryCycle();
+      void this.runExpiryCycle().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        const stack = error instanceof Error ? error.stack : undefined;
+
+        this.logger.error(`Booking expiry cycle failed: ${message}`, stack);
+      });
     }, intervalSeconds * 1000);
   }
 
