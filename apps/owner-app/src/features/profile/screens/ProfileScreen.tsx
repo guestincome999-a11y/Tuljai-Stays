@@ -5,6 +5,7 @@ import { Button, Card, List, Text, useTheme } from 'react-native-paper';
 
 import { useAuth } from '../../../auth/auth-context';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
+import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
 
 const appVersion = '0.1.0';
 
@@ -13,6 +14,7 @@ export function ProfileScreen() {
   const assignedLodges = useAssignedLodges();
   const router = useRouter();
   const theme = useTheme();
+  const { tr } = useOwnerApp();
   const displayName = auth.user?.displayName ?? auth.user?.phoneNumber ?? 'Owner';
   const selectedLodgeName = assignedLodges.selectedLodge?.name ?? 'No lodge selected';
 
@@ -21,7 +23,7 @@ export function ProfileScreen() {
       <Card mode="contained" style={styles.card}>
         <Card.Content style={styles.cardContent}>
           <Text style={{ color: theme.colors.primary }} variant="headlineSmall">
-            Owner Profile
+            {tr('Owner Profile')}
           </Text>
           <Text variant="titleMedium">{displayName}</Text>
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
@@ -29,48 +31,48 @@ export function ProfileScreen() {
           </Text>
           <Text variant="titleSmall">{selectedLodgeName}</Text>
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-            Lodge owner account
+            {tr('Lodge owner account')}
           </Text>
         </Card.Content>
       </Card>
 
       <Card mode="outlined" style={styles.card}>
-        <Card.Title title="History & tools" />
+        <Card.Title title={tr('History & tools')} />
         <List.Item
           description="Completed, checked-out, cancelled and expired stays"
           left={(props) => <List.Icon {...props} icon="history" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          title="Previous Bookings"
+          title={tr('Previous Bookings')}
           onPress={() => router.push('/(app)/previous-bookings')}
         />
         <List.Item
           left={(props) => <List.Icon {...props} icon="qrcode-scan" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          title="QR Scan History"
+          title={tr('QR Scan History')}
           onPress={() => router.push('/(app)/scan-history')}
         />
         <List.Item
           left={(props) => <List.Icon {...props} icon="bell-outline" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          title="Notifications"
+          title={tr('Notifications')}
           onPress={() => router.push('/(app)/notifications')}
         />
         <List.Item
           left={(props) => <List.Icon {...props} icon="bullhorn-outline" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          title="Announcements"
+          title={tr('Announcements')}
           onPress={() => router.push('/(app)/announcements')}
         />
         <List.Item
           left={(props) => <List.Icon {...props} icon="chart-box-outline" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          title="Reports"
+          title={tr('Reports')}
           onPress={() => router.push('/(app)/reports')}
         />
         <List.Item
           left={(props) => <List.Icon {...props} icon="cog-outline" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          title="Settings"
+          title={tr('Settings')}
           onPress={() => router.push('/(app)/settings')}
         />
       </Card>
@@ -86,7 +88,7 @@ export function ProfileScreen() {
           void auth.logout();
         }}
       >
-        Logout
+        {tr('Logout')}
       </Button>
     </AppScreen>
   );

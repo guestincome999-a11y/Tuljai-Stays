@@ -6,6 +6,7 @@ import { ActivityIndicator } from 'react-native-paper';
 
 import { useAuth } from '../../src/auth/auth-context';
 import { IncomingBookingAlertHost } from '../../src/features/bookings/components/IncomingBookingAlertHost';
+import { useOwnerApp } from '../../src/owner-ui/OwnerAppProvider';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 type OwnerTabRoute = { name: string };
@@ -13,6 +14,7 @@ type TabBarIconProps = { color: string; size: number };
 
 export default function AppLayout() {
   const { bootstrapComplete, hasOwnerAccess, isAuthenticated } = useAuth();
+  const { tr } = useOwnerApp();
 
   if (!bootstrapComplete) {
     return (
@@ -45,28 +47,28 @@ export default function AppLayout() {
           ),
         })}
       >
-        <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-        <Tabs.Screen name="upcoming" options={{ title: 'Upcoming' }} />
-        <Tabs.Screen name="scan" options={{ title: 'Scan QR' }} />
-        <Tabs.Screen name="lodge" options={{ title: 'Lodge' }} />
-        <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-        <Tabs.Screen name="bookings" options={{ href: null, title: 'Bookings' }} />
-        <Tabs.Screen name="earnings" options={{ href: null, title: 'Earnings' }} />
-        <Tabs.Screen name="rooms" options={{ href: null, title: 'Rooms & pricing' }} />
-        <Tabs.Screen name="scan-history" options={{ href: null, title: 'Scan History' }} />
-        <Tabs.Screen name="register" options={{ href: null, title: 'Guest Register' }} />
+        <Tabs.Screen name="dashboard" options={{ title: tr('Dashboard') }} />
+        <Tabs.Screen name="upcoming" options={{ title: tr('Upcoming') }} />
+        <Tabs.Screen name="scan" options={{ title: tr('Scan QR') }} />
+        <Tabs.Screen name="lodge" options={{ title: tr('Lodge') }} />
+        <Tabs.Screen name="profile" options={{ title: tr('Profile') }} />
+        <Tabs.Screen name="bookings" options={{ href: null, title: tr('Bookings') }} />
+        <Tabs.Screen name="earnings" options={{ href: null, title: tr('Earnings') }} />
+        <Tabs.Screen name="rooms" options={{ href: null, title: tr('Rooms & pricing') }} />
+        <Tabs.Screen name="scan-history" options={{ href: null, title: tr('Scan History') }} />
+        <Tabs.Screen name="register" options={{ href: null, title: tr('Guest Register') }} />
         <Tabs.Screen
           name="previous-bookings"
-          options={{ href: null, title: 'Previous Bookings' }}
+          options={{ href: null, title: tr('Previous Bookings') }}
         />
         <Tabs.Screen
           name="register-dashboard"
-          options={{ href: null, title: 'Register Dashboard' }}
+          options={{ href: null, title: tr('Register Dashboard') }}
         />
-        <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
-        <Tabs.Screen name="announcements" options={{ href: null, title: 'Announcements' }} />
-        <Tabs.Screen name="reports" options={{ href: null, title: 'Reports' }} />
-        <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
+        <Tabs.Screen name="notifications" options={{ href: null, title: tr('Notifications') }} />
+        <Tabs.Screen name="announcements" options={{ href: null, title: tr('Announcements') }} />
+        <Tabs.Screen name="reports" options={{ href: null, title: tr('Reports') }} />
+        <Tabs.Screen name="settings" options={{ href: null, title: tr('Settings') }} />
       </Tabs>
       <IncomingBookingAlertHost />
     </>
