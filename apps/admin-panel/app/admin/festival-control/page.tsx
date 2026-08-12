@@ -13,6 +13,7 @@ import {
   listAdminSettings,
   updateAdminFeatureFlag,
   updateAdminSetting,
+  uploadPromotionalBannerImage,
 } from '../../../src/api/admin-platform-control-api';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import {
@@ -49,6 +50,7 @@ export default function AdminFestivalControlPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [banners, setBanners] = useState<PromotionalBanner[]>([]);
   const [bannerForm, setBannerForm] = useState<BannerFormState>(initialBannerForm);
+  const [isUploadingBannerImage, setIsUploadingBannerImage] = useState(false);
   const [reason, setReason] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -142,8 +144,8 @@ export default function AdminFestivalControlPage() {
     const linkUrl = bannerForm.linkUrl.trim();
     const lodgeSlug = bannerForm.lodgeSlug.trim().toLowerCase();
 
-    if (!title || !/^https:\/\//iu.test(imageUrl)) {
-      setErrorMessage('Banner title and a secure HTTPS image URL are required.');
+    if (!title || !imageUrl) {
+      setErrorMessage('Banner title and an uploaded image are required.');
       return;
     }
     if (linkUrl && !/^https:\/\//iu.test(linkUrl)) {
@@ -184,6 +186,30 @@ export default function AdminFestivalControlPage() {
     ]);
     setBannerForm(initialBannerForm);
     setErrorMessage(null);
+  }
+
+  async function uploadBannerImage(file: File | undefined) {
+    if (!file) return;
+    if (
+      !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+      file.size > 5 * 1024 * 1024
+    ) {
+      setErrorMessage('Upload a JPEG, PNG, or WebP image that is 5 MB or smaller.');
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsUploadingBannerImage(true);
+    try {
+      const imageUrl = await uploadPromotionalBannerImage(file);
+      setBannerForm((current) => ({ ...current, imageUrl }));
+      setSuccessMessage('Banner image uploaded. Add the banner when its details are ready.');
+    } catch {
+      setErrorMessage('Image upload failed. Confirm storage is configured and try again.');
+    } finally {
+      setIsUploadingBannerImage(false);
+    }
   }
 
   async function savePromotionalBanners() {
@@ -312,15 +338,22 @@ export default function AdminFestivalControlPage() {
               />
             </label>
             <label className="form-field">
-              <span>Banner image URL (HTTPS)</span>
+              <span>Banner image</span>
               <input
-                placeholder="https://.../banner.jpg"
-                type="url"
-                value={bannerForm.imageUrl}
-                onChange={(event) =>
-                  setBannerForm((current) => ({ ...current, imageUrl: event.target.value }))
-                }
+                accept="image/jpeg,image/png,image/webp"
+                disabled={isUploadingBannerImage}
+                type="file"
+                onChange={(event) => void uploadBannerImage(event.target.files?.[0])}
               />
+              <small>JPEG, PNG, or WebP up to 5 MB.</small>
+              {isUploadingBannerImage ? <small>Uploading image...</small> : null}
+              {bannerForm.imageUrl ? (
+                <img
+                  alt="Uploaded banner preview"
+                  className="banner-preview-image"
+                  src={bannerForm.imageUrl}
+                />
+              ) : null}
             </label>
             {bannerForm.category === 'LODGE_PROMOTION' ? (
               <label className="form-field">

@@ -77,6 +77,26 @@ export class SupabaseStorageService {
     return data.some((object) => object.name === fileName);
   }
 
+  public async uploadPublicObject(
+    storagePath: string,
+    contents: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    const client = this.getRequiredClient();
+    const { error } = await client.storage.from(this.bucket).upload(storagePath, contents, {
+      cacheControl: '3600',
+      contentType,
+      upsert: false,
+    });
+
+    if (error) {
+      this.logger.error(`Supabase upload failed: ${error.message}`);
+      throw new InternalServerErrorException('Unable to store the uploaded image');
+    }
+
+    return client.storage.from(this.bucket).getPublicUrl(storagePath).data.publicUrl;
+  }
+
   public async downloadPrivateObject(storagePath: string): Promise<Buffer> {
     const client = this.getRequiredClient();
     const { data, error } = await client.storage.from(this.bucket).download(storagePath);

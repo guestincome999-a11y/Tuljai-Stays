@@ -16,6 +16,20 @@ export interface UpdateSystemSettingInput {
   value: unknown;
 }
 
+interface PromotionalBannerImageUpload {
+  imageUrl: string;
+}
+
+export async function uploadPromotionalBannerImage(file: File): Promise<string> {
+  const body = new FormData();
+  body.append('file', file);
+  const response = await apiClient.post<PromotionalBannerImageUpload>(
+    '/admin/settings/promotional-banners/image',
+    body,
+  );
+  return response.imageUrl;
+}
+
 export interface UpdateFeatureFlagInput {
   description?: string;
   enabled: boolean;
