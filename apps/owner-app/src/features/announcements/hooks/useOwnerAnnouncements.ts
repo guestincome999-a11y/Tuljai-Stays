@@ -53,6 +53,12 @@ export function useOwnerAnnouncements(activeCategory: AnnouncementCategory | nul
     }
   }, [load, realtime.lastEvent]);
 
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) {
+      void load(true);
+    }
+  }, [load, realtime.connectionRevision]);
+
   const emergencyAnnouncement = useMemo(
     () =>
       data.find(

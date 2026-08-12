@@ -42,7 +42,20 @@ export async function scanQrCode(input: ScanQrRequest): Promise<CheckInResponse>
 }
 
 export async function getGuestRegister(registerId: string): Promise<GuestRegister> {
-  return apiClient.get<GuestRegister>(`/owner/register/${registerId}`);
+  const register = await apiClient.get<GuestRegister>(`/owner/register/${registerId}`);
+
+  return {
+    ...register,
+    guests: Array.isArray(register.guests) ? register.guests : [],
+    idDocuments: Array.isArray(register.idDocuments) ? register.idDocuments : [],
+  };
+}
+
+export async function downloadGuestIdProof(bookingId: string): Promise<ArrayBuffer> {
+  return apiClient.request<ArrayBuffer>(`/owner/bookings/${bookingId}/guest-id-proof`, {
+    method: 'GET',
+    responseType: 'arraybuffer',
+  });
 }
 
 export async function listGuestRegisters(

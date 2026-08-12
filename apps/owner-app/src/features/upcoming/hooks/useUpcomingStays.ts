@@ -99,6 +99,23 @@ export function useUpcomingStays() {
     }
   }, [load, realtime.lastEvent]);
 
+  useEffect(() => {
+    if (realtime.connectionRevision === 0) {
+      return;
+    }
+
+    void load(true);
+  }, [load, realtime.connectionRevision]);
+
+  useEffect(() => {
+    if (realtime.connected || isOffline || !lodgeId) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => void load(true), 30_000);
+    return () => clearInterval(interval);
+  }, [isOffline, load, lodgeId, realtime.connected]);
+
   const sortedCheckIns = useMemo(
     () =>
       [...state.checkIns]

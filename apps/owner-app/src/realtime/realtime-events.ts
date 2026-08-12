@@ -11,6 +11,7 @@ export type OwnerRealtimeEventName = Extract<
   | 'checkin:completed'
   | 'checkout:completed'
   | 'dashboard:update'
+  | 'lodge:catalog-updated'
   | 'notification:new'
   | 'notification:unread-count'
   | 'owner:alert'

@@ -5,6 +5,8 @@ import { Alert, Linking, Modal, Pressable, Switch, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../auth/auth-context';
+import { requestAndRegisterPushToken } from '../../notifications/push-registration';
+import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
   AppScreen,
   Field,
@@ -19,6 +21,7 @@ import { usePilgrimApp } from '../PilgrimAppProvider';
 export function PilgrimProfileScreen() {
   const router = useRouter();
   const auth = useAuth();
+  const { privacyPolicyUrl, supportEmail, supportPhone, termsUrl } = usePublicSettings();
   const {
     bookingNotificationsEnabled,
     bookings,
@@ -31,7 +34,9 @@ export function PilgrimProfileScreen() {
   const [editOpen, setEditOpen] = useState(false);
   const [draftName, setDraftName] = useState(auth.user?.displayName?.trim() ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
-  const confirmed = bookings.filter((item) => item.status === 'confirmed').length;
+  const confirmed = bookings.filter(
+    (item) => item.status === 'confirmed' || item.status === 'checked-in',
+  ).length;
   const displayName = auth.user?.displayName?.trim() || t('Pilgrim', 'भाविक');
   const initials = displayName
     .split(/\s+/)
@@ -89,6 +94,26 @@ export function PilgrimProfileScreen() {
     }
   }
 
+  async function updateNotificationPreference(enabled: boolean) {
+    if (!enabled) {
+      setBookingNotificationsEnabled(false);
+      return;
+    }
+
+    const result = await requestAndRegisterPushToken();
+    setBookingNotificationsEnabled(result.registered);
+
+    if (!result.registered) {
+      Alert.alert('Enable notifications', result.message, [
+        { style: 'cancel', text: 'Not now' },
+        {
+          onPress: () => void Linking.openSettings(),
+          text: 'Open phone settings',
+        },
+      ]);
+    }
+  }
+
   return (
     <AppScreen className="gap-6 pt-2">
       <View className="flex-row items-center justify-between">
@@ -112,11 +137,14 @@ export function PilgrimProfileScreen() {
           <View className="min-w-0 flex-1">
             <Text className="text-xl font-extrabold text-white">{displayName}</Text>
             <Text className="mt-1 text-sm text-orange-100">
-              {auth.user?.phoneNumber ?? t('Verified mobile', 'सत्यापित मोबाइल')}
+              {auth.user?.phoneNumber ?? t('Google account', 'Google खाते')}
             </Text>
             <View className="mt-2 self-start rounded-full bg-white/10 px-3 py-1">
               <Text className="text-xs font-bold text-white">
-                ✓ {t('Mobile verified', 'मोबाइल सत्यापित')}
+                ✓{' '}
+                {auth.user?.phoneNumber
+                  ? t('Mobile verified', 'मोबाइल सत्यापित')
+                  : t('Google verified', 'Google सत्यापित')}
               </Text>
             </View>
           </View>
@@ -193,7 +221,9 @@ export function PilgrimProfileScreen() {
           label={t('Booking notifications', 'बुकिंग सूचना')}
           right={
             <Switch
-              onValueChange={setBookingNotificationsEnabled}
+              onValueChange={(enabled) => {
+                void updateNotificationPreference(enabled);
+              }}
               thumbColor="#FFFFFF"
               trackColor={{ false: '#D7C8B8', true: ui.saffron }}
               value={bookingNotificationsEnabled}
@@ -204,18 +234,35 @@ export function PilgrimProfileScreen() {
       </ProfileSection>
 
       <ProfileSection title={t('Help & safety', 'मदत आणि सुरक्षितता')}>
-        <SettingRow
-          icon="whatsapp"
-          label={t('WhatsApp support', 'व्हॉट्सॲप सहाय्य')}
-          onPress={() => void openExternalLink('https://wa.me/919876543210', t)}
-          subtitle={t('Chat with our Tuljapur team', 'आमच्या तुळजापूर टीमशी बोला')}
-        />
-        <SettingRow
-          icon="phone-in-talk-outline"
-          label={t('Call support', 'सहाय्याला कॉल करा')}
-          onPress={() => void openExternalLink('tel:+919876543210', t)}
-          subtitle="+91 98765 43210 · 7 AM–11 PM"
-        />
+        {supportPhone ? (
+          <SettingRow
+            icon="phone-in-talk-outline"
+            label={t('Call support', 'सहाय्याला कॉल करा')}
+            onPress={() => void openExternalLink(`tel:${supportPhone}`, t)}
+            subtitle={formatPhoneNumber(supportPhone)}
+          />
+        ) : supportEmail ? (
+          <SettingRow
+            icon="email-outline"
+            label={t('Email support', 'ईमेल सहाय्य')}
+            onPress={() => void openExternalLink(`mailto:${supportEmail}`, t)}
+            subtitle={supportEmail}
+          />
+        ) : null}
+        {termsUrl ? (
+          <SettingRow
+            icon="file-document-outline"
+            label={t('Terms of Service', 'सेवा अटी')}
+            onPress={() => void openExternalLink(termsUrl, t)}
+          />
+        ) : null}
+        {privacyPolicyUrl ? (
+          <SettingRow
+            icon="shield-account-outline"
+            label={t('Privacy Policy', 'गोपनीयता धोरण')}
+            onPress={() => void openExternalLink(privacyPolicyUrl, t)}
+          />
+        ) : null}
         <SettingRow
           icon="shield-check-outline"
           label={t('Safety & trust', 'सुरक्षितता आणि विश्वास')}
@@ -282,8 +329,8 @@ export function PilgrimProfileScreen() {
                 className="mt-4"
                 editable={false}
                 icon="phone-outline"
-                label={t('Verified mobile number', 'सत्यापित मोबाइल क्रमांक')}
-                value={auth.user?.phoneNumber ?? ''}
+                label={t('Mobile number', 'मोबाइल क्रमांक')}
+                value={auth.user?.phoneNumber ?? t('Not added', 'जोडलेला नाही')}
               />
               <View className="mt-6 flex-row gap-3">
                 <SecondaryButton className="flex-1" onPress={() => setEditOpen(false)}>
@@ -328,4 +375,9 @@ function ProfileSection({ children, title }: { children: React.ReactNode; title:
       </View>
     </View>
   );
+}
+
+function formatPhoneNumber(value: string): string {
+  const digits = value.replace(/\D/gu, '').slice(-10);
+  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }

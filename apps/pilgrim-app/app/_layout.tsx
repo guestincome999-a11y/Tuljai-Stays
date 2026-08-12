@@ -6,6 +6,7 @@ import { AuthProvider } from '../src/auth/auth-context';
 import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { OfflineBanner } from '../src/components/OfflineBanner';
 import { ConnectivityProvider } from '../src/connectivity/connectivity-context';
+import { PilgrimPushNotifications } from '../src/notifications/PilgrimPushNotifications';
 import { PilgrimAppProvider } from '../src/pilgrim-ui/PilgrimAppProvider';
 import { RealtimeProvider } from '../src/realtime/realtime-provider';
 import { pilgrimLightTheme } from '../src/theme/pilgrim-theme';
@@ -22,6 +23,7 @@ export default function RootLayout() {
           <AuthProvider>
             <RealtimeProvider>
               <PilgrimAppProvider>
+                <PilgrimPushNotifications />
                 <StatusBar style="dark" />
                 <OfflineBanner />
                 <Stack
@@ -33,6 +35,7 @@ export default function RootLayout() {
                   <Stack.Screen name="index" />
                   <Stack.Screen name="(auth)" />
                   <Stack.Screen name="(app)" />
+                  <Stack.Screen name="auth/google" />
                 </Stack>
               </PilgrimAppProvider>
             </RealtimeProvider>

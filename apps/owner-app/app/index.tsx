@@ -1,18 +1,20 @@
 import { Redirect } from 'expo-router';
-import { View } from 'react-native';
-import { ActivityIndicator } from 'react-native-paper';
+import { useEffect, useState } from 'react';
 
 import { useAuth } from '../src/auth/auth-context';
+import { OwnerSplashScreen } from '../src/components/OwnerSplashScreen';
 
 export default function BootstrapScreen() {
   const { bootstrapComplete, hasOwnerAccess, isAuthenticated } = useAuth();
+  const [minimumDisplayComplete, setMinimumDisplayComplete] = useState(false);
 
-  if (!bootstrapComplete) {
-    return (
-      <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-        <ActivityIndicator animating size="large" />
-      </View>
-    );
+  useEffect(() => {
+    const timer = setTimeout(() => setMinimumDisplayComplete(true), 2200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!bootstrapComplete || !minimumDisplayComplete) {
+    return <OwnerSplashScreen />;
   }
 
   return (

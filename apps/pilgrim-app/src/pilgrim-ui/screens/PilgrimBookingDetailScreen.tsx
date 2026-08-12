@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 
+import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
   AppScreen,
   EmptyState,
@@ -19,6 +20,7 @@ export function PilgrimBookingDetailScreen() {
   const params = useLocalSearchParams<{ id?: string; justBooked?: string }>();
   const router = useRouter();
   const { bookings, cancelBooking, isSyncing, lodges, t } = usePilgrimApp();
+  const { supportEmail, supportPhone } = usePublicSettings();
   const booking = bookings.find((item) => item.id === params.id);
   const lodge = booking ? lodges.find((item) => item.id === booking.lodgeId) : undefined;
 
@@ -155,6 +157,18 @@ export function PilgrimBookingDetailScreen() {
         </View>
       ) : null}
 
+      {booking.status === 'checked-in' ? (
+        <View className="flex-row items-start gap-3 rounded-2xl bg-templeGreen-50 p-4">
+          <MaterialCommunityIcons color={ui.green} name="account-check" size={22} />
+          <Text className="flex-1 text-sm leading-5 text-warm-600">
+            {t(
+              'Check-in is completed. No further check-in action is required.',
+              'चेक-इन पूर्ण झाले आहे. आता पुढील चेक-इन कृतीची गरज नाही.',
+            )}
+          </Text>
+        </View>
+      ) : null}
+
       <View>
         <Text className="mb-3 text-xl font-extrabold text-warm-900">
           {t('Stay information', 'निवास माहिती')}
@@ -193,7 +207,7 @@ export function PilgrimBookingDetailScreen() {
             active
             icon="check"
             label={t('Booking created', 'बुकिंग तयार')}
-            subtitle="14 Jul 2026 · 10:42 AM"
+            subtitle={formatBookingTimestamp(booking.createdAt)}
           />
           <TimelineItem
             active={booking.status !== 'pending'}
@@ -202,14 +216,18 @@ export function PilgrimBookingDetailScreen() {
             subtitle={
               booking.status === 'pending'
                 ? t('Waiting for response', 'प्रतिसादाची प्रतीक्षा')
-                : '14 Jul 2026 · 10:44 AM'
+                : formatBookingTimestamp(booking.updatedAt)
             }
           />
           <TimelineItem
-            active={false}
+            active={booking.status === 'checked-in'}
             icon="qrcode-scan"
-            label={t('Check-in at lodge', 'लॉजवर चेक-इन')}
-            subtitle={booking.checkIn}
+            label={
+              booking.status === 'checked-in'
+                ? t('Checked in at lodge', 'लॉजवर चेक-इन पूर्ण')
+                : t('Check-in at lodge', 'लॉजवर चेक-इन')
+            }
+            subtitle={booking.status === 'checked-in' ? t('Completed', 'पूर्ण') : booking.checkIn}
             last
           />
         </View>
@@ -234,15 +252,15 @@ export function PilgrimBookingDetailScreen() {
 
       <View className="gap-3">
         <View className="flex-row gap-3">
-          <SecondaryButton
-            className="flex-1"
-            icon="phone-outline"
-            onPress={() =>
-              void openExternalLink(`tel:${lodge?.primaryPhone ?? '+919876543210'}`, t)
-            }
-          >
-            {t('Call lodge', 'लॉजला कॉल')}
-          </SecondaryButton>
+          {lodge?.primaryPhone ? (
+            <SecondaryButton
+              className="flex-1"
+              icon="phone-outline"
+              onPress={() => void openExternalLink(`tel:${lodge.primaryPhone}`, t)}
+            >
+              {t('Call lodge', 'लॉजला कॉल')}
+            </SecondaryButton>
+          ) : null}
           <SecondaryButton
             className="flex-1"
             icon="map-marker-outline"
@@ -251,12 +269,19 @@ export function PilgrimBookingDetailScreen() {
             {t('Directions', 'दिशा')}
           </SecondaryButton>
         </View>
-        <SecondaryButton
-          icon="headset"
-          onPress={() => void openExternalLink('https://wa.me/919876543210', t)}
-        >
-          {t('Get Tuljai support', 'तुळजाई सहाय्य मिळवा')}
-        </SecondaryButton>
+        {supportPhone || supportEmail ? (
+          <SecondaryButton
+            icon="headset"
+            onPress={() =>
+              void openExternalLink(
+                supportPhone ? `tel:${supportPhone}` : `mailto:${supportEmail}`,
+                t,
+              )
+            }
+          >
+            {t('Get Tuljai support', 'तुळजाई सहाय्य मिळवा')}
+          </SecondaryButton>
+        ) : null}
         {booking.status === 'confirmed' || booking.status === 'pending' ? (
           <SecondaryButton destructive icon="calendar-remove-outline" onPress={askToCancel}>
             {t('Cancel booking', 'बुकिंग रद्द करा')}
@@ -315,6 +340,18 @@ async function openDirections(
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`,
     t,
   );
+}
+
+function formatBookingTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
 }
 
 async function openExternalLink(

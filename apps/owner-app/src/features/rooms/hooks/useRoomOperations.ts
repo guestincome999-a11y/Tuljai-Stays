@@ -1,18 +1,22 @@
-import type { LodgePhoto, Room, RoomStatus, RoomType } from '@tuljai/types';
+import type { LodgePhoto, ManualBookingBlock, Room, RoomStatus, RoomType } from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import {
+  createManualBooking,
   createPhotoMetadata,
   createRoom,
   createRoomType,
+  deleteManualBooking,
+  listManualBookings,
   listOwnerPhotos,
   listRooms,
   listRoomTypes,
   updateRoomStatus,
   updateRoomType,
+  type ManualBookingInput,
   type PhotoMetadataInput,
   type RoomInput,
   type RoomTypeInput,
@@ -25,6 +29,7 @@ interface RoomOperationsState {
   housekeepingNotes: Record<string, string>;
   isLoading: boolean;
   isRefreshing: boolean;
+  manualBookings: ManualBookingBlock[];
   photos: LodgePhoto[];
   rooms: Room[];
   roomTypes: RoomType[];
@@ -40,6 +45,7 @@ export function useRoomOperations() {
     housekeepingNotes: {},
     isLoading: true,
     isRefreshing: false,
+    manualBookings: [],
     photos: [],
     rooms: [],
     roomTypes: [],
@@ -55,6 +61,7 @@ export function useRoomOperations() {
           errorMessage: 'No lodge selected.',
           isLoading: false,
           isRefreshing: false,
+          manualBookings: [],
           photos: [],
           rooms: [],
           roomTypes: [],
@@ -90,16 +97,18 @@ export function useRoomOperations() {
       }
 
       try {
-        const [roomTypes, rooms, photos] = await Promise.all([
+        const [roomTypes, rooms, photos, manualBookings] = await Promise.all([
           listRoomTypes(lodgeId),
           listRooms(lodgeId),
           listOwnerPhotos(lodgeId),
+          listManualBookings(lodgeId),
         ]);
         setState({
           errorMessage: null,
           housekeepingNotes: notes,
           isLoading: false,
           isRefreshing: false,
+          manualBookings,
           photos,
           rooms,
           roomTypes,
@@ -138,6 +147,23 @@ export function useRoomOperations() {
       void load(true);
     }
   }, [load, realtime.lastEvent]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision === 0) {
+      return;
+    }
+
+    void load(true);
+  }, [load, realtime.connectionRevision]);
+
+  useEffect(() => {
+    if (realtime.connected || isOffline) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => void load(true), 30_000);
+    return () => clearInterval(interval);
+  }, [isOffline, load, realtime.connected]);
 
   const roomTypeById = useMemo(
     () => new Map(state.roomTypes.map((roomType) => [roomType.id, roomType])),
@@ -181,6 +207,11 @@ export function useRoomOperations() {
       lodgeId
         ? runMutation(() => createPhotoMetadata(lodgeId, input), 'Photo metadata submitted.')
         : Promise.resolve(false),
+    createManualBooking: (roomId: string, input: ManualBookingInput) =>
+      runMutation(
+        () => createManualBooking(roomId, input),
+        'Offline booking saved and live availability updated.',
+      ),
     createRoom: (roomTypeId: string, input: RoomInput) =>
       runMutation(() => createRoom(roomTypeId, input), 'Room created.'),
     createRoomType: (input: RoomTypeInput) =>
@@ -189,6 +220,11 @@ export function useRoomOperations() {
         : Promise.resolve(false),
     isOffline,
     isSubmitting,
+    deleteManualBooking: (bookingId: string) =>
+      runMutation(
+        () => deleteManualBooking(bookingId),
+        'Offline booking removed and room availability released.',
+      ),
     refresh: () => load(true),
     roomTypeById,
     saveHousekeepingNote: async (roomId: string, note: string) => {

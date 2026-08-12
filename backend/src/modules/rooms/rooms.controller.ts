@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import type { AuthenticatedUser, Room, RoomType } from '@tuljai/types';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import type { AuthenticatedUser, ManualBookingBlock, Room, RoomType } from '@tuljai/types';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -8,6 +8,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 
 import {
   CreateRoomDto,
+  CreateManualBookingDto,
   CreateRoomTypeDto,
   UpdateRoomDto,
   UpdateRoomStatusDto,
@@ -87,5 +88,36 @@ export class RoomsController {
     @Param('lodgeId') lodgeId: string,
   ): Promise<Room[]> {
     return this.roomsService.listLodgeRooms(lodgeId, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Post('owner/rooms/:id/manual-bookings')
+  public createManualBooking(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateManualBookingDto,
+  ): Promise<ManualBookingBlock> {
+    return this.roomsService.createManualBooking(id, dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Get('owner/lodges/:lodgeId/manual-bookings')
+  public listManualBookings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('lodgeId') lodgeId: string,
+  ): Promise<ManualBookingBlock[]> {
+    return this.roomsService.listManualBookings(lodgeId, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Delete('owner/manual-bookings/:id')
+  public deleteManualBooking(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<{ deleted: boolean }> {
+    return this.roomsService.deleteManualBooking(id, user);
   }
 }

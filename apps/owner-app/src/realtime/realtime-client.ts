@@ -6,6 +6,7 @@ import { resolveOwnerApiBaseUrl } from '../config/api-base-url';
 import type { OwnerRealtimeEventName, OwnerStatus } from './realtime-events';
 
 interface OwnerClientEvents {
+  'lodge:join': (payload: { lodgeId: string }) => void;
   'owner:status-update': (payload: { status: OwnerStatus }) => void;
   'presence:update': (payload: { status: OwnerStatus }) => void;
 }
@@ -14,6 +15,12 @@ type OwnerServerEvents = Record<
   OwnerRealtimeEventName,
   (payload: Record<string, unknown>) => void
 > & {
+  'connection:ready': (payload: {
+    authenticated: boolean;
+    connected: boolean;
+    lodgeIds?: string[];
+  }) => void;
+  'lodge:joined': (payload: { lodgeId: string }) => void;
   'system:error': (payload: { message?: string }) => void;
 };
 
@@ -33,6 +40,7 @@ export function createRealtimeSocket(accessToken: string): RealtimeSocket {
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: Infinity,
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
+    tryAllTransports: true,
   });
 }

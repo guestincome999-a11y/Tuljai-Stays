@@ -1,4 +1,4 @@
-export type BookingStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled';
+export type BookingStatus = 'confirmed' | 'checked-in' | 'pending' | 'completed' | 'cancelled';
 
 export interface PilgrimRoom {
   available: number;
@@ -39,6 +39,7 @@ export interface PilgrimBooking {
   checkOut: string;
   checkOutDate: string;
   checkoutDateFlexible?: boolean;
+  createdAt: string;
   guests: string;
   id: string;
   image: string;
@@ -48,6 +49,7 @@ export interface PilgrimBooking {
   qrReady?: boolean;
   roomName: string;
   status: BookingStatus;
+  updatedAt: string;
 }
 
 export interface PilgrimNotification {
@@ -304,6 +306,7 @@ export const initialPilgrimBookings: PilgrimBooking[] = [
     checkInDate: '2026-10-18',
     checkOut: '20 Oct 2026',
     checkOutDate: '2026-10-20',
+    createdAt: '2026-07-14T10:42:00.000Z',
     guests: '2 adults · 1 child',
     id: 'booking-upcoming',
     image: pilgrimLodges[0].hero,
@@ -313,6 +316,7 @@ export const initialPilgrimBookings: PilgrimBooking[] = [
     qrReady: true,
     roomName: 'Deluxe Family Room',
     status: 'confirmed',
+    updatedAt: '2026-07-14T10:44:00.000Z',
   },
   {
     amount: 899,
@@ -321,6 +325,7 @@ export const initialPilgrimBookings: PilgrimBooking[] = [
     checkInDate: '2026-07-24',
     checkOut: '25 Jul 2026',
     checkOutDate: '2026-07-25',
+    createdAt: '2026-07-24T08:30:00.000Z',
     guests: '2 adults',
     id: 'booking-pending',
     image: pilgrimLodges[1].hero,
@@ -329,6 +334,7 @@ export const initialPilgrimBookings: PilgrimBooking[] = [
     paymentStatus: 'Pay at lodge',
     roomName: 'Bhakt Twin Room',
     status: 'pending',
+    updatedAt: '2026-07-24T08:30:00.000Z',
   },
   {
     amount: 2598,
@@ -337,6 +343,7 @@ export const initialPilgrimBookings: PilgrimBooking[] = [
     checkInDate: '2026-02-03',
     checkOut: '5 Feb 2026',
     checkOutDate: '2026-02-05',
+    createdAt: '2026-01-25T09:15:00.000Z',
     guests: '2 adults',
     id: 'booking-completed',
     image: pilgrimLodges[2].hero,
@@ -345,6 +352,7 @@ export const initialPilgrimBookings: PilgrimBooking[] = [
     paymentStatus: 'Paid',
     roomName: 'Comfort Double',
     status: 'completed',
+    updatedAt: '2026-02-05T08:00:00.000Z',
   },
 ];
 

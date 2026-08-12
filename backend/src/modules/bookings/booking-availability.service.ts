@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, Prisma, RoomStatus } from '@prisma/client';
+import type { BookingStatus, Prisma, RoomStatus } from '@prisma/client';
 import type { AvailabilityResponse } from '@tuljai/types';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -126,6 +126,14 @@ export class BookingAvailabilityService {
     return date;
   }
 
+  public async isRoomAvailable(input: {
+    checkInDate: Date;
+    checkOutDate: Date;
+    roomId: string;
+  }): Promise<boolean> {
+    return !(await this.hasRoomConflict(input));
+  }
+
   private async countAvailableRooms(input: {
     checkInDate: Date;
     checkOutDate: Date;
@@ -199,7 +207,7 @@ export class BookingAvailabilityService {
       checkOutDate: { gt: input.checkInDate },
     };
     const now = new Date();
-    const [booking, lock] = await this.prisma.$transaction([
+    const [booking, lock, availabilityOverride] = await this.prisma.$transaction([
       this.prisma.booking.findFirst({
         where: {
           ...overlapWhere,
@@ -217,8 +225,15 @@ export class BookingAvailabilityService {
           status: 'ACTIVE',
         } satisfies Prisma.BookingLockWhereInput,
       }),
+      this.prisma.roomAvailability.findFirst({
+        where: {
+          date: { gte: input.checkInDate, lt: input.checkOutDate },
+          roomId: input.roomId,
+          status: { not: 'AVAILABLE' },
+        },
+      }),
     ]);
 
-    return Boolean(booking || lock);
+    return Boolean(booking || lock || availabilityOverride);
   }
 }

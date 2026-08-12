@@ -6,9 +6,13 @@ import { apiClient } from '../api/client';
 import { getDevicePlatform, getOrCreateDeviceId } from '../device/device-identity';
 
 export const ACCEPT_BOOKING_ACTION = 'ACCEPT_BOOKING';
+export const ANNOUNCEMENTS_CHANNEL = 'announcements-v1';
 export const BOOKING_REQUEST_CATEGORY = 'BOOKING_REQUEST';
 export const BOOKING_REQUEST_CHANNEL = 'booking-requests-v2';
+export const BOOKING_UPDATES_CHANNEL = 'booking-updates-v1';
+export const GENERAL_CHANNEL = 'general-v1';
 export const REJECT_BOOKING_ACTION = 'REJECT_BOOKING';
+export const ROOM_ALERTS_CHANNEL = 'room-alerts-v1';
 
 Notifications.setNotificationHandler({
   handleNotification: (notification) => {
@@ -44,25 +48,83 @@ export async function registerOwnerPushNotifications(): Promise<boolean> {
   const projectId = readExpoProjectId();
   const token = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
 
-  await apiClient.post('/auth/device-token', {
-    appType: 'OWNER_APP',
-    deviceId: await getOrCreateDeviceId(),
-    fcmToken: token.data,
-    platform: getDevicePlatform(),
-  });
+  await savePushToken(token.data);
 
   return true;
 }
 
+export async function registerRotatedOwnerPushToken(
+  devicePushToken: Notifications.DevicePushToken,
+): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
+  const projectId = readExpoProjectId();
+  const token = await Notifications.getExpoPushTokenAsync({
+    ...(projectId ? { projectId } : {}),
+    devicePushToken,
+  });
+  await savePushToken(token.data);
+  return true;
+}
+
+export async function syncOwnerNotificationBadge(unreadCount: number): Promise<void> {
+  if (Platform.OS === 'web') {
+    return;
+  }
+
+  await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(unreadCount))).catch(
+    () => false,
+  );
+}
+
+async function savePushToken(token: string): Promise<void> {
+  await apiClient.post('/auth/device-token', {
+    appType: 'OWNER_APP',
+    deviceId: await getOrCreateDeviceId(),
+    fcmToken: token,
+    platform: getDevicePlatform(),
+  });
+}
+
 async function configureOwnerNotificationActions(): Promise<void> {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(BOOKING_REQUEST_CHANNEL, {
-      enableVibrate: true,
-      importance: Notifications.AndroidImportance.MAX,
-      name: 'New booking requests',
-      sound: 'default',
-      vibrationPattern: [0, 900, 450, 900, 450, 900, 450, 900],
-    });
+    await Promise.all([
+      Notifications.setNotificationChannelAsync(BOOKING_REQUEST_CHANNEL, {
+        enableVibrate: true,
+        importance: Notifications.AndroidImportance.MAX,
+        name: 'Booking Requests',
+        sound: 'default',
+        vibrationPattern: [0, 900, 450, 900, 450, 900, 450, 900],
+      }),
+      Notifications.setNotificationChannelAsync(BOOKING_UPDATES_CHANNEL, {
+        enableVibrate: true,
+        importance: Notifications.AndroidImportance.HIGH,
+        name: 'Booking Updates',
+        sound: 'default',
+        vibrationPattern: [0, 350, 200, 350],
+      }),
+      Notifications.setNotificationChannelAsync(ROOM_ALERTS_CHANNEL, {
+        enableVibrate: true,
+        importance: Notifications.AndroidImportance.HIGH,
+        name: 'Room Alerts',
+        sound: 'default',
+        vibrationPattern: [0, 500, 250, 500],
+      }),
+      Notifications.setNotificationChannelAsync(ANNOUNCEMENTS_CHANNEL, {
+        enableVibrate: true,
+        importance: Notifications.AndroidImportance.HIGH,
+        name: 'Announcements',
+        sound: 'default',
+        vibrationPattern: [0, 300],
+      }),
+      Notifications.setNotificationChannelAsync(GENERAL_CHANNEL, {
+        importance: Notifications.AndroidImportance.DEFAULT,
+        name: 'General',
+        sound: 'default',
+      }),
+    ]);
   }
 
   await Notifications.setNotificationCategoryAsync(BOOKING_REQUEST_CATEGORY, [

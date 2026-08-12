@@ -1,6 +1,7 @@
 import type { Notification } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
+import { syncPilgrimNotificationBadge } from '../../../notifications/push-registration';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import {
   getUnreadNotificationCount,
@@ -21,6 +22,10 @@ export function useUnreadNotificationCount() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void syncPilgrimNotificationBadge(unreadCount);
+  }, [unreadCount]);
 
   useEffect(() => {
     const event = realtime.lastEvent;

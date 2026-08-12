@@ -92,6 +92,7 @@ export function useOwnerDashboardSummary() {
       eventName === 'checkin:completed' ||
       eventName === 'checkout:completed' ||
       eventName === 'room:availability-updated' ||
+      eventName === 'room:status-updated' ||
       eventName === 'dashboard:update' ||
       eventName === 'notification:new' ||
       eventName === 'notification:unread-count'
@@ -108,6 +109,23 @@ export function useOwnerDashboardSummary() {
 
     return undefined;
   }, [load, realtime.lastEvent]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision === 0) {
+      return;
+    }
+
+    void load(true);
+  }, [load, realtime.connectionRevision]);
+
+  useEffect(() => {
+    if (realtime.connected || isOffline || !auth.isAuthenticated) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => void load(true), 30_000);
+    return () => clearInterval(interval);
+  }, [auth.isAuthenticated, isOffline, load, realtime.connected]);
 
   return {
     ...state,

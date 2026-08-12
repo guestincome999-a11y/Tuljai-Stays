@@ -14,6 +14,18 @@ function byNearestCheckIn(left: PilgrimBooking, right: PilgrimBooking): number {
   return dateValue(left.checkInDate) - dateValue(right.checkInDate);
 }
 
+export function isActionablePassBooking(
+  booking: PilgrimBooking,
+  now = new Date(),
+): boolean {
+  if (!isNotFinished(booking, now)) return false;
+
+  return (
+    (booking.status === 'confirmed' && booking.qrReady === true) ||
+    booking.status === 'pending'
+  );
+}
+
 /** Selects exactly one stay for the dedicated Pass screen. */
 export function selectCurrentPassBooking(
   bookings: PilgrimBooking[],
@@ -28,7 +40,13 @@ export function selectCurrentPassBooking(
 
   if (confirmed[0]) return confirmed[0];
 
-  return bookings
+  const pending = bookings
     .filter((booking) => booking.status === 'pending' && isNotFinished(booking, now))
+    .sort(byNearestCheckIn);
+
+  if (pending[0]) return pending[0];
+
+  return bookings
+    .filter((booking) => booking.status === 'checked-in' && isNotFinished(booking, now))
     .sort(byNearestCheckIn)[0];
 }

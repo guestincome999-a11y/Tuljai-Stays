@@ -1,4 +1,5 @@
 import type {
+  GoogleLoginRequest,
   LogoutRequest,
   RefreshTokenResponse,
   RequestOtpResponse,
@@ -71,11 +72,62 @@ export async function verifyLoginOtp(phoneNumber: string, otp: string): Promise<
   });
 }
 
+export async function exchangeGoogleLogin(
+  supabaseAccessToken: string,
+): Promise<VerifyOtpResponse> {
+  const deviceId = await getOrCreateDeviceId();
+
+  if (useMockExperience()) {
+    const now = new Date().toISOString();
+    return {
+      session: {
+        appType: 'PILGRIM_APP',
+        createdAt: now,
+        deviceId,
+        deviceName: getDeviceName(),
+        id: 'demo-google-pilgrim-session',
+        isActive: true,
+        lastSeenAt: now,
+        platform: getDevicePlatform(),
+        userId: 'demo-google-pilgrim-user',
+      },
+      tokens: {
+        accessToken: 'demo-google-pilgrim-access-token',
+        expiresInSeconds: 86_400,
+        refreshToken: 'demo-google-pilgrim-refresh-token',
+      },
+      user: {
+        displayName: 'Anjali Kulkarni',
+        id: 'demo-google-pilgrim-user',
+        isActive: true,
+        lastLoginAt: now,
+        phoneNumber: null,
+        roles: ['PILGRIM'],
+      },
+    };
+  }
+
+  const payload: GoogleLoginRequest = {
+    appType: 'PILGRIM_APP',
+    deviceId,
+    deviceName: getDeviceName(),
+    platform: getDevicePlatform(),
+    supabaseAccessToken,
+  };
+
+  return apiClient.post<VerifyOtpResponse>('/auth/google', payload);
+}
+
 export async function refreshAccessToken(
   refreshToken: string,
 ): Promise<RefreshTokenResponse | null> {
-  if (useMockExperience() && refreshToken === 'demo-pilgrim-refresh-token') {
-    return { accessToken: 'demo-pilgrim-access-token', expiresInSeconds: 86_400 };
+  if (useMockExperience()) {
+    if (refreshToken === 'demo-pilgrim-refresh-token') {
+      return { accessToken: 'demo-pilgrim-access-token', expiresInSeconds: 86_400 };
+    }
+    if (refreshToken === 'demo-google-pilgrim-refresh-token') {
+      return { accessToken: 'demo-google-pilgrim-access-token', expiresInSeconds: 86_400 };
+    }
   }
 
   const deviceId = await getOrCreateDeviceId();
@@ -87,7 +139,10 @@ export async function refreshAccessToken(
 }
 
 export async function logoutFromApi(refreshToken: string): Promise<void> {
-  if (useMockExperience() && refreshToken === 'demo-pilgrim-refresh-token') {
+  if (
+    useMockExperience() &&
+    ['demo-pilgrim-refresh-token', 'demo-google-pilgrim-refresh-token'].includes(refreshToken)
+  ) {
     return;
   }
 

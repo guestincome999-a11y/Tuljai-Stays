@@ -96,7 +96,8 @@ export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) 
       eventName === 'booking:expired' ||
       eventName === 'checkin:completed' ||
       eventName === 'checkout:completed' ||
-      eventName === 'room:availability-updated'
+      eventName === 'room:availability-updated' ||
+      eventName === 'room:status-updated'
     ) {
       const timeout = setTimeout(
         () => {
@@ -110,6 +111,23 @@ export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) 
 
     return undefined;
   }, [load, realtime.lastEvent]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision === 0) {
+      return;
+    }
+
+    void load(true);
+  }, [load, realtime.connectionRevision]);
+
+  useEffect(() => {
+    if (realtime.connected || isOffline || !lodgeId) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => void load(true), 30_000);
+    return () => clearInterval(interval);
+  }, [isOffline, load, lodgeId, realtime.connected]);
 
   return useMemo(
     () => ({
