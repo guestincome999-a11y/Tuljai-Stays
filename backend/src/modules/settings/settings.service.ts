@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto';
+
+import type { MultipartFile } from '@fastify/multipart';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { FeatureFlag, PromotionalBanner, SystemSetting } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseStorageService } from '../storage/providers/supabase-storage.service';
 
 import type { UpdateFeatureFlagDto, UpdateSystemSettingDto } from './dto/settings.dto';
 
@@ -269,7 +273,41 @@ export class SettingsService {
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly prisma: PrismaService,
+    private readonly storageService: SupabaseStorageService,
   ) {}
+
+  public async uploadPromotionalBannerImage(
+    file: MultipartFile,
+    actorUserId: string,
+  ): Promise<{ imageUrl: string }> {
+    const contents = await file.toBuffer();
+    if (contents.length === 0) {
+      throw new BadRequestException('The selected banner image is empty');
+    }
+    if (contents.length > 5 * 1024 * 1024) {
+      throw new BadRequestException('Banner images must be 5 MB or smaller');
+    }
+
+    const detectedImage = this.detectPromotionalBannerImage(contents);
+    if (!detectedImage) {
+      throw new BadRequestException('Upload a JPEG, PNG, or WebP banner image');
+    }
+
+    const storagePath = `promotional-banners/${randomUUID()}.${detectedImage.extension}`;
+    const imageUrl = await this.storageService.uploadPublicObject(
+      storagePath,
+      contents,
+      detectedImage.mimeType,
+    );
+    await this.auditLogService.create({
+      action: 'PROMOTIONAL_BANNER_IMAGE_UPLOADED',
+      actorUserId,
+      entityType: 'promotional_banner_image',
+      metadata: { mimeType: detectedImage.mimeType, sizeBytes: contents.length, storagePath },
+    });
+
+    return { imageUrl };
+  }
 
   public async listSettings(): Promise<SystemSetting[]> {
     const cached = this.readCache(this.allSettingsCache);
@@ -499,6 +537,35 @@ export class SettingsService {
         );
       }
     }
+  }
+
+  private detectPromotionalBannerImage(contents: Buffer): {
+    extension: 'jpg' | 'png' | 'webp';
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  } | null {
+    if (
+      contents.length >= 3 &&
+      contents[0] === 0xff &&
+      contents[1] === 0xd8 &&
+      contents[2] === 0xff
+    ) {
+      return { extension: 'jpg', mimeType: 'image/jpeg' };
+    }
+    if (
+      contents.length >= 8 &&
+      contents.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    ) {
+      return { extension: 'png', mimeType: 'image/png' };
+    }
+    if (
+      contents.length >= 12 &&
+      contents.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      contents.subarray(8, 12).toString('ascii') === 'WEBP'
+    ) {
+      return { extension: 'webp', mimeType: 'image/webp' };
+    }
+
+    return null;
   }
 
   private async ensureDefaultsUncached(): Promise<void> {

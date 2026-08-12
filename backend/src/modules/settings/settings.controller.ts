@@ -1,5 +1,16 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthenticatedUser } from '@tuljai/types';
+import type { FastifyRequest } from 'fastify';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -29,6 +40,21 @@ export class SettingsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.settingsService.updateSetting(key, dto, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('admin/settings/promotional-banners/image')
+  public async uploadPromotionalBannerImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: FastifyRequest,
+  ) {
+    const file = await request.file();
+    if (!file) {
+      throw new BadRequestException('Select a banner image to upload');
+    }
+
+    return this.settingsService.uploadPromotionalBannerImage(file, user.id);
   }
 
   @Get('settings/public')
