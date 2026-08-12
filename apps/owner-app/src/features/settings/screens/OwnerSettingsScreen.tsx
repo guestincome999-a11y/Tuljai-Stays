@@ -12,6 +12,7 @@ import {
 } from 'react-native-paper';
 
 import { useOwnerSettings } from '../hooks/useOwnerSettings';
+import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
 import {
   type OwnerDashboardTab,
   type OwnerLanguage,
@@ -27,7 +28,6 @@ const themeModes: Array<{ label: string; value: OwnerThemeMode }> = [
 const languages: Array<{ label: string; value: OwnerLanguage }> = [
   { label: 'English', value: 'EN' },
   { label: 'Marathi', value: 'MR' },
-  { label: 'Hindi', value: 'HI' },
 ];
 
 const dashboardTabs: Array<{ label: string; value: OwnerDashboardTab }> = [
@@ -40,6 +40,7 @@ const dashboardTabs: Array<{ label: string; value: OwnerDashboardTab }> = [
 export function OwnerSettingsScreen() {
   const theme = useTheme();
   const settings = useOwnerSettings();
+  const { setLanguage, tr } = useOwnerApp();
 
   if (settings.isLoading) {
     return (
@@ -53,7 +54,7 @@ export function OwnerSettingsScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.screen}>
         <View style={styles.header}>
-          <Text variant="headlineSmall">Operational Settings</Text>
+          <Text variant="headlineSmall">{tr('Operational Settings')}</Text>
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
             Device preferences for reception work. Backend system settings remain admin controlled.
           </Text>
@@ -61,7 +62,7 @@ export function OwnerSettingsScreen() {
 
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">Reception Preferences</Text>
+            <Text variant="titleMedium">{tr('Reception Preferences')}</Text>
             <ToggleRow
               label="Reception Mode Default"
               value={settings.settings.receptionModeDefault}
@@ -88,7 +89,7 @@ export function OwnerSettingsScreen() {
 
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">Notifications</Text>
+            <Text variant="titleMedium">{tr('Notifications')}</Text>
             <ToggleRow
               label="Notification Sound"
               value={settings.settings.notificationSound}
@@ -108,7 +109,7 @@ export function OwnerSettingsScreen() {
 
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">Appearance</Text>
+            <Text variant="titleMedium">{tr('Appearance')}</Text>
             <OptionChips
               currentValue={settings.settings.themeMode}
               options={themeModes}
@@ -116,17 +117,16 @@ export function OwnerSettingsScreen() {
                 void settings.update({ themeMode });
               }}
             />
-            <Text variant="titleMedium">Language Foundation</Text>
+            <Text variant="titleMedium">{tr('Language')}</Text>
             <OptionChips
               currentValue={settings.settings.language}
               options={languages}
               onChange={(language) => {
-                void settings.update({ language });
+                void settings
+                  .update({ language })
+                  .then(() => setLanguage(language === 'MR' ? 'mr' : 'en'));
               }}
             />
-            <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-              Translation files will be wired in a later localization phase.
-            </Text>
           </Card.Content>
         </Card>
 
