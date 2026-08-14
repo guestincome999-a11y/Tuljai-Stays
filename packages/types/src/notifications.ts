@@ -2,6 +2,7 @@ import type { AppType, ISODateTime, UserRole, UUID } from './common';
 
 export type NotificationType =
   | 'BOOKING_REQUEST'
+  | 'BOOKING_CONFIRMED'
   | 'BOOKING_ACCEPTED'
   | 'BOOKING_REJECTED'
   | 'BOOKING_CANCELLED'
