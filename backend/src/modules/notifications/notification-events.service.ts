@@ -52,6 +52,19 @@ export class NotificationEventsService {
         type: 'BOOKING_REQUEST',
       });
     }
+
+    await this.notificationsService.create({
+      body: `Your booking ${booking.bookingCode} has been confirmed.`,
+      bookingId: booking.id,
+      data: payload,
+      lodgeId: booking.lodgeId,
+      priority: 'NORMAL',
+      recipientRole: 'PILGRIM',
+      recipientUserId: booking.pilgrimUserId,
+      title: 'Booking confirmed',
+      type: 'BOOKING_CONFIRMED',
+    });
+
     this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
       bookingId: booking.id,
       type: 'booking:new',
