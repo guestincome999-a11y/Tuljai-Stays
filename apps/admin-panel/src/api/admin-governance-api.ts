@@ -81,16 +81,22 @@ export interface AssignAmenitiesInput {
   amenityIds: string[];
 }
 
+export type LodgeCommissionType = 'PERCENTAGE' | 'FIXED_PER_BOOKING';
+
 export interface LodgeCommissionConfig {
   lodgeId: string;
   commissionEnabled: boolean;
+  commissionType: LodgeCommissionType;
   commissionRatePercent: number;
+  commissionFixedAmount: number;
   effectiveFrom: string;
 }
 
 export interface UpdateLodgeCommissionInput {
   commissionEnabled: boolean;
-  commissionRatePercent: number;
+  commissionType: LodgeCommissionType;
+  commissionRatePercent?: number;
+  commissionFixedAmount?: number;
   effectiveFrom?: string;
 }
 
@@ -98,15 +104,9 @@ export type PendingPhoto = LodgePhoto & {
   lodgeName?: string;
 };
 
-export async function listGovernanceLodges(
-  query: LodgeGovernanceQuery = {},
-): Promise<PaginatedResponse<Lodge>> {
+export async function listGovernanceLodges(query: LodgeGovernanceQuery = {}): Promise<PaginatedResponse<Lodge>> {
   return apiClient.get<PaginatedResponse<Lodge>>('/admin/lodges', {
-    params: {
-      page: query.page ?? 1,
-      pageSize: query.pageSize ?? 20,
-      search: query.search || undefined,
-    },
+    params: { page: query.page ?? 1, pageSize: query.pageSize ?? 20, search: query.search || undefined },
   });
 }
 
@@ -118,58 +118,31 @@ export async function createGovernanceLodge(input: CreateLodgeInput): Promise<Lo
   return apiClient.post<LodgeDetails>('/admin/lodges', input);
 }
 
-export async function bulkImportGovernanceLodges(
-  rows: BulkLodgeImportRow[],
-): Promise<BulkLodgeImportResult> {
-  return apiClient.request<BulkLodgeImportResult>('/admin/lodges/bulk-import', {
-    body: { rows },
-    method: 'POST',
-    timeout: 120_000,
-  });
+export async function bulkImportGovernanceLodges(rows: BulkLodgeImportRow[]): Promise<BulkLodgeImportResult> {
+  return apiClient.request<BulkLodgeImportResult>('/admin/lodges/bulk-import', { body: { rows }, method: 'POST', timeout: 120_000 });
 }
 
 export async function getGovernanceLodge(lodgeId: string): Promise<LodgeDetails> {
   return apiClient.get<LodgeDetails>(`/admin/lodges/${lodgeId}`);
 }
 
-export async function updateGovernanceLodgeStatus(
-  lodgeId: string,
-  input: LodgeStatusInput,
-): Promise<LodgeDetails> {
-  return apiClient.request<LodgeDetails>(`/admin/lodges/${lodgeId}/status`, {
-    body: input,
-    method: 'PATCH',
-  });
+export async function updateGovernanceLodgeStatus(lodgeId: string, input: LodgeStatusInput): Promise<LodgeDetails> {
+  return apiClient.request<LodgeDetails>(`/admin/lodges/${lodgeId}/status`, { body: input, method: 'PATCH' });
 }
 
-export async function verifyGovernanceLodge(
-  lodgeId: string,
-  input: LodgeVerificationInput,
-): Promise<LodgeDetails> {
-  return apiClient.request<LodgeDetails>(`/admin/lodges/${lodgeId}/verify`, {
-    body: input,
-    method: 'PATCH',
-  });
+export async function verifyGovernanceLodge(lodgeId: string, input: LodgeVerificationInput): Promise<LodgeDetails> {
+  return apiClient.request<LodgeDetails>(`/admin/lodges/${lodgeId}/verify`, { body: input, method: 'PATCH' });
 }
 
 export async function getLodgeCommission(lodgeId: string): Promise<LodgeCommissionConfig> {
   return apiClient.get<LodgeCommissionConfig>(`/admin/lodges/${lodgeId}/commission`);
 }
 
-export async function updateLodgeCommission(
-  lodgeId: string,
-  input: UpdateLodgeCommissionInput,
-): Promise<LodgeCommissionConfig> {
-  return apiClient.request<LodgeCommissionConfig>(`/admin/lodges/${lodgeId}/commission`, {
-    body: input,
-    method: 'PATCH',
-  });
+export async function updateLodgeCommission(lodgeId: string, input: UpdateLodgeCommissionInput): Promise<LodgeCommissionConfig> {
+  return apiClient.request<LodgeCommissionConfig>(`/admin/lodges/${lodgeId}/commission`, { body: input, method: 'PATCH' });
 }
 
-export async function assignGovernanceLodgeOwner(
-  lodgeId: string,
-  input: AssignLodgeOwnerInput,
-): Promise<{ success: true }> {
+export async function assignGovernanceLodgeOwner(lodgeId: string, input: AssignLodgeOwnerInput): Promise<{ success: true }> {
   return apiClient.post<{ success: true }>(`/admin/lodges/${lodgeId}/owners`, input);
 }
 
@@ -181,14 +154,8 @@ export async function listGovernanceRooms(lodgeId: string): Promise<Room[]> {
   return apiClient.get<Room[]>(`/owner/lodges/${lodgeId}/rooms`);
 }
 
-export async function updateGovernanceRoomStatus(
-  roomId: string,
-  input: RoomStatusInput,
-): Promise<Room> {
-  return apiClient.request<Room>(`/owner/rooms/${roomId}/status`, {
-    body: input,
-    method: 'PATCH',
-  });
+export async function updateGovernanceRoomStatus(roomId: string, input: RoomStatusInput): Promise<Room> {
+  return apiClient.request<Room>(`/owner/rooms/${roomId}/status`, { body: input, method: 'PATCH' });
 }
 
 export async function listPendingGovernancePhotos(): Promise<PendingPhoto[]> {
@@ -199,30 +166,15 @@ export async function listGovernanceLodgePhotos(lodgeId: string): Promise<LodgeP
   return apiClient.get<LodgePhoto[]>(`/owner/lodges/${lodgeId}/photos`);
 }
 
-export async function updateGovernancePhotoApproval(
-  photoId: string,
-  status: PhotoApprovalStatus,
-  input?: PhotoRejectionInput,
-): Promise<LodgePhoto> {
-  if (status === 'APPROVED') {
-    return apiClient.request<LodgePhoto>(`/admin/photos/${photoId}/approve`, {
-      method: 'PATCH',
-    });
-  }
-
-  return apiClient.request<LodgePhoto>(`/admin/photos/${photoId}/reject`, {
-    body: input,
-    method: 'PATCH',
-  });
+export async function updateGovernancePhotoApproval(photoId: string, status: PhotoApprovalStatus, input?: PhotoRejectionInput): Promise<LodgePhoto> {
+  if (status === 'APPROVED') return apiClient.request<LodgePhoto>(`/admin/photos/${photoId}/approve`, { method: 'PATCH' });
+  return apiClient.request<LodgePhoto>(`/admin/photos/${photoId}/reject`, { body: input, method: 'PATCH' });
 }
 
 export async function listGovernanceAmenities(): Promise<Amenity[]> {
   return apiClient.get<Amenity[]>('/amenities');
 }
 
-export async function assignGovernanceAmenities(
-  lodgeId: string,
-  input: AssignAmenitiesInput,
-): Promise<{ success: true }> {
+export async function assignGovernanceAmenities(lodgeId: string, input: AssignAmenitiesInput): Promise<{ success: true }> {
   return apiClient.post<{ success: true }>(`/admin/lodges/${lodgeId}/amenities`, input);
 }
