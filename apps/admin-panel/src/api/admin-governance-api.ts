@@ -81,6 +81,19 @@ export interface AssignAmenitiesInput {
   amenityIds: string[];
 }
 
+export interface LodgeCommissionConfig {
+  lodgeId: string;
+  commissionEnabled: boolean;
+  commissionRatePercent: number;
+  effectiveFrom: string;
+}
+
+export interface UpdateLodgeCommissionInput {
+  commissionEnabled: boolean;
+  commissionRatePercent: number;
+  effectiveFrom?: string;
+}
+
 export type PendingPhoto = LodgePhoto & {
   lodgeName?: string;
 };
@@ -134,6 +147,20 @@ export async function verifyGovernanceLodge(
   input: LodgeVerificationInput,
 ): Promise<LodgeDetails> {
   return apiClient.request<LodgeDetails>(`/admin/lodges/${lodgeId}/verify`, {
+    body: input,
+    method: 'PATCH',
+  });
+}
+
+export async function getLodgeCommission(lodgeId: string): Promise<LodgeCommissionConfig> {
+  return apiClient.get<LodgeCommissionConfig>(`/admin/lodges/${lodgeId}/commission`);
+}
+
+export async function updateLodgeCommission(
+  lodgeId: string,
+  input: UpdateLodgeCommissionInput,
+): Promise<LodgeCommissionConfig> {
+  return apiClient.request<LodgeCommissionConfig>(`/admin/lodges/${lodgeId}/commission`, {
     body: input,
     method: 'PATCH',
   });
