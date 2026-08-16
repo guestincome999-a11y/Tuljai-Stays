@@ -1,6 +1,10 @@
 -- Lodge commission accounting foundation.
--- Keeps the existing Booking.commissionAmount field as the booking-level snapshot amount.
--- Adds per-lodge commission configuration, immutable booking snapshots, and settlement ledger.
+-- Existing Booking.commissionAmount is retained as the monetary snapshot.
+-- Booking.commissionRatePercent stores the immutable rate used for that booking.
+-- The ledger records only commission that becomes payable after COMPLETED.
+
+ALTER TABLE "bookings"
+  ADD COLUMN "commission_rate_percent" DECIMAL(5,2);
 
 CREATE TABLE "lodge_commission_settings" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -75,9 +79,6 @@ CREATE TABLE "lodge_commission_settlements" (
 CREATE INDEX "lodge_commission_settlements_lodge_settled_at_idx"
   ON "lodge_commission_settlements"("lodge_id", "settled_at");
 
--- Snapshot commission configuration when a booking is created.
--- The existing application currently writes commissionAmount from a global setting;
--- this trigger deliberately overrides that value with the lodge-specific rule when present.
 CREATE OR REPLACE FUNCTION "tuljai_snapshot_lodge_commission"()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -92,9 +93,11 @@ BEGIN
    WHERE "lodge_id" = NEW."lodge_id";
 
   IF FOUND AND rule.commission_enabled AND NEW."total_amount" IS NOT NULL THEN
+    NEW."commission_rate_percent" := rule.commission_rate_percent;
     calculated := ROUND((NEW."total_amount" * rule.commission_rate_percent / 100.0)::numeric, 2);
     NEW."commission_amount" := calculated;
   ELSE
+    NEW."commission_rate_percent" := NULL;
     NEW."commission_amount" := NULL;
   END IF;
 
@@ -108,30 +111,23 @@ ON "bookings"
 FOR EACH ROW
 EXECUTE FUNCTION "tuljai_snapshot_lodge_commission"();
 
--- Commission becomes payable only when the booking reaches COMPLETED.
 CREATE OR REPLACE FUNCTION "tuljai_create_commission_ledger_entry"()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
-DECLARE
-  rate NUMERIC(5,2);
 BEGIN
   IF NEW."status" = 'COMPLETED'
      AND (TG_OP = 'INSERT' OR OLD."status" IS DISTINCT FROM 'COMPLETED')
      AND NEW."commission_amount" IS NOT NULL
      AND NEW."commission_amount" > 0 THEN
 
-    SELECT COALESCE("commission_rate_percent", 0)
-      INTO rate
-      FROM "lodge_commission_settings"
-     WHERE "lodge_id" = NEW."lodge_id";
-
     INSERT INTO "lodge_commission_ledger" (
       "lodge_id", "booking_id", "base_amount", "commission_rate_percent",
       "commission_amount", "status", "eligible_at"
     ) VALUES (
       NEW."lodge_id", NEW."id", COALESCE(NEW."total_amount", 0),
-      COALESCE(rate, 0), NEW."commission_amount", 'OUTSTANDING', CURRENT_TIMESTAMP
+      COALESCE(NEW."commission_rate_percent", 0), NEW."commission_amount",
+      'OUTSTANDING', CURRENT_TIMESTAMP
     )
     ON CONFLICT ("booking_id") DO NOTHING;
   END IF;
@@ -146,8 +142,6 @@ ON "bookings"
 FOR EACH ROW
 EXECUTE FUNCTION "tuljai_create_commission_ledger_entry"();
 
--- Seed a zero-rate rule for existing lodges so current bookings remain commission-free
--- until the admin explicitly enables a rate.
 INSERT INTO "lodge_commission_settings" ("lodge_id", "commission_enabled", "commission_rate_percent")
 SELECT "id", false, 0
 FROM "lodges"
