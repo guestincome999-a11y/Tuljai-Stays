@@ -79,11 +79,14 @@ const adminPermissions: AdminPermission[] = [
   'settings.manage',
   'feature_flags.manage',
   'reports.view',
+  'reports.export',
   'analytics.view',
   'audit_logs.view',
   'security.manage',
   'support.view',
   'support.manage',
+  'finance.view',
+  'finance.manage',
   'system_health.view',
 ];
 
