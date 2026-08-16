@@ -129,6 +129,13 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     status: 'ready',
   },
   {
+    href: '/admin/commission',
+    label: 'Lodge Commission',
+    permission: 'finance.view',
+    section: 'Core',
+    status: 'ready',
+  },
+  {
     href: '/admin/performance',
     label: 'Performance',
     permission: 'reports.view',
