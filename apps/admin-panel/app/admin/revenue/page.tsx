@@ -16,6 +16,7 @@ import { PermissionGate } from '../../../src/components/PermissionGate';
 export default function AdminRevenuePage() {
   const [rows, setRows] = useState<BookingReportRow[]>([]);
   const [commissions, setCommissions] = useState<CommissionSummary[]>([]);
+  const [selectedLodgeId, setSelectedLodgeId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -41,6 +42,7 @@ export default function AdminRevenuePage() {
   const revenue = sumRevenue(rows);
   const commission = sumCommission(rows);
   const averageBookingValue = rows.length > 0 ? revenue / rows.length : 0;
+  const selectedLodge = rankings.find((row) => row.lodgeId === selectedLodgeId) ?? null;
 
   return (
     <PermissionGate permission="finance.view">
@@ -50,8 +52,8 @@ export default function AdminRevenuePage() {
             <p className="eyebrow">Revenue Intelligence</p>
             <h2>Revenue dashboard</h2>
             <p className="muted-copy">
-              Revenue estimates, commission estimates, average booking values, and top performing
-              lodges from current booking reports.
+              Revenue estimates, commission estimates, average booking values, and lodge-level
+              receivable/payable views from current booking reports.
             </p>
           </div>
           <button className="button button-primary" type="button" onClick={() => void load()}>
@@ -65,7 +67,7 @@ export default function AdminRevenuePage() {
           <Metric label="Revenue Estimate" value={toCurrency(revenue)} />
           <Metric label="Commission Earned" value={toCurrency(commission)} />
           <Metric label="Average Booking Value" value={toCurrency(averageBookingValue)} />
-          <Metric label="Commission Pending" value="Settlement endpoint required" />
+          <Metric label="Commission Receivable" value={toCurrency(commission)} />
         </section>
 
         <section className="grid grid-2">
@@ -100,6 +102,83 @@ export default function AdminRevenuePage() {
             </div>
           </section>
         </section>
+
+        <section className="table-panel">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Lodge Commission Report</p>
+              <p className="muted-copy">
+                Every lodge shows the commission currently receivable by Tuljai Stays. The same
+                amount is the lodge's payable commission under the current commission model.
+              </p>
+            </div>
+          </div>
+          <div className="admin-table bi-ranking-table">
+            <div className="admin-table-row admin-table-head">
+              <span>Lodge</span>
+              <span>Bookings</span>
+              <span>Revenue</span>
+              <span>Commission Receivable</span>
+              <span>Action</span>
+            </div>
+            {rankings.slice(0, 20).map((row) => (
+              <div className="admin-table-row" key={row.lodgeId}>
+                <span>
+                  <strong>{row.lodgeId}</strong>
+                </span>
+                <span>{row.bookings}</span>
+                <span>{toCurrency(row.revenue)}</span>
+                <span>{toCurrency(row.commission)}</span>
+                <span>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() => setSelectedLodgeId(row.lodgeId)}
+                  >
+                    View report
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {selectedLodge ? (
+          <section className="panel" aria-label="Lodge commission report">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Lodge Report Card</p>
+                <h3>{selectedLodge.lodgeId}</h3>
+              </div>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => setSelectedLodgeId(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-4">
+              <Metric label="Bookings" value={String(selectedLodge.bookings)} />
+              <Metric label="Booking Revenue" value={toCurrency(selectedLodge.revenue)} />
+              <Metric label="Tuljai Receivable" value={toCurrency(selectedLodge.commission)} />
+              <Metric label="Lodge Payable" value={toCurrency(selectedLodge.commission)} />
+            </div>
+
+            <div className="feed-list">
+              <Insight label="Commission status" value="Outstanding in current report" />
+              <Insight
+                label="Settlement tracking"
+                value="Not enabled yet — no settlement endpoint is assumed"
+              />
+              <Insight
+                label="Accounting interpretation"
+                value="Receivable by Tuljai Stays = payable by this lodge"
+              />
+            </div>
+          </section>
+        ) : null}
 
         <section className="table-panel">
           <p className="eyebrow">Top Revenue Lodges</p>
