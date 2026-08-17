@@ -2,6 +2,7 @@ import type {
   BookingReportRow,
   BookingStatus,
   CommissionSummary,
+  LodgeCommissionFinanceReport,
   PaginatedResponse,
 } from '@tuljai/types';
 
@@ -38,4 +39,10 @@ export async function getOwnerCommissionReport(
   return apiClient.get<CommissionSummary[]>('/owner/reports/commission', {
     params: { limit: 80, page: 1, ...query },
   });
+}
+
+export async function getOwnerCommissionFinanceReport(
+  lodgeId: string,
+): Promise<LodgeCommissionFinanceReport> {
+  return apiClient.get<LodgeCommissionFinanceReport>(`/owner/lodges/${lodgeId}/commission/report`);
 }

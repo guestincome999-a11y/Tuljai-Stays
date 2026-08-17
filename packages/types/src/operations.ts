@@ -101,6 +101,62 @@ export interface CommissionSummary {
   lodgeId: UUID | null;
 }
 
+export type LodgeCommissionType = 'PERCENTAGE' | 'FIXED_PER_BOOKING';
+export type LodgeCommissionLedgerStatus = 'OUTSTANDING' | 'SETTLED' | 'VOIDED';
+
+export interface LodgeCommissionSettingReport {
+  commissionEnabled: boolean;
+  commissionFixedAmount: string;
+  commissionRatePercent: string;
+  commissionType: LodgeCommissionType;
+  effectiveFrom: ISODateTime;
+}
+
+export interface LodgeCommissionTransaction {
+  baseAmount: string;
+  bookingCode: string;
+  bookingId: UUID;
+  checkInDate: string;
+  checkOutDate: string;
+  commissionAmount: string;
+  commissionFixedAmount: string;
+  commissionRatePercent: string;
+  commissionType: LodgeCommissionType;
+  eligibleAt: ISODateTime;
+  id: UUID;
+  notes: string | null;
+  settledAt: ISODateTime | null;
+  status: LodgeCommissionLedgerStatus;
+  voidedAt: ISODateTime | null;
+}
+
+export interface LodgeCommissionSettlement {
+  amount: string;
+  createdAt: ISODateTime;
+  id: UUID;
+  notes: string | null;
+  paymentMethod: string;
+  reference: string | null;
+  settledAt: ISODateTime;
+  settledByUserId: UUID | null;
+}
+
+export interface LodgeCommissionFinanceReport {
+  lodgeId: UUID;
+  lodgeName: string;
+  setting: LodgeCommissionSettingReport;
+  summary: {
+    bookingRevenue: string;
+    commissionReceivable: string;
+    outstanding: string;
+    settled: string;
+    voided: string;
+    totalSettlements: string;
+  };
+  transactions: LodgeCommissionTransaction[];
+  settlements: LodgeCommissionSettlement[];
+}
+
 export interface SystemSetting {
   createdAt?: string;
   description: string | null;
@@ -135,10 +191,4 @@ export interface PresenceSummary {
   onlineOwners: number;
   onlinePilgrims: number;
   totalOnline: number;
-}
-
-export interface NotificationPreference {
-  inAppEnabled: boolean;
-  notificationType: NotificationType;
-  pushEnabled: boolean;
 }
