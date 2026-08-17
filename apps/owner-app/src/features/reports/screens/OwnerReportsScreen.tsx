@@ -10,6 +10,7 @@ import { useOwnerReports } from '../hooks/useOwnerReports';
 export function OwnerReportsScreen() {
   const reports = useOwnerReports();
   const theme = useTheme();
+  const commission = reports.summary.estimatedCommission;
 
   return (
     <ScrollView
@@ -40,8 +41,8 @@ export function OwnerReportsScreen() {
           value={`Rs. ${reports.summary.estimatedRevenue.toLocaleString('en-IN')}`}
         />
         <SummaryCard
-          label="Commission"
-          value={`Rs. ${reports.summary.estimatedCommission.toLocaleString('en-IN')}`}
+          label="Commission Payable"
+          value={`Rs. ${commission.toLocaleString('en-IN')}`}
         />
         <SummaryCard label="Completed" value={reports.summary.completedBookings.toString()} />
         <SummaryCard
@@ -50,6 +51,29 @@ export function OwnerReportsScreen() {
         />
         <SummaryCard label="Check-ins/outs" value={reports.summary.checkInsCheckouts} />
       </View>
+
+      <Card mode="outlined" style={styles.commissionCard}>
+        <Card.Content style={styles.commissionContent}>
+          <View style={styles.commissionHeader}>
+            <View style={styles.titleBlock}>
+              <Text variant="titleLarge">Commission</Text>
+              <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                Amount currently recorded as payable to Tuljai Stays from your report period.
+              </Text>
+            </View>
+            <Chip icon="cash-check">Rs. {commission.toLocaleString('en-IN')}</Chip>
+          </View>
+          <View style={styles.commissionGrid}>
+            <CommissionDetail label="Payable to Tuljai Stays" value={`Rs. ${commission.toLocaleString('en-IN')}`} />
+            <CommissionDetail label="Receivable by Tuljai Stays" value={`Rs. ${commission.toLocaleString('en-IN')}`} />
+            <CommissionDetail label="Settlement" value="Not tracked yet" />
+          </View>
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+            Payable and receivable are the same commission amount. Settlement status will only be
+            shown once settlement tracking is enabled.
+          </Text>
+        </Card.Content>
+      </Card>
 
       <FormErrorBanner message={reports.errorMessage} />
 
@@ -80,6 +104,15 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
         <Text variant="bodySmall">{label}</Text>
       </Card.Content>
     </Card>
+  );
+}
+
+function CommissionDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.commissionDetail}>
+      <Text variant="labelMedium">{label}</Text>
+      <Text variant="titleMedium">{value}</Text>
+    </View>
   );
 }
 
@@ -133,6 +166,28 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     gap: spacing.md,
+  },
+  commissionCard: {
+    borderRadius: radius.sm,
+  },
+  commissionContent: {
+    gap: spacing.md,
+  },
+  commissionDetail: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 120,
+  },
+  commissionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  commissionHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
   },
   header: {
     gap: spacing.xs,
