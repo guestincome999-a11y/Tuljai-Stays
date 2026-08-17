@@ -2,6 +2,7 @@ import type {
   AdminDashboardSummary,
   BookingReportRow,
   CommissionSummary,
+  LodgeCommissionFinanceReport,
   NotificationMetrics,
   PaginatedResponse,
   QrScanLogEntry,
@@ -63,6 +64,23 @@ export async function listCommissionReport(
       startDate: query.startDate,
     },
   });
+}
+
+export async function getLodgeCommissionFinanceReport(
+  lodgeId: string,
+): Promise<LodgeCommissionFinanceReport> {
+  return apiClient.get<LodgeCommissionFinanceReport>(`/admin/lodges/${lodgeId}/commission/report`);
+}
+
+export async function createLodgeCommissionSettlement(
+  lodgeId: string,
+  payload: { amount: number; notes?: string; paymentMethod: string; reference?: string },
+): Promise<LodgeCommissionFinanceReport> {
+  return apiClient.post<LodgeCommissionFinanceReport>(`/admin/lodges/${lodgeId}/commission/settlements`, payload);
+}
+
+export async function voidLodgeCommissionTransaction(ledgerId: string): Promise<void> {
+  await apiClient.patch(`/admin/commission/transactions/${ledgerId}/void`);
 }
 
 export async function getBiNotificationMetrics(): Promise<NotificationMetrics> {
