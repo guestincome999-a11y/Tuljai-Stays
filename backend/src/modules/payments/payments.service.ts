@@ -144,6 +144,26 @@ export class PaymentsService {
       throw new BadRequestException('Razorpay payment verification failed');
     }
 
+    const payment = await this.razorpayProvider.getPayment(input.paymentId);
+    if (payment.order_id !== input.orderId) {
+      throw new BadRequestException('Razorpay payment belongs to a different order');
+    }
+    if (payment.status !== 'captured' || !payment.captured) {
+      await this.prisma.$executeRaw`
+        UPDATE payment_collections SET status = CASE WHEN ${payment.status} = 'failed' THEN 'FAILED' ELSE 'PENDING' END,
+          provider_payment_id = ${input.paymentId}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${collection.id}::uuid
+      `;
+      await this.paymentNotificationsService.failed({
+        bookingId,
+        bookingCode: booking.bookingCode,
+        pilgrimUserId,
+        lodgeId: booking.lodgeId,
+        reason: 'The payment has not reached the captured state yet. Please retry after Razorpay completes the payment.',
+      });
+      throw new BadRequestException('Razorpay payment is not captured yet');
+    }
+
     let roomId: string;
     try {
       const result = await this.prisma.$transaction(async (tx) => {
