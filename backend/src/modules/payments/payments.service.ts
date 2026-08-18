@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { AuthenticatedUser } from '@tuljai/types';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -14,22 +13,14 @@ export class PaymentsService {
   ) {}
 
   public ensureOnlinePaymentsEnabled(enabled: boolean): void {
-    if (!enabled) {
-      throw new BadRequestException('Online payments are currently unavailable');
-    }
+    if (!enabled) throw new BadRequestException('Online payments are currently unavailable');
   }
 
-  public async createPayment(
-    provider: PaymentProvider,
-    input: Parameters<PaymentProvider['createPayment']>[0],
-  ) {
+  public async createPayment(provider: PaymentProvider, input: Parameters<PaymentProvider['createPayment']>[0]) {
     return provider.createPayment(input);
   }
 
-  public async verifyPayment(
-    provider: PaymentProvider,
-    input: Parameters<PaymentProvider['verifyPayment']>[0],
-  ) {
+  public async verifyPayment(provider: PaymentProvider, input: Parameters<PaymentProvider['verifyPayment']>[0]) {
     return provider.verifyPayment(input);
   }
 
@@ -39,14 +30,7 @@ export class PaymentsService {
 
   public async createBookingOrder(bookingId: string, pilgrimUserId: string) {
     const booking = await this.prisma.booking.findFirst({
-      select: {
-        id: true,
-        bookingCode: true,
-        lodgeId: true,
-        pilgrimUserId: true,
-        totalAmount: true,
-        status: true,
-      },
+      select: { id: true, bookingCode: true, totalAmount: true, status: true },
       where: { deletedAt: null, id: bookingId, pilgrimUserId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
@@ -56,25 +40,19 @@ export class PaymentsService {
 
     const settings = await this.prisma.$queryRaw<Array<{ enabled: boolean; provider: string; display_status: string }>>`
       SELECT online_payments_enabled AS enabled, provider, display_status
-      FROM payment_settings
-      ORDER BY created_at ASC
-      LIMIT 1
+      FROM payment_settings ORDER BY created_at ASC LIMIT 1
     `;
     const setting = settings[0];
     this.ensureOnlinePaymentsEnabled(
       Boolean(setting?.enabled) && setting?.provider === 'RAZORPAY' && setting.display_status === 'ACTIVE',
     );
 
-    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null; amount: string }>>`
-      SELECT id, status, provider_order_id, amount::text
-      FROM payment_collections
+    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
+      SELECT id, status FROM payment_collections
       WHERE booking_id = ${bookingId}::uuid AND method = 'ONLINE'
-      ORDER BY created_at DESC
-      LIMIT 1
+      ORDER BY created_at DESC LIMIT 1
     `;
-    if (existing[0]?.status === 'PAID') {
-      throw new BadRequestException('This booking is already paid');
-    }
+    if (existing[0]?.status === 'PAID') throw new BadRequestException('This booking is already paid');
 
     const amountPaise = Math.round(Number(booking.totalAmount) * 100);
     if (!Number.isFinite(amountPaise) || amountPaise <= 0) {
@@ -90,27 +68,18 @@ export class PaymentsService {
 
     if (existing[0]?.id) {
       await this.prisma.$executeRaw`
-        UPDATE payment_collections
-        SET provider = 'RAZORPAY', amount = ${Number(booking.totalAmount)}, status = 'PENDING',
-            provider_order_id = ${order.orderId}, updated_at = CURRENT_TIMESTAMP
+        UPDATE payment_collections SET provider = 'RAZORPAY', amount = ${Number(booking.totalAmount)},
+          status = 'PENDING', provider_order_id = ${order.orderId}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${existing[0].id}::uuid
       `;
     } else {
       await this.prisma.$executeRaw`
-        INSERT INTO payment_collections
-          (booking_id, method, provider, amount, status, provider_order_id)
-        VALUES
-          (${bookingId}::uuid, 'ONLINE', 'RAZORPAY', ${Number(booking.totalAmount)}, 'PENDING', ${order.orderId})
+        INSERT INTO payment_collections (booking_id, method, provider, amount, status, provider_order_id)
+        VALUES (${bookingId}::uuid, 'ONLINE', 'RAZORPAY', ${Number(booking.totalAmount)}, 'PENDING', ${order.orderId})
       `;
     }
 
-    return {
-      bookingId,
-      keyId: process.env.RAZORPAY_KEY_ID,
-      orderId: order.orderId,
-      amount: order.amount,
-      currency: order.currency,
-    };
+    return { bookingId, keyId: process.env.RAZORPAY_KEY_ID, orderId: order.orderId, amount: order.amount, currency: order.currency };
   }
 
   public async verifyBookingPayment(
@@ -119,80 +88,51 @@ export class PaymentsService {
     input: { orderId: string; paymentId: string; signature: string },
   ) {
     const booking = await this.prisma.booking.findFirst({
-      select: {
-        id: true,
-        bookingCode: true,
-        lodgeId: true,
-        roomTypeId: true,
-        pilgrimUserId: true,
-        checkInDate: true,
-        checkOutDate: true,
-        status: true,
-      },
+      select: { id: true, bookingCode: true, lodgeId: true, roomTypeId: true, pilgrimUserId: true, checkInDate: true, checkOutDate: true, status: true },
       where: { deletedAt: null, id: bookingId, pilgrimUserId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
 
-    const collections = await this.prisma.$queryRaw<Array<{
-      id: string;
-      status: string;
-      provider_order_id: string | null;
-      amount: string;
-    }>>`
-      SELECT id, status, provider_order_id, amount::text
-      FROM payment_collections
+    const collections = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null }>>`
+      SELECT id, status, provider_order_id FROM payment_collections
       WHERE booking_id = ${bookingId}::uuid AND method = 'ONLINE'
-      ORDER BY created_at DESC
-      LIMIT 1
+      ORDER BY created_at DESC LIMIT 1
     `;
     const collection = collections[0];
     if (!collection || collection.provider_order_id !== input.orderId) {
       throw new BadRequestException('Payment order does not match this booking');
     }
     if (collection.status === 'PAID') {
-      return { bookingId, bookingCode: booking.bookingCode, status: 'CONFIRMED', paymentStatus: 'PAID' };
+      return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID' };
     }
 
     const verification = await this.razorpayProvider.verifyPayment(input);
     if (!verification.verified) {
       await this.prisma.$executeRaw`
-        UPDATE payment_collections
-        SET status = 'FAILED', provider_payment_id = ${input.paymentId}, updated_at = CURRENT_TIMESTAMP
+        UPDATE payment_collections SET status = 'FAILED', provider_payment_id = ${input.paymentId}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${collection.id}::uuid
       `;
       throw new BadRequestException('Razorpay payment verification failed');
     }
 
-    const rooms = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT r.id
-      FROM rooms r
-      WHERE r.lodge_id = ${booking.lodgeId}::uuid
-        AND r.room_type_id = ${booking.roomTypeId}::uuid
-        AND r.deleted_at IS NULL
-        AND r.status = 'AVAILABLE'
-        AND NOT EXISTS (
-          SELECT 1 FROM bookings b
-          WHERE b.room_id = r.id
-            AND b.deleted_at IS NULL
-            AND b.status IN ('ACCEPTED', 'QR_GENERATED', 'CHECKED_IN')
-            AND b.check_in_date < ${booking.checkOutDate}
-            AND b.check_out_date > ${booking.checkInDate}
-        )
-      ORDER BY r.id
-      LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    `;
-    if (!rooms[0]) {
-      await this.prisma.$executeRaw`
-        UPDATE payment_collections
-        SET status = 'FAILED', provider_payment_id = ${input.paymentId}, notes = 'Payment succeeded but room allocation was unavailable', updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${collection.id}::uuid
+    const result = await this.prisma.$transaction(async (tx) => {
+      const rooms = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT r.id FROM rooms r
+        WHERE r.lodge_id = ${booking.lodgeId}::uuid
+          AND r.room_type_id = ${booking.roomTypeId}::uuid
+          AND r.deleted_at IS NULL AND r.status = 'AVAILABLE'
+          AND NOT EXISTS (
+            SELECT 1 FROM bookings b
+            WHERE b.room_id = r.id AND b.deleted_at IS NULL
+              AND b.status IN ('ACCEPTED', 'QR_GENERATED', 'CHECKED_IN')
+              AND b.check_in_date < ${booking.checkOutDate}
+              AND b.check_out_date > ${booking.checkInDate}
+          )
+        ORDER BY r.id LIMIT 1 FOR UPDATE SKIP LOCKED
       `;
-      throw new BadRequestException('Room is no longer available. Payment requires reconciliation.');
-    }
+      if (!rooms[0]) throw new BadRequestException('Room is no longer available for this booking');
 
-    const roomId = rooms[0].id;
-    await this.prisma.$transaction(async (tx) => {
+      const roomId = rooms[0].id;
       await tx.$executeRaw`
         UPDATE payment_collections
         SET status = 'PAID', provider_payment_id = ${input.paymentId}, provider_reference = ${input.orderId},
@@ -206,16 +146,15 @@ export class PaymentsService {
       await tx.room.update({ data: { status: 'CONFIRMED' }, where: { id: roomId } });
       await tx.bookingHistory.create({
         data: {
-          action: 'BOOKING_ACCEPTED',
-          actorUserId: pilgrimUserId,
-          bookingId,
+          action: 'BOOKING_ACCEPTED', actorUserId: pilgrimUserId, bookingId,
           fromStatus: booking.status,
           notes: 'Automatically confirmed after successful prepaid Razorpay payment',
           toStatus: 'ACCEPTED',
         },
       });
+      return { roomId };
     });
 
-    return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID' };
+    return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID', roomId: result.roomId };
   }
 }
