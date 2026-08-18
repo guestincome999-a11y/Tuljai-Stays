@@ -17,6 +17,15 @@ interface RazorpayOrderResponse {
   status: string;
 }
 
+interface RazorpayPaymentResponse {
+  id: string;
+  order_id: string;
+  amount: number;
+  status: 'created' | 'authorized' | 'captured' | 'refunded' | 'failed';
+  captured: boolean;
+  currency: string;
+}
+
 @Injectable()
 export class RazorpayProvider implements PaymentProvider {
   public readonly name = 'RAZORPAY' as const;
@@ -105,6 +114,12 @@ export class RazorpayProvider implements PaymentProvider {
       verified,
       providerPaymentId: input.paymentId,
     };
+  }
+
+  public async getPayment(paymentId: string): Promise<RazorpayPaymentResponse> {
+    return this.request<RazorpayPaymentResponse>(`/payments/${encodeURIComponent(paymentId)}`, {
+      method: 'GET',
+    });
   }
 
   public async refundPayment(paymentId: string, amount?: number): Promise<{ refundId: string }> {
