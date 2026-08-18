@@ -12,12 +12,13 @@ import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { GuestIdProofService } from './guest-id-proof.service';
 import { GuestRegisterService } from './guest-register.service';
+import { PrepaidBookingsController } from './prepaid-bookings.controller';
 import { PrepaidBookingsService } from './prepaid-bookings.service';
 import { QrCheckinService } from './qr-checkin.service';
 
 @Module({
   imports: [LodgesModule, NotificationsModule, StorageModule],
-  controllers: [BookingsController],
+  controllers: [BookingsController, PrepaidBookingsController],
   providers: [
     BookingAvailabilityService,
     BookingHistoryService,
