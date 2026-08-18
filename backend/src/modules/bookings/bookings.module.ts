@@ -12,6 +12,7 @@ import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { GuestIdProofService } from './guest-id-proof.service';
 import { GuestRegisterService } from './guest-register.service';
+import { PrepaidBookingsService } from './prepaid-bookings.service';
 import { QrCheckinService } from './qr-checkin.service';
 
 @Module({
@@ -25,8 +26,9 @@ import { QrCheckinService } from './qr-checkin.service';
     BookingsService,
     GuestIdProofService,
     GuestRegisterService,
+    PrepaidBookingsService,
     QrCheckinService,
   ],
-  exports: [BookingAvailabilityService, BookingsService, GuestRegisterService, QrCheckinService],
+  exports: [BookingAvailabilityService, BookingsService, GuestRegisterService, QrCheckinService, PrepaidBookingsService],
 })
 export class BookingsModule {}
