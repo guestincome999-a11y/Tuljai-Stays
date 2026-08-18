@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { PaymentNotificationsService } from './payment-notifications.service';
 import type { PaymentProvider } from './payment-provider';
 import { RazorpayProvider } from './providers/razorpay.provider';
 
@@ -10,6 +11,7 @@ export class PaymentsService {
   public constructor(
     private readonly prisma: PrismaService,
     private readonly razorpayProvider: RazorpayProvider,
+    private readonly paymentNotificationsService: PaymentNotificationsService,
   ) {}
 
   public ensureOnlinePaymentsEnabled(enabled: boolean): void {
@@ -30,12 +32,12 @@ export class PaymentsService {
 
   public async createBookingOrder(bookingId: string, pilgrimUserId: string) {
     const booking = await this.prisma.booking.findFirst({
-      select: { id: true, bookingCode: true, totalAmount: true, status: true },
+      select: { id: true, bookingCode: true, totalAmount: true, status: true, lodgeId: true },
       where: { deletedAt: null, id: bookingId, pilgrimUserId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.status !== 'PENDING_OWNER_APPROVAL') {
-      throw new BadRequestException('This booking is not waiting for payment');
+      throw new BadRequestException('This booking is not waiting for online payment');
     }
 
     const settings = await this.prisma.$queryRaw<Array<{ enabled: boolean; provider: string; display_status: string }>>`
@@ -47,8 +49,8 @@ export class PaymentsService {
       Boolean(setting?.enabled) && setting?.provider === 'RAZORPAY' && setting.display_status === 'ACTIVE',
     );
 
-    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
-      SELECT id, status FROM payment_collections
+    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null }>>`
+      SELECT id, status, provider_order_id FROM payment_collections
       WHERE booking_id = ${bookingId}::uuid AND method = 'ONLINE'
       ORDER BY created_at DESC LIMIT 1
     `;
@@ -69,7 +71,8 @@ export class PaymentsService {
     if (existing[0]?.id) {
       await this.prisma.$executeRaw`
         UPDATE payment_collections SET provider = 'RAZORPAY', amount = ${Number(booking.totalAmount)},
-          status = 'PENDING', provider_order_id = ${order.orderId}, updated_at = CURRENT_TIMESTAMP
+          status = 'PENDING', provider_order_id = ${order.orderId}, provider_payment_id = NULL,
+          provider_reference = NULL, paid_at = NULL, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${existing[0].id}::uuid
       `;
     } else {
@@ -78,6 +81,15 @@ export class PaymentsService {
         VALUES (${bookingId}::uuid, 'ONLINE', 'RAZORPAY', ${Number(booking.totalAmount)}, 'PENDING', ${order.orderId})
       `;
     }
+
+    await this.paymentNotificationsService.orderCreated({
+      bookingId,
+      bookingCode: booking.bookingCode,
+      pilgrimUserId,
+      lodgeId: booking.lodgeId,
+      amount: Number(booking.totalAmount),
+      orderId: order.orderId,
+    });
 
     return { bookingId, keyId: process.env.RAZORPAY_KEY_ID, orderId: order.orderId, amount: order.amount, currency: order.currency };
   }
@@ -88,7 +100,17 @@ export class PaymentsService {
     input: { orderId: string; paymentId: string; signature: string },
   ) {
     const booking = await this.prisma.booking.findFirst({
-      select: { id: true, bookingCode: true, lodgeId: true, roomTypeId: true, pilgrimUserId: true, checkInDate: true, checkOutDate: true, status: true },
+      select: {
+        id: true,
+        bookingCode: true,
+        lodgeId: true,
+        roomTypeId: true,
+        pilgrimUserId: true,
+        checkInDate: true,
+        checkOutDate: true,
+        status: true,
+        totalAmount: true,
+      },
       where: { deletedAt: null, id: bookingId, pilgrimUserId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
@@ -112,49 +134,100 @@ export class PaymentsService {
         UPDATE payment_collections SET status = 'FAILED', provider_payment_id = ${input.paymentId}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${collection.id}::uuid
       `;
+      await this.paymentNotificationsService.failed({
+        bookingId,
+        bookingCode: booking.bookingCode,
+        pilgrimUserId,
+        lodgeId: booking.lodgeId,
+        reason: 'The payment signature could not be verified.',
+      });
       throw new BadRequestException('Razorpay payment verification failed');
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const rooms = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT r.id FROM rooms r
-        WHERE r.lodge_id = ${booking.lodgeId}::uuid
-          AND r.room_type_id = ${booking.roomTypeId}::uuid
-          AND r.deleted_at IS NULL AND r.status = 'AVAILABLE'
-          AND NOT EXISTS (
-            SELECT 1 FROM bookings b
-            WHERE b.room_id = r.id AND b.deleted_at IS NULL
-              AND b.status IN ('ACCEPTED', 'QR_GENERATED', 'CHECKED_IN')
-              AND b.check_in_date < ${booking.checkOutDate}
-              AND b.check_out_date > ${booking.checkInDate}
-          )
-        ORDER BY r.id LIMIT 1 FOR UPDATE SKIP LOCKED
-      `;
-      if (!rooms[0]) throw new BadRequestException('Room is no longer available for this booking');
+    let roomId: string;
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const rooms = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT r.id FROM rooms r
+          WHERE r.lodge_id = ${booking.lodgeId}::uuid
+            AND r.room_type_id = ${booking.roomTypeId}::uuid
+            AND r.deleted_at IS NULL AND r.status = 'AVAILABLE'
+            AND NOT EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.room_id = r.id AND b.deleted_at IS NULL
+                AND b.status IN ('ACCEPTED', 'QR_GENERATED', 'CHECKED_IN')
+                AND b.check_in_date < ${booking.checkOutDate}
+                AND b.check_out_date > ${booking.checkInDate}
+            )
+          ORDER BY r.id LIMIT 1 FOR UPDATE SKIP LOCKED
+        `;
+        if (!rooms[0]) throw new Error('ROOM_UNAVAILABLE_AFTER_PAYMENT');
 
-      const roomId = rooms[0].id;
-      await tx.$executeRaw`
-        UPDATE payment_collections
-        SET status = 'PAID', provider_payment_id = ${input.paymentId}, provider_reference = ${input.orderId},
-            paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${collection.id}::uuid
-      `;
-      await tx.booking.update({
-        data: { roomId, status: 'ACCEPTED', acceptedByUserId: pilgrimUserId },
-        where: { id: bookingId },
+        const selectedRoomId = rooms[0].id;
+        await tx.$executeRaw`
+          UPDATE payment_collections
+          SET status = 'PAID', provider_payment_id = ${input.paymentId}, provider_reference = ${input.orderId},
+              paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${collection.id}::uuid
+        `;
+        await tx.booking.update({
+          data: { roomId: selectedRoomId, status: 'ACCEPTED', acceptedByUserId: pilgrimUserId },
+          where: { id: bookingId },
+        });
+        await tx.room.update({ data: { status: 'CONFIRMED' }, where: { id: selectedRoomId } });
+        await tx.bookingHistory.create({
+          data: {
+            action: 'BOOKING_ACCEPTED',
+            actorUserId: pilgrimUserId,
+            bookingId,
+            fromStatus: booking.status,
+            notes: 'Automatically confirmed after successful prepaid Razorpay payment',
+            toStatus: 'ACCEPTED',
+          },
+        });
+        return { roomId: selectedRoomId };
       });
-      await tx.room.update({ data: { status: 'CONFIRMED' }, where: { id: roomId } });
-      await tx.bookingHistory.create({
-        data: {
-          action: 'BOOKING_ACCEPTED', actorUserId: pilgrimUserId, bookingId,
-          fromStatus: booking.status,
-          notes: 'Automatically confirmed after successful prepaid Razorpay payment',
-          toStatus: 'ACCEPTED',
-        },
-      });
-      return { roomId };
+      roomId = result.roomId;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'ROOM_UNAVAILABLE_AFTER_PAYMENT') {
+        try {
+          await this.razorpayProvider.refundPayment(input.paymentId);
+          await this.prisma.$executeRaw`
+            UPDATE payment_collections
+            SET status = 'REFUNDED', provider_payment_id = ${input.paymentId}, provider_reference = ${input.orderId},
+                paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${collection.id}::uuid
+          `;
+        } catch {
+          await this.prisma.$executeRaw`
+            UPDATE payment_collections
+            SET status = 'PAID', provider_payment_id = ${input.paymentId}, provider_reference = ${input.orderId},
+                paid_at = CURRENT_TIMESTAMP, notes = 'Payment received but automatic refund requires reconciliation', updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${collection.id}::uuid
+          `;
+        }
+        await this.paymentNotificationsService.roomUnavailableAfterPayment({
+          bookingId,
+          bookingCode: booking.bookingCode,
+          pilgrimUserId,
+          lodgeId: booking.lodgeId,
+          paymentId: input.paymentId,
+        });
+        throw new BadRequestException('Payment was received but the room became unavailable. The payment is being refunded.');
+      }
+      throw error;
+    }
+
+    await this.paymentNotificationsService.successful({
+      bookingId,
+      bookingCode: booking.bookingCode,
+      pilgrimUserId,
+      lodgeId: booking.lodgeId,
+      amount: Number(booking.totalAmount),
+      paymentId: input.paymentId,
+      roomId,
     });
 
-    return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID', roomId: result.roomId };
+    return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID', roomId };
   }
 }
