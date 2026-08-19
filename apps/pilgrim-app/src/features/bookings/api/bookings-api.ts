@@ -76,8 +76,12 @@ export async function createBookingLock(input: BookingLockRequest): Promise<Book
 }
 
 export async function createBooking(input: CreateBookingRequest): Promise<Booking> {
-  const endpoint = input.paymentMethod === 'ONLINE' ? '/bookings/prepaid' : '/bookings';
-  return apiClient.post<Booking>(endpoint, { ...input, paymentMethod: input.paymentMethod ?? 'PAY_AT_LODGE' });
+  // Both payment methods use the same supported booking creation route.
+  // The backend records paymentMethod and the online-payment flow starts only after the booking exists.
+  return apiClient.post<Booking>('/bookings', {
+    ...input,
+    paymentMethod: input.paymentMethod ?? 'PAY_AT_LODGE',
+  });
 }
 
 export async function createRazorpayOrder(bookingId: string): Promise<RazorpayOrder> {
