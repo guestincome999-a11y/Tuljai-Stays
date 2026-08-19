@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useState } from 'react';
 import type { LodgeCommissionFinanceReport } from '@tuljai/types';
 
 import {
@@ -15,7 +15,8 @@ function money(value: string | number) {
   return `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function LodgeCommissionDetailPage({ params }: { params: { lodgeId: string } }) {
+export default function LodgeCommissionDetailPage({ params }: { params: Promise<{ lodgeId: string }> }) {
+  const { lodgeId } = use(params);
   const [report, setReport] = useState<LodgeCommissionFinanceReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,15 +30,17 @@ export default function LodgeCommissionDetailPage({ params }: { params: { lodgeI
     setLoading(true);
     setError('');
     try {
-      setReport(await getLodgeCommissionFinanceReport(params.lodgeId));
+      setReport(await getLodgeCommissionFinanceReport(lodgeId));
     } catch {
       setError('Could not load this lodge commission account.');
     } finally {
       setLoading(false);
     }
-  }, [params.lodgeId]);
+  }, [lodgeId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function settle() {
     const numericAmount = Number(amount);
@@ -46,8 +49,9 @@ export default function LodgeCommissionDetailPage({ params }: { params: { lodgeI
       return;
     }
     setError('');
+    setMessage('');
     try {
-      setReport(await createLodgeCommissionSettlement(params.lodgeId, {
+      setReport(await createLodgeCommissionSettlement(lodgeId, {
         amount: numericAmount,
         paymentMethod: method,
         reference: reference || undefined,
@@ -64,6 +68,7 @@ export default function LodgeCommissionDetailPage({ params }: { params: { lodgeI
 
   async function voidTransaction(id: string) {
     if (!window.confirm('Void this outstanding commission transaction?')) return;
+    setError('');
     try {
       await voidLodgeCommissionTransaction(id);
       setMessage('Commission transaction voided.');
