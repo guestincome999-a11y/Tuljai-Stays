@@ -96,6 +96,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     defaultPilgrimPreferences.bookingNotificationsEnabled,
   );
   const [preferencesReady, setPreferencesReady] = useState(false);
+  const [loadedPreferencesUserId, setLoadedPreferencesUserId] = useState<string | null>(null);
   const [lodges, setLodges] = useState<PilgrimLodge[]>(pilgrimLodges);
   const [bookings, setBookings] = useState<PilgrimBooking[]>(mockMode ? initialPilgrimBookings : []);
   const [notifications, setNotifications] = useState<PilgrimNotification[]>(
@@ -160,20 +161,42 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let mounted = true;
-    void loadPilgrimPreferences().then((preferences) => {
+    const userId = auth.user?.id;
+    if (!auth.isAuthenticated || !userId) {
+      setPreferencesReady(false);
+      setLoadedPreferencesUserId(null);
+      setFavoriteIds([]);
+      setBookingNotificationsEnabled(defaultPilgrimPreferences.bookingNotificationsEnabled);
+      setLanguage(defaultPilgrimPreferences.language);
+      return undefined;
+    }
+
+    setPreferencesReady(false);
+    setLoadedPreferencesUserId(null);
+    setFavoriteIds([]);
+    setBookingNotificationsEnabled(defaultPilgrimPreferences.bookingNotificationsEnabled);
+    setLanguage(defaultPilgrimPreferences.language);
+
+    void loadPilgrimPreferences(userId).then((preferences) => {
       if (!mounted) return;
       setBookingNotificationsEnabled(preferences.bookingNotificationsEnabled);
       setFavoriteIds(preferences.favoriteIds);
       setLanguage(preferences.language);
+      setLoadedPreferencesUserId(userId);
       setPreferencesReady(true);
     });
+
     return () => { mounted = false; };
-  }, []);
+  }, [auth.isAuthenticated, auth.user?.id]);
 
   useEffect(() => {
-    if (!preferencesReady) return;
-    void savePilgrimPreferences({ bookingNotificationsEnabled, favoriteIds, language });
-  }, [bookingNotificationsEnabled, favoriteIds, language, preferencesReady]);
+    if (!preferencesReady || !loadedPreferencesUserId || loadedPreferencesUserId !== auth.user?.id) return;
+    void savePilgrimPreferences(loadedPreferencesUserId, {
+      bookingNotificationsEnabled,
+      favoriteIds,
+      language,
+    });
+  }, [auth.user?.id, bookingNotificationsEnabled, favoriteIds, language, loadedPreferencesUserId, preferencesReady]);
 
   useEffect(() => {
     const event = realtime.lastBookingEvent;
