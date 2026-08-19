@@ -1,4 +1,4 @@
-type Listener = () => void;
+type Listener = (unreadCount: number) => void;
 
 let unreadCount = 0;
 const listeners = new Set<Listener>();
@@ -9,7 +9,7 @@ export function getNotificationUnreadCount() {
 
 export function setNotificationUnreadCount(nextCount: number) {
   unreadCount = Math.max(0, nextCount);
-  listeners.forEach((listener) => listener());
+  listeners.forEach((listener) => listener(unreadCount));
 }
 
 export function subscribeNotificationUnreadCount(listener: Listener) {
