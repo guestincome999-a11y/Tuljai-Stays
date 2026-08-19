@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -16,5 +16,10 @@ export class UsersController {
   @Get()
   public list(@Query() query: AdminUsersQueryDto) {
     return this.usersService.listAdminUsers(query);
+  }
+
+  @Get(':id')
+  public get(@Param('id') id: string) {
+    return this.usersService.getAdminUser(id);
   }
 }
