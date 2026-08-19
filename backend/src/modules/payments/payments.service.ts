@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { PaymentNotificationsService } from './payment-notifications.service';
@@ -12,6 +13,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly razorpayProvider: RazorpayProvider,
     private readonly paymentNotificationsService: PaymentNotificationsService,
+    private readonly notificationEventsService: NotificationEventsService,
   ) {}
 
   public ensureOnlinePaymentsEnabled(enabled: boolean): void {
@@ -32,12 +34,15 @@ export class PaymentsService {
 
   public async createBookingOrder(bookingId: string, pilgrimUserId: string) {
     const booking = await this.prisma.booking.findFirst({
-      select: { id: true, bookingCode: true, totalAmount: true, status: true, lodgeId: true },
+      select: { id: true, bookingCode: true, totalAmount: true, status: true, lodgeId: true, paymentStatus: true },
       where: { deletedAt: null, id: bookingId, pilgrimUserId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.status !== 'PENDING_OWNER_APPROVAL') {
       throw new BadRequestException('This booking is not waiting for online payment');
+    }
+    if (booking.paymentStatus !== 'PENDING') {
+      throw new BadRequestException('This booking is not configured for prepaid online payment');
     }
 
     const settings = await this.prisma.$queryRaw<Array<{ enabled: boolean; provider: string; display_status: string }>>`
@@ -110,10 +115,14 @@ export class PaymentsService {
         checkOutDate: true,
         status: true,
         totalAmount: true,
+        paymentStatus: true,
       },
       where: { deletedAt: null, id: bookingId, pilgrimUserId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.paymentStatus !== 'PENDING') {
+      throw new BadRequestException('This booking is not awaiting prepaid payment');
+    }
 
     const collections = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null }>>`
       SELECT id, status, provider_order_id FROM payment_collections
@@ -191,7 +200,12 @@ export class PaymentsService {
           WHERE id = ${collection.id}::uuid
         `;
         await tx.booking.update({
-          data: { roomId: selectedRoomId, status: 'ACCEPTED', acceptedByUserId: pilgrimUserId },
+          data: {
+            roomId: selectedRoomId,
+            status: 'ACCEPTED',
+            acceptedByUserId: pilgrimUserId,
+            paymentStatus: 'FULLY_PAID',
+          },
           where: { id: bookingId },
         });
         await tx.room.update({ data: { status: 'CONFIRMED' }, where: { id: selectedRoomId } });
@@ -247,6 +261,7 @@ export class PaymentsService {
       paymentId: input.paymentId,
       roomId,
     });
+    await this.notificationEventsService.bookingAccepted(bookingId);
 
     return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID', roomId };
   }
