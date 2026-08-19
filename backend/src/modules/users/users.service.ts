@@ -15,16 +15,12 @@ export class UsersService {
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
       roles: { has: 'PILGRIM' },
-      ...(search
-        ? {
-            OR: [
-              { displayName: { contains: search, mode: 'insensitive' } },
-              { phoneNumber: { contains: search } },
-              { authIdentities: { some: { email: { contains: search, mode: 'insensitive' } } } },
-              { pilgrimBookings: { some: { bookingCode: { contains: search, mode: 'insensitive' } } } },
-            ],
-          }
-        : {}),
+      ...(search ? { OR: [
+        { displayName: { contains: search, mode: 'insensitive' } },
+        { phoneNumber: { contains: search } },
+        { authIdentities: { some: { email: { contains: search, mode: 'insensitive' } } } },
+        { pilgrimBookings: { some: { bookingCode: { contains: search, mode: 'insensitive' } } } },
+      ] } : {}),
     };
 
     const [users, totalItems] = await this.prisma.$transaction([
@@ -34,23 +30,26 @@ export class UsersService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: {
-          id: true,
-          displayName: true,
-          phoneNumber: true,
-          createdAt: true,
-          lastLoginAt: true,
+          id: true, displayName: true, phoneNumber: true, createdAt: true, lastLoginAt: true,
           authIdentities: { select: { email: true }, take: 1 },
           pilgrimBookings: {
             where: { deletedAt: null },
             select: { id: true, bookingCode: true, status: true, totalAmount: true, createdAt: true, lodge: { select: { name: true } } },
-            orderBy: { createdAt: 'desc' },
-            take: 5,
+            orderBy: { createdAt: 'desc' }, take: 5,
           },
           _count: { select: { pilgrimBookings: { where: { deletedAt: null } } } },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
+
+    const userIds = users.map((user) => user.id);
+    const totals = userIds.length === 0 ? [] : await this.prisma.booking.groupBy({
+      by: ['pilgrimUserId'],
+      where: { deletedAt: null, pilgrimUserId: { in: userIds } },
+      _sum: { totalAmount: true },
+    });
+    const totalByUser = new Map(totals.map((item) => [item.pilgrimUserId, Number(item._sum.totalAmount ?? 0)]));
 
     const items = users.map((user) => ({
       id: user.id,
@@ -60,14 +59,10 @@ export class UsersService {
       createdAt: user.createdAt,
       lastLoginAt: user.lastLoginAt,
       bookingCount: user._count.pilgrimBookings,
-      totalBookingValue: user.pilgrimBookings.reduce((sum, booking) => sum + Number(booking.totalAmount ?? 0), 0),
+      totalBookingValue: totalByUser.get(user.id) ?? 0,
       recentBookings: user.pilgrimBookings.map((booking) => ({
-        id: booking.id,
-        bookingCode: booking.bookingCode,
-        status: booking.status,
-        totalAmount: Number(booking.totalAmount ?? 0),
-        createdAt: booking.createdAt,
-        lodgeName: booking.lodge.name,
+        id: booking.id, bookingCode: booking.bookingCode, status: booking.status,
+        totalAmount: Number(booking.totalAmount ?? 0), createdAt: booking.createdAt, lodgeName: booking.lodge.name,
       })),
     }));
 
