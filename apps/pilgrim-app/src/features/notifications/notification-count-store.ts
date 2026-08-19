@@ -14,5 +14,7 @@ export function setNotificationUnreadCount(nextCount: number) {
 
 export function subscribeNotificationUnreadCount(listener: Listener) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
