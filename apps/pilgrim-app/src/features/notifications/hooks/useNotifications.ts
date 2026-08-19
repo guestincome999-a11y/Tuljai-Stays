@@ -39,17 +39,11 @@ export function useUnreadNotificationCount() {
 
     if (event?.name === 'notification:unread-count') {
       const nextCount = event.payload.unreadCount;
-
-      if (typeof nextCount === 'number') {
-        setNotificationUnreadCount(nextCount);
-      }
-
+      if (typeof nextCount === 'number') setNotificationUnreadCount(nextCount);
       return;
     }
 
-    if (event?.name === 'notification:new') {
-      void refresh();
-    }
+    if (event?.name === 'notification:new') void refresh();
   }, [realtime.lastEvent, refresh]);
 
   return { refresh, unreadCount };
@@ -88,27 +82,41 @@ export function useNotifications() {
   }, [load]);
 
   useEffect(() => {
-    if (realtime.lastEvent?.name === 'notification:new') {
-      void load(true);
-    }
+    if (realtime.lastEvent?.name === 'notification:new') void load(true);
   }, [load, realtime.lastEvent]);
+
+  const markAllRead = useCallback(async () => {
+    setErrorMessage(null);
+    try {
+      await markAllNotificationsRead();
+      setNotificationUnreadCount(0);
+      await load(true);
+      await refreshUnreadCount();
+    } catch {
+      setErrorMessage('Notification action failed. Please try again.');
+      await refreshUnreadCount();
+    }
+  }, [load, refreshUnreadCount]);
+
+  const markRead = useCallback(async (notificationId: string) => {
+    setErrorMessage(null);
+    try {
+      await markNotificationRead(notificationId);
+      await load(true);
+      await refreshUnreadCount();
+    } catch {
+      setErrorMessage('Notification action failed. Please try again.');
+      await refreshUnreadCount();
+    }
+  }, [load, refreshUnreadCount]);
 
   return {
     data,
     errorMessage,
     isLoading,
     isRefreshing,
-    markAllRead: async () => {
-      await markAllNotificationsRead().catch(() => undefined);
-      setNotificationUnreadCount(0);
-      await load(true);
-      await refreshUnreadCount();
-    },
-    markRead: async (notificationId: string) => {
-      await markNotificationRead(notificationId).catch(() => undefined);
-      await load(true);
-      await refreshUnreadCount();
-    },
+    markAllRead,
+    markRead,
     refresh: () => load(true),
   };
 }
