@@ -89,7 +89,6 @@ export class UsersService {
             bookingCode: true,
             status: true,
             paymentStatus: true,
-            paymentMethod: true,
             totalAmount: true,
             commissionAmount: true,
             checkInDate: true,
