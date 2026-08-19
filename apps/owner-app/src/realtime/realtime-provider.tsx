@@ -44,6 +44,7 @@ const eventNames: OwnerRealtimeEventName[] = [
   'booking:expired',
   'booking:new',
   'booking:rejected',
+  'booking:updated',
   'checkin:completed',
   'checkout:completed',
   'dashboard:update',
@@ -86,13 +87,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     }
 
     setSocket(nextSocket);
-
     nextSocket.on('connect', () => setConnected(false));
     nextSocket.on('connection:ready', (payload) => {
       setConnected(payload.authenticated);
-      if (payload.authenticated) {
-        setConnectionRevision((current) => current + 1);
-      }
+      if (payload.authenticated) setConnectionRevision((current) => current + 1);
     });
     nextSocket.on('connect_error', () => setConnected(false));
     nextSocket.on('disconnect', () => setConnected(false));
@@ -103,20 +101,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     for (const eventName of eventNames) {
       nextSocket.on(eventName, (payload) => {
-        const event = {
-          name: eventName,
-          payload: isRecord(payload) ? payload : {},
-          receivedAt: Date.now(),
-        };
+        const event = { name: eventName, payload: isRecord(payload) ? payload : {}, receivedAt: Date.now() };
         setLastEvent(event);
-        if (isBookingRequestEvent(event)) {
-          setLastBookingRequest(event);
-        }
+        if (isBookingRequestEvent(event)) setLastBookingRequest(event);
         const message = getRealtimeMessage(event);
-
-        if (message) {
-          setSnackbarMessage(message);
-        }
+        if (message) setSnackbarMessage(message);
       });
     }
 
@@ -137,14 +126,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({
-      connected,
-      connectionRevision,
-      lastBookingRequest,
-      lastEvent,
-      ownerStatus,
-      setOwnerStatus,
-    }),
+    () => ({ connected, connectionRevision, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus }),
     [connected, connectionRevision, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus],
   );
 
@@ -158,22 +140,12 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
+function isBookingRequestEvent(event: OwnerRealtimeEvent): boolean {
+  return event.name === 'booking:new' || event.name === 'owner:alert';
 }
 
-function isBookingRequestEvent(event: OwnerRealtimeEvent): boolean {
-  if (event.name === 'booking:new' || event.name === 'owner:alert') {
-    return true;
-  }
-
-  if (event.name !== 'notification:new') {
-    return false;
-  }
-
-  const notification = event.payload.notification;
-
-  return isRecord(notification) && notification.type === 'BOOKING_REQUEST';
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
 }
 
 export function useRealtime(): RealtimeContextValue {
