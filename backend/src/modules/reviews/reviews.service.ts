@@ -37,6 +37,14 @@ export class ReviewsService {
       throw new BadRequestException('Only checked-out or completed stays can be reviewed');
     }
 
+    const existingReview = await this.prisma.review.findFirst({
+      where: { bookingId: booking.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (existingReview) {
+      throw new BadRequestException('This booking has already been reviewed');
+    }
+
     const review = await this.prisma.review.create({
       data: {
         bookingId: booking.id,
@@ -56,6 +64,16 @@ export class ReviewsService {
     });
 
     return this.toReview(review);
+  }
+
+  public async getBookingReview(
+    bookingId: string,
+    user: AuthenticatedUser,
+  ): Promise<Review | null> {
+    const review = await this.prisma.review.findFirst({
+      where: { bookingId, pilgrimUserId: user.id, deletedAt: null },
+    });
+    return review ? this.toReview(review) : null;
   }
 
   public async listPublic(
