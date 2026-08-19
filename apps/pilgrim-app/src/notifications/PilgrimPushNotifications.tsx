@@ -8,6 +8,7 @@ import {
   getUnreadNotificationCount,
   markNotificationRead,
 } from '../features/notifications/api/notifications-api';
+import { setNotificationUnreadCount } from '../features/notifications/notification-count-store';
 import { useRealtime } from '../realtime/realtime-provider';
 
 import {
@@ -24,12 +25,14 @@ export function PilgrimPushNotifications() {
 
   const refreshBadge = useCallback(async () => {
     if (!auth.isAuthenticated) {
+      setNotificationUnreadCount(0);
       await syncPilgrimNotificationBadge(0);
       return;
     }
 
     const result = await getUnreadNotificationCount().catch(() => null);
     if (result) {
+      setNotificationUnreadCount(result.unreadCount);
       await syncPilgrimNotificationBadge(result.unreadCount);
     }
   }, [auth.isAuthenticated]);
@@ -101,6 +104,7 @@ export function PilgrimPushNotifications() {
 
   useEffect(() => {
     if (!auth.isAuthenticated) {
+      setNotificationUnreadCount(0);
       void syncPilgrimNotificationBadge(0);
       return undefined;
     }
@@ -146,6 +150,7 @@ export function PilgrimPushNotifications() {
     if (event?.name === 'notification:unread-count') {
       const unreadCount = event.payload.unreadCount;
       if (typeof unreadCount === 'number') {
+        setNotificationUnreadCount(unreadCount);
         void syncPilgrimNotificationBadge(unreadCount);
       }
       return;
