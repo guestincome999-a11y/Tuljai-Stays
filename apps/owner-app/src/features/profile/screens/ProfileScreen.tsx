@@ -4,8 +4,8 @@ import { StyleSheet } from 'react-native';
 import { Button, Card, List, Text, useTheme } from 'react-native-paper';
 
 import { useAuth } from '../../../auth/auth-context';
-import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
+import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 
 const appVersion = '0.1.0';
 

@@ -1,8 +1,8 @@
 'use client';
 
+import type { LodgeCommissionFinanceReport } from '@tuljai/types';
 import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
-import type { LodgeCommissionFinanceReport } from '@tuljai/types';
 
 import {
   createLodgeCommissionSettlement,

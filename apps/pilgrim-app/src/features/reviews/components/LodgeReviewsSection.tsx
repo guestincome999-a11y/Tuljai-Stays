@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { Review } from '@tuljai/types';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import type { Review } from '@tuljai/types';
 
 import { listLodgeReviews, reportReview } from '../api/reviews-api';
 

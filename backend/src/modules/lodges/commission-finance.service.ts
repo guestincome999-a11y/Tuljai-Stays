@@ -163,11 +163,32 @@ export class LodgeCommissionFinanceService {
       }
 
       const settlementRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        INSERT INTO lodge_commission_settlements (lodge_id, amount, payment_method, reference, notes, settled_by_user_id)
-        VALUES (${lodgeId}::uuid, ${dto.amount}, ${dto.paymentMethod.trim()}, ${dto.reference ?? null}, ${dto.notes ?? null}, ${actorUserId}::uuid)
-        RETURNING id
-      `);
-      const settlementId = settlementRows[0].id;
+        INSERT INTO lodge_commission_settlements (
+          lodge_id,
+          amount,
+          payment_method,
+          notes,
+          settled_at,
+          created_by
+        )
+        VALUES (
+          ${lodgeId}::uuid,
+          ${dto.amount},
+          ${dto.paymentMethod.trim()},
+          ${dto.notes?.trim() ?? null},
+          NOW(),
+          ${actorUserId}::uuid
+        )
+       RETURNING id
+     `);
+
+      const settlement = settlementRows[0];
+
+      if (!settlement) {
+        throw new BadRequestException('Failed to create commission settlement.');
+      }
+
+      const settlementId = settlement.id;
 
       let remaining = dto.amount;
       for (const row of outstanding) {
