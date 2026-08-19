@@ -331,6 +331,9 @@ export class BookingsService {
     if (existing.status !== 'PENDING_OWNER_APPROVAL') {
       throw new BadRequestException('Only pending bookings can be accepted');
     }
+    if (existing.paymentStatus !== 'PAY_AT_LODGE') {
+      throw new BadRequestException('Prepaid bookings are confirmed only after successful online payment');
+    }
 
     const selectedRoom = existing.room
       ? { id: existing.room.id, status: existing.room.status }
@@ -483,6 +486,9 @@ export class BookingsService {
     }
 
     const existing = await this.findBookingOrThrow(id);
+    if (dto.status === 'ACCEPTED' && existing.paymentStatus !== 'PAY_AT_LODGE' && existing.paymentStatus !== 'FULLY_PAID') {
+      throw new BadRequestException('Prepaid bookings can be accepted only after successful payment');
+    }
     const booking = await this.prisma.booking.update({
       data: { status: dto.status },
       include: this.bookingInclude,
