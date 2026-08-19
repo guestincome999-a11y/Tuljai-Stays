@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 
 import { getMyBookingReview } from '../../features/reviews/api/reviews-api';
@@ -49,7 +50,6 @@ function ReviewPromptController({ bookingId, bookingStatus, justBooked, lodgeNam
   const [hasReview, setHasReview] = useState(false);
   const [checking, setChecking] = useState(false);
   const eligible = bookingStatus === 'checked-out' || bookingStatus === 'completed';
-
   useEffect(() => {
     if (!eligible) return;
     let active = true;
@@ -57,13 +57,11 @@ function ReviewPromptController({ bookingId, bookingStatus, justBooked, lodgeNam
     void getMyBookingReview(bookingId).then((review) => { if (!active) return; setHasReview(Boolean(review)); if (!review && justBooked !== '1') setTimeout(() => { if (active) setReviewOpen(true); }, 500); }).catch(() => undefined).finally(() => { if (active) setChecking(false); });
     return () => { active = false; };
   }, [bookingId, eligible, justBooked]);
-
   if (!eligible) return null;
   return <><Pressable className={`rounded-3xl border border-saffron-200 bg-saffron-50 p-5 ${hasReview || checking ? 'hidden' : ''}`} onPress={() => setReviewOpen(true)}><View className="flex-row items-center gap-3"><View className="h-12 w-12 items-center justify-center rounded-2xl bg-white"><MaterialCommunityIcons color={ui.saffronDeep} name="star-face" size={26} /></View><View className="flex-1"><Text className="text-base font-extrabold text-warm-900">{t('How was your stay?', 'तुमचा निवास कसा होता?')}</Text><Text className="mt-1 text-sm text-warm-600">{t('Rate your experience and help other pilgrims choose.', 'तुमचा अनुभव रेट करा आणि इतर भाविकांना निवडण्यात मदत करा.')}</Text></View><MaterialCommunityIcons color={ui.saffronDeep} name="chevron-right" size={22} /></View></Pressable><ReviewComposer bookingId={bookingId} lodgeName={lodgeName} onClose={() => setReviewOpen(false)} onSubmitted={() => setHasReview(true)} t={t} visible={reviewOpen} /></>;
 }
 
 function TimelineItem({ active, icon, label, subtitle, last = false }: { active: boolean; icon: 'check' | 'home-heart' | 'qrcode-scan'; label: string; last?: boolean; subtitle: string }) { return <View className="flex-row gap-3"><View className="items-center"><View className={`h-10 w-10 items-center justify-center rounded-full ${active ? 'bg-templeGreen-500' : 'bg-warm-200'}`}><MaterialCommunityIcons color={active ? '#FFFFFF' : ui.muted} name={icon} size={19} /></View>{!last ? <View className={`min-h-9 w-0.5 flex-1 ${active ? 'bg-templeGreen-100' : 'bg-warm-200'}`} /> : null}</View><View className={`${last ? 'pb-0' : 'pb-6'} pt-1`}><Text className={`text-sm font-extrabold ${active ? 'text-warm-900' : 'text-warm-500'}`}>{label}</Text><Text className="mt-1 text-xs text-warm-500">{subtitle}</Text></View></View>; }
-
 async function openDirections(name: string, t: (english: string, marathi: string) => string): Promise<void> { await openExternalLink(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`, t); }
 function formatBookingTimestamp(value: string): string { const date = new Date(value); if (Number.isNaN(date.getTime())) return '—'; return new Intl.DateTimeFormat('en-IN', { day: 'numeric', hour: 'numeric', minute: '2-digit', month: 'short', year: 'numeric' }).format(date); }
 async function openExternalLink(url: string, t: (english: string, marathi: string) => string): Promise<void> { try { await Linking.openURL(url); } catch { Alert.alert(t('Could not open this action', 'ही क्रिया उघडता आली नाही'), t('Please try again from your phone.', 'कृपया तुमच्या फोनवरून पुन्हा प्रयत्न करा.')); } }
