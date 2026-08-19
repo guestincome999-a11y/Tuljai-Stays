@@ -129,16 +129,19 @@ export function PilgrimBookingDetailScreen() {
               {lodge?.location ?? t('Tuljapur', 'तुळजापूर')}
             </Text>
           </View>
-          {lodge ? (
+          {booking.status === 'confirmed' ? (
             <Pressable
               className="min-h-12 flex-row items-center justify-center gap-2 rounded-2xl bg-warm-100"
               onPress={() =>
-                router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
+                router.push({
+                  pathname: '/(app)/pass',
+                  params: { bookingId: booking.id },
+                })
               }
             >
-              <MaterialCommunityIcons color={ui.maroon} name="home-search-outline" size={20} />
+              <MaterialCommunityIcons color={ui.maroon} name="qrcode-scan" size={20} />
               <Text className="text-sm font-extrabold text-maroon-700">
-                {t('View lodge', 'लॉज पहा')}
+                {t('Get Pass', 'पास मिळवा')}
               </Text>
             </Pressable>
           ) : null}
