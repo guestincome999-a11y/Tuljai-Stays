@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 
 import { getMyBookingReview } from '../../features/reviews/api/reviews-api';
@@ -26,9 +25,6 @@ export function PilgrimBookingDetailScreen() {
   const { supportEmail, supportPhone } = usePublicSettings();
   const booking = bookings.find((item) => item.id === params.id);
   const lodge = booking ? lodges.find((item) => item.id === booking.lodgeId) : undefined;
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [hasReview, setHasReview] = useState(false);
-  const [checkingReview, setCheckingReview] = useState(false);
 
   if (!booking) {
     return (
@@ -53,30 +49,6 @@ export function PilgrimBookingDetailScreen() {
   }
 
   const bookingId = booking.id;
-  const reviewEligible = booking.status === 'checked-out' || booking.status === 'completed';
-
-  useEffect(() => {
-    if (!reviewEligible) return;
-    let active = true;
-    setCheckingReview(true);
-    void getMyBookingReview(bookingId)
-      .then((review) => {
-        if (!active) return;
-        setHasReview(Boolean(review));
-        if (!review && params.justBooked !== '1') {
-          setTimeout(() => {
-            if (active) setReviewOpen(true);
-          }, 500);
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setCheckingReview(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [bookingId, params.justBooked, reviewEligible]);
 
   function askToCancel() {
     Alert.alert(
@@ -101,24 +73,12 @@ export function PilgrimBookingDetailScreen() {
     <AppScreen className="gap-6 pt-1">
       <TopBar
         onBack={() => router.back()}
-        right={
-          <Pressable className="h-12 w-12 items-center justify-center rounded-2xl bg-warm-100" onPress={() => void openExternalLink(`https://wa.me/?text=${encodeURIComponent(`Tuljai Stays booking ${booking.bookingCode}`)}`, t)}>
-            <MaterialCommunityIcons color={ui.ink} name="share-variant-outline" size={22} />
-          </Pressable>
-        }
+        right={<Pressable className="h-12 w-12 items-center justify-center rounded-2xl bg-warm-100" onPress={() => void openExternalLink(`https://wa.me/?text=${encodeURIComponent(`Tuljai Stays booking ${booking.bookingCode}`)}`, t)}><MaterialCommunityIcons color={ui.ink} name="share-variant-outline" size={22} /></Pressable>}
         subtitle={booking.bookingCode}
         title={t('Booking details', 'बुकिंग तपशील')}
       />
 
-      {reviewEligible && !hasReview && !checkingReview ? (
-        <Pressable className="rounded-3xl border border-saffron-200 bg-saffron-50 p-5" onPress={() => setReviewOpen(true)}>
-          <View className="flex-row items-center gap-3">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-white"><MaterialCommunityIcons color={ui.saffronDeep} name="star-face" size={26} /></View>
-            <View className="flex-1"><Text className="text-base font-extrabold text-warm-900">{t('How was your stay?', 'तुमचा निवास कसा होता?')}</Text><Text className="mt-1 text-sm text-warm-600">{t('Rate your experience and help other pilgrims choose.', 'तुमचा अनुभव रेट करा आणि इतर भाविकांना निवडण्यात मदत करा.')}</Text></View>
-            <MaterialCommunityIcons color={ui.saffronDeep} name="chevron-right" size={22} />
-          </View>
-        </Pressable>
-      ) : null}
+      <ReviewPromptController bookingId={booking.id} bookingStatus={booking.status} justBooked={params.justBooked} lodgeName={booking.lodgeName} t={t} />
 
       {params.justBooked === '1' ? (
         <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-6">
@@ -173,9 +133,38 @@ export function PilgrimBookingDetailScreen() {
         {booking.status === 'confirmed' || booking.status === 'pending' ? <SecondaryButton destructive icon="calendar-remove-outline" onPress={askToCancel}>{t('Cancel booking', 'बुकिंग रद्द करा')}</SecondaryButton> : null}
       </View>
       <PrimaryButton onPress={() => router.push('/(app)/lodges')}>{t('Explore more stays', 'आणखी निवास पहा')}</PrimaryButton>
-
-      {lodge ? <ReviewComposer bookingId={booking.id} lodgeName={lodge.name} onClose={() => setReviewOpen(false)} onSubmitted={() => setHasReview(true)} t={t} visible={reviewOpen} /> : null}
     </AppScreen>
+  );
+}
+
+function ReviewPromptController({ bookingId, bookingStatus, justBooked, lodgeName, t }: { bookingId: string; bookingStatus: string; justBooked?: string; lodgeName: string; t: (english: string, marathi: string) => string }) {
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [hasReview, setHasReview] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const eligible = bookingStatus === 'checked-out' || bookingStatus === 'completed';
+
+  useEffect(() => {
+    if (!eligible) return;
+    let active = true;
+    setChecking(true);
+    void getMyBookingReview(bookingId)
+      .then((review) => {
+        if (!active) return;
+        setHasReview(Boolean(review));
+        if (!review && justBooked !== '1') setTimeout(() => { if (active) setReviewOpen(true); }, 500);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (active) setChecking(false); });
+    return () => { active = false; };
+  }, [bookingId, eligible, justBooked]);
+
+  if (!eligible) return null;
+
+  return (
+    <>
+      {!hasReview && !checking ? <Pressable className="rounded-3xl border border-saffron-200 bg-saffron-50 p-5" onPress={() => setReviewOpen(true)}><View className="flex-row items-center gap-3"><View className="h-12 w-12 items-center justify-center rounded-2xl bg-white"><MaterialCommunityIcons color={ui.saffronDeep} name="star-face" size={26} /></View><View className="flex-1"><Text className="text-base font-extrabold text-warm-900">{t('How was your stay?', 'तुमचा निवास कसा होता?')}</Text><Text className="mt-1 text-sm text-warm-600">{t('Rate your experience and help other pilgrims choose.', 'तुमचा अनुभव रेट करा आणि इतर भाविकांना निवडण्यात मदत करा.')}</Text></View><MaterialCommunityIcons color={ui.saffronDeep} name="chevron-right" size={22} /></View></Pressable> : null}
+      <ReviewComposer bookingId={bookingId} lodgeName={lodgeName} onClose={() => setReviewOpen(false)} onSubmitted={() => setHasReview(true)} t={t} visible={reviewOpen} />
+    </>
   );
 }
 
