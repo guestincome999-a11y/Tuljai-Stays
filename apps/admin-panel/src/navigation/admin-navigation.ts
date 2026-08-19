@@ -10,6 +10,7 @@ export interface AdminNavigationItem {
 
 export const adminNavigationItems: AdminNavigationItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', permission: 'dashboard.view', section: 'Core', status: 'ready' },
+  { href: '/admin/users', label: 'User Tracking', permission: 'users.view', section: 'Operations', status: 'ready' },
   { href: '/admin/operations/intervention', label: 'Live Operations', permission: 'operations.view', section: 'Operations', status: 'ready' },
   { href: '/admin/bookings', label: 'Bookings', permission: 'bookings.view', section: 'Operations', status: 'ready' },
   { href: '/admin/lodges', label: 'Lodges', permission: 'lodges.view', section: 'Operations', status: 'ready' },
