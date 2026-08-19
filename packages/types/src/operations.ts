@@ -1,6 +1,5 @@
 import type { BookingStatus } from './booking';
 import type { ISODateTime, UUID } from './common';
-import type { NotificationType } from './notifications';
 
 export type ReviewStatus = 'PENDING' | 'PUBLISHED' | 'HIDDEN' | 'REJECTED' | 'REPORTED';
 export type ReviewReportReason = 'FAKE' | 'ABUSIVE' | 'MISLEADING' | 'SPAM' | 'OTHER';

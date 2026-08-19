@@ -1,8 +1,8 @@
-import RazorpayCheckout from 'react-native-razorpay';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import RazorpayCheckout from 'react-native-razorpay';
 
 import { useAuth } from '../../auth/auth-context';
 import { cancelBooking, createRazorpayOrder, verifyRazorpayPayment, type GuestIdProofFile } from '../../features/bookings/api/bookings-api';
@@ -114,7 +114,7 @@ export function PilgrimCheckoutScreen() {
         checkOutDate,
         checkoutDateFlexible: false,
         guestEmail: email.trim() || undefined,
-        guestIdProof,
+        guestIdProof: guestIdProof!,
         guestName: name.trim(),
         guestPhone: phone,
         lodgeId: lodge.id,

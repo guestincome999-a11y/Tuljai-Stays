@@ -1,6 +1,6 @@
 import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
-import { IsString, MaxLength } from 'class-validator';
 import type { AuthenticatedUser } from '@tuljai/types';
+import { IsString, MaxLength } from 'class-validator';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';

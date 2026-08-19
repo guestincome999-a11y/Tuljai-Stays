@@ -96,7 +96,9 @@ export class RazorpayProvider implements PaymentProvider {
     };
   }
 
-  public async verifyPayment(input: PaymentVerificationInput): Promise<PaymentVerificationResult> {
+  public async verifyPayment(
+    input: PaymentVerificationInput,
+  ): Promise<PaymentVerificationResult> {
     if (!input.signature) {
       throw new BadRequestException('Razorpay payment signature is required');
     }
@@ -104,16 +106,18 @@ export class RazorpayProvider implements PaymentProvider {
     const expected = createHmac('sha256', this.keySecret)
       .update(`${input.orderId}|${input.paymentId}`)
       .digest('hex');
+
     const expectedBuffer = Buffer.from(expected, 'hex');
     const receivedBuffer = Buffer.from(input.signature, 'hex');
 
     const verified =
-      expectedBuffer.length === receivedBuffer.length && timingSafeEqual(expectedBuffer, receivedBuffer);
+      expectedBuffer.length === receivedBuffer.length &&
+      timingSafeEqual(expectedBuffer, receivedBuffer);
 
-    return {
+    return await Promise.resolve({
       verified,
       providerPaymentId: input.paymentId,
-    };
+    });
   }
 
   public async getPayment(paymentId: string): Promise<RazorpayPaymentResponse> {

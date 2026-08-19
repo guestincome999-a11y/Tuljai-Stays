@@ -533,7 +533,7 @@ export class SettingsService {
     for (const slug of lodgeSlugs) {
       if (counts.get(slug) !== 1) {
         throw new BadRequestException(
-          `Lodge slug \"${slug}\" must match one unique, live lodge before it can be promoted`,
+          `Lodge slug "${slug}" must match one unique, live lodge before it can be promoted`,
         );
       }
     }

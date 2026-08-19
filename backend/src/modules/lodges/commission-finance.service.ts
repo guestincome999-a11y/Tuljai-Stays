@@ -1,11 +1,16 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type {
   AuthenticatedUser,
   LodgeCommissionFinanceReport,
   LodgeCommissionTransaction,
   LodgeCommissionSettlement,
 } from '@tuljai/types';
-import { Prisma } from '@prisma/client';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -167,7 +172,13 @@ export class LodgeCommissionFinanceService {
         VALUES (${lodgeId}::uuid, ${dto.amount}, ${dto.paymentMethod.trim()}, ${dto.reference ?? null}, ${dto.notes ?? null}, ${actorUserId}::uuid)
         RETURNING id
       `);
-      const settlementId = settlementRows[0].id;
+      const settlementId = settlementRows[0]?.id;
+
+      if (!settlementId) {
+        throw new InternalServerErrorException(
+          'Commission settlement could not be created.',
+        );
+      }
 
       let remaining = dto.amount;
       for (const row of outstanding) {

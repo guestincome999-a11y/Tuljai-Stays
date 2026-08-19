@@ -6,13 +6,13 @@ import { ActivityIndicator, Button, Card, IconButton, Text, useTheme } from 'rea
 
 import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import { useOwnerAnnouncements } from '../../announcements/hooks/useOwnerAnnouncements';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { useUnreadNotificationCount } from '../../notifications/hooks/useOwnerNotifications';
 import { useOwnerDashboardSummary } from '../hooks/useOwnerDashboardSummary';
 import { useReceptionSnapshot } from '../hooks/useReceptionSnapshot';
-import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
 
 export function DashboardScreen() {
   const auth = useAuth();

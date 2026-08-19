@@ -11,8 +11,8 @@ import {
   useTheme,
 } from 'react-native-paper';
 
-import { useOwnerSettings } from '../hooks/useOwnerSettings';
 import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
+import { useOwnerSettings } from '../hooks/useOwnerSettings';
 import {
   type OwnerDashboardTab,
   type OwnerLanguage,

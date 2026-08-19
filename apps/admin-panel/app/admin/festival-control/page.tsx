@@ -524,8 +524,26 @@ export default function AdminFestivalControlPage() {
 }
 
 function readPromotionalBanners(settings: SystemSetting[]): PromotionalBanner[] {
-  const value = settings.find((setting) => setting.key === 'promotional_banners')?.value;
-  return Array.isArray(value) ? (value as unknown as PromotionalBanner[]) : [];
+  const value = settings.find(
+    (setting) => setting.key === 'promotional_banners',
+  )?.value;
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is PromotionalBanner => {
+    if (typeof item !== 'object' || item === null) {
+      return false;
+    }
+
+    const candidate = item as Record<string, unknown>;
+
+    return (
+      typeof candidate.id === 'string' &&
+      typeof candidate.imageUrl === 'string'
+    );
+  });
 }
 
 function toIsoDateTime(value: string): string | null {
