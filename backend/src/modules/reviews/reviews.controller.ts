@@ -24,6 +24,15 @@ export class ReviewsController {
     return this.reviewsService.create(dto, user);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('reviews/booking/:bookingId')
+  public getBookingReview(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reviewsService.getBookingReview(bookingId, user);
+  }
+
   @Get('lodges/:lodgeId/reviews')
   public listPublic(@Param('lodgeId') lodgeId: string, @Query() query: ListReviewsQueryDto) {
     return this.reviewsService.listPublic(lodgeId, query);
