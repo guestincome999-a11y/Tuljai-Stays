@@ -9,14 +9,21 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../api/notifications-api';
+import {
+  getNotificationUnreadCount,
+  setNotificationUnreadCount,
+  subscribeNotificationUnreadCount,
+} from '../notification-count-store';
 
 export function useUnreadNotificationCount() {
   const realtime = useRealtime();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
+
+  useEffect(() => subscribeNotificationUnreadCount(setUnreadCount), []);
 
   const refresh = useCallback(async () => {
     const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
-    setUnreadCount(result.unreadCount);
+    setNotificationUnreadCount(result.unreadCount);
   }, []);
 
   useEffect(() => {
@@ -34,7 +41,7 @@ export function useUnreadNotificationCount() {
       const nextCount = event.payload.unreadCount;
 
       if (typeof nextCount === 'number') {
-        setUnreadCount(nextCount);
+        setNotificationUnreadCount(nextCount);
       }
 
       return;
@@ -71,6 +78,11 @@ export function useNotifications() {
     }
   }, []);
 
+  const refreshUnreadCount = useCallback(async () => {
+    const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
+    setNotificationUnreadCount(result.unreadCount);
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -88,11 +100,14 @@ export function useNotifications() {
     isRefreshing,
     markAllRead: async () => {
       await markAllNotificationsRead().catch(() => undefined);
+      setNotificationUnreadCount(0);
       await load(true);
+      await refreshUnreadCount();
     },
     markRead: async (notificationId: string) => {
       await markNotificationRead(notificationId).catch(() => undefined);
       await load(true);
+      await refreshUnreadCount();
     },
     refresh: () => load(true),
   };
