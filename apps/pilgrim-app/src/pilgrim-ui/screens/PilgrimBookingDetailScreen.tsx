@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 
 import { getMyBookingReview } from '../../features/reviews/api/reviews-api';
@@ -162,7 +163,7 @@ function ReviewPromptController({ bookingId, bookingStatus, justBooked, lodgeNam
 
   return (
     <>
-      {!hasReview && !checking ? <Pressable className="rounded-3xl border border-saffron-200 bg-saffron-50 p-5" onPress={() => setReviewOpen(true)}><View className="flex-row items-center gap-3"><View className="h-12 w-12 items-center justify-center rounded-2xl bg-white"><MaterialCommunityIcons color={ui.saffronDeep} name="star-face" size={26} /></View><View className="flex-1"><Text className="text-base font-extrabold text-warm-900">{t('How was your stay?', 'तुमचा निवास कसा होता?')}</Text><Text className="mt-1 text-sm text-warm-600">{t('Rate your experience and help other pilgrims choose.', 'तुमचा अनुभव रेट करा आणि इतर भाविकांना निवडण्यात मदत करा.')}</Text></View><MaterialCommunityIcons color={ui.saffronDeep} name="chevron-right" size={22} /></View></Pressable> : null}
+      {!hasReview && !checking ? <Pressable className="rounded-3xl border border-saffron-200 bg-saffron-50 p-5" onPress={() => setReviewOpen(true)}><View className="flex-row items-center gap-3"><View className="h-12 w-12 items-center justify-center rounded-2xl bg-white"><MaterialCommunityIcons color={ui.saffronDeep} name="star-face" size={26} /></View><View className="flex-1"><Text className="text-base font-extrabold text-warm-900">{t('How was your stay?', 'तुमचा निवास कसा होता?')}</Text><Text className="mt-1 text-sm text-warm-600">{t('Rate your experience and help other pilgrims choose.', 'तुमचा अनुभव रेट करा आणि इतर भाविकांना निवडण्यात मदत करा.')}</Text></View><MaterialCommunityIcons color={ui.saffronDeep} name="chevron-right' size={22} /></View></Pressable> : null}
       <ReviewComposer bookingId={bookingId} lodgeName={lodgeName} onClose={() => setReviewOpen(false)} onSubmitted={() => setHasReview(true)} t={t} visible={reviewOpen} />
     </>
   );
