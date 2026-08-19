@@ -53,18 +53,8 @@ export class NotificationEventsService {
       });
     }
 
-    await this.notificationsService.create({
-      body: `Your booking ${booking.bookingCode} has been confirmed.`,
-      bookingId: booking.id,
-      data: payload,
-      lodgeId: booking.lodgeId,
-      priority: 'NORMAL',
-      recipientRole: 'PILGRIM',
-      recipientUserId: booking.pilgrimUserId,
-      title: 'Booking confirmed',
-      type: 'BOOKING_CONFIRMED',
-    });
-
+    // Booking creation is not confirmation. Confirmation is emitted only after
+    // owner acceptance for pay-at-lodge bookings or successful prepaid payment.
     this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
       bookingId: booking.id,
       type: 'booking:new',
@@ -75,8 +65,8 @@ export class NotificationEventsService {
     await this.notifyPilgrimBookingStatus(
       bookingId,
       'booking:accepted',
-      'BOOKING_ACCEPTED',
-      'Booking accepted',
+      'BOOKING_CONFIRMED',
+      'Booking confirmed',
     );
   }
 
@@ -225,6 +215,7 @@ export class NotificationEventsService {
     bookingId: string,
     event: string,
     type:
+      | 'BOOKING_CONFIRMED'
       | 'BOOKING_ACCEPTED'
       | 'BOOKING_REJECTED'
       | 'QR_GENERATED'
@@ -264,5 +255,4 @@ export class NotificationEventsService {
       type,
     });
   }
-
 }
