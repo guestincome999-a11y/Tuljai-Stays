@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BookingStatus, Prisma } from '@prisma/client';
+import { BookingStatus, PaymentStatus, Prisma } from '@prisma/client';
 import type {
   AdminBookingSummary,
   AuthenticatedUser,
@@ -121,6 +121,9 @@ export class BookingsService {
       dto.guestIdProofMimeType,
     );
 
+    const paymentStatus: PaymentStatus =
+      dto.paymentMethod === 'ONLINE' ? 'PENDING' : 'PAY_AT_LODGE';
+
     const booking = await this.prisma.$transaction(async (tx) => {
       const created = await tx.booking.create({
         data: {
@@ -138,6 +141,7 @@ export class BookingsService {
           numberOfAdults: dto.numberOfAdults,
           numberOfChildren: dto.numberOfChildren,
           ownerResponseDeadline: this.getOwnerResponseDeadline(),
+          paymentStatus,
           pilgrimUserId: user.id,
           roomTypeId: lock.roomTypeId,
           specialRequest: dto.specialRequest,
@@ -617,128 +621,3 @@ export class BookingsService {
   private getConfiguredCommissionAmount(): number | null {
     return this.configService.get<number | null>('api.booking.commissionFlatAmount', null);
   }
-
-  private getOwnerResponseDeadline(): Date {
-    const seconds = this.configService.get<number>('api.booking.ownerResponseDeadlineSeconds', 120);
-
-    return new Date(Date.now() + seconds * 1000);
-  }
-
-  private shouldMaskContactForUser(
-    booking: BookingWithRelations,
-    user: AuthenticatedUser,
-  ): boolean {
-    if (booking.pilgrimUserId === user.id || this.lodgeAccessService.isAdmin(user)) {
-      return false;
-    }
-
-    return !OWNER_VISIBLE_CONTACT_STATUSES.includes(booking.status);
-  }
-
-  private async transitionBooking(
-    id: string,
-    fromStatus: BookingStatus,
-    toStatus: BookingStatus,
-    action: string,
-    actorUserId: string | null,
-    extraData: Prisma.BookingUpdateInput = {},
-  ): Promise<Booking> {
-    const existing = await this.findBookingOrThrow(id);
-
-    if (existing.status !== fromStatus) {
-      throw new BadRequestException(`Booking must be ${fromStatus} before this transition`);
-    }
-
-    const booking = await this.prisma.booking.update({
-      data: {
-        ...extraData,
-        status: toStatus,
-      },
-      include: this.bookingInclude,
-      where: { id },
-    });
-    await this.bookingHistoryService.create({
-      action,
-      actorUserId,
-      bookingId: id,
-      fromStatus,
-      toStatus,
-    });
-
-    return this.toBooking(booking);
-  }
-
-  private toAdminBookingSummary(booking: BookingWithRelations): AdminBookingSummary {
-    return {
-      ...this.toBooking(booking),
-      cityName: booking.city.name,
-      lodgeName: booking.lodge.name,
-      roomNumber: booking.room?.roomNumber ?? null,
-      roomTypeName: booking.roomType.name,
-    };
-  }
-
-  private toBooking(booking: BookingWithRelations, maskContact = false): Booking {
-    return {
-      acceptedByUserId: booking.acceptedByUserId,
-      advanceAmount: booking.advanceAmount?.toString() ?? null,
-      alternatePhone: maskContact ? null : booking.alternatePhone,
-      balanceAmount: booking.balanceAmount?.toString() ?? null,
-      bookingCode: booking.bookingCode,
-      cancellationReason: booking.cancellationReason,
-      checkInDate: booking.checkInDate.toISOString().slice(0, 10),
-      checkOutDate: booking.checkOutDate.toISOString().slice(0, 10),
-      checkoutDateFlexible: booking.checkoutDateFlexible,
-      checkedInAt: booking.checkedInAt?.toISOString() ?? null,
-      checkedOutAt: booking.checkedOutAt?.toISOString() ?? null,
-      cityId: booking.cityId,
-      commissionAmount: booking.commissionAmount?.toString() ?? null,
-      createdAt: booking.createdAt.toISOString(),
-      expectedCheckInTime: booking.expectedCheckInTime,
-      expectedCheckOutTime: booking.expectedCheckOutTime,
-      guestAddress: maskContact ? null : booking.guestAddress,
-      guestEmail: maskContact ? null : booking.guestEmail,
-      guestName: booking.guestName,
-      guestPhone: maskContact ? null : booking.guestPhone,
-      guests: booking.guests.map((guest) => ({
-        age: guest.age,
-        fullName: guest.fullName,
-        gender: guest.gender,
-        id: guest.id,
-        idNumber: maskContact ? null : guest.idNumber,
-        idProofMimeType: maskContact ? null : guest.idProofMimeType,
-        idProofOriginalName: maskContact ? null : guest.idProofOriginalName,
-        idProofSizeBytes: maskContact ? null : guest.idProofSizeBytes,
-        idProofStoragePath: maskContact ? null : guest.idProofStoragePath,
-        idType: guest.idType,
-        isPrimaryGuest: guest.isPrimaryGuest,
-        phone: maskContact ? null : guest.phone,
-      })),
-      id: booking.id,
-      lodgeId: booking.lodgeId,
-      numberOfAdults: booking.numberOfAdults,
-      numberOfChildren: booking.numberOfChildren,
-      ownerResponseDeadline: booking.ownerResponseDeadline?.toISOString() ?? null,
-      paymentStatus: booking.paymentStatus,
-      pilgrimUserId: booking.pilgrimUserId,
-      rejectedByUserId: booking.rejectedByUserId,
-      rejectedReason: booking.rejectedReason,
-      roomId: booking.roomId,
-      roomTypeId: booking.roomTypeId,
-      specialRequest: booking.specialRequest,
-      status: booking.status,
-      totalAmount: booking.totalAmount?.toString() ?? null,
-      totalGuests: booking.totalGuests,
-      updatedAt: booking.updatedAt.toISOString(),
-    };
-  }
-
-  private toOwnerBookingSummary(booking: BookingWithRelations): OwnerBookingSummary {
-    return {
-      ...this.toBooking(booking, !OWNER_VISIBLE_CONTACT_STATUSES.includes(booking.status)),
-      lodgeName: booking.lodge.name,
-      roomNumber: booking.room?.roomNumber ?? null,
-      roomTypeName: booking.roomType.name,
-    };
-  }
-}
