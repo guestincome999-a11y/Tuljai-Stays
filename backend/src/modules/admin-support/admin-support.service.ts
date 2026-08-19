@@ -5,6 +5,7 @@ import { normalizePagination } from '@tuljai/utils';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
 import type { AdminBookingUpdateDto, AdminUserSearchQueryDto } from './dto/admin-support.dto';
@@ -120,12 +121,7 @@ export class AdminSupportService {
     };
   }
 
-  public async updateBooking(
-    userId: string,
-    bookingId: string,
-    dto: AdminBookingUpdateDto,
-    actor: AuthenticatedUser,
-  ) {
+  public async updateBooking(userId: string, bookingId: string, dto: AdminBookingUpdateDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.booking.findFirst({
       include: { lodge: { include: { owners: { where: { deletedAt: null, isActive: true } } } }, roomType: true, room: true },
       where: { deletedAt: null, id: bookingId, pilgrimUserId: userId },
@@ -253,14 +249,7 @@ export class AdminSupportService {
     return payload;
   }
 
-  private async toUserSummary(
-    id: string,
-    displayName: string | null,
-    phoneNumber: string | null,
-    email: string | null,
-    createdAt: Date,
-    lastLoginAt: Date | null,
-  ) {
+  private async toUserSummary(id: string, displayName: string | null, phoneNumber: string | null, email: string | null, createdAt: Date, lastLoginAt: Date | null) {
     const [totalBookings, completedBookings, totalValue] = await Promise.all([
       this.prisma.booking.count({ where: { deletedAt: null, pilgrimUserId: id } }),
       this.prisma.booking.count({ where: { deletedAt: null, pilgrimUserId: id, status: { in: ['CHECKED_OUT', 'COMPLETED'] } } }),
