@@ -1,18 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  Pressable,
-  ScrollView,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
+import { LodgeReviewsSection } from '../../features/reviews/components/LodgeReviewsSection';
 import { AppScreen, EmptyState, PrimaryButton, Rating, SecondaryButton, ui } from '../components';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
@@ -27,361 +18,35 @@ export function PilgrimLodgeDetailScreen() {
   const favorite = lodge ? favoriteIds.includes(lodge.id) : false;
 
   if (!lodge) {
-    return (
-      <AppScreen className="gap-6 pt-1">
-        <Pressable
-          className="h-12 w-12 items-center justify-center rounded-full bg-white"
-          onPress={() => router.back()}
-        >
-          <MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} />
-        </Pressable>
-        {isSyncing ? (
-          <View className="items-center rounded-3xl border border-warm-100 bg-white py-16">
-            <ActivityIndicator color={ui.saffronDeep} size="large" />
-            <Text className="mt-4 text-sm font-bold text-warm-500">
-              {t('Loading lodge details…', 'लॉजची माहिती लोड होत आहे…')}
-            </Text>
-          </View>
-        ) : (
-          <EmptyState
-            action={t('Explore available stays', 'उपलब्ध निवास पहा')}
-            body={t(
-              'This lodge is no longer available for booking.',
-              'हा लॉज आता बुकिंगसाठी उपलब्ध नाही.',
-            )}
-            icon="home-off-outline"
-            onAction={() => router.replace('/(app)/lodges')}
-            title={t('Lodge not found', 'लॉज सापडला नाही')}
-          />
-        )}
-      </AppScreen>
-    );
+    return <AppScreen className="gap-6 pt-1"><Pressable className="h-12 w-12 items-center justify-center rounded-full bg-white" onPress={() => router.back()}><MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} /></Pressable>{isSyncing ? <View className="items-center rounded-3xl border border-warm-100 bg-white py-16"><ActivityIndicator color={ui.saffronDeep} size="large" /><Text className="mt-4 text-sm font-bold text-warm-500">{t('Loading lodge details…', 'लॉजची माहिती लोड होत आहे…')}</Text></View> : <EmptyState action={t('Explore available stays', 'उपलब्ध निवास पहा')} body={t('This lodge is no longer available for booking.', 'हा लॉज आता बुकिंगसाठी उपलब्ध नाही.')} icon="home-off-outline" onAction={() => router.replace('/(app)/lodges')} title={t('Lodge not found', 'लॉज सापडला नाही')} />}</AppScreen>;
   }
 
-  return (
-    <AppScreen padded={false} scroll={false}>
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="pb-32"
-        showsVerticalScrollIndicator={false}
-      >
-        <View className="relative">
-          <ScrollView
-            horizontal
-            onMomentumScrollEnd={(event) =>
-              setPhotoIndex(Math.round(event.nativeEvent.contentOffset.x / width))
-            }
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-          >
-            {lodge.photos.map((photo) => (
-              <Image
-                className="h-80"
-                key={photo}
-                resizeMode="cover"
-                source={{ uri: photo }}
-                style={{ width }}
-              />
-            ))}
-          </ScrollView>
-          <View className="absolute left-5 right-5 top-3 flex-row justify-between">
-            <Pressable
-              className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
-              onPress={() => router.back()}
-            >
-              <MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} />
-            </Pressable>
-            <View className="flex-row gap-2">
-              <Pressable
-                className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
-                onPress={() =>
-                  void openExternalLink(
-                    `https://wa.me/?text=${encodeURIComponent(`Take a look at ${lodge.name} on Tuljai Stays`)}`,
-                    t,
-                  )
-                }
-              >
-                <MaterialCommunityIcons color={ui.ink} name="share-variant-outline" size={22} />
-              </Pressable>
-              <Pressable
-                className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
-                onPress={() => toggleFavorite(lodge.id)}
-              >
-                <MaterialCommunityIcons
-                  color={favorite ? ui.maroon : ui.ink}
-                  name={favorite ? 'heart' : 'heart-outline'}
-                  size={24}
-                />
-              </Pressable>
-            </View>
-          </View>
-          <View className="absolute bottom-4 right-5 rounded-full bg-black/60 px-3 py-1.5">
-            <Text className="text-xs font-bold text-white">
-              {photoIndex + 1} / {lodge.photos.length}
-            </Text>
-          </View>
-        </View>
-
-        <View className="gap-7 px-5 py-6">
-          <View>
-            <View className="mb-3 flex-row flex-wrap gap-2">
-              <View className="rounded-full bg-templeGreen-50 px-3 py-1.5">
-                <Text className="text-xs font-extrabold text-templeGreen-700">
-                  ✓ {t('Tuljai verified', 'तुळजाई सत्यापित')}
-                </Text>
-              </View>
-              {lodge.badge ? (
-                <View className="rounded-full bg-maroon-50 px-3 py-1.5">
-                  <Text className="text-xs font-extrabold text-maroon-700">{lodge.badge}</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text className="text-[27px] font-extrabold leading-9 tracking-tight text-warm-900">
-              {lodge.name}
-            </Text>
-            <Text className="mt-1 text-sm text-warm-500">
-              {lodge.type} · {lodge.location}
-            </Text>
-            <View className="mt-4 flex-row items-center gap-3">
-              <Rating rating={lodge.rating} />
-              <Text className="text-sm font-semibold text-warm-700">
-                {lodge.reviewCount} {t('pilgrim reviews', 'भाविक अभिप्राय')}
-              </Text>
-              <Text className="text-warm-300">•</Text>
-              <Text className="text-sm font-semibold text-saffron-700">{lodge.distance}</Text>
-            </View>
-          </View>
-
-          <View className="flex-row gap-3">
-            <Pressable
-              className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2"
-              onPress={() => void openDirections(lodge.name, t)}
-            >
-              <MaterialCommunityIcons color={ui.saffronDeep} name="map-marker-radius" size={24} />
-              <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
-                {t('Open directions', 'दिशा पहा')}
-              </Text>
-            </Pressable>
-            <View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2">
-              <MaterialCommunityIcons color={ui.saffronDeep} name="clock-fast" size={24} />
-              <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
-                {t('12 PM check-in', '१२ वा. चेक-इन')}
-              </Text>
-            </View>
-            <View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2">
-              <MaterialCommunityIcons color={ui.saffronDeep} name="shield-check" size={24} />
-              <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
-                {t('Safe & trusted', 'सुरक्षित निवास')}
-              </Text>
-            </View>
-          </View>
-
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
-              {t('About this stay', 'या निवासाबद्दल')}
-            </Text>
-            <Text className="mt-3 text-[15px] leading-6 text-warm-600">{lodge.description}</Text>
-          </View>
-
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
-              {t('What this place offers', 'येथे मिळणाऱ्या सुविधा')}
-            </Text>
-            <View className="mt-4 flex-row flex-wrap">
-              {lodge.amenities.map((amenity) => (
-                <View className="mb-4 w-1/2 flex-row items-center gap-3 pr-2" key={amenity.label}>
-                  <View className="h-10 w-10 items-center justify-center rounded-xl bg-warm-100">
-                    <MaterialCommunityIcons
-                      color={ui.maroon}
-                      name={amenity.icon as never}
-                      size={20}
-                    />
-                  </View>
-                  <Text className="flex-1 text-sm font-semibold text-warm-700">
-                    {amenity.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
-              {t('Choose a room', 'खोली निवडा')}
-            </Text>
-            <Text className="mt-1 text-sm text-warm-500">
-              {t('Free cancellation on selected rooms', 'निवडक खोल्यांवर मोफत रद्दीकरण')}
-            </Text>
-            <View className="mt-4 gap-4">
-              {lodge.rooms.map((room, index) => (
-                <View
-                  className={`overflow-hidden rounded-3xl border bg-white ${index === 0 ? 'border-saffron-500' : 'border-warm-200'}`}
-                  key={room.id}
-                >
-                  {index === 0 ? (
-                    <View className="bg-saffron-500 px-4 py-2">
-                      <Text className="text-xs font-extrabold text-white">
-                        {t('BEST VALUE FOR FAMILIES', 'कुटुंबासाठी उत्तम पर्याय')}
-                      </Text>
-                    </View>
-                  ) : null}
-                  <View className="gap-4 p-4">
-                    <View className="flex-row items-start justify-between gap-3">
-                      <View className="min-w-0 flex-1">
-                        <Text className="text-lg font-extrabold text-warm-900">{room.name}</Text>
-                        <Text className="mt-1 text-sm text-warm-500">
-                          {room.bed} · {room.capacity}
-                        </Text>
-                      </View>
-                      <View className="rounded-xl bg-bell-50 px-2.5 py-1.5">
-                        <Text className="text-xs font-extrabold text-bell-700">
-                          {room.available} left
-                        </Text>
-                      </View>
-                    </View>
-                    <View className="gap-2">
-                      {room.features.map((feature) => (
-                        <View className="flex-row items-center gap-2" key={feature}>
-                          <MaterialCommunityIcons color={ui.green} name="check" size={18} />
-                          <Text className="text-sm text-warm-600">{feature}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    <View className="flex-row items-end justify-between gap-3 border-t border-warm-100 pt-4">
-                      <View>
-                        <Text className="text-2xl font-extrabold text-maroon-700">
-                          {formatRupees(room.price)}
-                        </Text>
-                        <Text className="text-xs text-warm-500">
-                          {t('per night · taxes extra', 'प्रति रात्र · कर अतिरिक्त')}
-                        </Text>
-                      </View>
-                      <SecondaryButton
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(app)/bookings/new',
-                            params: { lodgeId: lodge.id, roomTypeId: room.id },
-                          })
-                        }
-                      >
-                        {t('Select room', 'खोली निवडा')}
-                      </SecondaryButton>
-                    </View>
-                  </View>
-                </View>
-              ))}
-              {lodge.rooms.length === 0 ? (
-                <View className="items-center rounded-3xl border border-warm-100 bg-white px-6 py-8">
-                  <MaterialCommunityIcons color={ui.muted} name="bed-empty" size={34} />
-                  <Text className="mt-3 text-center text-base font-extrabold text-warm-900">
-                    {t('Rooms are being updated', 'खोल्यांची माहिती अपडेट होत आहे')}
-                  </Text>
-                  <Text className="mt-1 text-center text-sm text-warm-500">
-                    {t(
-                      'Please check again shortly or choose another stay.',
-                      'कृपया थोड्या वेळाने पुन्हा तपासा किंवा दुसरा निवास निवडा.',
-                    )}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
-              {t('Good to know', 'महत्त्वाची माहिती')}
-            </Text>
-            <View className="mt-3 rounded-2xl bg-white px-4">
-              {lodge.rules.map((rule, index) => (
-                <View
-                  className={`flex-row items-center gap-3 py-3.5 ${index < lodge.rules.length - 1 ? 'border-b border-warm-100' : ''}`}
-                  key={rule}
-                >
-                  <MaterialCommunityIcons
-                    color={ui.saffronDeep}
-                    name="information-outline"
-                    size={20}
-                  />
-                  <Text className="flex-1 text-sm font-semibold text-warm-700">{rule}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {lodge.primaryPhone ? (
-            <View className="rounded-3xl bg-maroon-700 p-5">
-              <View className="flex-row items-center gap-3">
-                <View className="h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
-                  <MaterialCommunityIcons color="#FFFFFF" name="phone-outline" size={25} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-extrabold text-white">
-                    {t('Need help before booking?', 'बुकिंगपूर्वी मदत हवी आहे?')}
-                  </Text>
-                  <Text className="mt-1 text-sm text-orange-100">
-                    {t(
-                      'Call the lodge directly with your stay questions.',
-                      'निवासाबद्दलच्या प्रश्नांसाठी लॉजला थेट कॉल करा.',
-                    )}
-                  </Text>
-                </View>
-              </View>
-              <SecondaryButton
-                className="mt-4 border-white/20 bg-white/10"
-                icon="phone-outline"
-                onPress={() => void openExternalLink(`tel:${lodge.primaryPhone}`, t)}
-              >
-                {t('Call lodge', 'लॉजला कॉल करा')}
-              </SecondaryButton>
-            </View>
-          ) : null}
-        </View>
-      </ScrollView>
-
-      <View className="absolute bottom-0 left-0 right-0 flex-row items-center gap-4 border-t border-warm-200 bg-white px-5 pb-7 pt-3">
-        <View className="flex-1">
-          <Text className="text-xs font-semibold text-warm-500">
-            {t('Rooms from', 'खोली सुरू')}
-          </Text>
-          <Text className="text-xl font-extrabold text-warm-900">
-            {formatRupees(lodge.price)}{' '}
-            <Text className="text-xs font-medium text-warm-500">/ night</Text>
-          </Text>
-        </View>
-        <PrimaryButton
-          className="min-w-44"
-          disabled={lodge.rooms.length === 0}
-          onPress={() =>
-            router.push({ pathname: '/(app)/bookings/new', params: { lodgeId: lodge.id } })
-          }
-        >
-          {t('Check availability', 'उपलब्धता पहा')}
-        </PrimaryButton>
+  return <AppScreen padded={false} scroll={false}>
+    <ScrollView className="flex-1" contentContainerClassName="pb-32" showsVerticalScrollIndicator={false}>
+      <View className="relative"><ScrollView horizontal onMomentumScrollEnd={(event) => setPhotoIndex(Math.round(event.nativeEvent.contentOffset.x / width))} pagingEnabled showsHorizontalScrollIndicator={false}>{lodge.photos.map((photo) => <Image className="h-80" key={photo} resizeMode="cover" source={{ uri: photo }} style={{ width }} />)}</ScrollView>
+        <View className="absolute left-5 right-5 top-3 flex-row justify-between"><Pressable className="h-12 w-12 items-center justify-center rounded-full bg-white/95" onPress={() => router.back()}><MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} /></Pressable><View className="flex-row gap-2"><Pressable className="h-12 w-12 items-center justify-center rounded-full bg-white/95" onPress={() => void openExternalLink(`https://wa.me/?text=${encodeURIComponent(`Take a look at ${lodge.name} on Tuljai Stays`)}`, t)}><MaterialCommunityIcons color={ui.ink} name="share-variant-outline" size={22} /></Pressable><Pressable className="h-12 w-12 items-center justify-center rounded-full bg-white/95" onPress={() => toggleFavorite(lodge.id)}><MaterialCommunityIcons color={favorite ? ui.maroon : ui.ink} name={favorite ? 'heart' : 'heart-outline'} size={24} /></Pressable></View></View>
+        <View className="absolute bottom-4 right-5 rounded-full bg-black/60 px-3 py-1.5"><Text className="text-xs font-bold text-white">{photoIndex + 1} / {lodge.photos.length}</Text></View>
       </View>
-    </AppScreen>
-  );
+
+      <View className="gap-7 px-5 py-6">
+        <View><View className="mb-3 flex-row flex-wrap gap-2"><View className="rounded-full bg-templeGreen-50 px-3 py-1.5"><Text className="text-xs font-extrabold text-templeGreen-700">✓ {t('Tuljai verified', 'तुळजाई सत्यापित')}</Text></View>{lodge.badge ? <View className="rounded-full bg-maroon-50 px-3 py-1.5"><Text className="text-xs font-extrabold text-maroon-700">{lodge.badge}</Text></View> : null}</View><Text className="text-[27px] font-extrabold leading-9 tracking-tight text-warm-900">{lodge.name}</Text><Text className="mt-1 text-sm text-warm-500">{lodge.type} · {lodge.location}</Text><View className="mt-4 flex-row items-center gap-3"><Rating rating={lodge.rating} /><Text className="text-sm font-semibold text-warm-700">{lodge.reviewCount} {t('pilgrim reviews', 'भाविक अभिप्राय')}</Text><Text className="text-warm-300">•</Text><Text className="text-sm font-semibold text-saffron-700">{lodge.distance}</Text></View></View>
+
+        <View className="flex-row gap-3"><Pressable className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2" onPress={() => void openDirections(lodge.name, t)}><MaterialCommunityIcons color={ui.saffronDeep} name="map-marker-radius" size={24} /><Text className="mt-1 text-center text-xs font-extrabold text-warm-700">{t('Open directions', 'दिशा पहा')}</Text></Pressable><View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2"><MaterialCommunityIcons color={ui.saffronDeep} name="clock-fast" size={24} /><Text className="mt-1 text-center text-xs font-extrabold text-warm-700">{t('12 PM check-in', '१२ वा. चेक-इन')}</Text></View><View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2"><MaterialCommunityIcons color={ui.saffronDeep} name="shield-check" size={24} /><Text className="mt-1 text-center text-xs font-extrabold text-warm-700">{t('Safe & trusted', 'सुरक्षित निवास')}</Text></View></View>
+
+        <View className="border-t border-warm-100 pt-6"><Text className="text-xl font-extrabold text-warm-900">{t('About this stay', 'या निवासाबद्दल')}</Text><Text className="mt-3 text-[15px] leading-6 text-warm-600">{lodge.description}</Text></View>
+        <View className="border-t border-warm-100 pt-6"><Text className="text-xl font-extrabold text-warm-900">{t('What this place offers', 'येथे मिळणाऱ्या सुविधा')}</Text><View className="mt-4 flex-row flex-wrap">{lodge.amenities.map((amenity) => <View className="mb-4 w-1/2 flex-row items-center gap-3 pr-2" key={amenity.label}><View className="h-10 w-10 items-center justify-center rounded-xl bg-warm-100"><MaterialCommunityIcons color={ui.maroon} name={amenity.icon as never} size={20} /></View><Text className="flex-1 text-sm font-semibold text-warm-700">{amenity.label}</Text></View>)}</View></View>
+
+        <LodgeReviewsSection lodgeId={lodge.id} t={t} />
+
+        <View className="border-t border-warm-100 pt-6"><Text className="text-xl font-extrabold text-warm-900">{t('Choose a room', 'खोली निवडा')}</Text><Text className="mt-1 text-sm text-warm-500">{t('Free cancellation on selected rooms', 'निवडक खोल्यांवर मोफत रद्दीकरण')}</Text><View className="mt-4 gap-4">{lodge.rooms.map((room, index) => <View className={`overflow-hidden rounded-3xl border bg-white ${index === 0 ? 'border-saffron-500' : 'border-warm-200'}`} key={room.id}>{index === 0 ? <View className="bg-saffron-500 px-4 py-2"><Text className="text-xs font-extrabold text-white">{t('BEST VALUE FOR FAMILIES', 'कुटुंबासाठी उत्तम पर्याय')}</Text></View> : null}<View className="gap-4 p-4"><View className="flex-row items-start justify-between gap-3"><View className="min-w-0 flex-1"><Text className="text-lg font-extrabold text-warm-900">{room.name}</Text><Text className="mt-1 text-sm text-warm-500">{room.bed} · {room.capacity}</Text></View><View className="rounded-xl bg-bell-50 px-2.5 py-1.5"><Text className="text-xs font-extrabold text-bell-700">{room.available} left</Text></View></View><View className="gap-2">{room.features.map((feature) => <View className="flex-row items-center gap-2" key={feature}><MaterialCommunityIcons color={ui.green} name="check" size={18} /><Text className="text-sm text-warm-600">{feature}</Text></View>)}</View><View className="flex-row items-end justify-between gap-3 border-t border-warm-100 pt-4"><View><Text className="text-2xl font-extrabold text-maroon-700">{formatRupees(room.price)}</Text><Text className="text-xs text-warm-500">{t('per night · taxes extra', 'प्रति रात्र · कर अतिरिक्त')}</Text></View><SecondaryButton onPress={() => router.push({ pathname: '/(app)/bookings/new', params: { lodgeId: lodge.id, roomTypeId: room.id } })}>{t('Select room', 'खोली निवडा')}</SecondaryButton></View></View></View>)}{lodge.rooms.length === 0 ? <View className="items-center rounded-3xl border border-warm-100 bg-white px-6 py-8"><MaterialCommunityIcons color={ui.muted} name="bed-empty" size={34} /><Text className="mt-3 text-center text-base font-extrabold text-warm-900">{t('Rooms are being updated', 'खोल्यांची माहिती अपडेट होत आहे')}</Text><Text className="mt-1 text-center text-sm text-warm-500">{t('Please check again shortly or choose another stay.', 'कृपया थोड्या वेळाने पुन्हा तपासा किंवा दुसरा निवास निवडा.')}</Text></View> : null}</View></View>
+
+        <View className="border-t border-warm-100 pt-6"><Text className="text-xl font-extrabold text-warm-900">{t('Good to know', 'महत्त्वाची माहिती')}</Text><View className="mt-3 rounded-2xl bg-white px-4">{lodge.rules.map((rule, index) => <View className={`flex-row items-center gap-3 py-3.5 ${index < lodge.rules.length - 1 ? 'border-b border-warm-100' : ''}`} key={rule}><MaterialCommunityIcons color={ui.saffronDeep} name="information-outline" size={20} /><Text className="flex-1 text-sm font-semibold text-warm-700">{rule}</Text></View>)}</View></View>
+        {lodge.primaryPhone ? <View className="rounded-3xl bg-maroon-700 p-5"><View className="flex-row items-center gap-3"><View className="h-12 w-12 items-center justify-center rounded-2xl bg-white/10"><MaterialCommunityIcons color="#FFFFFF" name="phone-outline" size={25} /></View><View className="flex-1"><Text className="text-base font-extrabold text-white">{t('Need help before booking?', 'बुकिंगपूर्वी मदत हवी आहे?')}</Text><Text className="mt-1 text-sm text-orange-100">{t('Call the lodge directly with your stay questions.', 'निवासाबद्दलच्या प्रश्नांसाठी लॉजला थेट कॉल करा.')}</Text></View></View><SecondaryButton className="mt-4 border-white/20 bg-white/10" icon="phone-outline" onPress={() => void openExternalLink(`tel:${lodge.primaryPhone}`, t)}>{t('Call lodge', 'लॉजला कॉल करा')}</SecondaryButton></View> : null}
+      </View>
+    </ScrollView>
+    <View className="absolute bottom-0 left-0 right-0 flex-row items-center gap-4 border-t border-warm-200 bg-white px-5 pb-7 pt-3"><View className="flex-1"><Text className="text-xs font-semibold text-warm-500">{t('Rooms from', 'खोली सुरू')}</Text><Text className="text-xl font-extrabold text-warm-900">{formatRupees(lodge.price)} <Text className="text-xs font-medium text-warm-500">/ night</Text></Text></View><PrimaryButton className="min-w-44" disabled={lodge.rooms.length === 0} onPress={() => router.push({ pathname: '/(app)/bookings/new', params: { lodgeId: lodge.id } })}>{t('Check availability', 'उपलब्धता पहा')}</PrimaryButton></View>
+  </AppScreen>;
 }
 
-async function openDirections(
-  name: string,
-  t: (english: string, marathi: string) => string,
-): Promise<void> {
-  await openExternalLink(
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`,
-    t,
-  );
-}
-
-async function openExternalLink(
-  url: string,
-  t: (english: string, marathi: string) => string,
-): Promise<void> {
-  try {
-    await Linking.openURL(url);
-  } catch {
-    Alert.alert(
-      t('Could not open this action', 'ही क्रिया उघडता आली नाही'),
-      t('Please try again from your phone.', 'कृपया तुमच्या फोनवरून पुन्हा प्रयत्न करा.'),
-    );
-  }
-}
+async function openDirections(name: string, t: (english: string, marathi: string) => string): Promise<void> { await openExternalLink(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`, t); }
+async function openExternalLink(url: string, t: (english: string, marathi: string) => string): Promise<void> { try { await Linking.openURL(url); } catch { Alert.alert(t('Could not open this action', 'ही क्रिया उघडता आली नाही'), t('Please try again from your phone.', 'कृपया तुमच्या फोनवरून पुन्हा प्रयत्न करा.')); } }
