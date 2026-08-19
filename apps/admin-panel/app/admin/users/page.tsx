@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { listAdminUsers, type AdminTrackedUser } from '../../../src/api/admin-users-api';
 import { PermissionGate } from '../../../src/components/PermissionGate';
@@ -15,7 +15,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -28,9 +28,9 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, search]);
 
-  useEffect(() => { void load(); }, [page]);
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <PermissionGate permission="users.view">
