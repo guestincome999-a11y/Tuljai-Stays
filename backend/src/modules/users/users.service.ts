@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+
 import type { AdminUsersQueryDto } from './dto/admin-users.dto';
 
 @Injectable()
