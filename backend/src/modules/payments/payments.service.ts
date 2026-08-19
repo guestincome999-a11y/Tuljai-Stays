@@ -120,9 +120,6 @@ export class PaymentsService {
       where: { deletedAt: null, id: bookingId, pilgrimUserId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
-    if (booking.paymentStatus !== 'PENDING') {
-      throw new BadRequestException('This booking is not awaiting prepaid payment');
-    }
 
     const collections = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null }>>`
       SELECT id, status, provider_order_id FROM payment_collections
@@ -133,8 +130,11 @@ export class PaymentsService {
     if (!collection || collection.provider_order_id !== input.orderId) {
       throw new BadRequestException('Payment order does not match this booking');
     }
-    if (collection.status === 'PAID') {
+    if (collection.status === 'PAID' && booking.paymentStatus === 'FULLY_PAID') {
       return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID' };
+    }
+    if (booking.paymentStatus !== 'PENDING') {
+      throw new BadRequestException('This booking is not awaiting prepaid payment');
     }
 
     const verification = await this.razorpayProvider.verifyPayment(input);
