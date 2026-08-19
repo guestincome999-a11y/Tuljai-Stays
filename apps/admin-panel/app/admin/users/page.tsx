@@ -40,7 +40,7 @@ export default function AdminUsersPage() {
             <div>
               <p className="eyebrow">Customer Support & User Tracking</p>
               <h2>Users</h2>
-              <p className="muted-copy">Find a pilgrim by name, phone, email or booking code, then open the booking to resolve date, stay or other support requests.</p>
+              <p className="muted-copy">Find a pilgrim by name, phone, email or booking code, then open their full history to resolve date, stay, payment or other support requests.</p>
             </div>
             <button className="button button-primary" type="button" onClick={() => void load()}>Refresh</button>
           </div>
@@ -60,7 +60,7 @@ export default function AdminUsersPage() {
 
         <section className="table-panel">
           <div className="admin-table">
-            <div className="admin-table-row admin-table-head"><span>User</span><span>Contact</span><span>Bookings</span><span>Total value</span><span>Last login</span><span>Recent booking</span></div>
+            <div className="admin-table-row admin-table-head"><span>User</span><span>Contact</span><span>Bookings</span><span>Total value</span><span>Last login</span><span>Recent booking</span><span>Details</span></div>
             {loading ? <div className="admin-table-row"><span>Loading users…</span></div> : null}
             {!loading && items.length === 0 ? <div className="admin-table-row"><span>No users found.</span></div> : null}
             {items.map((user) => {
@@ -73,6 +73,7 @@ export default function AdminUsersPage() {
                   <span>₹{user.totalBookingValue.toLocaleString('en-IN')}</span>
                   <span>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-IN') : 'Not recorded'}</span>
                   <span>{recent ? <><strong>{recent.bookingCode}</strong><small>{recent.lodgeName} · {recent.status}</small><Link className="ghost-control" href={`/admin/bookings/${recent.id}`}>Open booking</Link></> : 'No bookings yet'}</span>
+                  <span><Link className="button button-secondary" href={`/admin/users/${user.id}`}>View user</Link></span>
                 </div>
               );
             })}
