@@ -34,6 +34,7 @@ export type SocketEventName =
   | 'booking:rejected'
   | 'booking:cancelled'
   | 'booking:expired'
+  | 'booking:updated'
   | 'qr:generated'
   | 'qr:scan-success'
   | 'qr:scan-failed'
