@@ -16,6 +16,7 @@ import { LodgesModule } from './lodges/lodges.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OperationsModule } from './operations/operations.module';
 import { OwnersModule } from './owners/owners.module';
+import { PaymentsModule } from './payments/payments.module';
 import { PhotosModule } from './photos/photos.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -49,6 +50,7 @@ import { StorageModule } from './storage/storage.module';
     SettingsModule,
     OperationsModule,
     StorageModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}
