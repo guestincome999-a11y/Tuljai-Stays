@@ -24,7 +24,7 @@ const SUPPORT_EMAIL = 'tuljaistays@gmail.com';
 export function PilgrimProfileScreen() {
   const router = useRouter();
   const auth = useAuth();
-  const { supportEmail, supportPhone } = usePublicSettings();
+  const { supportPhone } = usePublicSettings();
   const {
     bookingNotificationsEnabled,
     bookings,

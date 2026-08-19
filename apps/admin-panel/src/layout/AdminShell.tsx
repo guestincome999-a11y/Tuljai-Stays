@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { PropsWithChildren } from 'react';
 
-import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
 import { getAdminDisplayName, useAdminAuth } from '../auth/AdminAuthProvider';
 import { AdminProtectedRoute } from '../auth/AdminProtectedRoute';
+import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
 import { adminNavigationItems } from '../navigation/admin-navigation';
 import { hasPermission } from '../permissions/permissions';
 

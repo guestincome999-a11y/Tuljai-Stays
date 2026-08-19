@@ -304,7 +304,7 @@ export function PilgrimCheckoutScreen() {
               <Text className="font-extrabold text-saffron-700">{t('Edit', 'बदला')}</Text>
             </View>
             <View className="mt-4 border-t border-warm-100 pt-4">
-              <View className="flex-row items-center gap-2"><MaterialCommunityIcons color={ui.success} name="file-check-outline" size={18} /><Text className="text-sm font-semibold text-warm-700">{guestIdProof?.name}</Text></View>
+              <View className="flex-row items-center gap-2"><MaterialCommunityIcons color={ui.green} name="file-check-outline" size={18} /><Text className="text-sm font-semibold text-warm-700">{guestIdProof?.name}</Text></View>
               {request ? <Text className="mt-2 text-sm text-warm-500">{t('Request:', 'विनंती:')} {request}</Text> : null}
             </View>
           </Pressable>
