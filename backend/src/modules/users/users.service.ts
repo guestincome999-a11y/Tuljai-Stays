@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -68,5 +68,62 @@ export class UsersService {
     }));
 
     return { items, page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) };
+  }
+
+  public async getAdminUser(id: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null, roles: { has: 'PILGRIM' } },
+      select: {
+        id: true,
+        displayName: true,
+        phoneNumber: true,
+        createdAt: true,
+        lastLoginAt: true,
+        isActive: true,
+        authIdentities: { select: { provider: true, email: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+        pilgrimBookings: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            bookingCode: true,
+            status: true,
+            paymentStatus: true,
+            paymentMethod: true,
+            totalAmount: true,
+            commissionAmount: true,
+            checkInDate: true,
+            checkOutDate: true,
+            createdAt: true,
+            lodge: { select: { id: true, name: true } },
+            roomType: { select: { id: true, name: true, basePrice: true } },
+          },
+        },
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const totalBookingValue = user.pilgrimBookings.reduce((sum, booking) => sum + Number(booking.totalAmount ?? 0), 0);
+    const totalCommission = user.pilgrimBookings.reduce((sum, booking) => sum + Number(booking.commissionAmount ?? 0), 0);
+
+    return {
+      id: user.id,
+      displayName: user.displayName,
+      phoneNumber: user.phoneNumber,
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt,
+      isActive: user.isActive,
+      identities: user.authIdentities,
+      bookingCount: user.pilgrimBookings.length,
+      totalBookingValue,
+      totalCommission,
+      bookings: user.pilgrimBookings.map((booking) => ({
+        ...booking,
+        totalAmount: Number(booking.totalAmount ?? 0),
+        commissionAmount: Number(booking.commissionAmount ?? 0),
+        roomType: booking.roomType ? { ...booking.roomType, basePrice: Number(booking.roomType.basePrice) } : null,
+      })),
+    };
   }
 }
