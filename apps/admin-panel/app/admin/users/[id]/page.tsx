@@ -1,7 +1,7 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { use, useEffect, useState } from 'react';
 
 import { getAdminUser, type AdminUserDetail } from '../../../../src/api/admin-users-api';
 import { PermissionGate } from '../../../../src/components/PermissionGate';
