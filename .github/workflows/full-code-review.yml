@@ -13,7 +13,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -31,8 +31,14 @@ jobs:
       - name: Generate Prisma Client
         run: npm run db:generate
 
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema backend/prisma/schema.prisma
+
       - name: Typecheck all workspaces
         run: npm run typecheck
+
+      - name: Lint all workspaces
+        run: npm run lint
 
       - name: Build all workspaces
         run: npm run build
