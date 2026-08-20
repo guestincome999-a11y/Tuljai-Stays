@@ -19,6 +19,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { href: '/admin/rooms', label: 'Rooms', permission: 'rooms.view', section: 'Operations', status: 'ready' },
   { href: '/admin/photos', label: 'Photo Review', permission: 'photos.review', section: 'Operations', status: 'ready' },
   { href: '/admin/finance', label: 'Finance', permission: 'finance.view', section: 'Operations', status: 'ready' },
+  { href: '/admin/users', label: 'Users & Tracking', permission: 'users.view', section: 'Operations', status: 'ready' },
   { href: '/admin/verification', label: 'Verification', permission: 'lodges.view', section: 'Governance', status: 'ready' },
   { href: '/admin/announcements', label: 'Announcements', permission: 'announcements.manage', section: 'Operations', status: 'ready' },
   { href: '/admin/festival-control', label: 'Festival Control', permission: 'settings.manage', section: 'Operations', status: 'ready' },
