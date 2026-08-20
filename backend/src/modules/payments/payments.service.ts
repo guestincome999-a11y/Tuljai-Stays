@@ -29,9 +29,13 @@ export class PaymentsService {
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.status !== 'PENDING_OWNER_APPROVAL') throw new BadRequestException('This booking is not waiting for online payment');
     if (booking.paymentStatus !== 'PENDING') throw new BadRequestException('This booking is not configured for prepaid online payment');
+
     const settings = await this.prisma.$queryRaw<Array<{ enabled: boolean; provider: string; display_status: string }>>`SELECT online_payments_enabled AS enabled, provider, display_status FROM payment_settings ORDER BY created_at ASC LIMIT 1`;
+    const systemSetting = await this.prisma.systemSetting.findUnique({ where: { key: 'enable_online_payments' }, select: { value: true } });
     const setting = settings[0];
-    this.ensureOnlinePaymentsEnabled(Boolean(setting?.enabled) && setting?.provider === 'RAZORPAY' && setting.display_status === 'ACTIVE');
+    const adminEnabled = systemSetting?.value === true;
+    this.ensureOnlinePaymentsEnabled(adminEnabled && Boolean(setting?.enabled) && setting?.provider === 'RAZORPAY' && setting.display_status === 'ACTIVE');
+
     const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null }>>`SELECT id, status, provider_order_id FROM payment_collections WHERE booking_id = ${bookingId}::uuid AND method = 'ONLINE' ORDER BY created_at DESC LIMIT 1`;
     if (existing[0]?.status === 'PAID') throw new BadRequestException('This booking is already paid');
     const amountPaise = Math.round(Number(booking.totalAmount) * 100);
