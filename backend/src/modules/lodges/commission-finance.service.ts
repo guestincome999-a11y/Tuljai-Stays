@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type {
   AuthenticatedUser,
   LodgeCommissionFinanceReport,
   LodgeCommissionTransaction,
   LodgeCommissionSettlement,
 } from '@tuljai/types';
-import { Prisma } from '@prisma/client';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';

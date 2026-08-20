@@ -6,9 +6,9 @@ import { LodgeCommissionFinanceController } from './commission-finance.controlle
 import { LodgeCommissionFinanceService } from './commission-finance.service';
 import { LodgeCommissionController } from './commission.controller';
 import { LodgeCommissionService } from './commission.service';
+import { LodgeAccessService } from './lodge-access.service';
 import { LodgesController } from './lodges.controller';
 import { LodgesService } from './lodges.service';
-import { LodgeAccessService } from './lodge-access.service';
 
 @Module({
   imports: [RealtimeModule],

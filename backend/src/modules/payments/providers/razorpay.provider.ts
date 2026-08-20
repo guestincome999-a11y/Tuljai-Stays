@@ -67,6 +67,8 @@ export class RazorpayProvider implements PaymentProvider {
       throw new BadRequestException('Invalid Razorpay payment signature');
     }
 
+    await Promise.resolve();
+
     return { verified: true, providerPaymentId: input.paymentId };
   }
 

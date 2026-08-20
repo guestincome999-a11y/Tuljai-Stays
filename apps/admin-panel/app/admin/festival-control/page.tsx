@@ -525,7 +525,19 @@ export default function AdminFestivalControlPage() {
 
 function readPromotionalBanners(settings: SystemSetting[]): PromotionalBanner[] {
   const value = settings.find((setting) => setting.key === 'promotional_banners')?.value;
-  return Array.isArray(value) ? (value as unknown as PromotionalBanner[]) : [];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (banner): banner is PromotionalBanner =>
+      typeof banner === 'object' &&
+      banner !== null &&
+      'id' in banner &&
+      'title' in banner &&
+      'imageUrl' in banner,
+  );
 }
 
 function toIsoDateTime(value: string): string | null {
