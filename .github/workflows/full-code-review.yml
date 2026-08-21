@@ -10,14 +10,19 @@ concurrency:
   group: full-code-review-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout
+      - name: Checkout branch head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -43,5 +48,21 @@ jobs:
       - name: Build all workspaces
         run: npm run build
 
-      - name: Prettier check
+      - name: Apply repository formatting
+        run: npx prettier --write "**/*.{ts,tsx,js,json,md,yml,yaml,css}"
+
+      - name: Commit formatting fixes
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if git diff --quiet; then
+            echo "Formatting already clean."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "style: apply repository formatting"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Verify formatting
         run: npm run format:check
