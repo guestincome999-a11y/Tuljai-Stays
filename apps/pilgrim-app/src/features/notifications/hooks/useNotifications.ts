@@ -9,14 +9,21 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../api/notifications-api';
+import {
+  getNotificationUnreadCount,
+  setNotificationUnreadCount,
+  subscribeNotificationUnreadCount,
+} from '../notification-count-store';
 
 export function useUnreadNotificationCount() {
   const realtime = useRealtime();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
+
+  useEffect(() => subscribeNotificationUnreadCount(setUnreadCount), []);
 
   const refresh = useCallback(async () => {
     const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
-    setUnreadCount(result.unreadCount);
+    setNotificationUnreadCount(result.unreadCount);
   }, []);
 
   useEffect(() => {
@@ -32,17 +39,11 @@ export function useUnreadNotificationCount() {
 
     if (event?.name === 'notification:unread-count') {
       const nextCount = event.payload.unreadCount;
-
-      if (typeof nextCount === 'number') {
-        setUnreadCount(nextCount);
-      }
-
+      if (typeof nextCount === 'number') setNotificationUnreadCount(nextCount);
       return;
     }
 
-    if (event?.name === 'notification:new') {
-      void refresh();
-    }
+    if (event?.name === 'notification:new') void refresh();
   }, [realtime.lastEvent, refresh]);
 
   return { refresh, unreadCount };
@@ -71,29 +72,51 @@ export function useNotifications() {
     }
   }, []);
 
+  const refreshUnreadCount = useCallback(async () => {
+    const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
+    setNotificationUnreadCount(result.unreadCount);
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (realtime.lastEvent?.name === 'notification:new') {
-      void load(true);
-    }
+    if (realtime.lastEvent?.name === 'notification:new') void load(true);
   }, [load, realtime.lastEvent]);
+
+  const markAllRead = useCallback(async () => {
+    setErrorMessage(null);
+    try {
+      await markAllNotificationsRead();
+      setNotificationUnreadCount(0);
+      await load(true);
+      await refreshUnreadCount();
+    } catch {
+      setErrorMessage('Notification action failed. Please try again.');
+      await refreshUnreadCount();
+    }
+  }, [load, refreshUnreadCount]);
+
+  const markRead = useCallback(async (notificationId: string) => {
+    setErrorMessage(null);
+    try {
+      await markNotificationRead(notificationId);
+      await load(true);
+      await refreshUnreadCount();
+    } catch {
+      setErrorMessage('Notification action failed. Please try again.');
+      await refreshUnreadCount();
+    }
+  }, [load, refreshUnreadCount]);
 
   return {
     data,
     errorMessage,
     isLoading,
     isRefreshing,
-    markAllRead: async () => {
-      await markAllNotificationsRead().catch(() => undefined);
-      await load(true);
-    },
-    markRead: async (notificationId: string) => {
-      await markNotificationRead(notificationId).catch(() => undefined);
-      await load(true);
-    },
+    markAllRead,
+    markRead,
     refresh: () => load(true),
   };
 }

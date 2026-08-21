@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type {
   AuthenticatedUser,
@@ -167,11 +172,13 @@ export class LodgeCommissionFinanceService {
         VALUES (${lodgeId}::uuid, ${dto.amount}, ${dto.paymentMethod.trim()}, ${dto.reference ?? null}, ${dto.notes ?? null}, ${actorUserId}::uuid)
         RETURNING id
       `);
-      const settlement = settlementRows[0];
-      if (!settlement) {
-        throw new BadRequestException('Settlement could not be created.');
+      const settlementId = settlementRows[0]?.id;
+
+      if (!settlementId) {
+        throw new InternalServerErrorException(
+          'Commission settlement could not be created.',
+        );
       }
-      const settlementId = settlement.id;
 
       let remaining = dto.amount;
       for (const row of outstanding) {

@@ -7,6 +7,7 @@ import { AuditLogModule } from '../shared/audit/audit-log.module';
 import { appConfig } from '../shared/config/app.config';
 import { validateEnvironment } from '../shared/config/env.validation';
 
+import { AdminSupportModule } from './admin-support/admin-support.module';
 import { AmenitiesModule } from './amenities/amenities.module';
 import { AuthModule } from './auth/auth.module';
 import { BookingsModule } from './bookings/bookings.module';
@@ -36,6 +37,7 @@ import { StorageModule } from './storage/storage.module';
     AuditLogModule,
     PrismaModule,
     AuthModule,
+    AdminSupportModule,
     BookingsModule,
     CitiesModule,
     AmenitiesModule,

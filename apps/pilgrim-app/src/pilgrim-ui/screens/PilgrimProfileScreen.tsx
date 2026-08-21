@@ -16,12 +16,15 @@ import {
   SettingRow,
   ui,
 } from '../components';
+import { LegalDocument, type LegalDocumentKind } from '../legal-documents';
 import { usePilgrimApp } from '../PilgrimAppProvider';
+
+const SUPPORT_EMAIL = 'tuljaistays@gmail.com';
 
 export function PilgrimProfileScreen() {
   const router = useRouter();
   const auth = useAuth();
-  const { privacyPolicyUrl, supportEmail, supportPhone, termsUrl } = usePublicSettings();
+  const { supportEmail, supportPhone } = usePublicSettings();
   const {
     bookingNotificationsEnabled,
     bookings,
@@ -32,6 +35,8 @@ export function PilgrimProfileScreen() {
     t,
   } = usePilgrimApp();
   const [editOpen, setEditOpen] = useState(false);
+  const [legalOpen, setLegalOpen] = useState(false);
+  const [legalKind, setLegalKind] = useState<LegalDocumentKind>('terms');
   const [draftName, setDraftName] = useState(auth.user?.displayName?.trim() ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
   const confirmed = bookings.filter(
@@ -62,6 +67,11 @@ export function PilgrimProfileScreen() {
   function openProfileEditor() {
     setDraftName(auth.user?.displayName?.trim() ?? '');
     setEditOpen(true);
+  }
+
+  function openLegal(kind: LegalDocumentKind) {
+    setLegalKind(kind);
+    setLegalOpen(true);
   }
 
   async function saveProfile() {
@@ -234,6 +244,12 @@ export function PilgrimProfileScreen() {
       </ProfileSection>
 
       <ProfileSection title={t('Help & safety', 'मदत आणि सुरक्षितता')}>
+        <SettingRow
+          icon="email-outline"
+          label={t('Email support', 'ईमेल सहाय्य')}
+          onPress={() => void openExternalLink(`mailto:${SUPPORT_EMAIL}`, t)}
+          subtitle={SUPPORT_EMAIL}
+        />
         {supportPhone ? (
           <SettingRow
             icon="phone-in-talk-outline"
@@ -241,28 +257,19 @@ export function PilgrimProfileScreen() {
             onPress={() => void openExternalLink(`tel:${supportPhone}`, t)}
             subtitle={formatPhoneNumber(supportPhone)}
           />
-        ) : supportEmail ? (
-          <SettingRow
-            icon="email-outline"
-            label={t('Email support', 'ईमेल सहाय्य')}
-            onPress={() => void openExternalLink(`mailto:${supportEmail}`, t)}
-            subtitle={supportEmail}
-          />
         ) : null}
-        {termsUrl ? (
-          <SettingRow
-            icon="file-document-outline"
-            label={t('Terms of Service', 'सेवा अटी')}
-            onPress={() => void openExternalLink(termsUrl, t)}
-          />
-        ) : null}
-        {privacyPolicyUrl ? (
-          <SettingRow
-            icon="shield-account-outline"
-            label={t('Privacy Policy', 'गोपनीयता धोरण')}
-            onPress={() => void openExternalLink(privacyPolicyUrl, t)}
-          />
-        ) : null}
+        <SettingRow
+          icon="file-document-outline"
+          label={t('Terms & Conditions', 'अटी व शर्ती')}
+          onPress={() => openLegal('terms')}
+          subtitle={t('Booking, payment, cancellation and lodge terms', 'बुकिंग, पेमेंट, रद्दीकरण आणि लॉज अटी')}
+        />
+        <SettingRow
+          icon="shield-account-outline"
+          label={t('Privacy Policy', 'गोपनीयता धोरण')}
+          onPress={() => openLegal('privacy')}
+          subtitle={t('How Tuljai Stays handles your personal data', 'तुळजाई स्टेज तुमचा वैयक्तिक डेटा कसा हाताळते')}
+        />
         <SettingRow
           icon="shield-check-outline"
           label={t('Safety & trust', 'सुरक्षितता आणि विश्वास')}
@@ -347,6 +354,42 @@ export function PilgrimProfileScreen() {
             </SafeAreaView>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setLegalOpen(false)}
+        presentationStyle="pageSheet"
+        visible={legalOpen}
+      >
+        <SafeAreaView className="flex-1 bg-warm-50" edges={['top', 'bottom']}>
+          <View className="flex-row items-center justify-between border-b border-warm-100 bg-white px-5 py-4">
+            <View className="flex-1 pr-4">
+              <Text className="text-lg font-extrabold text-warm-900">
+                {legalKind === 'privacy'
+                  ? t('Privacy Policy', 'गोपनीयता धोरण')
+                  : t('Terms & Conditions', 'अटी व शर्ती')}
+              </Text>
+              <Text className="mt-0.5 text-xs text-warm-500">Tuljai Stays · India</Text>
+            </View>
+            <Pressable
+              accessibilityLabel={t('Close legal document', 'कायदेशीर दस्तऐवज बंद करा')}
+              className="h-10 w-10 items-center justify-center rounded-full bg-warm-100"
+              hitSlop={8}
+              onPress={() => setLegalOpen(false)}
+            >
+              <MaterialCommunityIcons color={ui.maroon} name="close" size={22} />
+            </Pressable>
+          </View>
+          <View className="flex-1 px-5 pt-5">
+            <LegalDocument kind={legalKind} />
+          </View>
+          <View className="border-t border-warm-100 bg-white px-5 py-3">
+            <Text className="text-center text-xs leading-5 text-warm-500">
+              {t('Questions or privacy requests?', 'प्रश्न किंवा गोपनीयता विनंती?')} {SUPPORT_EMAIL}
+            </Text>
+          </View>
+        </SafeAreaView>
       </Modal>
     </AppScreen>
   );

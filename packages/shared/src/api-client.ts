@@ -54,7 +54,7 @@ export class ApiClient {
   public async patch<TResponse>(path: string, body?: unknown): Promise<TResponse> {
     return this.request<TResponse>(path, { method: 'PATCH', body });
   }
-
+  
   public async request<TResponse>(
     path: string,
     options: ApiRequestOptions = {},

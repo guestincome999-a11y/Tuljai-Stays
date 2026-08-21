@@ -11,25 +11,23 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../api/owner-notifications-api';
+import { getNotificationUnreadCount, setNotificationUnreadCount, subscribeNotificationUnreadCount } from '../notification-count-store';
 import { loadNotificationsCache, saveNotificationsCache } from '../storage/notifications-cache';
 
 export function useUnreadNotificationCount() {
   const realtime = useRealtime();
   const { isOffline } = useConnectivity();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
+
+  useEffect(() => subscribeNotificationUnreadCount(setUnreadCount), []);
 
   const refresh = useCallback(async () => {
-    if (isOffline) {
-      return;
-    }
-
+    if (isOffline) return;
     const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
-    setUnreadCount(result.unreadCount);
+    setNotificationUnreadCount(result.unreadCount);
   }, [isOffline]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
     void syncOwnerNotificationBadge(unreadCount);
@@ -37,26 +35,16 @@ export function useUnreadNotificationCount() {
 
   useEffect(() => {
     const event = realtime.lastEvent;
-
     if (event?.name === 'notification:unread-count') {
       const nextCount = event.payload.unreadCount;
-
-      if (typeof nextCount === 'number') {
-        setUnreadCount(nextCount);
-      }
-
+      if (typeof nextCount === 'number') setNotificationUnreadCount(nextCount);
       return;
     }
-
-    if (event?.name === 'notification:new') {
-      void refresh();
-    }
+    if (event?.name === 'notification:new') void refresh();
   }, [realtime.lastEvent, refresh]);
 
   useEffect(() => {
-    if (realtime.connectionRevision > 0) {
-      void refresh();
-    }
+    if (realtime.connectionRevision > 0) void refresh();
   }, [realtime.connectionRevision, refresh]);
 
   return { refresh, unreadCount };
@@ -71,82 +59,64 @@ export function useOwnerNotifications(activeType: NotificationType | null) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const load = useCallback(
-    async (refreshing = false) => {
-      setErrorMessage(null);
-      setIsLoading(!refreshing && data.length === 0);
-      setIsRefreshing(refreshing);
-
-      if (isOffline) {
-        const cached = await loadNotificationsCache().catch(() => []);
-        setData(cached);
-        setErrorMessage(cached.length ? null : 'Connect to the internet to load notifications.');
-        setIsLoading(false);
-        setIsRefreshing(false);
-        return;
-      }
-
-      try {
-        const result = await listNotifications({
-          limit: 40,
-          page: 1,
-          type: activeType ?? undefined,
-        });
-        setData(result.items);
-        await saveNotificationsCache(result.items).catch(() => undefined);
-      } catch {
-        const cached = await loadNotificationsCache().catch(() => []);
-        setData(cached);
-        setErrorMessage(
-          cached.length
-            ? 'Showing last saved notifications. Refresh when online.'
-            : 'We could not load notifications right now.',
-        );
-      } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    },
-    [activeType, data.length, isOffline],
-  );
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    if (realtime.lastEvent?.name === 'notification:new') {
-      void load(true);
+  const load = useCallback(async (refreshing = false) => {
+    setErrorMessage(null);
+    setIsLoading(!refreshing && data.length === 0);
+    setIsRefreshing(refreshing);
+    if (isOffline) {
+      const cached = await loadNotificationsCache().catch(() => []);
+      setData(cached);
+      setErrorMessage(cached.length ? null : 'Connect to the internet to load notifications.');
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
     }
+    try {
+      const result = await listNotifications({ limit: 40, page: 1, type: activeType ?? undefined });
+      setData(result.items);
+      await saveNotificationsCache(result.items).catch(() => undefined);
+    } catch {
+      const cached = await loadNotificationsCache().catch(() => []);
+      setData(cached);
+      setErrorMessage(cached.length ? 'Showing last saved notifications. Refresh when online.' : 'We could not load notifications right now.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [activeType, data.length, isOffline]);
+
+  const refreshUnreadCount = useCallback(async () => {
+    if (isOffline) return;
+    const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
+    setNotificationUnreadCount(result.unreadCount);
+  }, [isOffline]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (realtime.lastEvent?.name === 'notification:new') void load(true);
   }, [load, realtime.lastEvent]);
-
   useEffect(() => {
-    if (realtime.connectionRevision > 0) {
-      void load(true);
-    }
+    if (realtime.connectionRevision > 0) void load(true);
   }, [load, realtime.connectionRevision]);
 
-  const runAction = useCallback(
-    async (action: () => Promise<unknown>) => {
-      if (isOffline) {
-        setErrorMessage('Connect to the internet to complete this action.');
-        return;
-      }
-
-      setIsSubmitting(true);
-      setErrorMessage(null);
-
-      try {
-        await action();
-        await load(true);
-      } catch {
-        setErrorMessage('Notification action failed. Please try again.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [isOffline, load],
-  );
+  const runAction = useCallback(async (action: () => Promise<unknown>, markAll = false) => {
+    if (isOffline) {
+      setErrorMessage('Connect to the internet to complete this action.');
+      return;
+    }
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await action();
+      if (markAll) setNotificationUnreadCount(0);
+      await load(true);
+      await refreshUnreadCount();
+    } catch {
+      setErrorMessage('Notification action failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isOffline, load, refreshUnreadCount]);
 
   return {
     data,
@@ -154,7 +124,7 @@ export function useOwnerNotifications(activeType: NotificationType | null) {
     isLoading,
     isRefreshing,
     isSubmitting,
-    markAllRead: () => runAction(markAllNotificationsRead),
+    markAllRead: () => runAction(markAllNotificationsRead, true),
     markRead: (notificationId: string) => runAction(() => markNotificationRead(notificationId)),
     refresh: () => load(true),
     remove: (notificationId: string) => runAction(() => deleteNotification(notificationId)),
