@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 
 import { getMyBookingReview } from '../../features/reviews/api/reviews-api';
@@ -169,17 +170,23 @@ function ReviewPromptController({ bookingId, bookingStatus, justBooked, lodgeNam
 }
 
 function TimelineItem({ active, icon, label, subtitle, last = false }: { active: boolean; icon: 'check' | 'home-heart' | 'qrcode-scan'; label: string; last?: boolean; subtitle: string }) {
-  return <View className="flex-row gap-3"><View className="items-center"><View className={`h-10 w-10 items-center justify-center rounded-full ${active ? 'bg-templeGreen-500' : 'bg-warm-200'}`}><MaterialCommunityIcons color={active ? '#FFFFFF' : ui.muted} name={icon} size={19} /></View>{!last ? <View className={`min-h-9 w-0.5 flex-1 ${active ? 'bg-templeGreen-100' : 'bg-warm-200'}`} /> : null}</View><View className={`${last ? 'pb-0' : 'pb-6'} pt-1`}><Text className={`text-sm font-extrabold ${active ? 'text-warm-900' : 'text-warm-500'}`}>{label}</Text><Text className="mt-1 text-xs text-warm-500">{subtitle}</Text></View></View>;
+  return <View className="flex-row gap-3"><View className="items-center"><View className={`h-10 w-10 items-center justify-center rounded-full ${active ? 'bg-templeGreen-500' : 'bg-warm-100'}`}><MaterialCommunityIcons color={active ? '#FFFFFF' : '#817267'} name={icon} size={20} /></View>{!last ? <View className="my-1 h-6 w-px bg-warm-200" /> : null}</View><View className="flex-1 pb-4"><Text className="text-sm font-extrabold text-warm-800">{label}</Text><Text className="mt-1 text-xs text-warm-500">{subtitle}</Text></View></View>;
 }
 
-async function openDirections(name: string, t: (english: string, marathi: string) => string): Promise<void> { await openExternalLink(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`, t); }
-
-function formatBookingTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', hour: 'numeric', minute: '2-digit', month: 'short', year: 'numeric' }).format(date);
+function formatBookingTimestamp(value: string) {
+  return new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-async function openExternalLink(url: string, t: (english: string, marathi: string) => string): Promise<void> {
-  try { await Linking.openURL(url); } catch { Alert.alert(t('Could not open this action', 'ही क्रिया उघडता आली नाही'), t('Please try again from your phone.', 'कृपया तुमच्या फोनवरून पुन्हा प्रयत्न करा.')); }
+async function openExternalLink(url: string, t: (english: string, marathi: string) => string) {
+  try {
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) throw new Error('Unsupported URL');
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert(t('Could not open link', 'लिंक उघडता आली नाही'), t('Please try again from your device.', 'कृपया तुमच्या डिव्हाइसवरून पुन्हा प्रयत्न करा.'));
+  }
+}
+
+async function openDirections(destination: string, t: (english: string, marathi: string) => string) {
+  await openExternalLink(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`, t);
 }
