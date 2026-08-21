@@ -21,7 +21,7 @@ export function LodgeReviewsSection({ lodgeId, t }: LodgeReviewsSectionProps) {
     let active = true;
     setLoading(true);
     setPage(1);
-    void listLodgeReviews(lodgeId, 1, 5)
+    void listLodgeReviews(lodgeId, { limit: 5, page: 1 })
       .then((response) => {
         if (!active) return;
         setReviews(response.items);
@@ -46,7 +46,7 @@ export function LodgeReviewsSection({ lodgeId, t }: LodgeReviewsSectionProps) {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const response = await listLodgeReviews(lodgeId, nextPage, 5);
+      const response = await listLodgeReviews(lodgeId, { limit: 5, page: nextPage });
       setReviews((current) => [...current, ...response.items]);
       setTotalItems(response.totalItems);
       setPage(nextPage);
