@@ -1,8 +1,9 @@
-import * as SecureStore from 'expo-secure-store';
 import { emptyAuthSession, type AuthSession } from '@tuljai/shared';
 import type { AuthUserProfile } from '@tuljai/types';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
 import { exchangeGoogleLogin, logoutFromApi, refreshAccessToken, updateAuthProfile, verifyLoginOtp } from './auth-api';
 import { clearAuthSession, restoreAuthSession, saveAuthSession, subscribeAuthSession } from './auth-session-store';
 
