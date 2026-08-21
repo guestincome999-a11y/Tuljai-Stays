@@ -6,6 +6,7 @@ import type {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { useRealtime } from '../../../realtime/realtime-provider';
 import { useOwnerDashboardSummary } from '../../dashboard/hooks/useOwnerDashboardSummary';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import {
@@ -25,10 +26,24 @@ interface OwnerReportsState {
   registerRows: BookingReportRow[];
 }
 
+const REPORT_REFRESH_EVENTS = new Set([
+  'booking:new',
+  'booking:accepted',
+  'booking:cancelled',
+  'booking:rejected',
+  'booking:expired',
+  'checkin:completed',
+  'checkout:completed',
+  'room:availability-updated',
+  'room:status-updated',
+  'dashboard:update',
+]);
+
 export function useOwnerReports() {
   const assignedLodges = useAssignedLodges();
   const dashboard = useOwnerDashboardSummary();
   const { isOffline } = useConnectivity();
+  const realtime = useRealtime();
   const lodgeId = assignedLodges.selectedLodge?.id;
   const [state, setState] = useState<OwnerReportsState>({
     bookingRows: [],
@@ -94,6 +109,19 @@ export function useOwnerReports() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!realtime.lastEvent || !REPORT_REFRESH_EVENTS.has(realtime.lastEvent.name)) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => void load(true), 750);
+    return () => clearTimeout(timeout);
+  }, [load, realtime.lastEvent]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision === 0) return;
+    void load(true);
+  }, [load, realtime.connectionRevision]);
+
   const summary = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     const todayBookings = state.bookingRows.filter((row) => row.checkInDate === today).length;
@@ -152,20 +180,13 @@ function getWeekRange(): { endDate: string; startDate: string } {
 }
 
 function parseAmount(value: string | null): number {
-  if (!value) {
-    return 0;
-  }
-
+  if (!value) return 0;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function getOccupancyEstimate(occupiedRooms: number, availableRooms: number): number {
   const total = occupiedRooms + availableRooms;
-
-  if (total === 0) {
-    return 0;
-  }
-
+  if (total === 0) return 0;
   return Math.round((occupiedRooms / total) * 100);
 }
