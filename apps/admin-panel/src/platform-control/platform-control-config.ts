@@ -77,9 +77,9 @@ export const settingDefinitions: SettingDefinition[] = [
   {
     category: 'App Configuration',
     critical: true,
-    description: 'Enable online payment entry points.',
+    description: 'Enable online payment entry points. This is disabled until the administrator explicitly enables online collection.',
     key: 'enable_online_payments',
-    publicDefault: true,
+    publicDefault: false,
     type: 'boolean',
   },
   {
