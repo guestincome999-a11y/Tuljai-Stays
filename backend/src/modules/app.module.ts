@@ -21,6 +21,7 @@ import { OwnersModule } from './owners/owners.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PhotosModule } from './photos/photos.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { RoomsModule } from './rooms/rooms.module';
@@ -57,6 +58,7 @@ import { StorageModule } from './storage/storage.module';
     StaffModule,
     StorageModule,
     PaymentsModule,
+    PromotionsModule,
   ],
 })
 export class AppModule {}
