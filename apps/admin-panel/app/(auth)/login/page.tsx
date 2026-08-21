@@ -11,6 +11,8 @@ import { setAuthSession } from '../../../src/auth/auth-session-store';
 import { tokenStorage } from '../../../src/auth/token-storage';
 
 const IS_PRODUCTION_BUILD = process.env.NODE_ENV === 'production';
+const ADMIN_PREVIEW_MODE = process.env.NEXT_PUBLIC_ADMIN_PREVIEW_MODE === 'true';
+const SHOW_TEST_OTP = !IS_PRODUCTION_BUILD || ADMIN_PREVIEW_MODE;
 
 export default function AdminLoginPage() {
   const auth = useAdminAuth();
@@ -32,18 +34,18 @@ export default function AdminLoginPage() {
     if (result.success) {
       setOtpRequested(true);
       setExpiresAt(result.expiresAt);
-      setTestingOtp(IS_PRODUCTION_BUILD ? null : (result.otpForTesting ?? null));
+      setTestingOtp(SHOW_TEST_OTP ? (result.otpForTesting ?? null) : null);
     }
   }
 
   function useDevelopmentOtp() {
-    if (!testingOtp || IS_PRODUCTION_BUILD) return;
+    if (!testingOtp || !SHOW_TEST_OTP) return;
     setOtp(testingOtp);
     setLocalError(null);
   }
 
   async function copyDevelopmentOtp() {
-    if (!testingOtp || IS_PRODUCTION_BUILD || !navigator.clipboard) return;
+    if (!testingOtp || !SHOW_TEST_OTP || !navigator.clipboard) return;
     await navigator.clipboard.writeText(testingOtp);
     setCopiedOtp(true);
     window.setTimeout(() => setCopiedOtp(false), 1800);
@@ -124,7 +126,7 @@ export default function AdminLoginPage() {
 
           {otpRequested ? (
             <>
-              {!IS_PRODUCTION_BUILD && testingOtp ? (
+              {SHOW_TEST_OTP && testingOtp ? (
                 <div className="dev-otp-card" role="status">
                   <div className="dev-otp-header">
                     <div>
@@ -142,7 +144,7 @@ export default function AdminLoginPage() {
                       {copiedOtp ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                  <p>This helper is available only in non-production builds. It is never rendered from a production build.</p>
+                  <p>This helper is enabled only when the admin preview mode is explicitly configured. Remove the preview flag before real production launch.</p>
                 </div>
               ) : null}
 
@@ -182,7 +184,7 @@ export default function AdminLoginPage() {
           ) : null}
 
           <button className="button button-primary auth-submit" disabled={auth.isSubmitting} type="submit">
-            {auth.isSubmitting ? 'Please wait…' : otpRequested ? 'Verify & open admin' : 'Send development OTP'}
+            {auth.isSubmitting ? 'Please wait…' : otpRequested ? 'Verify & open admin' : 'Send preview OTP'}
           </button>
 
           {otpRequested ? (

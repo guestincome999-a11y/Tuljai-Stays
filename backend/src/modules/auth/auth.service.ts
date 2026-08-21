@@ -103,7 +103,7 @@ export class AuthService {
         purpose: dto.purpose,
       },
     });
-    const shouldReturnDevOtp = this.nodeEnv !== 'production' && this.allowDevOtpResponse;
+    const shouldReturnDevOtp = this.allowDevOtpResponse;
     return {
       expiresAt: expiresAt.toISOString(),
       ...(shouldReturnDevOtp ? { otpForTesting: otp } : {}),
