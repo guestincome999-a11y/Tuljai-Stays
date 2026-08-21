@@ -12,3 +12,4 @@ This document tracks the production implementation of the requested platform wor
 - Realtime messaging is scoped to a booking and its authorized participants.
 - Data export/deletion actions are audited.
 - Invoice generation uses INR only.
+- Repository formatting is enforced as part of the full verification gate.
