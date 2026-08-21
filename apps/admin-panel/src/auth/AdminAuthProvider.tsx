@@ -160,7 +160,7 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
       const result = await requestAdminOtp(phoneNumber);
       return {
         expiresAt: result.expiresAt,
-        otpForTesting: result.otpForTesting,
+        otpForTesting: process.env.NODE_ENV === 'production' ? undefined : result.otpForTesting,
         success: true,
       };
     } catch (error) {
