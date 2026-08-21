@@ -52,7 +52,7 @@ jobs:
         run: npx prettier --write "**/*.{ts,tsx,js,json,md,yml,yaml,css}"
 
       - name: Commit formatting fixes
-        if: github.ref_name != 'main'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         run: |
           if git diff --quiet; then
             echo "Formatting already clean."
@@ -62,7 +62,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add --all
           git commit -m "style: apply repository formatting"
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Verify formatting
         run: npm run format:check
