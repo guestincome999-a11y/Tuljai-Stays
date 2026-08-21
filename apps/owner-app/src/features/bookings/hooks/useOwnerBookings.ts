@@ -84,5 +84,5 @@ export function useOwnerBookingActions(onCompleted: () => void) {
     finally { setSubmittingBookingId(null); }
   }, [isOffline, onCompleted]);
 
-  return { accept, errorMessage, reject, submittingBookingId, successMessage };
+  return { accept, errorMessage, isOffline, reject, setSuccessMessage, submittingBookingId, successMessage };
 }
