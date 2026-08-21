@@ -47,12 +47,21 @@ function totp(secret: string, counter: number): string {
   const buffer = Buffer.alloc(8);
   buffer.writeBigInt64BE(BigInt(counter), 0);
   const digest = createHmac('sha1', key).update(buffer).digest();
-  const offset = digest[digest.length - 1] & 0x0f;
+  const lastDigestByte = digest[digest.length - 1];
+  if (lastDigestByte === undefined) throw new Error('Invalid TOTP digest');
+  const offset = lastDigestByte & 0x0f;
+  const byte0 = digest[offset];
+  const byte1 = digest[offset + 1];
+  const byte2 = digest[offset + 2];
+  const byte3 = digest[offset + 3];
+  if (byte0 === undefined || byte1 === undefined || byte2 === undefined || byte3 === undefined) {
+    throw new Error('Invalid TOTP digest offset');
+  }
   const value =
-    ((digest[offset] & 0x7f) << 24) |
-    (digest[offset + 1] << 16) |
-    (digest[offset + 2] << 8) |
-    digest[offset + 3];
+    ((byte0 & 0x7f) << 24) |
+    (byte1 << 16) |
+    (byte2 << 8) |
+    byte3;
   return String(value % 1_000_000).padStart(6, '0');
 }
 
