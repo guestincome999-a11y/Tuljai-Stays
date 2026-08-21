@@ -38,6 +38,7 @@ export class RolesGuard implements CanActivate {
       LIMIT 1
     `;
 
-    return assignment.length > 0 && requiredRoles.includes(assignment[0].role as AccessRole);
+    const assignedRole = assignment[0]?.role;
+    return assignedRole !== undefined && requiredRoles.includes(assignedRole as AccessRole);
   }
 }
