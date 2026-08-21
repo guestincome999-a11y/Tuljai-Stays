@@ -1,6 +1,5 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { createHash } from 'node:crypto';
 
 import type { AuthenticatedUser } from '@tuljai/types';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
@@ -35,18 +34,8 @@ export class AdminSecurityService {
       SET "secret_encrypted" = EXCLUDED."secret_encrypted", "enabled" = FALSE, "updated_at" = CURRENT_TIMESTAMP
     `);
 
-    await this.auditLogService.create({
-      action: 'ADMIN_2FA_SETUP_STARTED',
-      actorUserId: user.id,
-      entityId: user.id,
-      entityType: 'user',
-    });
-
-    return {
-      account: user.phoneNumber ?? user.id,
-      otpauthUri: createTotpUri(secret, user.phoneNumber ?? user.id),
-      secret,
-    };
+    await this.auditLogService.create({ action: 'ADMIN_2FA_SETUP_STARTED', actorUserId: user.id, entityId: user.id, entityType: 'user' });
+    return { account: user.phoneNumber ?? user.id, otpauthUri: createTotpUri(secret, user.phoneNumber ?? user.id), secret };
   }
 
   public async verify(user: AuthenticatedUser, dto: VerifyAdminTotpDto) {
@@ -54,13 +43,7 @@ export class AdminSecurityService {
       SELECT "secret_encrypted" FROM "admin_totp_credentials" WHERE "user_id" = ${user.id}::uuid LIMIT 1
     `);
     if (!rows[0]) throw new BadRequestException('Start two-factor setup first');
-
-    let secret: string;
-    try {
-      secret = decryptTotpSecret(rows[0].secret_encrypted, this.encryptionKey());
-    } catch {
-      throw new UnauthorizedException('Two-factor configuration is invalid');
-    }
+    const secret = this.decryptOrThrow(rows[0].secret_encrypted);
     if (!verifyTotp(secret, dto.code)) throw new UnauthorizedException('Invalid two-factor code');
 
     await this.prisma.$executeRaw(Prisma.sql`
@@ -77,12 +60,7 @@ export class AdminSecurityService {
       SELECT "secret_encrypted", "enabled" FROM "admin_totp_credentials" WHERE "user_id" = ${user.id}::uuid LIMIT 1
     `);
     if (!rows[0]?.enabled) return { enabled: false };
-    let secret: string;
-    try {
-      secret = decryptTotpSecret(rows[0].secret_encrypted, this.encryptionKey());
-    } catch {
-      throw new UnauthorizedException('Two-factor configuration is invalid');
-    }
+    const secret = this.decryptOrThrow(rows[0].secret_encrypted);
     if (!verifyTotp(secret, dto.code)) throw new UnauthorizedException('Invalid two-factor code');
 
     await this.prisma.$executeRaw`DELETE FROM "admin_totp_credentials" WHERE "user_id" = ${user.id}::uuid`;
@@ -90,22 +68,19 @@ export class AdminSecurityService {
     return { enabled: false };
   }
 
-  public async verifyLoginCode(userId: string, code: string | undefined): Promise<void> {
-    const rows = await this.prisma.$queryRaw<Array<{ secret_encrypted: string; enabled: boolean }>>(Prisma.sql`
-      SELECT "secret_encrypted", "enabled" FROM "admin_totp_credentials" WHERE "user_id" = ${userId}::uuid LIMIT 1
-    `);
-    if (!rows[0]?.enabled) return;
-    if (!code) throw new UnauthorizedException('Two-factor code required');
-    let secret: string;
+  private decryptOrThrow(payload: string): string {
     try {
-      secret = decryptTotpSecret(rows[0].secret_encrypted, this.encryptionKey());
+      return decryptTotpSecret(payload, this.encryptionKey());
     } catch {
       throw new UnauthorizedException('Two-factor configuration is invalid');
     }
-    if (!verifyTotp(secret, code)) throw new UnauthorizedException('Invalid two-factor code');
   }
 
   private encryptionKey(): string {
-    return process.env.ADMIN_TOTP_ENCRYPTION_KEY ?? process.env.JWT_ACCESS_SECRET ?? 'development-only-totp-key';
+    const key = process.env.ADMIN_TOTP_ENCRYPTION_KEY;
+    if (!key && process.env.NODE_ENV === 'production') {
+      throw new InternalServerErrorException('ADMIN_TOTP_ENCRYPTION_KEY is required in production');
+    }
+    return key ?? process.env.JWT_ACCESS_SECRET ?? 'local-development-only';
   }
 }
