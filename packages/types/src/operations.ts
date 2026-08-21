@@ -114,6 +114,7 @@ export interface LodgeCommissionSettingReport {
 }
 
 export interface LodgeCommissionTransaction {
+  allocatedAmount: string;
   baseAmount: string;
   bookingCode: string;
   bookingId: UUID;
@@ -126,6 +127,7 @@ export interface LodgeCommissionTransaction {
   eligibleAt: ISODateTime;
   id: UUID;
   notes: string | null;
+  outstandingAmount: string;
   settledAt: ISODateTime | null;
   status: LodgeCommissionLedgerStatus;
   voidedAt: ISODateTime | null;
