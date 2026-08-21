@@ -74,9 +74,7 @@ export async function syncOwnerNotificationBadge(unreadCount: number): Promise<v
     return;
   }
 
-  await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(unreadCount))).catch(
-    () => false,
-  );
+  await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(unreadCount))).catch(() => false);
 }
 
 async function savePushToken(token: string): Promise<void> {

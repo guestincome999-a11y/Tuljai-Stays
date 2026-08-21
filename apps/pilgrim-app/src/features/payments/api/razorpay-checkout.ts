@@ -1,9 +1,6 @@
 import RazorpayCheckout from 'react-native-razorpay';
 
-import {
-  createPaymentOrder,
-  verifyPayment,
-} from './payments-api';
+import { createPaymentOrder, verifyPayment } from './payments-api';
 
 export interface StartRazorpayPaymentInput {
   bookingId: string;
@@ -13,9 +10,7 @@ export interface StartRazorpayPaymentInput {
   phone: string;
 }
 
-export async function startRazorpayPayment(
-  input: StartRazorpayPaymentInput,
-) {
+export async function startRazorpayPayment(input: StartRazorpayPaymentInput) {
   // 1. Ask backend to create the Razorpay order.
   const order = await createPaymentOrder({
     amount: input.amount,

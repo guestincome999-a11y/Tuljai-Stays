@@ -1,4 +1,8 @@
-import type { BookingReportRow, CommissionSummary, LodgeCommissionFinanceReport } from '@tuljai/types';
+import type {
+  BookingReportRow,
+  CommissionSummary,
+  LodgeCommissionFinanceReport,
+} from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
@@ -58,12 +62,13 @@ export function useOwnerReports() {
       const range = getWeekRange();
 
       try {
-        const [bookingReport, registerReport, commissionReport, commissionFinance] = await Promise.all([
-          getOwnerBookingReport({ lodgeId, ...range }),
-          getOwnerRegisterReport({ lodgeId, ...range }),
-          getOwnerCommissionReport({ lodgeId, ...range }),
-          lodgeId ? getOwnerCommissionFinanceReport(lodgeId) : Promise.resolve(null),
-        ]);
+        const [bookingReport, registerReport, commissionReport, commissionFinance] =
+          await Promise.all([
+            getOwnerBookingReport({ lodgeId, ...range }),
+            getOwnerRegisterReport({ lodgeId, ...range }),
+            getOwnerCommissionReport({ lodgeId, ...range }),
+            lodgeId ? getOwnerCommissionFinanceReport(lodgeId) : Promise.resolve(null),
+          ]);
         setState({
           bookingRows: bookingReport.items,
           commissionRows: commissionReport,

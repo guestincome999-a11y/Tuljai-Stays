@@ -7,6 +7,7 @@ import { AuditLogModule } from '../shared/audit/audit-log.module';
 import { appConfig } from '../shared/config/app.config';
 import { validateEnvironment } from '../shared/config/env.validation';
 
+import { AdminSecurityModule } from './admin-security/admin-security.module';
 import { AdminSupportModule } from './admin-support/admin-support.module';
 import { AmenitiesModule } from './amenities/amenities.module';
 import { AuthModule } from './auth/auth.module';
@@ -20,10 +21,12 @@ import { OwnersModule } from './owners/owners.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PhotosModule } from './photos/photos.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { SettingsModule } from './settings/settings.module';
+import { StaffModule } from './staff/staff.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -37,6 +40,7 @@ import { StorageModule } from './storage/storage.module';
     AuditLogModule,
     PrismaModule,
     AuthModule,
+    AdminSecurityModule,
     AdminSupportModule,
     BookingsModule,
     CitiesModule,
@@ -51,8 +55,10 @@ import { StorageModule } from './storage/storage.module';
     ReviewsModule,
     SettingsModule,
     OperationsModule,
+    StaffModule,
     StorageModule,
     PaymentsModule,
+    PromotionsModule,
   ],
 })
 export class AppModule {}

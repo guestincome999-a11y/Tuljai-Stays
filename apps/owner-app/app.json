@@ -8,9 +8,7 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "bundleIdentifier": "com.tuljaistays.owner",
       "infoPlist": {
@@ -21,10 +19,7 @@
     "android": {
       "package": "com.tuljaistays.owner",
       "googleServicesFile": "./google-services.json",
-      "permissions": [
-        "CAMERA",
-        "VIBRATE"
-      ],
+      "permissions": ["CAMERA", "VIBRATE"],
       "adaptiveIcon": {
         "backgroundColor": "#7A1F2B",
         "foregroundImage": "./assets/adaptive-icon.png"

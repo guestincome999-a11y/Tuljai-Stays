@@ -27,7 +27,10 @@ export class PaymentsController {
 
   @UseGuards(JwtAuthGuard)
   @Post('bookings/:bookingId/order')
-  public createBookingOrder(@Param('bookingId') bookingId: string, @CurrentUser() user: AuthenticatedUser) {
+  public createBookingOrder(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.paymentsService.createBookingOrder(bookingId, user.id);
   }
 

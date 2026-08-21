@@ -67,7 +67,10 @@ export async function parseLodgeImportFile(file: File): Promise<LodgeImportParse
     return { errors: ['Please choose an .xlsx Excel workbook.'], rows: [] };
   }
   if (file.size > 10 * 1024 * 1024) {
-    return { errors: ['The workbook is larger than 10 MB. Remove unused sheets or images.'], rows: [] };
+    return {
+      errors: ['The workbook is larger than 10 MB. Remove unused sheets or images.'],
+      rows: [],
+    };
   }
 
   const { readSheet } = await import('read-excel-file/browser');

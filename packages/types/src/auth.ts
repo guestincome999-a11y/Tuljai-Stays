@@ -47,6 +47,7 @@ export interface VerifyOtpRequest {
   otp: string;
   phoneNumber: string;
   platform: DevicePlatform;
+  totpCode?: string;
 }
 
 export interface VerifyOtpResponse {

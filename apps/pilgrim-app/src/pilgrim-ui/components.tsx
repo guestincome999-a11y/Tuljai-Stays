@@ -28,6 +28,7 @@ export const ui = {
   muted: '#817267',
   saffron: '#E67E22',
   saffronDeep: '#C96818',
+  success: '#4A7C59',
   surface: '#FFFFFF',
 } as const;
 

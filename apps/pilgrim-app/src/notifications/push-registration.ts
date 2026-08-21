@@ -109,9 +109,7 @@ export async function syncPilgrimNotificationBadge(unreadCount: number): Promise
     return;
   }
 
-  await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(unreadCount))).catch(
-    () => false,
-  );
+  await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(unreadCount))).catch(() => false);
 }
 
 async function registerExpoPushToken(): Promise<void> {

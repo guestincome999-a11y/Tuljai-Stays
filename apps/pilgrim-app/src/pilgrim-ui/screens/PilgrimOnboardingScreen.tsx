@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { useAuth } from '../../auth/auth-context';
 import { AppScreen, Field, PrimaryButton, ui } from '../components';
@@ -14,7 +14,6 @@ export function PilgrimOnboardingScreen() {
   const [name, setName] = useState(auth.user?.displayName ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
   async function finish() {
     const normalized = name.trim().replace(/\s+/gu, ' ');
     if (normalized.length < 2) {
@@ -27,12 +26,16 @@ export function PilgrimOnboardingScreen() {
       await auth.updateProfile(normalized);
       router.replace('/(app)/home');
     } catch {
-      setError(t('Could not save your details. Please try again.', 'माहिती जतन करता आली नाही. पुन्हा प्रयत्न करा.'));
+      setError(
+        t(
+          'Could not save your details. Please try again.',
+          'माहिती जतन करता आली नाही. पुन्हा प्रयत्न करा.',
+        ),
+      );
     } finally {
       setSaving(false);
     }
   }
-
   return (
     <AppScreen className="gap-7 pt-3">
       <View className="h-16 w-16 items-center justify-center rounded-3xl bg-saffron-100">
@@ -43,14 +46,20 @@ export function PilgrimOnboardingScreen() {
           {t('Welcome to Tuljai Stays', 'तुळजाई स्टेजमध्ये स्वागत')}
         </Text>
         <Text className="mt-2 text-sm leading-6 text-warm-500">
-          {t('Tell us your name so we can personalize your bookings and stay information.', 'तुमच्या बुकिंग आणि निवास माहितीसाठी तुमचे नाव सांगा.')}
+          {t(
+            'Tell us your name so we can personalize your bookings and stay information.',
+            'तुमच्या बुकिंग आणि निवास माहितीसाठी तुमचे नाव सांगा.',
+          )}
         </Text>
       </View>
       <Field
         autoCapitalize="words"
         icon="account-outline"
         label={t('Your name', 'तुमचे नाव')}
-        onChangeText={(value) => { setName(value); setError(''); }}
+        onChangeText={(value) => {
+          setName(value);
+          setError('');
+        }}
         placeholder={t('Enter your full name', 'तुमचे पूर्ण नाव टाका')}
         value={name}
       />
@@ -62,7 +71,10 @@ export function PilgrimOnboardingScreen() {
       <View className="flex-row items-start gap-3 rounded-2xl bg-saffron-50 p-4">
         <MaterialCommunityIcons color={ui.saffronDeep} name="shield-check-outline" size={22} />
         <Text className="flex-1 text-sm leading-5 text-warm-600">
-          {t('Only the information you provide is saved to your Tuljai Stays account.', 'तुम्ही दिलेली माहितीच तुमच्या तुळजाई स्टेज खात्यात जतन केली जाते.')}
+          {t(
+            'Only the information you provide is saved to your Tuljai Stays account.',
+            'तुम्ही दिलेली माहितीच तुमच्या तुळजाई स्टेज खात्यात जतन केली जाते.',
+          )}
         </Text>
       </View>
       <PrimaryButton icon="arrow-right" loading={saving} onPress={() => void finish()}>

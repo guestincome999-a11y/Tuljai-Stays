@@ -16,8 +16,7 @@ export function PilgrimPassScreen() {
   const params = useLocalSearchParams<{ bookingId?: string }>();
   const auth = useAuth();
   const { bookings, isSyncing, refresh, t } = usePilgrimApp();
-  const requestedBookingId =
-    typeof params.bookingId === 'string' ? params.bookingId : undefined;
+  const requestedBookingId = typeof params.bookingId === 'string' ? params.bookingId : undefined;
   const requestedBooking = bookings.find((item) => item.id === requestedBookingId);
   const booking =
     requestedBooking && isActionablePassBooking(requestedBooking)

@@ -2,7 +2,6 @@ import { ReviewReportReason, ReviewStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
-
 export class CreateReviewDto {
   @IsString()
   bookingId!: string;
@@ -72,8 +71,8 @@ export class ListReviewsQueryDto {
   @Type(() => Number)
   @IsInt()
   @IsOptional()
-  @Min(1)
   @Max(100)
+  @Min(1)
   limit?: number;
 
   @IsEnum(ReviewStatus)
@@ -84,4 +83,10 @@ export class ListReviewsQueryDto {
 export class ModerateReviewDto {
   @IsEnum(ReviewStatus)
   status!: ReviewStatus;
+}
+
+export class OwnerReviewResponseDto {
+  @IsString()
+  @MaxLength(2000)
+  response!: string;
 }

@@ -1,0 +1,118 @@
+import { randomUUID } from 'node:crypto';
+
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import type { AuthenticatedUser } from '@tuljai/types';
+
+import { AuditLogService } from '../../shared/audit/audit-log.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+import type { CreatePromoCodeDto, ValidatePromoCodeDto } from './dto/promotions.dto';
+
+export interface PromoRow {
+  id: string;
+  code: string;
+  discount_type: 'FLAT' | 'PERCENTAGE';
+  discount_value: string | number;
+  starts_at: Date;
+  ends_at: Date;
+  usage_limit: number | null;
+  usage_count: number;
+  per_user_limit: number;
+  lodge_id: string | null;
+  active: boolean;
+}
+
+@Injectable()
+export class PromotionsService {
+  public constructor(
+    private readonly auditLogService: AuditLogService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  public async list(): Promise<PromoRow[]> {
+    return this.prisma.$queryRaw<PromoRow[]>(Prisma.sql`
+      SELECT "id","code","discount_type","discount_value","starts_at","ends_at","usage_limit","usage_count","per_user_limit","lodge_id","active"
+      FROM "promo_codes"
+      ORDER BY "created_at" DESC
+    `);
+  }
+
+  public async create(dto: CreatePromoCodeDto, user: AuthenticatedUser) {
+    const code = dto.code.trim().toUpperCase();
+    const start = new Date(dto.startsAt);
+    const end = new Date(dto.endsAt);
+    if (!(start < end)) throw new BadRequestException('Promo code end must be after start');
+    if (dto.discountType === 'PERCENTAGE' && dto.discountValue > 100)
+      throw new BadRequestException('Percentage discount cannot exceed 100');
+    try {
+      await this.prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "promo_codes" ("id","code","discount_type","discount_value","starts_at","ends_at","usage_limit","per_user_limit","lodge_id","created_by_user_id")
+        VALUES (${randomUUID()}::uuid,${code},${dto.discountType},${dto.discountValue},${start},${end},${dto.usageLimit ?? null},${dto.perUserLimit ?? 1},${dto.lodgeId ?? null}::uuid,${user.id}::uuid)
+      `);
+    } catch {
+      throw new ConflictException('Promo code already exists');
+    }
+    await this.auditLogService.create({
+      action: 'PROMO_CODE_CREATED',
+      actorUserId: user.id,
+      entityType: 'promo_code',
+      metadata: { code },
+    });
+    return { code };
+  }
+
+  public async deactivate(id: string, user: AuthenticatedUser) {
+    const result = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "promo_codes" SET "active" = FALSE, "updated_at" = CURRENT_TIMESTAMP WHERE "id" = ${id}::uuid AND "active" = TRUE
+    `);
+    if (result === 0) throw new NotFoundException('Active promo code not found');
+    await this.auditLogService.create({
+      action: 'PROMO_CODE_DEACTIVATED',
+      actorUserId: user.id,
+      entityId: id,
+      entityType: 'promo_code',
+    });
+    return { active: false };
+  }
+
+  public async validate(dto: ValidatePromoCodeDto, user: AuthenticatedUser) {
+    const code = dto.code.trim().toUpperCase();
+    const rows = await this.prisma.$queryRaw<PromoRow[]>(Prisma.sql`
+      SELECT "id","code","discount_type","discount_value","starts_at","ends_at","usage_limit","usage_count","per_user_limit","lodge_id","active"
+      FROM "promo_codes" WHERE "code" = ${code} LIMIT 1
+    `);
+    const promo = rows[0];
+    const now = new Date();
+    if (!promo || !promo.active || now < promo.starts_at || now > promo.ends_at)
+      throw new BadRequestException('Promo code is not valid right now');
+    if (promo.lodge_id && promo.lodge_id !== dto.lodgeId)
+      throw new BadRequestException('Promo code is not valid for this lodge');
+    if (promo.usage_limit !== null && promo.usage_count >= promo.usage_limit)
+      throw new BadRequestException('Promo code usage limit reached');
+    const userRows = await this.prisma.$queryRaw<Array<{ count: string }>>(Prisma.sql`
+      SELECT COUNT(*)::text AS count FROM "promo_redemptions" WHERE "promo_code_id" = ${promo.id}::uuid AND "user_id" = ${user.id}::uuid
+    `);
+    if (Number(userRows[0]?.count ?? 0) >= promo.per_user_limit)
+      throw new BadRequestException(
+        'You have already used this promo code the maximum number of times',
+      );
+    const rawDiscount =
+      promo.discount_type === 'PERCENTAGE'
+        ? (dto.subtotal * Number(promo.discount_value)) / 100
+        : Number(promo.discount_value);
+    const discount = Math.min(dto.subtotal, Math.max(0, Math.round(rawDiscount * 100) / 100));
+    return {
+      code: promo.code,
+      discount,
+      discountType: promo.discount_type,
+      subtotal: dto.subtotal,
+      totalAfterDiscount: Math.max(0, dto.subtotal - discount),
+    };
+  }
+}

@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsEmail, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEmail,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class AdminUserSearchQueryDto {
   @IsString()

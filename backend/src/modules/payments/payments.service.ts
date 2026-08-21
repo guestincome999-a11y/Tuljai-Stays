@@ -18,11 +18,17 @@ export class PaymentsService {
     if (!enabled) throw new BadRequestException('Online payments are currently unavailable');
   }
 
-  public async createPayment(provider: PaymentProvider, input: Parameters<PaymentProvider['createPayment']>[0]) {
+  public async createPayment(
+    provider: PaymentProvider,
+    input: Parameters<PaymentProvider['createPayment']>[0],
+  ) {
     return provider.createPayment(input);
   }
 
-  public async verifyPayment(provider: PaymentProvider, input: Parameters<PaymentProvider['verifyPayment']>[0]) {
+  public async verifyPayment(
+    provider: PaymentProvider,
+    input: Parameters<PaymentProvider['verifyPayment']>[0],
+  ) {
     return provider.verifyPayment(input);
   }
 
@@ -40,21 +46,28 @@ export class PaymentsService {
       throw new BadRequestException('This booking is not waiting for online payment');
     }
 
-    const settings = await this.prisma.$queryRaw<Array<{ enabled: boolean; provider: string; display_status: string }>>`
+    const settings = await this.prisma.$queryRaw<
+      Array<{ enabled: boolean; provider: string; display_status: string }>
+    >`
       SELECT online_payments_enabled AS enabled, provider, display_status
       FROM payment_settings ORDER BY created_at ASC LIMIT 1
     `;
     const setting = settings[0];
     this.ensureOnlinePaymentsEnabled(
-      Boolean(setting?.enabled) && setting?.provider === 'RAZORPAY' && setting.display_status === 'ACTIVE',
+      Boolean(setting?.enabled) &&
+        setting?.provider === 'RAZORPAY' &&
+        setting.display_status === 'ACTIVE',
     );
 
-    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null }>>`
+    const existing = await this.prisma.$queryRaw<
+      Array<{ id: string; status: string; provider_order_id: string | null }>
+    >`
       SELECT id, status, provider_order_id FROM payment_collections
       WHERE booking_id = ${bookingId}::uuid AND method = 'ONLINE'
       ORDER BY created_at DESC LIMIT 1
     `;
-    if (existing[0]?.status === 'PAID') throw new BadRequestException('This booking is already paid');
+    if (existing[0]?.status === 'PAID')
+      throw new BadRequestException('This booking is already paid');
 
     const amountPaise = Math.round(Number(booking.totalAmount) * 100);
     if (!Number.isFinite(amountPaise) || amountPaise <= 0) {
@@ -91,7 +104,13 @@ export class PaymentsService {
       orderId: order.orderId,
     });
 
-    return { bookingId, keyId: process.env.RAZORPAY_KEY_ID, orderId: order.orderId, amount: order.amount, currency: order.currency };
+    return {
+      bookingId,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      orderId: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+    };
   }
 
   public async verifyBookingPayment(
@@ -115,7 +134,9 @@ export class PaymentsService {
     });
     if (!booking) throw new NotFoundException('Booking not found');
 
-    const collections = await this.prisma.$queryRaw<Array<{ id: string; status: string; provider_order_id: string | null }>>`
+    const collections = await this.prisma.$queryRaw<
+      Array<{ id: string; status: string; provider_order_id: string | null }>
+    >`
       SELECT id, status, provider_order_id FROM payment_collections
       WHERE booking_id = ${bookingId}::uuid AND method = 'ONLINE'
       ORDER BY created_at DESC LIMIT 1
@@ -125,7 +146,12 @@ export class PaymentsService {
       throw new BadRequestException('Payment order does not match this booking');
     }
     if (collection.status === 'PAID') {
-      return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID' };
+      return {
+        bookingId,
+        bookingCode: booking.bookingCode,
+        status: 'ACCEPTED',
+        paymentStatus: 'PAID',
+      };
     }
 
     const verification = await this.razorpayProvider.verifyPayment(input);
@@ -159,7 +185,8 @@ export class PaymentsService {
         bookingCode: booking.bookingCode,
         pilgrimUserId,
         lodgeId: booking.lodgeId,
-        reason: 'The payment has not reached the captured state yet. Please retry after Razorpay completes the payment.',
+        reason:
+          'The payment has not reached the captured state yet. Please retry after Razorpay completes the payment.',
       });
       throw new BadRequestException('Razorpay payment is not captured yet');
     }
@@ -233,7 +260,9 @@ export class PaymentsService {
           lodgeId: booking.lodgeId,
           paymentId: input.paymentId,
         });
-        throw new BadRequestException('Payment was received but the room became unavailable. The payment is being refunded.');
+        throw new BadRequestException(
+          'Payment was received but the room became unavailable. The payment is being refunded.',
+        );
       }
       throw error;
     }
@@ -248,6 +277,12 @@ export class PaymentsService {
       roomId,
     });
 
-    return { bookingId, bookingCode: booking.bookingCode, status: 'ACCEPTED', paymentStatus: 'PAID', roomId };
+    return {
+      bookingId,
+      bookingCode: booking.bookingCode,
+      status: 'ACCEPTED',
+      paymentStatus: 'PAID',
+      roomId,
+    };
   }
 }

@@ -13,6 +13,8 @@ export interface Review {
   isVerifiedStay: boolean;
   locationRating: number | null;
   lodgeId: UUID;
+  ownerResponse: string | null;
+  ownerResponseAt: ISODateTime | null;
   pilgrimUserId: UUID;
   rating: number;
   roomTypeId: UUID | null;

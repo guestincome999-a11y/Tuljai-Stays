@@ -30,6 +30,12 @@ import { QrCheckinService } from './qr-checkin.service';
     PrepaidBookingsService,
     QrCheckinService,
   ],
-  exports: [BookingAvailabilityService, BookingsService, GuestRegisterService, QrCheckinService, PrepaidBookingsService],
+  exports: [
+    BookingAvailabilityService,
+    BookingsService,
+    GuestRegisterService,
+    QrCheckinService,
+    PrepaidBookingsService,
+  ],
 })
 export class BookingsModule {}

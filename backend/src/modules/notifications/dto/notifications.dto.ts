@@ -17,7 +17,6 @@ import {
   Min,
 } from 'class-validator';
 
-
 export class ListNotificationsQueryDto {
   @IsBooleanString()
   @IsOptional()

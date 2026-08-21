@@ -4,10 +4,7 @@ import type { SystemSetting } from '@tuljai/types';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
-import {
-  listAdminSettings,
-  updateAdminSetting,
-} from '../../../src/api/admin-platform-control-api';
+import { listAdminSettings, updateAdminSetting } from '../../../src/api/admin-platform-control-api';
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import { hasPermission } from '../../../src/permissions/permissions';
@@ -119,7 +116,9 @@ export default function AdminFinancePage() {
             </article>
             <article className="feed-item">
               <span>Control permission</span>
-              <strong>{canManageSettings ? 'Admin can change setting' : 'Read-only for this role'}</strong>
+              <strong>
+                {canManageSettings ? 'Admin can change setting' : 'Read-only for this role'}
+              </strong>
             </article>
           </div>
           <div className="row-actions">
@@ -151,7 +150,8 @@ export default function AdminFinancePage() {
           <p className="muted-copy">
             Payment and commission ledger tables are available in the database. Revenue and
             commission screens remain the source of truth for booking-level accounting; settlement
-            actions must not be presented as completed until reconciliation is recorded by the backend.
+            actions must not be presented as completed until reconciliation is recorded by the
+            backend.
           </p>
           <div className="feed-list">
             <Insight label="Payment collection ledger" value="Database foundation ready" />

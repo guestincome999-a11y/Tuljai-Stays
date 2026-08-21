@@ -1,5 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateIf,
+} from 'class-validator';
 
 export enum LodgeCommissionType {
   PERCENTAGE = 'PERCENTAGE',
@@ -13,14 +22,18 @@ export class UpdateLodgeCommissionDto {
   @IsEnum(LodgeCommissionType)
   commissionType!: LodgeCommissionType;
 
-  @ValidateIf((dto: UpdateLodgeCommissionDto) => dto.commissionType === LodgeCommissionType.PERCENTAGE)
+  @ValidateIf(
+    (dto: UpdateLodgeCommissionDto) => dto.commissionType === LodgeCommissionType.PERCENTAGE,
+  )
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Max(100)
   commissionRatePercent?: number;
 
-  @ValidateIf((dto: UpdateLodgeCommissionDto) => dto.commissionType === LodgeCommissionType.FIXED_PER_BOOKING)
+  @ValidateIf(
+    (dto: UpdateLodgeCommissionDto) => dto.commissionType === LodgeCommissionType.FIXED_PER_BOOKING,
+  )
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

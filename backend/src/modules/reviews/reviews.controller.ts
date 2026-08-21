@@ -10,6 +10,7 @@ import {
   CreateReviewDto,
   ListReviewsQueryDto,
   ModerateReviewDto,
+  OwnerReviewResponseDto,
   ReportReviewDto,
 } from './dto/review.dto';
 import { ReviewsService } from './reviews.service';
@@ -64,5 +65,26 @@ export class ReviewsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reviewsService.moderate(id, dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Get('owner/reviews')
+  public listOwnerReviews(
+    @Query() query: ListReviewsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reviewsService.listOwnerReviews(query, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Patch('owner/reviews/:id/response')
+  public respondAsOwner(
+    @Param('id') id: string,
+    @Body() dto: OwnerReviewResponseDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reviewsService.respondAsOwner(id, dto, user);
   }
 }

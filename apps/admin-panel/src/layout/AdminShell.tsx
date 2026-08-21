@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { PropsWithChildren } from 'react';
 
-import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
 import { getAdminDisplayName, useAdminAuth } from '../auth/AdminAuthProvider';
 import { AdminProtectedRoute } from '../auth/AdminProtectedRoute';
+import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
 import { adminNavigationItems } from '../navigation/admin-navigation';
 import { hasPermission } from '../permissions/permissions';
 
@@ -33,14 +33,12 @@ export function AdminShell({ children }: PropsWithChildren) {
               <p className="brand-subtitle">Admin Console</p>
             </div>
           </div>
-
           <nav className="nav-stack">
             {groupedItems.map(([section, items]) => (
               <section key={section} className="nav-section">
                 <p className="nav-section-title">{section}</p>
                 {items.map((item) => {
                   const active = pathname === item.href;
-
                   return (
                     <Link
                       aria-current={active ? 'page' : undefined}
@@ -59,7 +57,6 @@ export function AdminShell({ children }: PropsWithChildren) {
             ))}
           </nav>
         </aside>
-
         <div className="admin-main">
           <header className="admin-topbar">
             <div>
@@ -86,7 +83,6 @@ export function AdminShell({ children }: PropsWithChildren) {
               </button>
             </div>
           </header>
-
           <main className="admin-content" id="admin-main-content" tabIndex={-1}>
             {pathname === '/admin/dashboard' ? <LiveOnlinePaymentsControl /> : null}
             {children}
@@ -96,72 +92,34 @@ export function AdminShell({ children }: PropsWithChildren) {
     </AdminProtectedRoute>
   );
 }
-
 function groupNavigation(
   items: typeof adminNavigationItems,
 ): Array<[string, typeof adminNavigationItems]> {
   const sections = new Map<string, typeof adminNavigationItems>();
-
   for (const item of items) {
     const existing = sections.get(item.section) ?? [];
     sections.set(item.section, [...existing, item]);
   }
-
   return [...sections.entries()];
 }
-
 function getCurrentSection(pathname: string): string {
   const currentItem = getCurrentNavigationItem(pathname);
-
-  if (currentItem) {
-    return currentItem.section;
-  }
-
-  if (pathname.includes('/audit')) {
-    return 'Audit Logs';
-  }
-
-  if (pathname.includes('/bookings')) {
-    return 'Bookings';
-  }
-
-  if (pathname.includes('/operations/intervention')) {
-    return 'Intervention Queue';
-  }
-
-  if (pathname.includes('/account')) {
-    return 'Account';
-  }
-
+  if (currentItem) return currentItem.section;
+  if (pathname.includes('/audit')) return 'Audit Logs';
+  if (pathname.includes('/bookings')) return 'Bookings';
+  if (pathname.includes('/operations/intervention')) return 'Intervention Queue';
+  if (pathname.includes('/account')) return 'Account';
   return 'Dashboard';
 }
-
 function getCurrentTitle(pathname: string): string {
   const currentItem = getCurrentNavigationItem(pathname);
-
-  if (currentItem) {
-    return currentItem.label;
-  }
-
-  if (pathname.includes('/audit')) {
-    return 'Audit Log Foundation';
-  }
-
-  if (pathname.includes('/bookings')) {
-    return 'Booking Control Center';
-  }
-
-  if (pathname.includes('/operations/intervention')) {
-    return 'Manual Intervention Queue';
-  }
-
-  if (pathname.includes('/account')) {
-    return 'Account & Session';
-  }
-
+  if (currentItem) return currentItem.label;
+  if (pathname.includes('/audit')) return 'Audit Log Foundation';
+  if (pathname.includes('/bookings')) return 'Booking Control Center';
+  if (pathname.includes('/operations/intervention')) return 'Manual Intervention Queue';
+  if (pathname.includes('/account')) return 'Account & Session';
   return 'Live Operations Center';
 }
-
 function getCurrentNavigationItem(pathname: string) {
   return adminNavigationItems
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))

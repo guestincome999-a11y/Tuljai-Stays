@@ -24,7 +24,7 @@ const SUPPORT_EMAIL = 'tuljaistays@gmail.com';
 export function PilgrimProfileScreen() {
   const router = useRouter();
   const auth = useAuth();
-  const { supportEmail, supportPhone } = usePublicSettings();
+  const { supportPhone } = usePublicSettings();
   const {
     bookingNotificationsEnabled,
     bookings,
@@ -63,17 +63,14 @@ export function PilgrimProfileScreen() {
       ],
     );
   }
-
   function openProfileEditor() {
     setDraftName(auth.user?.displayName?.trim() ?? '');
     setEditOpen(true);
   }
-
   function openLegal(kind: LegalDocumentKind) {
     setLegalKind(kind);
     setLegalOpen(true);
   }
-
   async function saveProfile() {
     const displayName = draftName.trim().replace(/\s+/gu, ' ');
     if (displayName.length < 2) {
@@ -83,7 +80,6 @@ export function PilgrimProfileScreen() {
       );
       return;
     }
-
     setSavingProfile(true);
     try {
       await auth.updateProfile(displayName);
@@ -103,25 +99,18 @@ export function PilgrimProfileScreen() {
       setSavingProfile(false);
     }
   }
-
   async function updateNotificationPreference(enabled: boolean) {
     if (!enabled) {
       setBookingNotificationsEnabled(false);
       return;
     }
-
     const result = await requestAndRegisterPushToken();
     setBookingNotificationsEnabled(result.registered);
-
-    if (!result.registered) {
+    if (!result.registered)
       Alert.alert('Enable notifications', result.message, [
         { style: 'cancel', text: 'Not now' },
-        {
-          onPress: () => void Linking.openSettings(),
-          text: 'Open phone settings',
-        },
+        { onPress: () => void Linking.openSettings(), text: 'Open phone settings' },
       ]);
-    }
   }
 
   return (
@@ -137,7 +126,6 @@ export function PilgrimProfileScreen() {
         </View>
         <LanguageToggle />
       </View>
-
       <View className="overflow-hidden rounded-3xl bg-maroon-700 p-5">
         <View className="absolute -right-9 -top-10 h-32 w-32 rounded-full bg-saffron-500/20" />
         <View className="flex-row items-center gap-4">
@@ -183,7 +171,6 @@ export function PilgrimProfileScreen() {
           </View>
         </View>
       </View>
-
       <ProfileSection title={t('Your yatra', 'तुमची यात्रा')}>
         <SettingRow
           icon="heart-outline"
@@ -204,7 +191,6 @@ export function PilgrimProfileScreen() {
           subtitle={t('Navratri guidance for Tuljapur', 'तुळजापूर नवरात्र मार्गदर्शन')}
         />
       </ProfileSection>
-
       <ProfileSection title={t('Preferences', 'पसंती')}>
         <SettingRow
           icon="translate"
@@ -242,7 +228,6 @@ export function PilgrimProfileScreen() {
           subtitle={t('Confirmation and check-in reminders', 'पुष्टीकरण आणि चेक-इन स्मरणपत्रे')}
         />
       </ProfileSection>
-
       <ProfileSection title={t('Help & safety', 'मदत आणि सुरक्षितता')}>
         <SettingRow
           icon="email-outline"
@@ -262,13 +247,19 @@ export function PilgrimProfileScreen() {
           icon="file-document-outline"
           label={t('Terms & Conditions', 'अटी व शर्ती')}
           onPress={() => openLegal('terms')}
-          subtitle={t('Booking, payment, cancellation and lodge terms', 'बुकिंग, पेमेंट, रद्दीकरण आणि लॉज अटी')}
+          subtitle={t(
+            'Booking, payment, cancellation and lodge terms',
+            'बुकिंग, पेमेंट, रद्दीकरण आणि लॉज अटी',
+          )}
         />
         <SettingRow
           icon="shield-account-outline"
           label={t('Privacy Policy', 'गोपनीयता धोरण')}
           onPress={() => openLegal('privacy')}
-          subtitle={t('How Tuljai Stays handles your personal data', 'तुळजाई स्टेज तुमचा वैयक्तिक डेटा कसा हाताळते')}
+          subtitle={t(
+            'How Tuljai Stays handles your personal data',
+            'तुळजाई स्टेज तुमचा वैयक्तिक डेटा कसा हाताळते',
+          )}
         />
         <SettingRow
           icon="shield-check-outline"
@@ -284,7 +275,6 @@ export function PilgrimProfileScreen() {
           }
         />
       </ProfileSection>
-
       <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4">
         <SettingRow
           destructive
@@ -299,7 +289,6 @@ export function PilgrimProfileScreen() {
           {t('Made with seva in Tuljapur', 'तुळजापूरमध्ये सेवाभावाने बनवले')}
         </Text>
       </View>
-
       <Modal
         animationType="slide"
         onRequestClose={() => setEditOpen(false)}
@@ -355,7 +344,6 @@ export function PilgrimProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-
       <Modal
         animationType="slide"
         onRequestClose={() => setLegalOpen(false)}
@@ -394,7 +382,6 @@ export function PilgrimProfileScreen() {
     </AppScreen>
   );
 }
-
 async function openExternalLink(
   url: string,
   t: (english: string, marathi: string) => string,
@@ -408,7 +395,6 @@ async function openExternalLink(
     );
   }
 }
-
 function ProfileSection({ children, title }: { children: React.ReactNode; title: string }) {
   return (
     <View>
@@ -419,7 +405,6 @@ function ProfileSection({ children, title }: { children: React.ReactNode; title:
     </View>
   );
 }
-
 function formatPhoneNumber(value: string): string {
   const digits = value.replace(/\D/gu, '').slice(-10);
   return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;

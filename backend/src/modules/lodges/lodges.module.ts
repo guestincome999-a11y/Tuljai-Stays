@@ -13,7 +13,17 @@ import { LodgesService } from './lodges.service';
 @Module({
   imports: [RealtimeModule],
   controllers: [LodgesController, LodgeCommissionController, LodgeCommissionFinanceController],
-  providers: [LodgesService, LodgeAccessService, LodgeCommissionService, LodgeCommissionFinanceService],
-  exports: [LodgesService, LodgeAccessService, LodgeCommissionService, LodgeCommissionFinanceService],
+  providers: [
+    LodgesService,
+    LodgeAccessService,
+    LodgeCommissionService,
+    LodgeCommissionFinanceService,
+  ],
+  exports: [
+    LodgesService,
+    LodgeAccessService,
+    LodgeCommissionService,
+    LodgeCommissionFinanceService,
+  ],
 })
 export class LodgesModule {}

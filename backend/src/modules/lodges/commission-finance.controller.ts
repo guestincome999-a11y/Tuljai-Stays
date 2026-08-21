@@ -41,7 +41,10 @@ export class LodgeCommissionFinanceController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Patch('admin/commission/transactions/:ledgerId/void')
-  public voidTransaction(@CurrentUser() user: AuthenticatedUser, @Param('ledgerId') ledgerId: string) {
+  public voidTransaction(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('ledgerId') ledgerId: string,
+  ) {
     return this.financeService.voidTransaction(ledgerId, user.id);
   }
 }

@@ -19,7 +19,12 @@ export default function VerifyOtpScreen() {
 
   async function verify() {
     if (!phone) {
-      setError(t('Mobile number is missing. Request a new OTP.', 'मोबाईल नंबर उपलब्ध नाही. नवीन OTP मागवा.'));
+      setError(
+        t(
+          'Mobile number is missing. Request a new OTP.',
+          'मोबाईल नंबर उपलब्ध नाही. नवीन OTP मागवा.',
+        ),
+      );
       return;
     }
 
@@ -37,7 +42,10 @@ export default function VerifyOtpScreen() {
       setError(
         verifyError instanceof Error
           ? verifyError.message
-          : t('OTP verification failed. Please try again.', 'OTP पडताळणी अयशस्वी. पुन्हा प्रयत्न करा.'),
+          : t(
+              'OTP verification failed. Please try again.',
+              'OTP पडताळणी अयशस्वी. पुन्हा प्रयत्न करा.',
+            ),
       );
     } finally {
       setIsSubmitting(false);

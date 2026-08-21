@@ -41,10 +41,7 @@ export function OwnerAnnouncementsScreen() {
     [announcements.data, focusedAnnouncementId],
   );
   const focusedAnnouncement = useMemo(
-    () =>
-      announcements.data.find(
-        (announcement) => announcement.id === focusedAnnouncementId,
-      ),
+    () => announcements.data.find((announcement) => announcement.id === focusedAnnouncementId),
     [announcements.data, focusedAnnouncementId],
   );
 

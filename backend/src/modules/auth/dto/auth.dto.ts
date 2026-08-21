@@ -46,6 +46,10 @@ export class VerifyOtpDto {
   @Matches(/^\d{4,8}$/)
   otp!: string;
 
+  @IsOptional()
+  @Matches(/^\d{6}$/u)
+  totpCode?: string;
+
   @Matches(/^\+[1-9]\d{7,14}$/)
   phoneNumber!: string;
 

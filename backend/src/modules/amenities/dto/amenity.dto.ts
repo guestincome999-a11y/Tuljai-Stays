@@ -1,7 +1,6 @@
 import { AmenityCategory } from '@prisma/client';
 import { IsArray, IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
-
 export class CreateAmenityDto {
   @IsString()
   @MaxLength(100)

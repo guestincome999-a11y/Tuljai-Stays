@@ -23,24 +23,19 @@ export default function AppLayout() {
     >
       <Tabs.Screen
         name="home"
-        options={{
-          tabBarAccessibilityLabel: 'Home',
-          title: t('Home', 'मुख्य'),
-        }}
+        options={{ tabBarAccessibilityLabel: 'Home', title: t('Home', 'मुख्य') }}
       />
       <Tabs.Screen
         name="lodges"
-        options={{
-          tabBarAccessibilityLabel: 'Find lodges',
-          title: t('Explore', 'निवास'),
-        }}
+        options={{ tabBarAccessibilityLabel: 'Find lodges', title: t('Explore', 'निवास') }}
       />
       <Tabs.Screen
         name="bookings"
-        options={{
-          tabBarAccessibilityLabel: 'My bookings',
-          title: t('Bookings', 'बुकिंग'),
-        }}
+        options={{ tabBarAccessibilityLabel: 'My bookings', title: t('Bookings', 'बुकिंग') }}
+      />
+      <Tabs.Screen
+        name="reviews"
+        options={{ tabBarAccessibilityLabel: 'Guest reviews', title: t('Reviews', 'अभिप्राय') }}
       />
       <Tabs.Screen name="announcements" options={{ href: null, title: 'Announcements' }} />
       <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />

@@ -11,7 +11,6 @@ import {
   Min,
 } from 'class-validator';
 
-
 export class GenerateQrDto {
   @IsOptional()
   @IsInt()

@@ -16,7 +16,10 @@ export class AdminSupportController {
   public constructor(private readonly adminSupportService: AdminSupportService) {}
 
   @Get('admin/users/search')
-  public searchUsers(@Query() query: AdminUserSearchQueryDto, @CurrentUser() user: AuthenticatedUser) {
+  public searchUsers(
+    @Query() query: AdminUserSearchQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.adminSupportService.searchUsers(query, user);
   }
 

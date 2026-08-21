@@ -90,8 +90,7 @@ export function useOwnerAmenities() {
   }, [load]);
 
   const selectedAmenities = useMemo(
-    () =>
-      state.allAmenities.filter((amenity) => state.selectedAmenityIds.includes(amenity.id)),
+    () => state.allAmenities.filter((amenity) => state.selectedAmenityIds.includes(amenity.id)),
     [state.allAmenities, state.selectedAmenityIds],
   );
 

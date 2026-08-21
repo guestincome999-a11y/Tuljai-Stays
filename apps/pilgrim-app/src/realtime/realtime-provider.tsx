@@ -90,7 +90,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     for (const eventName of eventNames) {
       socket.on(eventName, (payload) => {
-        const event = { name: eventName, payload: isRecord(payload) ? payload : {}, receivedAt: Date.now() };
+        const event = {
+          name: eventName,
+          payload: isRecord(payload) ? payload : {},
+          receivedAt: Date.now(),
+        };
         setLastEvent(event);
         if (bookingEventNames.has(eventName)) setLastBookingEvent(event);
         const message = getRealtimeMessage(event);
@@ -107,7 +111,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, [accessToken, auth.isAuthenticated, auth.refreshSession]);
 
-  const value = useMemo(() => ({ connected, connectionRevision, lastBookingEvent, lastEvent }), [connected, connectionRevision, lastBookingEvent, lastEvent]);
+  const value = useMemo(
+    () => ({ connected, connectionRevision, lastBookingEvent, lastEvent }),
+    [connected, connectionRevision, lastBookingEvent, lastEvent],
+  );
 
   return (
     <RealtimeContext.Provider value={value}>
@@ -115,7 +122,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       <Snackbar onDismiss={() => setSnackbarMessage(null)} visible={Boolean(snackbarMessage)}>
         {snackbarMessage}
       </Snackbar>
-      {feedbackBookingId ? <FeedbackPrompt bookingId={feedbackBookingId} onClose={() => setFeedbackBookingId(null)} /> : null}
+      {feedbackBookingId ? (
+        <FeedbackPrompt bookingId={feedbackBookingId} onClose={() => setFeedbackBookingId(null)} />
+      ) : null}
     </RealtimeContext.Provider>
   );
 }
