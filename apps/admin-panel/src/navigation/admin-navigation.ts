@@ -25,7 +25,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { href: '/admin/announcements', label: 'Announcements', permission: 'announcements.manage', section: 'Operations', status: 'ready' },
   { href: '/admin/festival-control', label: 'Festival Control', permission: 'settings.manage', section: 'Operations', status: 'ready' },
   { href: '/admin/emergency-control', label: 'Emergency Control', permission: 'security.manage', section: 'Operations', status: 'ready' },
-  { href: '/admin/reports', label: 'Reports', permission: 'reports.view', section: 'Core', status: 'placeholder' },
+  { href: '/admin/reports', label: 'Reports', permission: 'reports.view', section: 'Core', status: 'ready' },
   { href: '/admin/executive', label: 'Executive BI', permission: 'analytics.view', section: 'Core', status: 'ready' },
   { href: '/admin/analytics', label: 'Analytics', permission: 'analytics.view', section: 'Core', status: 'ready' },
   { href: '/admin/revenue', label: 'Revenue', permission: 'finance.view', section: 'Core', status: 'ready' },
