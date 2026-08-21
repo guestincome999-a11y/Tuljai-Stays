@@ -8,6 +8,13 @@ import type { AssignStaffRoleDto } from './dto/staff.dto';
 export class StaffService {
   public constructor(private readonly prisma: PrismaService) {}
 
+  public async getCurrentRole(userId: string): Promise<{ role: string | null }> {
+    const rows = await this.prisma.$queryRaw<Array<{ role: string }>>(Prisma.sql`
+      SELECT "role" FROM "staff_role_assignments" WHERE "user_id" = ${userId}::uuid LIMIT 1
+    `);
+    return { role: rows[0]?.role ?? null };
+  }
+
   public async list() {
     const rows = await this.prisma.$queryRaw<Array<{
       user_id: string;
