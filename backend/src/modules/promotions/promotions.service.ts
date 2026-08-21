@@ -5,7 +5,6 @@ import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
-import { createTotpUri } from '../auth/totp.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreatePromoCodeDto, ValidatePromoCodeDto } from './dto/promotions.dto';
 
