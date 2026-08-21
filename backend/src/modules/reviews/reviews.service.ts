@@ -86,6 +86,20 @@ export class ReviewsService {
     return this.toReview(review);
   }
 
+  public async getBookingReview(bookingId: string, user: AuthenticatedUser): Promise<Review | null> {
+    const booking = await this.prisma.booking.findFirst({
+      select: { id: true },
+      where: { deletedAt: null, id: bookingId, pilgrimUserId: user.id },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const review = await this.prisma.review.findUnique({ where: { bookingId } });
+    return review ? this.toReview(review) : null;
+  }
+
   public async listPublic(
     lodgeId: string,
     query: ListReviewsQueryDto,
