@@ -23,6 +23,7 @@ export async function verifyAdminOtp(input: {
   deviceId: string;
   otp: string;
   phoneNumber: string;
+  totpCode?: string;
 }): Promise<VerifyOtpResponse> {
   const body: VerifyOtpRequest = {
     appType: 'ADMIN_PANEL',
@@ -31,6 +32,7 @@ export async function verifyAdminOtp(input: {
     otp: input.otp,
     phoneNumber: normalizeAdminPhoneNumber(input.phoneNumber),
     platform: 'WEB',
+    totpCode: input.totpCode,
   };
 
   return apiClient.post<VerifyOtpResponse>('/auth/verify-otp', body);
@@ -47,8 +49,6 @@ export async function getAdminProfile(): Promise<AuthUserProfile> {
     if (staff.role) {
       return {
         ...profile,
-        // AdminAuthProvider intentionally consumes roles as a string list for permission lookup.
-        // The underlying AuthUserProfile contract remains unchanged for the shared apps.
         roles: [...profile.roles, staff.role] as AuthUserProfile['roles'],
       };
     }
