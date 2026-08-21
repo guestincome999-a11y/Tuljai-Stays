@@ -1,0 +1,19 @@
+name: Verify Razorpay booking integration
+
+on:
+  push:
+    branches: [feat/razorpay-prepaid-booking]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck --workspace @tuljai/pilgrim-app
+      - run: npm run build:backend

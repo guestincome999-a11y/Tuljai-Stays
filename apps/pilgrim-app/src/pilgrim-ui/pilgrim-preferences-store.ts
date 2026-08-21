@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 import type { PilgrimLanguage } from './PilgrimAppProvider';
 
-const PREFERENCES_KEY = 'tuljai.pilgrim.preferences';
+const PREFERENCES_KEY_PREFIX = 'tuljai.pilgrim.preferences';
 
 export interface PilgrimPreferences {
   bookingNotificationsEnabled: boolean;
@@ -13,12 +13,12 @@ export interface PilgrimPreferences {
 
 export const defaultPilgrimPreferences: PilgrimPreferences = {
   bookingNotificationsEnabled: true,
-  favoriteIds: ['bhavani-bhakt'],
+  favoriteIds: [],
   language: 'en',
 };
 
-export async function loadPilgrimPreferences(): Promise<PilgrimPreferences> {
-  const stored = await readPreferences();
+export async function loadPilgrimPreferences(userId: string): Promise<PilgrimPreferences> {
+  const stored = await readPreferences(userId);
   if (!stored) return defaultPilgrimPreferences;
 
   try {
@@ -38,24 +38,33 @@ export async function loadPilgrimPreferences(): Promise<PilgrimPreferences> {
   }
 }
 
-export async function savePilgrimPreferences(preferences: PilgrimPreferences): Promise<void> {
+export async function savePilgrimPreferences(
+  userId: string,
+  preferences: PilgrimPreferences,
+): Promise<void> {
   const serialized = JSON.stringify(preferences);
   const webStorage = getWebStorage();
   if (webStorage) {
-    webStorage.setItem(PREFERENCES_KEY, serialized);
+    webStorage.setItem(getPreferencesKey(userId), serialized);
     return;
   }
 
   if (await SecureStore.isAvailableAsync()) {
-    await SecureStore.setItemAsync(PREFERENCES_KEY, serialized);
+    await SecureStore.setItemAsync(getPreferencesKey(userId), serialized);
   }
 }
 
-async function readPreferences(): Promise<string | null> {
+async function readPreferences(userId: string): Promise<string | null> {
   const webStorage = getWebStorage();
-  if (webStorage) return webStorage.getItem(PREFERENCES_KEY);
-  if (await SecureStore.isAvailableAsync()) return SecureStore.getItemAsync(PREFERENCES_KEY);
+  if (webStorage) return webStorage.getItem(getPreferencesKey(userId));
+  if (await SecureStore.isAvailableAsync()) {
+    return SecureStore.getItemAsync(getPreferencesKey(userId));
+  }
   return null;
+}
+
+function getPreferencesKey(userId: string): string {
+  return `${PREFERENCES_KEY_PREFIX}.${userId}`;
 }
 
 function getWebStorage(): Storage | null {

@@ -373,7 +373,10 @@ export class RoomsService {
     const rows = await this.prisma.roomAvailability.findMany({
       include: { room: true },
       where: {
-        reason: { contains: `"bookingId":"${bookingId}"`, startsWith: MANUAL_BOOKING_PREFIX },
+        reason: {
+          contains: `"bookingId":"${bookingId}"`,
+          startsWith: MANUAL_BOOKING_PREFIX,
+        },
         status: 'RESERVED',
       },
     });

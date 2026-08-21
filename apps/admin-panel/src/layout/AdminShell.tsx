@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { PropsWithChildren } from 'react';
 
+import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
 import { getAdminDisplayName, useAdminAuth } from '../auth/AdminAuthProvider';
 import { AdminProtectedRoute } from '../auth/AdminProtectedRoute';
 import { adminNavigationItems } from '../navigation/admin-navigation';
@@ -87,6 +88,7 @@ export function AdminShell({ children }: PropsWithChildren) {
           </header>
 
           <main className="admin-content" id="admin-main-content" tabIndex={-1}>
+            {pathname === '/admin/dashboard' ? <LiveOnlinePaymentsControl /> : null}
             {children}
           </main>
         </div>

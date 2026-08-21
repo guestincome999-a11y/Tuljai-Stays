@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Snackbar } from 'react-native-paper';
 
 import { useAuth } from '../auth/auth-context';
+import { FeedbackPrompt } from '../pilgrim-ui/components/FeedbackPrompt';
 
 import { createRealtimeSocket, type RealtimeSocket } from './realtime-client';
 import {
@@ -30,6 +31,7 @@ const eventNames: PilgrimRealtimeEventName[] = [
   'booking:cancelled',
   'booking:expired',
   'booking:rejected',
+  'booking:updated',
   'checkin:completed',
   'checkout:completed',
   'lodge:catalog-updated',
@@ -43,6 +45,7 @@ const bookingEventNames = new Set<PilgrimRealtimeEventName>([
   'booking:cancelled',
   'booking:expired',
   'booking:rejected',
+  'booking:updated',
   'checkin:completed',
   'checkout:completed',
   'qr:generated',
@@ -55,6 +58,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [lastBookingEvent, setLastBookingEvent] = useState<PilgrimRealtimeEvent | null>(null);
   const [lastEvent, setLastEvent] = useState<PilgrimRealtimeEvent | null>(null);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [feedbackBookingId, setFeedbackBookingId] = useState<string | null>(null);
   const accessToken = auth.session.tokens?.accessToken ?? null;
 
   useEffect(() => {
@@ -75,9 +79,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     socket.on('connect', () => setConnected(false));
     socket.on('connection:ready', (payload) => {
       setConnected(payload.authenticated);
-      if (payload.authenticated) {
-        setConnectionRevision((current) => current + 1);
-      }
+      if (payload.authenticated) setConnectionRevision((current) => current + 1);
     });
     socket.on('connect_error', () => setConnected(false));
     socket.on('disconnect', () => setConnected(false));
@@ -88,19 +90,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     for (const eventName of eventNames) {
       socket.on(eventName, (payload) => {
-        const event = {
-          name: eventName,
-          payload: isRecord(payload) ? payload : {},
-          receivedAt: Date.now(),
-        };
+        const event = { name: eventName, payload: isRecord(payload) ? payload : {}, receivedAt: Date.now() };
         setLastEvent(event);
-        if (bookingEventNames.has(eventName)) {
-          setLastBookingEvent(event);
-        }
+        if (bookingEventNames.has(eventName)) setLastBookingEvent(event);
         const message = getRealtimeMessage(event);
-
-        if (message) {
-          setSnackbarMessage(message);
+        if (message) setSnackbarMessage(message);
+        if (eventName === 'checkout:completed' && typeof event.payload.bookingId === 'string') {
+          setFeedbackBookingId(event.payload.bookingId);
         }
       });
     }
@@ -111,10 +107,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, [accessToken, auth.isAuthenticated, auth.refreshSession]);
 
-  const value = useMemo(
-    () => ({ connected, connectionRevision, lastBookingEvent, lastEvent }),
-    [connected, connectionRevision, lastBookingEvent, lastEvent],
-  );
+  const value = useMemo(() => ({ connected, connectionRevision, lastBookingEvent, lastEvent }), [connected, connectionRevision, lastBookingEvent, lastEvent]);
 
   return (
     <RealtimeContext.Provider value={value}>
@@ -122,6 +115,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       <Snackbar onDismiss={() => setSnackbarMessage(null)} visible={Boolean(snackbarMessage)}>
         {snackbarMessage}
       </Snackbar>
+      {feedbackBookingId ? <FeedbackPrompt bookingId={feedbackBookingId} onClose={() => setFeedbackBookingId(null)} /> : null}
     </RealtimeContext.Provider>
   );
 }
