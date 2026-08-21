@@ -1,0 +1,63 @@
+name: Enable temporary admin preview OTP
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-preview-otp:
+    if: contains(github.event.head_commit.message, 'prepare temporary admin preview OTP mode')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch preview OTP mode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          auth = Path('backend/src/modules/auth/auth.service.ts')
+          text = auth.read_text()
+          old = "const shouldReturnDevOtp = this.nodeEnv !== 'production' && this.allowDevOtpResponse;"
+          new = "const shouldReturnDevOtp = this.allowDevOtpResponse;"
+          if old not in text:
+              raise SystemExit('auth.service.ts expected OTP gate was not found')
+          auth.write_text(text.replace(old, new, 1))
+
+          page = Path('apps/admin-panel/app/(auth)/login/page.tsx')
+          text = page.read_text()
+          text = text.replace(
+              "const IS_PRODUCTION_BUILD = process.env.NODE_ENV === 'production';",
+              "const IS_PRODUCTION_BUILD = process.env.NODE_ENV === 'production';\nconst ADMIN_PREVIEW_MODE = process.env.NEXT_PUBLIC_ADMIN_PREVIEW_MODE === 'true';\nconst SHOW_TEST_OTP = !IS_PRODUCTION_BUILD || ADMIN_PREVIEW_MODE;",
+              1,
+          )
+          text = text.replace("setTestingOtp(IS_PRODUCTION_BUILD ? null : (result.otpForTesting ?? null));", "setTestingOtp(SHOW_TEST_OTP ? (result.otpForTesting ?? null) : null);", 1)
+          text = text.replace("if (!testingOtp || IS_PRODUCTION_BUILD) return;", "if (!testingOtp || !SHOW_TEST_OTP) return;", 1)
+          text = text.replace("if (!testingOtp || IS_PRODUCTION_BUILD || !navigator.clipboard) return;", "if (!testingOtp || !SHOW_TEST_OTP || !navigator.clipboard) return;", 1)
+          text = text.replace("{!IS_PRODUCTION_BUILD && testingOtp ? (", "{SHOW_TEST_OTP && testingOtp ? (", 1)
+          text = text.replace("This helper is available only in non-production builds. It is never rendered from a production build.", "This helper is enabled only when the admin preview mode is explicitly configured. Remove the preview flag before real production launch.", 1)
+          text = text.replace("{auth.isSubmitting ? 'Please wait…' : otpRequested ? 'Verify & open admin' : 'Send development OTP'}", "{auth.isSubmitting ? 'Please wait…' : otpRequested ? 'Verify & open admin' : 'Send preview OTP'}", 1)
+          page.write_text(text)
+
+          env = Path('apps/admin-panel/.env.local.example')
+          text = env.read_text()
+          if 'NEXT_PUBLIC_ADMIN_PREVIEW_MODE=' not in text:
+              text += 'NEXT_PUBLIC_ADMIN_PREVIEW_MODE=false\n'
+          env.write_text(text)
+
+          backend_env = Path('backend/.env.example')
+          text = backend_env.read_text()
+          text = text.replace('ALLOW_DEV_OTP_RESPONSE=false', 'ALLOW_DEV_OTP_RESPONSE=false # Set true only for temporary preview testing; disable before production launch', 1)
+          backend_env.write_text(text)
+          PY
+
+      - name: Commit patched files and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/modules/auth/auth.service.ts apps/admin-panel/app/'(auth)'/login/page.tsx apps/admin-panel/.env.local.example backend/.env.example .github/workflows/enable-admin-preview-otp.yml
+          git rm .github/workflows/enable-admin-preview-otp.yml
+          git commit -m "feat(admin): enable explicit temporary preview OTP mode"
+          git push
