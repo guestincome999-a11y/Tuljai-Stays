@@ -21,14 +21,32 @@ export default function AppLayout() {
         tabBarHideOnKeyboard: true,
       }}
     >
-      <Tabs.Screen name="home" options={{ tabBarAccessibilityLabel: 'Home', title: t('Home', 'मुख्य') }} />
-      <Tabs.Screen name="lodges" options={{ tabBarAccessibilityLabel: 'Find lodges', title: t('Explore', 'निवास') }} />
-      <Tabs.Screen name="bookings" options={{ tabBarAccessibilityLabel: 'My bookings', title: t('Bookings', 'बुकिंग') }} />
-      <Tabs.Screen name="reviews" options={{ tabBarAccessibilityLabel: 'Guest reviews', title: t('Reviews', 'अभिप्राय') }} />
+      <Tabs.Screen
+        name="home"
+        options={{ tabBarAccessibilityLabel: 'Home', title: t('Home', 'मुख्य') }}
+      />
+      <Tabs.Screen
+        name="lodges"
+        options={{ tabBarAccessibilityLabel: 'Find lodges', title: t('Explore', 'निवास') }}
+      />
+      <Tabs.Screen
+        name="bookings"
+        options={{ tabBarAccessibilityLabel: 'My bookings', title: t('Bookings', 'बुकिंग') }}
+      />
+      <Tabs.Screen
+        name="reviews"
+        options={{ tabBarAccessibilityLabel: 'Guest reviews', title: t('Reviews', 'अभिप्राय') }}
+      />
       <Tabs.Screen name="announcements" options={{ href: null, title: 'Announcements' }} />
       <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
       <Tabs.Screen name="pass" options={{ href: null, title: t('Pass', 'पास') }} />
-      <Tabs.Screen name="profile" options={{ tabBarAccessibilityLabel: 'Profile and support', title: t('Profile', 'प्रोफाइल') }} />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarAccessibilityLabel: 'Profile and support',
+          title: t('Profile', 'प्रोफाइल'),
+        }}
+      />
     </Tabs>
   );
 }

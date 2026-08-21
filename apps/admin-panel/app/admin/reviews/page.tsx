@@ -64,7 +64,12 @@ export default function ReviewModerationPage() {
               or flag it for further investigation.
             </p>
           </div>
-          <button className="button button-secondary" disabled={loading} type="button" onClick={() => void load()}>
+          <button
+            className="button button-secondary"
+            disabled={loading}
+            type="button"
+            onClick={() => void load()}
+          >
             Refresh
           </button>
         </section>
@@ -92,12 +97,16 @@ export default function ReviewModerationPage() {
               {reviews.map((review) => (
                 <article className="admin-table-row" key={review.id}>
                   <div>
-                    <strong>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</strong>
+                    <strong>
+                      {'★'.repeat(review.rating)}
+                      {'☆'.repeat(5 - review.rating)}
+                    </strong>
                     <h3>{review.title ?? 'Pilgrim review'}</h3>
                     <p>{review.comment ?? 'No written comment.'}</p>
                     <p className="muted-copy">
                       {review.isVerifiedStay ? 'Verified stay' : 'Unverified stay'} ·{' '}
-                      {new Date(review.createdAt).toLocaleDateString('en-IN')} · Lodge {review.lodgeId}
+                      {new Date(review.createdAt).toLocaleDateString('en-IN')} · Lodge{' '}
+                      {review.lodgeId}
                     </p>
                     {review.ownerResponse ? (
                       <div className="status-card">
@@ -111,7 +120,11 @@ export default function ReviewModerationPage() {
                     <div className="queue-actions">
                       {moderationActions.map((action) => (
                         <button
-                          className={action.status === 'HIDDEN' ? 'button button-secondary' : 'button button-primary'}
+                          className={
+                            action.status === 'HIDDEN'
+                              ? 'button button-secondary'
+                              : 'button button-primary'
+                          }
                           disabled={savingId === review.id || review.status === action.status}
                           key={action.status}
                           type="button"

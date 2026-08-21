@@ -21,12 +21,22 @@ const defaultAmenities: Array<{
   { category: 'ROOM', iconName: 'fan', name: 'Non-AC', slug: 'non-ac' },
   { category: 'ROOM', iconName: 'water', name: 'Hot Water', slug: 'hot-water' },
   { category: 'PARKING', iconName: 'car', name: 'Parking', slug: 'parking' },
-  { category: 'FAMILY', iconName: 'account-group', name: 'Family Friendly', slug: 'family-friendly' },
+  {
+    category: 'FAMILY',
+    iconName: 'account-group',
+    name: 'Family Friendly',
+    slug: 'family-friendly',
+  },
   { category: 'SAFETY', iconName: 'cctv', name: 'CCTV', slug: 'cctv' },
   { category: 'ACCESSIBILITY', iconName: 'elevator-passenger', name: 'Lift', slug: 'lift' },
   { category: 'PROPERTY', iconName: 'wifi', name: 'WiFi', slug: 'wifi' },
   { category: 'FOOD', iconName: 'silverware-fork-knife', name: 'Restaurant', slug: 'restaurant' },
-  { category: 'PROPERTY', iconName: 'lightning-bolt', name: 'Generator Backup', slug: 'generator-backup' },
+  {
+    category: 'PROPERTY',
+    iconName: 'lightning-bolt',
+    name: 'Generator Backup',
+    slug: 'generator-backup',
+  },
 ];
 
 interface DemoRoomType {
@@ -131,7 +141,11 @@ const demoLodges: DemoLodge[] = [
         slug: 'family-seva-room',
       },
     ],
-    rules: ['Government photo ID required', 'Quiet hours after 10:00 PM', 'Pure vegetarian premises'],
+    rules: [
+      'Government photo ID required',
+      'Quiet hours after 10:00 PM',
+      'Pure vegetarian premises',
+    ],
     slug: 'bhavani-bhakt',
   },
   {
@@ -193,7 +207,8 @@ const demoLodges: DemoLodge[] = [
       {
         adults: 3,
         children: 1,
-        description: '1 double + 1 single bed · Air cooled · Private balcony · Extra mattress available',
+        description:
+          '1 double + 1 single bed · Air cooled · Private balcony · Extra mattress available',
         name: 'Family Triple Room',
         price: 1399,
         rooms: 4,
@@ -238,7 +253,11 @@ const demoLodges: DemoLodge[] = [
         slug: 'seva-twin-room',
       },
     ],
-    rules: ['Government photo ID required', 'Temple-town decorum expected', 'Pure vegetarian premises'],
+    rules: [
+      'Government photo ID required',
+      'Temple-town decorum expected',
+      'Pure vegetarian premises',
+    ],
     slug: 'maharashtra-seva',
   },
 ];
@@ -425,7 +444,13 @@ async function main(): Promise<void> {
 
   const city = await prisma.city.upsert({
     create: { country: 'India', name: 'Tuljapur', slug: 'tuljapur', state: 'Maharashtra' },
-    update: { country: 'India', deletedAt: null, isActive: true, name: 'Tuljapur', state: 'Maharashtra' },
+    update: {
+      country: 'India',
+      deletedAt: null,
+      isActive: true,
+      name: 'Tuljapur',
+      state: 'Maharashtra',
+    },
     where: { slug: 'tuljapur' },
   });
 

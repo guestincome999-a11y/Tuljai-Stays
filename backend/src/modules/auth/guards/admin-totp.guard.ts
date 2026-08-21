@@ -26,9 +26,12 @@ export class AdminTotpGuard implements CanActivate {
       select: { id: true, roles: true },
       where: { phoneNumber },
     });
-    if (!user || (!user.roles.includes('ADMIN') && !user.roles.includes('SUPER_ADMIN'))) return true;
+    if (!user || (!user.roles.includes('ADMIN') && !user.roles.includes('SUPER_ADMIN')))
+      return true;
 
-    const rows = await this.prisma.$queryRaw<Array<{ secret_encrypted: string; enabled: boolean }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ secret_encrypted: string; enabled: boolean }>
+    >(Prisma.sql`
       SELECT "secret_encrypted", "enabled"
       FROM "admin_totp_credentials"
       WHERE "user_id" = ${user.id}::uuid

@@ -14,15 +14,11 @@ function byNearestCheckIn(left: PilgrimBooking, right: PilgrimBooking): number {
   return dateValue(left.checkInDate) - dateValue(right.checkInDate);
 }
 
-export function isActionablePassBooking(
-  booking: PilgrimBooking,
-  now = new Date(),
-): boolean {
+export function isActionablePassBooking(booking: PilgrimBooking, now = new Date()): boolean {
   if (!isNotFinished(booking, now)) return false;
 
   return (
-    (booking.status === 'confirmed' && booking.qrReady === true) ||
-    booking.status === 'pending'
+    (booking.status === 'confirmed' && booking.qrReady === true) || booking.status === 'pending'
   );
 }
 

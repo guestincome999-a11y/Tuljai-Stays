@@ -76,7 +76,10 @@ export async function createLodgeCommissionSettlement(
   lodgeId: string,
   payload: { amount: number; notes?: string; paymentMethod: string; reference?: string },
 ): Promise<LodgeCommissionFinanceReport> {
-  return apiClient.post<LodgeCommissionFinanceReport>(`/admin/lodges/${lodgeId}/commission/settlements`, payload);
+  return apiClient.post<LodgeCommissionFinanceReport>(
+    `/admin/lodges/${lodgeId}/commission/settlements`,
+    payload,
+  );
 }
 
 export async function voidLodgeCommissionTransaction(ledgerId: string): Promise<void> {

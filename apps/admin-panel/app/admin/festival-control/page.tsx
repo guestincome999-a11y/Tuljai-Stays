@@ -524,9 +524,7 @@ export default function AdminFestivalControlPage() {
 }
 
 function readPromotionalBanners(settings: SystemSetting[]): PromotionalBanner[] {
-  const value = settings.find(
-    (setting) => setting.key === 'promotional_banners',
-  )?.value;
+  const value = settings.find((setting) => setting.key === 'promotional_banners')?.value;
 
   if (!Array.isArray(value)) {
     return [];
@@ -539,10 +537,7 @@ function readPromotionalBanners(settings: SystemSetting[]): PromotionalBanner[] 
 
     const candidate = item as Record<string, unknown>;
 
-    return (
-      typeof candidate.id === 'string' &&
-      typeof candidate.imageUrl === 'string'
-    );
+    return typeof candidate.id === 'string' && typeof candidate.imageUrl === 'string';
   });
 }
 

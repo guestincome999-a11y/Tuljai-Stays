@@ -25,9 +25,11 @@ export interface PilgrimRealtimeEvent {
 export function getRealtimeMessage(event: PilgrimRealtimeEvent): string | null {
   if (event.name === 'booking:accepted') return 'Your booking has been accepted!';
   if (event.name === 'booking:cancelled') return 'Your booking was cancelled.';
-  if (event.name === 'booking:updated') return 'Your booking details were updated by Tuljai Stays support.';
+  if (event.name === 'booking:updated')
+    return 'Your booking details were updated by Tuljai Stays support.';
   if (event.name === 'qr:generated') return 'Your QR pass is ready.';
-  if (event.name === 'booking:rejected') return 'Your booking was not accepted. You can browse other lodges.';
+  if (event.name === 'booking:rejected')
+    return 'Your booking was not accepted. You can browse other lodges.';
   if (event.name === 'booking:expired') return 'A booking request has expired.';
   if (event.name === 'checkin:completed') return 'Check-in completed.';
   if (event.name === 'checkout:completed') return 'Checkout completed.';

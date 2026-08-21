@@ -71,10 +71,7 @@ interface CameraErrorBoundaryState {
   failed: boolean;
 }
 
-class CameraErrorBoundary extends Component<
-  CameraErrorBoundaryProps,
-  CameraErrorBoundaryState
-> {
+class CameraErrorBoundary extends Component<CameraErrorBoundaryProps, CameraErrorBoundaryState> {
   public state: CameraErrorBoundaryState = { failed: false };
 
   public static getDerivedStateFromError(): CameraErrorBoundaryState {

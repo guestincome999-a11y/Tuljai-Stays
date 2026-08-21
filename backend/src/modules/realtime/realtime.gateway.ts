@@ -237,10 +237,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     return lodgeIds;
   }
 
-  private async canAccessLodgeRoom(
-    user: AuthenticatedUser,
-    lodgeId: string,
-  ): Promise<boolean> {
+  private async canAccessLodgeRoom(user: AuthenticatedUser, lodgeId: string): Promise<boolean> {
     if (this.isAdmin(user)) {
       const lodge = await this.prisma.lodge.findFirst({
         select: { id: true },

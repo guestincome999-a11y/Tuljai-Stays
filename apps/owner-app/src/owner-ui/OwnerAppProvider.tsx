@@ -1,8 +1,19 @@
 'use client';
 
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
-import { loadOwnerSettings, saveOwnerSettings } from '../features/settings/storage/owner-settings-store';
+import {
+  loadOwnerSettings,
+  saveOwnerSettings,
+} from '../features/settings/storage/owner-settings-store';
 
 import { marathiTranslations } from './translations';
 
@@ -22,24 +33,31 @@ export function OwnerAppProvider({ children }: PropsWithChildren) {
   const [isLanguageReady, setIsLanguageReady] = useState(false);
 
   useEffect(() => {
-    void loadOwnerSettings().then((settings) => setLanguage(settings.language === 'MR' ? 'mr' : 'en')).finally(() => setIsLanguageReady(true));
+    void loadOwnerSettings()
+      .then((settings) => setLanguage(settings.language === 'MR' ? 'mr' : 'en'))
+      .finally(() => setIsLanguageReady(true));
   }, []);
 
   const updateLanguage = useCallback((nextLanguage: OwnerLanguage) => {
     setLanguage(nextLanguage);
-    void loadOwnerSettings().then((settings) => saveOwnerSettings({ ...settings, language: nextLanguage === 'mr' ? 'MR' : 'EN' }));
+    void loadOwnerSettings().then((settings) =>
+      saveOwnerSettings({ ...settings, language: nextLanguage === 'mr' ? 'MR' : 'EN' }),
+    );
   }, []);
   const value = useMemo(
     () => ({
       language,
       setLanguage: updateLanguage,
       t: (english: string, marathi: string) => (language === 'mr' ? marathi : english),
-      tr: (english: string) => (language === 'mr' ? marathiTranslations[english] ?? english : english),
+      tr: (english: string) =>
+        language === 'mr' ? (marathiTranslations[english] ?? english) : english,
     }),
     [language, updateLanguage],
   );
 
-  return isLanguageReady ? <OwnerAppContext.Provider value={value}>{children}</OwnerAppContext.Provider> : null;
+  return isLanguageReady ? (
+    <OwnerAppContext.Provider value={value}>{children}</OwnerAppContext.Provider>
+  ) : null;
 }
 
 export function useOwnerApp() {

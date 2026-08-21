@@ -3,18 +3,10 @@
   "compilerOptions": {
     "allowJs": true,
     "paths": {
-      "@tuljai/shared": [
-        "../../packages/shared/src/index.ts"
-      ],
-      "@tuljai/types": [
-        "../../packages/types/src/index.ts"
-      ],
-      "@tuljai/ui": [
-        "../../packages/ui/src/index.ts"
-      ],
-      "@tuljai/utils": [
-        "../../packages/utils/src/index.ts"
-      ]
+      "@tuljai/shared": ["../../packages/shared/src/index.ts"],
+      "@tuljai/types": ["../../packages/types/src/index.ts"],
+      "@tuljai/ui": ["../../packages/ui/src/index.ts"],
+      "@tuljai/utils": ["../../packages/utils/src/index.ts"]
     },
     "strict": true
   },

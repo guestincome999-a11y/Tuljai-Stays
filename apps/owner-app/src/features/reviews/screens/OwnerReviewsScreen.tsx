@@ -1,7 +1,15 @@
 import type { Review } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Card, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
+import {
+  ActivityIndicator,
+  Button,
+  Card,
+  Snackbar,
+  Text,
+  TextInput,
+  useTheme,
+} from 'react-native-paper';
 
 import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
 import { listOwnerReviews, respondToReview } from '../api/owner-reviews-api';
@@ -22,7 +30,9 @@ export function OwnerReviewsScreen() {
     try {
       const result = await listOwnerReviews();
       setReviews(result.items);
-      setResponses(Object.fromEntries(result.items.map((review) => [review.id, review.ownerResponse ?? ''])));
+      setResponses(
+        Object.fromEntries(result.items.map((review) => [review.id, review.ownerResponse ?? ''])),
+      );
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : tr('Could not load reviews'));
     } finally {
@@ -81,7 +91,9 @@ export function OwnerReviewsScreen() {
           <Card mode="outlined" style={styles.card}>
             <Card.Content>
               <Text variant="titleMedium">{tr('No reviews yet')}</Text>
-              <Text variant="bodyMedium">{tr('Published guest reviews for your assigned lodge will appear here.')}</Text>
+              <Text variant="bodyMedium">
+                {tr('Published guest reviews for your assigned lodge will appear here.')}
+              </Text>
             </Card.Content>
           </Card>
         ) : null}
@@ -90,7 +102,8 @@ export function OwnerReviewsScreen() {
           <Card key={review.id} mode="outlined" style={styles.card}>
             <Card.Content style={styles.cardContent}>
               <Text style={{ color: theme.colors.primary }} variant="titleMedium">
-                {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                {'★'.repeat(review.rating)}
+                {'☆'.repeat(5 - review.rating)}
               </Text>
               <Text variant="titleMedium">{review.title ?? tr('Guest review')}</Text>
               <Text variant="bodyMedium">{review.comment ?? tr('No written comment.')}</Text>

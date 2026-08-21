@@ -62,8 +62,12 @@ export class LodgeCommissionService {
       throw new Error('Invalid commission effective date.');
     }
 
-    const rate = dto.commissionType === LodgeCommissionType.PERCENTAGE ? (dto.commissionRatePercent ?? 0) : 0;
-    const fixedAmount = dto.commissionType === LodgeCommissionType.FIXED_PER_BOOKING ? (dto.commissionFixedAmount ?? 0) : 0;
+    const rate =
+      dto.commissionType === LodgeCommissionType.PERCENTAGE ? (dto.commissionRatePercent ?? 0) : 0;
+    const fixedAmount =
+      dto.commissionType === LodgeCommissionType.FIXED_PER_BOOKING
+        ? (dto.commissionFixedAmount ?? 0)
+        : 0;
 
     await this.prisma.$executeRaw(Prisma.sql`
       INSERT INTO lodge_commission_settings (

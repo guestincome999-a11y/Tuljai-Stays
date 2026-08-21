@@ -6,7 +6,11 @@ import type {
 } from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
-import { getLodgeDetails, listLodgePhotos, listLodgeRoomTypes } from '../../lodges/api/lodge-discovery-api';
+import {
+  getLodgeDetails,
+  listLodgePhotos,
+  listLodgeRoomTypes,
+} from '../../lodges/api/lodge-discovery-api';
 
 export interface BookingLockRequest {
   checkInDate: string;
@@ -66,9 +70,12 @@ export interface EnrichedBooking {
 }
 
 export async function checkAvailability(input: BookingLockRequest): Promise<AvailabilityResponse> {
-  return apiClient.get<AvailabilityResponse>(`/lodges/${input.lodgeId}/room-types/${input.roomTypeId}/availability`, {
-    params: { checkInDate: input.checkInDate, checkOutDate: input.checkOutDate },
-  });
+  return apiClient.get<AvailabilityResponse>(
+    `/lodges/${input.lodgeId}/room-types/${input.roomTypeId}/availability`,
+    {
+      params: { checkInDate: input.checkInDate, checkOutDate: input.checkOutDate },
+    },
+  );
 }
 
 export async function createBookingLock(input: BookingLockRequest): Promise<BookingLock> {
@@ -95,10 +102,17 @@ export async function verifyRazorpayPayment(
   return apiClient.post<RazorpayVerification>(`/payments/bookings/${bookingId}/verify`, input);
 }
 
-export async function uploadGuestIdProof(proof: GuestIdProofFile): Promise<BookingGuestIdProofUpload> {
+export async function uploadGuestIdProof(
+  proof: GuestIdProofFile,
+): Promise<BookingGuestIdProofUpload> {
   const formData = new FormData();
   if (proof.webFile) formData.append('file', proof.webFile, proof.name);
-  else formData.append('file', { name: proof.name, type: proof.mimeType, uri: proof.uri } as unknown as Blob);
+  else
+    formData.append('file', {
+      name: proof.name,
+      type: proof.mimeType,
+      uri: proof.uri,
+    } as unknown as Blob);
   return apiClient.post<BookingGuestIdProofUpload>('/bookings/guest-id-proof', formData);
 }
 
@@ -131,8 +145,16 @@ async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {
     booking,
     coverPhotoUrl: coverPhoto?.thumbnailUrl ?? coverPhoto?.fileUrl ?? null,
     directionsQuery: lodge?.address
-      ? [lodge.address.addressLine1, lodge.address.addressLine2, lodge.address.landmark, lodge.address.city, lodge.address.pincode].filter(Boolean).join(', ')
-      : lodge?.name ?? null,
+      ? [
+          lodge.address.addressLine1,
+          lodge.address.addressLine2,
+          lodge.address.landmark,
+          lodge.address.city,
+          lodge.address.pincode,
+        ]
+          .filter(Boolean)
+          .join(', ')
+      : (lodge?.name ?? null),
     lodgeName: lodge?.name ?? 'Tuljai Stays lodge',
     roomTypeName: roomType?.name ?? 'Selected room',
   };

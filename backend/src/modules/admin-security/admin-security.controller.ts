@@ -11,16 +11,32 @@ import { VerifyAdminTotpDto } from './dto/admin-security.dto';
 
 @Controller('admin/security/2fa')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'SUPER_ADMIN', 'FINANCE_ADMIN', 'OPERATIONS_MANAGER', 'SUPPORT_EXECUTIVE', 'PHOTO_REVIEWER', 'ANALYST')
+@Roles(
+  'ADMIN',
+  'SUPER_ADMIN',
+  'FINANCE_ADMIN',
+  'OPERATIONS_MANAGER',
+  'SUPPORT_EXECUTIVE',
+  'PHOTO_REVIEWER',
+  'ANALYST',
+)
 export class AdminSecurityController {
   public constructor(private readonly service: AdminSecurityService) {}
 
   @Get('status')
-  public status(@CurrentUser() user: AuthenticatedUser) { return this.service.status(user); }
+  public status(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.status(user);
+  }
   @Post('setup')
-  public setup(@CurrentUser() user: AuthenticatedUser) { return this.service.setup(user); }
+  public setup(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.setup(user);
+  }
   @Post('verify')
-  public verify(@CurrentUser() user: AuthenticatedUser, @Body() dto: VerifyAdminTotpDto) { return this.service.verify(user, dto); }
+  public verify(@CurrentUser() user: AuthenticatedUser, @Body() dto: VerifyAdminTotpDto) {
+    return this.service.verify(user, dto);
+  }
   @Post('disable')
-  public disable(@CurrentUser() user: AuthenticatedUser, @Body() dto: VerifyAdminTotpDto) { return this.service.disable(user, dto); }
+  public disable(@CurrentUser() user: AuthenticatedUser, @Body() dto: VerifyAdminTotpDto) {
+    return this.service.disable(user, dto);
+  }
 }

@@ -31,10 +31,7 @@ export function resolveNotificationPriority(
   return requestedPriority;
 }
 
-export function shouldDeliverPush(
-  type: NotificationType,
-  data: unknown,
-): boolean {
+export function shouldDeliverPush(type: NotificationType, data: unknown): boolean {
   if (PUSH_NOTIFICATION_TYPES.has(type)) {
     return true;
   }
@@ -53,8 +50,7 @@ export function isOperationalRoomStatusTransition(
 ): boolean {
   return (
     previousStatus !== nextStatus &&
-    (OPERATIONAL_ROOM_STATUSES.has(previousStatus) ||
-      OPERATIONAL_ROOM_STATUSES.has(nextStatus))
+    (OPERATIONAL_ROOM_STATUSES.has(previousStatus) || OPERATIONAL_ROOM_STATUSES.has(nextStatus))
   );
 }
 

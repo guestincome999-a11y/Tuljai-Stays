@@ -16,17 +16,25 @@ export class PromotionsController {
 
   @Roles('ADMIN', 'SUPER_ADMIN', 'FINANCE_ADMIN')
   @Get('admin/promotions')
-  public list() { return this.service.list(); }
+  public list() {
+    return this.service.list();
+  }
 
   @Roles('ADMIN', 'SUPER_ADMIN', 'FINANCE_ADMIN')
   @Post('admin/promotions')
-  public create(@Body() dto: CreatePromoCodeDto, @CurrentUser() user: AuthenticatedUser) { return this.service.create(dto, user); }
+  public create(@Body() dto: CreatePromoCodeDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.create(dto, user);
+  }
 
   @Roles('ADMIN', 'SUPER_ADMIN', 'FINANCE_ADMIN')
   @Patch('admin/promotions/:id/deactivate')
-  public deactivate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) { return this.service.deactivate(id, user); }
+  public deactivate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.deactivate(id, user);
+  }
 
   @Roles('PILGRIM', 'ADMIN', 'SUPER_ADMIN')
   @Post('promotions/validate')
-  public validate(@Body() dto: ValidatePromoCodeDto, @CurrentUser() user: AuthenticatedUser) { return this.service.validate(dto, user); }
+  public validate(@Body() dto: ValidatePromoCodeDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.validate(dto, user);
+  }
 }

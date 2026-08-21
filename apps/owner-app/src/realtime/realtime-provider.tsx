@@ -101,7 +101,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     for (const eventName of eventNames) {
       nextSocket.on(eventName, (payload) => {
-        const event = { name: eventName, payload: isRecord(payload) ? payload : {}, receivedAt: Date.now() };
+        const event = {
+          name: eventName,
+          payload: isRecord(payload) ? payload : {},
+          receivedAt: Date.now(),
+        };
         setLastEvent(event);
         if (isBookingRequestEvent(event)) setLastBookingRequest(event);
         const message = getRealtimeMessage(event);
@@ -126,7 +130,14 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ connected, connectionRevision, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus }),
+    () => ({
+      connected,
+      connectionRevision,
+      lastBookingRequest,
+      lastEvent,
+      ownerStatus,
+      setOwnerStatus,
+    }),
     [connected, connectionRevision, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus],
   );
 

@@ -31,17 +31,9 @@ export interface VerifyPaymentResponse {
 export async function createPaymentOrder(
   input: CreatePaymentOrderRequest,
 ): Promise<CreatePaymentOrderResponse> {
-  return apiClient.post<CreatePaymentOrderResponse>(
-    '/payments/create-order',
-    input,
-  );
+  return apiClient.post<CreatePaymentOrderResponse>('/payments/create-order', input);
 }
 
-export async function verifyPayment(
-  input: VerifyPaymentRequest,
-): Promise<VerifyPaymentResponse> {
-  return apiClient.post<VerifyPaymentResponse>(
-    '/payments/verify',
-    input,
-  );
+export async function verifyPayment(input: VerifyPaymentRequest): Promise<VerifyPaymentResponse> {
+  return apiClient.post<VerifyPaymentResponse>('/payments/verify', input);
 }

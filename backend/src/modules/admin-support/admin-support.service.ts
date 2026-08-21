@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { AuthenticatedUser } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
@@ -51,7 +56,18 @@ export class AdminSupportService {
       metadata: { queryLength: term.length, resultCount: users.length },
     });
 
-    const items = await Promise.all(users.map((user) => this.toUserSummary(user.id, user.displayName, user.phoneNumber, user.authIdentities.map((identity) => identity.email).find(Boolean) ?? null, user.createdAt, user.lastLoginAt)));
+    const items = await Promise.all(
+      users.map((user) =>
+        this.toUserSummary(
+          user.id,
+          user.displayName,
+          user.phoneNumber,
+          user.authIdentities.map((identity) => identity.email).find(Boolean) ?? null,
+          user.createdAt,
+          user.lastLoginAt,
+        ),
+      ),
+    );
     return {
       items,
       page: pagination.page,
@@ -82,9 +98,16 @@ export class AdminSupportService {
       entityType: 'user',
     });
 
-    const totalAmount = user.pilgrimBookings.reduce((sum, booking) => sum + Number(booking.totalAmount ?? 0), 0);
-    const completed = user.pilgrimBookings.filter((booking) => ['CHECKED_OUT', 'COMPLETED'].includes(booking.status)).length;
-    const cancelled = user.pilgrimBookings.filter((booking) => booking.status === 'CANCELLED').length;
+    const totalAmount = user.pilgrimBookings.reduce(
+      (sum, booking) => sum + Number(booking.totalAmount ?? 0),
+      0,
+    );
+    const completed = user.pilgrimBookings.filter((booking) =>
+      ['CHECKED_OUT', 'COMPLETED'].includes(booking.status),
+    ).length;
+    const cancelled = user.pilgrimBookings.filter(
+      (booking) => booking.status === 'CANCELLED',
+    ).length;
 
     return {
       id: user.id,
@@ -121,25 +144,51 @@ export class AdminSupportService {
     };
   }
 
-  public async updateBooking(userId: string, bookingId: string, dto: AdminBookingUpdateDto, actor: AuthenticatedUser) {
+  public async updateBooking(
+    userId: string,
+    bookingId: string,
+    dto: AdminBookingUpdateDto,
+    actor: AuthenticatedUser,
+  ) {
     const existing = await this.prisma.booking.findFirst({
-      include: { lodge: { include: { owners: { where: { deletedAt: null, isActive: true } } } }, roomType: true, room: true },
+      include: {
+        lodge: { include: { owners: { where: { deletedAt: null, isActive: true } } } },
+        roomType: true,
+        room: true,
+      },
       where: { deletedAt: null, id: bookingId, pilgrimUserId: userId },
     });
     if (!existing) throw new NotFoundException('Booking not found for this pilgrim');
-    if (['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'NO_SHOW'].includes(existing.status)) {
+    if (
+      [
+        'CHECKED_IN',
+        'CHECKED_OUT',
+        'COMPLETED',
+        'CANCELLED',
+        'REJECTED',
+        'EXPIRED',
+        'NO_SHOW',
+      ].includes(existing.status)
+    ) {
       throw new BadRequestException('This booking can no longer be edited through support');
     }
     if (!dto.notes.trim()) throw new BadRequestException('Support notes are required');
 
     const checkInDate = dto.checkInDate ? this.parseDate(dto.checkInDate) : existing.checkInDate;
-    const checkOutDate = dto.checkOutDate ? this.parseDate(dto.checkOutDate) : existing.checkOutDate;
-    if (checkInDate >= checkOutDate) throw new BadRequestException('Check-out date must be after check-in date');
-    if (checkInDate < this.startOfToday()) throw new BadRequestException('Check-in date cannot be in the past');
+    const checkOutDate = dto.checkOutDate
+      ? this.parseDate(dto.checkOutDate)
+      : existing.checkOutDate;
+    if (checkInDate >= checkOutDate)
+      throw new BadRequestException('Check-out date must be after check-in date');
+    if (checkInDate < this.startOfToday())
+      throw new BadRequestException('Check-in date cannot be in the past');
 
     const adults = dto.numberOfAdults ?? existing.numberOfAdults;
     const children = dto.numberOfChildren ?? existing.numberOfChildren;
-    if (adults > existing.roomType.capacityAdults || children > existing.roomType.capacityChildren) {
+    if (
+      adults > existing.roomType.capacityAdults ||
+      children > existing.roomType.capacityChildren
+    ) {
       throw new BadRequestException('Guest count exceeds room capacity');
     }
 
@@ -154,23 +203,34 @@ export class AdminSupportService {
           status: { in: ['PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED', 'CHECKED_IN'] },
         },
       });
-      if (conflict) throw new ConflictException('The assigned room is unavailable for the requested dates');
+      if (conflict)
+        throw new ConflictException('The assigned room is unavailable for the requested dates');
     }
 
-    const nights = Math.max(1, Math.round((checkOutDate.getTime() - checkInDate.getTime()) / 86_400_000));
+    const nights = Math.max(
+      1,
+      Math.round((checkOutDate.getTime() - checkInDate.getTime()) / 86_400_000),
+    );
     const totalAmount = existing.roomType.basePrice.mul(nights);
     const updated = await this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.update({
         data: {
           checkInDate,
           checkOutDate,
-          guestAddress: dto.guestAddress === undefined ? existing.guestAddress : dto.guestAddress?.trim() || null,
-          guestEmail: dto.guestEmail === undefined ? existing.guestEmail : dto.guestEmail.trim() || null,
+          guestAddress:
+            dto.guestAddress === undefined
+              ? existing.guestAddress
+              : dto.guestAddress?.trim() || null,
+          guestEmail:
+            dto.guestEmail === undefined ? existing.guestEmail : dto.guestEmail.trim() || null,
           guestName: dto.guestName?.trim() || existing.guestName,
           guestPhone: dto.guestPhone || existing.guestPhone,
           numberOfAdults: adults,
           numberOfChildren: children,
-          specialRequest: dto.specialRequest === undefined ? existing.specialRequest : dto.specialRequest.trim() || null,
+          specialRequest:
+            dto.specialRequest === undefined
+              ? existing.specialRequest
+              : dto.specialRequest.trim() || null,
           totalAmount,
           totalGuests: adults + children,
         },
@@ -219,7 +279,10 @@ export class AdminSupportService {
     };
 
     this.realtimeEventsService.publishToUser(userId, 'booking:updated', payload);
-    this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', { bookingId, type: 'booking:updated' });
+    this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
+      bookingId,
+      type: 'booking:updated',
+    });
     for (const owner of existing.lodge.owners) {
       this.realtimeEventsService.publishToUser(owner.userId, 'booking:updated', payload);
       await this.notificationsService.create({
@@ -249,11 +312,23 @@ export class AdminSupportService {
     return payload;
   }
 
-  private async toUserSummary(id: string, displayName: string | null, phoneNumber: string | null, email: string | null, createdAt: Date, lastLoginAt: Date | null) {
+  private async toUserSummary(
+    id: string,
+    displayName: string | null,
+    phoneNumber: string | null,
+    email: string | null,
+    createdAt: Date,
+    lastLoginAt: Date | null,
+  ) {
     const [totalBookings, completedBookings, totalValue] = await Promise.all([
       this.prisma.booking.count({ where: { deletedAt: null, pilgrimUserId: id } }),
-      this.prisma.booking.count({ where: { deletedAt: null, pilgrimUserId: id, status: { in: ['CHECKED_OUT', 'COMPLETED'] } } }),
-      this.prisma.booking.aggregate({ _sum: { totalAmount: true }, where: { deletedAt: null, pilgrimUserId: id } }),
+      this.prisma.booking.count({
+        where: { deletedAt: null, pilgrimUserId: id, status: { in: ['CHECKED_OUT', 'COMPLETED'] } },
+      }),
+      this.prisma.booking.aggregate({
+        _sum: { totalAmount: true },
+        where: { deletedAt: null, pilgrimUserId: id },
+      }),
     ]);
     return {
       id,

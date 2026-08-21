@@ -58,7 +58,11 @@ export class PrepaidBookingsService {
     );
     if (!availability.available) throw new ConflictException('Room type is no longer available');
 
-    await this.guestIdProofService.assertOwnedUpload(user.id, dto.guestIdProofStoragePath, dto.guestIdProofMimeType);
+    await this.guestIdProofService.assertOwnedUpload(
+      user.id,
+      dto.guestIdProofStoragePath,
+      dto.guestIdProofMimeType,
+    );
 
     const bookingId = await this.prisma.$transaction(async (tx) => {
       const bookingCode = await this.generateBookingCode(tx);
@@ -82,7 +86,11 @@ export class PrepaidBookingsService {
           pilgrimUserId: user.id,
           roomTypeId: lock.roomTypeId,
           specialRequest: dto.specialRequest,
-          totalAmount: this.calculateTotal(lock.roomType.basePrice, lock.checkInDate, lock.checkOutDate),
+          totalAmount: this.calculateTotal(
+            lock.roomType.basePrice,
+            lock.checkInDate,
+            lock.checkOutDate,
+          ),
           totalGuests: dto.numberOfAdults + dto.numberOfChildren,
           guests: {
             create: {
@@ -126,8 +134,15 @@ export class PrepaidBookingsService {
     return this.bookingsService.getBookingById(bookingId, user);
   }
 
-  private calculateTotal(basePrice: { toNumber(): number }, checkInDate: Date, checkOutDate: Date): number {
-    const nights = Math.max(Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / 86_400_000), 1);
+  private calculateTotal(
+    basePrice: { toNumber(): number },
+    checkInDate: Date,
+    checkOutDate: Date,
+  ): number {
+    const nights = Math.max(
+      Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / 86_400_000),
+      1,
+    );
     return basePrice.toNumber() * nights;
   }
 
@@ -135,7 +150,10 @@ export class PrepaidBookingsService {
     const year = new Date().getUTCFullYear();
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const bookingCode = `TJS-${year}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      const existing = await tx.booking.findUnique({ where: { bookingCode }, select: { id: true } });
+      const existing = await tx.booking.findUnique({
+        where: { bookingCode },
+        select: { id: true },
+      });
       if (!existing) return bookingCode;
     }
     throw new ConflictException('Unable to allocate a unique booking code');

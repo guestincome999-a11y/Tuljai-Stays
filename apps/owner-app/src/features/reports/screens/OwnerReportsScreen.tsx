@@ -63,14 +63,28 @@ export function OwnerReportsScreen() {
                 which bookings generated the commission.
               </Text>
             </View>
-            <Chip icon="cash-check">Rs. {formatMoney(finance?.summary.outstanding ?? String(commission))}</Chip>
+            <Chip icon="cash-check">
+              Rs. {formatMoney(finance?.summary.outstanding ?? String(commission))}
+            </Chip>
           </View>
 
           <View style={styles.commissionGrid}>
-            <CommissionDetail label="Total Commission" value={`Rs. ${formatMoney(finance?.summary.commissionReceivable)}`} />
-            <CommissionDetail label="Outstanding / Payable" value={`Rs. ${formatMoney(finance?.summary.outstanding)}`} />
-            <CommissionDetail label="Settled" value={`Rs. ${formatMoney(finance?.summary.settled)}`} />
-            <CommissionDetail label="Recorded Settlements" value={`Rs. ${formatMoney(finance?.summary.totalSettlements)}`} />
+            <CommissionDetail
+              label="Total Commission"
+              value={`Rs. ${formatMoney(finance?.summary.commissionReceivable)}`}
+            />
+            <CommissionDetail
+              label="Outstanding / Payable"
+              value={`Rs. ${formatMoney(finance?.summary.outstanding)}`}
+            />
+            <CommissionDetail
+              label="Settled"
+              value={`Rs. ${formatMoney(finance?.summary.settled)}`}
+            />
+            <CommissionDetail
+              label="Recorded Settlements"
+              value={`Rs. ${formatMoney(finance?.summary.totalSettlements)}`}
+            />
           </View>
 
           {finance ? (
@@ -82,9 +96,11 @@ export function OwnerReportsScreen() {
                   No commission transactions have been created yet.
                 </Text>
               ) : (
-                finance.transactions.slice(0, 30).map((transaction) => (
-                  <CommissionTransactionRow key={transaction.id} transaction={transaction} />
-                ))
+                finance.transactions
+                  .slice(0, 30)
+                  .map((transaction) => (
+                    <CommissionTransactionRow key={transaction.id} transaction={transaction} />
+                  ))
               )}
 
               <Divider />
@@ -99,7 +115,9 @@ export function OwnerReportsScreen() {
                     <View style={styles.titleBlock}>
                       <Text variant="titleSmall">Rs. {formatMoney(settlement.amount)}</Text>
                       <Text variant="bodySmall">{settlement.paymentMethod}</Text>
-                      <Text variant="bodySmall">{settlement.reference ?? 'No reference provided'}</Text>
+                      <Text variant="bodySmall">
+                        {settlement.reference ?? 'No reference provided'}
+                      </Text>
                     </View>
                     <Text variant="bodySmall">{formatDate(settlement.settledAt)}</Text>
                   </View>
@@ -167,7 +185,8 @@ function CommissionTransactionRow({ transaction }: { transaction: LodgeCommissio
             : `${formatMoney(transaction.commissionRatePercent)}% commission`}
         </Text>
         <Text variant="bodySmall">
-          Booking value Rs. {formatMoney(transaction.baseAmount)} - commission Rs. {formatMoney(transaction.commissionAmount)}
+          Booking value Rs. {formatMoney(transaction.baseAmount)} - commission Rs.{' '}
+          {formatMoney(transaction.commissionAmount)}
         </Text>
       </View>
       <View style={styles.amountBlock}>
@@ -212,7 +231,9 @@ const ReportTable = memo(function ReportTable({
 function formatMoney(value: string | null | undefined): string {
   if (!value) return '0';
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : value;
+  return Number.isFinite(parsed)
+    ? parsed.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+    : value;
 }
 
 function formatDate(value: string): string {

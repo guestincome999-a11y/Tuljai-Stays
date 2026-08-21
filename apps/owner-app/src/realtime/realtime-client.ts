@@ -24,10 +24,7 @@ type OwnerServerEvents = Record<
   'system:error': (payload: { message?: string }) => void;
 };
 
-export type RealtimeSocket = Socket<
-  OwnerServerEvents,
-  OwnerClientEvents
->;
+export type RealtimeSocket = Socket<OwnerServerEvents, OwnerClientEvents>;
 
 export function createRealtimeSocket(accessToken: string): RealtimeSocket {
   const environment = readPublicEnvironment({

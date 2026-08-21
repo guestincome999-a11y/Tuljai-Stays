@@ -26,24 +26,30 @@ export class LodgeCommissionFinanceService {
     private readonly prisma: PrismaService,
   ) {}
 
-  public async getReport(lodgeId: string, user?: AuthenticatedUser): Promise<LodgeCommissionFinanceReport> {
+  public async getReport(
+    lodgeId: string,
+    user?: AuthenticatedUser,
+  ): Promise<LodgeCommissionFinanceReport> {
     if (user && !this.lodgeAccessService.isAdmin(user)) {
       await this.lodgeAccessService.assertCanManageLodge(user, lodgeId);
     } else {
       await this.assertLodge(lodgeId);
     }
 
-    const [lodgeRows, settingRows, transactionRows, settlementRows, summaryRows] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
+    const [lodgeRows, settingRows, transactionRows, settlementRows, summaryRows] =
+      await Promise.all([
+        this.prisma.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
         SELECT id, name FROM lodges WHERE id = ${lodgeId}::uuid AND deleted_at IS NULL LIMIT 1
       `),
-      this.prisma.$queryRaw<Array<{
-        commissionEnabled: boolean;
-        commissionFixedAmount: string;
-        commissionRatePercent: string;
-        commissionType: 'PERCENTAGE' | 'FIXED_PER_BOOKING';
-        effectiveFrom: string;
-      }>>(Prisma.sql`
+        this.prisma.$queryRaw<
+          Array<{
+            commissionEnabled: boolean;
+            commissionFixedAmount: string;
+            commissionRatePercent: string;
+            commissionType: 'PERCENTAGE' | 'FIXED_PER_BOOKING';
+            effectiveFrom: string;
+          }>
+        >(Prisma.sql`
         SELECT
           commission_enabled AS "commissionEnabled",
           commission_fixed_amount::text AS "commissionFixedAmount",
@@ -54,7 +60,7 @@ export class LodgeCommissionFinanceService {
         WHERE lodge_id = ${lodgeId}::uuid
         LIMIT 1
       `),
-      this.prisma.$queryRaw<LodgeCommissionTransaction[]>(Prisma.sql`
+        this.prisma.$queryRaw<LodgeCommissionTransaction[]>(Prisma.sql`
         SELECT
           l.id,
           l.booking_id AS "bookingId",
@@ -76,7 +82,7 @@ export class LodgeCommissionFinanceService {
         WHERE l.lodge_id = ${lodgeId}::uuid
         ORDER BY l.created_at DESC
       `),
-      this.prisma.$queryRaw<LodgeCommissionSettlement[]>(Prisma.sql`
+        this.prisma.$queryRaw<LodgeCommissionSettlement[]>(Prisma.sql`
         SELECT
           id,
           amount::text AS amount,
@@ -90,14 +96,16 @@ export class LodgeCommissionFinanceService {
         WHERE lodge_id = ${lodgeId}::uuid
         ORDER BY settled_at DESC
       `),
-      this.prisma.$queryRaw<Array<{
-        bookingRevenue: string;
-        commissionReceivable: string;
-        outstanding: string;
-        settled: string;
-        voided: string;
-        totalSettlements: string;
-      }>>(Prisma.sql`
+        this.prisma.$queryRaw<
+          Array<{
+            bookingRevenue: string;
+            commissionReceivable: string;
+            outstanding: string;
+            settled: string;
+            voided: string;
+            totalSettlements: string;
+          }>
+        >(Prisma.sql`
         SELECT
           COALESCE((SELECT SUM(total_amount) FROM bookings WHERE lodge_id = ${lodgeId}::uuid AND deleted_at IS NULL), 0)::text AS "bookingRevenue",
           COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status <> 'VOIDED'), 0)::text AS "commissionReceivable",
@@ -106,7 +114,7 @@ export class LodgeCommissionFinanceService {
           COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status = 'VOIDED'), 0)::text AS voided,
           COALESCE((SELECT SUM(amount) FROM lodge_commission_settlements WHERE lodge_id = ${lodgeId}::uuid), 0)::text AS "totalSettlements"
       `),
-    ]);
+      ]);
 
     const lodge = lodgeRows[0];
     if (!lodge) throw new NotFoundException('Lodge not found');
@@ -140,15 +148,18 @@ export class LodgeCommissionFinanceService {
     actorUserId: string,
   ): Promise<LodgeCommissionFinanceReport> {
     await this.assertLodge(lodgeId);
-    if (dto.amount <= 0) throw new BadRequestException('Settlement amount must be greater than zero.');
+    if (dto.amount <= 0)
+      throw new BadRequestException('Settlement amount must be greater than zero.');
     if (!dto.paymentMethod.trim()) throw new BadRequestException('Payment method is required.');
 
     await this.prisma.$transaction(async (tx) => {
-      const outstanding = await tx.$queryRaw<Array<{
-        id: string;
-        commissionAmount: string;
-        allocated: string;
-      }>>(Prisma.sql`
+      const outstanding = await tx.$queryRaw<
+        Array<{
+          id: string;
+          commissionAmount: string;
+          allocated: string;
+        }>
+      >(Prisma.sql`
         SELECT
           l.id,
           l.commission_amount::text AS "commissionAmount",
@@ -164,7 +175,9 @@ export class LodgeCommissionFinanceService {
         0,
       );
       if (dto.amount > totalOutstanding + 0.005) {
-        throw new BadRequestException(`Settlement exceeds outstanding commission of Rs. ${totalOutstanding.toFixed(2)}.`);
+        throw new BadRequestException(
+          `Settlement exceeds outstanding commission of Rs. ${totalOutstanding.toFixed(2)}.`,
+        );
       }
 
       const settlementRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
@@ -175,9 +188,7 @@ export class LodgeCommissionFinanceService {
       const settlementId = settlementRows[0]?.id;
 
       if (!settlementId) {
-        throw new InternalServerErrorException(
-          'Commission settlement could not be created.',
-        );
+        throw new InternalServerErrorException('Commission settlement could not be created.');
       }
 
       let remaining = dto.amount;
@@ -225,7 +236,8 @@ export class LodgeCommissionFinanceService {
     `);
     const row = rows[0];
     if (!row) throw new NotFoundException('Commission transaction not found.');
-    if (row.status === 'SETTLED') throw new BadRequestException('A settled commission cannot be voided.');
+    if (row.status === 'SETTLED')
+      throw new BadRequestException('A settled commission cannot be voided.');
 
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE lodge_commission_ledger

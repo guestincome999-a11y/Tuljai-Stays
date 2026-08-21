@@ -41,7 +41,10 @@ export default function LoginScreen() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : t('OTP could not be sent. Please try again.', 'OTP पाठवता आला नाही. पुन्हा प्रयत्न करा.'),
+          : t(
+              'OTP could not be sent. Please try again.',
+              'OTP पाठवता आला नाही. पुन्हा प्रयत्न करा.',
+            ),
       );
     } finally {
       setIsSubmitting(false);
@@ -106,9 +109,7 @@ export default function LoginScreen() {
             disabled={isSubmitting}
             icon="arrow-right"
             label={
-              isSubmitting
-                ? t('Sending OTP...', 'OTP पाठवत आहे...')
-                : t('Get OTP', 'OTP मिळवा')
+              isSubmitting ? t('Sending OTP...', 'OTP पाठवत आहे...') : t('Get OTP', 'OTP मिळवा')
             }
             onPress={() => void continueToOtp()}
           />

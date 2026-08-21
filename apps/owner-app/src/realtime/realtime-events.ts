@@ -31,14 +31,16 @@ export interface OwnerRealtimeEvent {
 }
 
 export function getRealtimeMessage(event: OwnerRealtimeEvent): string | null {
-  if (event.name === 'booking:new' || event.name === 'owner:alert') return 'New booking request received.';
+  if (event.name === 'booking:new' || event.name === 'owner:alert')
+    return 'New booking request received.';
   if (event.name === 'booking:accepted') return 'Booking accepted.';
   if (event.name === 'booking:updated') return 'A booking was updated by Tuljai Stays support.';
   if (event.name === 'booking:cancelled') return 'A pilgrim cancelled a booking.';
   if (event.name === 'booking:rejected') return 'Booking rejected.';
   if (event.name === 'booking:expired') return 'A booking request expired.';
   if (event.name === 'notification:new') return 'New notification received.';
-  if (event.name === 'checkin:completed' || event.name === 'qr:scan-success') return 'Guest check-in completed.';
+  if (event.name === 'checkin:completed' || event.name === 'qr:scan-success')
+    return 'Guest check-in completed.';
   if (event.name === 'checkout:completed') return 'Guest checkout completed.';
   if (event.name === 'announcement:new') return 'New announcement available.';
   return null;

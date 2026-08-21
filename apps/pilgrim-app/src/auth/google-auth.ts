@@ -81,7 +81,9 @@ function getSupabaseClient(): SupabaseClient {
 function readOAuthParams(url: string): URLSearchParams {
   const parsed = new URL(url);
   const params = new URLSearchParams(parsed.search);
-  const fragmentParams = new URLSearchParams(parsed.hash.startsWith('#') ? parsed.hash.slice(1) : '');
+  const fragmentParams = new URLSearchParams(
+    parsed.hash.startsWith('#') ? parsed.hash.slice(1) : '',
+  );
 
   fragmentParams.forEach((value, key) => params.set(key, value));
   return params;

@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import {
-  listAdminSettings,
-  updateAdminSetting,
-} from '../api/admin-platform-control-api';
+import { listAdminSettings, updateAdminSetting } from '../api/admin-platform-control-api';
 
 const SETTING_KEY = 'enable_online_payments';
 

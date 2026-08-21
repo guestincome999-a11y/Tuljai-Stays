@@ -213,9 +213,7 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
               <Field
                 label="ID Proof"
                 value={
-                  canSeeContact
-                    ? formatGuestIdProof(primaryGuest)
-                    : 'Hidden for read-only role'
+                  canSeeContact ? formatGuestIdProof(primaryGuest) : 'Hidden for read-only role'
                 }
               />
               {canOpenProof ? (

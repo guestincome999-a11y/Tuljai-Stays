@@ -63,15 +63,24 @@ export interface AdminBookingUpdateInput {
   notes: string;
 }
 
-export async function searchAdminUsers(q: string, page = 1): Promise<PaginatedResponse<AdminUserSummary>> {
-  return apiClient.get<PaginatedResponse<AdminUserSummary>>('/admin/users/search', { params: { q, page, limit: 20 } });
+export async function searchAdminUsers(
+  q: string,
+  page = 1,
+): Promise<PaginatedResponse<AdminUserSummary>> {
+  return apiClient.get<PaginatedResponse<AdminUserSummary>>('/admin/users/search', {
+    params: { q, page, limit: 20 },
+  });
 }
 
 export async function getAdminUser(userId: string): Promise<AdminUserDetail> {
   return apiClient.get<AdminUserDetail>(`/admin/users/${userId}`);
 }
 
-export async function updateAdminUserBooking(userId: string, bookingId: string, input: AdminBookingUpdateInput): Promise<AdminUserBooking> {
+export async function updateAdminUserBooking(
+  userId: string,
+  bookingId: string,
+  input: AdminBookingUpdateInput,
+): Promise<AdminUserBooking> {
   return apiClient.request<AdminUserBooking>(`/admin/users/${userId}/bookings/${bookingId}`, {
     body: input,
     method: 'PATCH',

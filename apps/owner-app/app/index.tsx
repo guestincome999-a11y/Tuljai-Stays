@@ -18,10 +18,6 @@ export default function BootstrapScreen() {
   }
 
   return (
-    <Redirect
-      href={
-        isAuthenticated && hasOwnerAccess ? '/(app)/dashboard' : '/(auth)/login'
-      }
-    />
+    <Redirect href={isAuthenticated && hasOwnerAccess ? '/(app)/dashboard' : '/(auth)/login'} />
   );
 }

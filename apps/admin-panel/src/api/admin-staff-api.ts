@@ -1,11 +1,7 @@
 import { apiClient } from './client';
 
 export type StaffRole =
-  | 'FINANCE_ADMIN'
-  | 'OPERATIONS_MANAGER'
-  | 'SUPPORT_EXECUTIVE'
-  | 'PHOTO_REVIEWER'
-  | 'ANALYST';
+  'FINANCE_ADMIN' | 'OPERATIONS_MANAGER' | 'SUPPORT_EXECUTIVE' | 'PHOTO_REVIEWER' | 'ANALYST';
 
 export interface StaffAccount {
   user_id: string;
@@ -24,5 +20,8 @@ export async function assignStaffRole(
   userId: string,
   role: StaffRole | null,
 ): Promise<{ userId: string; role: StaffRole | null }> {
-  return apiClient.patch<{ userId: string; role: StaffRole | null }>(`/admin/staff/${userId}/role`, { role });
+  return apiClient.patch<{ userId: string; role: StaffRole | null }>(
+    `/admin/staff/${userId}/role`,
+    { role },
+  );
 }

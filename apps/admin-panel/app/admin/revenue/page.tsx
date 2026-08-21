@@ -1,6 +1,10 @@
 'use client';
 
-import type { BookingReportRow, CommissionSummary, LodgeCommissionFinanceReport } from '@tuljai/types';
+import type {
+  BookingReportRow,
+  CommissionSummary,
+  LodgeCommissionFinanceReport,
+} from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -98,10 +102,12 @@ export default function AdminRevenuePage() {
   };
 
   const voidTransaction = async (ledgerId: string) => {
-    if (!window.confirm('Void this outstanding commission transaction? This cannot be undone.')) return;
+    if (!window.confirm('Void this outstanding commission transaction? This cannot be undone.'))
+      return;
     try {
       await voidLodgeCommissionTransaction(ledgerId);
-      if (selectedLodgeId) setSelectedReport(await getLodgeCommissionFinanceReport(selectedLodgeId));
+      if (selectedLodgeId)
+        setSelectedReport(await getLodgeCommissionFinanceReport(selectedLodgeId));
       setActionMessage('Commission transaction marked as voided.');
       await load();
     } catch (error) {
@@ -132,7 +138,10 @@ export default function AdminRevenuePage() {
         <section className="grid grid-4">
           <Metric label="Revenue Estimate" value={toCurrency(revenue)} />
           <Metric label="Commission Earned" value={toCurrency(commission)} />
-          <Metric label="Average Booking Value" value={toCurrency(rows.length ? revenue / rows.length : 0)} />
+          <Metric
+            label="Average Booking Value"
+            value={toCurrency(rows.length ? revenue / rows.length : 0)}
+          />
           <Metric label="Commission Receivable" value={toCurrency(commission)} />
         </section>
 
@@ -140,13 +149,19 @@ export default function AdminRevenuePage() {
           <section className="panel">
             <p className="eyebrow">Daily Revenue</p>
             <div className="chart-bars">
-              {Object.entries(revenueByDate).slice(0, 12).map(([date, value]) => (
-                <div className="chart-row" key={date}>
-                  <span>{date}</span>
-                  <div><i style={{ width: `${Math.min((value / Math.max(revenue, 1)) * 100, 100)}%` }} /></div>
-                  <strong>{toCurrency(value)}</strong>
-                </div>
-              ))}
+              {Object.entries(revenueByDate)
+                .slice(0, 12)
+                .map(([date, value]) => (
+                  <div className="chart-row" key={date}>
+                    <span>{date}</span>
+                    <div>
+                      <i
+                        style={{ width: `${Math.min((value / Math.max(revenue, 1)) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <strong>{toCurrency(value)}</strong>
+                  </div>
+                ))}
             </div>
           </section>
 
@@ -175,16 +190,26 @@ export default function AdminRevenuePage() {
           </div>
           <div className="admin-table bi-ranking-table">
             <div className="admin-table-row admin-table-head">
-              <span>Lodge</span><span>Bookings</span><span>Revenue</span><span>Commission Receivable</span><span>Action</span>
+              <span>Lodge</span>
+              <span>Bookings</span>
+              <span>Revenue</span>
+              <span>Commission Receivable</span>
+              <span>Action</span>
             </div>
             {rankings.slice(0, 50).map((row) => (
               <div className="admin-table-row" key={row.lodgeId}>
-                <span><strong>{row.lodgeId}</strong></span>
+                <span>
+                  <strong>{row.lodgeId}</strong>
+                </span>
                 <span>{row.bookings}</span>
                 <span>{toCurrency(row.revenue)}</span>
                 <span>{toCurrency(row.commission)}</span>
                 <span>
-                  <button className="button button-secondary" type="button" onClick={() => void openReport(row.lodgeId)}>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() => void openReport(row.lodgeId)}
+                  >
                     View report
                   </button>
                 </span>
@@ -204,61 +229,178 @@ export default function AdminRevenuePage() {
                     <h3>{selectedReport.lodgeName}</h3>
                     <p className="muted-copy">Lodge ID: {selectedReport.lodgeId}</p>
                   </div>
-                  <button className="button button-secondary" type="button" onClick={() => setSelectedLodgeId(null)}>Close</button>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() => setSelectedLodgeId(null)}
+                  >
+                    Close
+                  </button>
                 </div>
 
                 <div className="grid grid-4">
-                  <Metric label="Booking Revenue" value={toCurrency(Number(selectedReport.summary.bookingRevenue))} />
-                  <Metric label="Commission Earned" value={toCurrency(Number(selectedReport.summary.commissionReceivable))} />
-                  <Metric label="Outstanding / Payable" value={toCurrency(Number(selectedReport.summary.outstanding))} />
-                  <Metric label="Settled" value={toCurrency(Number(selectedReport.summary.settled))} />
+                  <Metric
+                    label="Booking Revenue"
+                    value={toCurrency(Number(selectedReport.summary.bookingRevenue))}
+                  />
+                  <Metric
+                    label="Commission Earned"
+                    value={toCurrency(Number(selectedReport.summary.commissionReceivable))}
+                  />
+                  <Metric
+                    label="Outstanding / Payable"
+                    value={toCurrency(Number(selectedReport.summary.outstanding))}
+                  />
+                  <Metric
+                    label="Settled"
+                    value={toCurrency(Number(selectedReport.summary.settled))}
+                  />
                 </div>
 
                 <div className="grid grid-2">
                   <section className="panel">
                     <p className="eyebrow">Commission Rule</p>
                     <div className="feed-list">
-                      <Insight label="Enabled" value={selectedReport.setting.commissionEnabled ? 'Yes' : 'No'} />
-                      <Insight label="Type" value={selectedReport.setting.commissionType === 'FIXED_PER_BOOKING' ? 'Fixed per booking' : 'Percentage'} />
-                      <Insight label="Rate" value={`${selectedReport.setting.commissionRatePercent}%`} />
-                      <Insight label="Fixed amount" value={toCurrency(Number(selectedReport.setting.commissionFixedAmount))} />
-                      <Insight label="Effective from" value={new Date(selectedReport.setting.effectiveFrom).toLocaleString('en-IN')} />
+                      <Insight
+                        label="Enabled"
+                        value={selectedReport.setting.commissionEnabled ? 'Yes' : 'No'}
+                      />
+                      <Insight
+                        label="Type"
+                        value={
+                          selectedReport.setting.commissionType === 'FIXED_PER_BOOKING'
+                            ? 'Fixed per booking'
+                            : 'Percentage'
+                        }
+                      />
+                      <Insight
+                        label="Rate"
+                        value={`${selectedReport.setting.commissionRatePercent}%`}
+                      />
+                      <Insight
+                        label="Fixed amount"
+                        value={toCurrency(Number(selectedReport.setting.commissionFixedAmount))}
+                      />
+                      <Insight
+                        label="Effective from"
+                        value={new Date(selectedReport.setting.effectiveFrom).toLocaleString(
+                          'en-IN',
+                        )}
+                      />
                     </div>
                   </section>
 
                   <section className="panel">
                     <p className="eyebrow">Record Settlement</p>
                     <div className="form-grid">
-                      <label>Amount<input value={settlementAmount} onChange={(event) => setSettlementAmount(event.target.value)} inputMode="decimal" placeholder="0.00" /></label>
-                      <label>Payment method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="BANK_TRANSFER">Bank transfer</option><option value="UPI">UPI</option><option value="CASH">Cash</option><option value="OTHER">Other</option></select></label>
-                      <label>Reference<input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Transaction / receipt reference" /></label>
-                      <label>Notes<textarea value={settlementNotes} onChange={(event) => setSettlementNotes(event.target.value)} placeholder="Settlement notes" rows={3} /></label>
+                      <label>
+                        Amount
+                        <input
+                          value={settlementAmount}
+                          onChange={(event) => setSettlementAmount(event.target.value)}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                        />
+                      </label>
+                      <label>
+                        Payment method
+                        <select
+                          value={paymentMethod}
+                          onChange={(event) => setPaymentMethod(event.target.value)}
+                        >
+                          <option value="BANK_TRANSFER">Bank transfer</option>
+                          <option value="UPI">UPI</option>
+                          <option value="CASH">Cash</option>
+                          <option value="OTHER">Other</option>
+                        </select>
+                      </label>
+                      <label>
+                        Reference
+                        <input
+                          value={reference}
+                          onChange={(event) => setReference(event.target.value)}
+                          placeholder="Transaction / receipt reference"
+                        />
+                      </label>
+                      <label>
+                        Notes
+                        <textarea
+                          value={settlementNotes}
+                          onChange={(event) => setSettlementNotes(event.target.value)}
+                          placeholder="Settlement notes"
+                          rows={3}
+                        />
+                      </label>
                     </div>
-                    <button className="button button-primary" type="button" onClick={() => void submitSettlement()}>Record settlement</button>
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      onClick={() => void submitSettlement()}
+                    >
+                      Record settlement
+                    </button>
                   </section>
                 </div>
 
                 <section className="table-panel">
-                  <div className="section-heading"><p className="eyebrow">Commission Ledger</p></div>
+                  <div className="section-heading">
+                    <p className="eyebrow">Commission Ledger</p>
+                  </div>
                   <div className="admin-table">
-                    <div className="admin-table-row admin-table-head"><span>Booking</span><span>Base</span><span>Rule</span><span>Commission</span><span>Status</span><span>Action</span></div>
+                    <div className="admin-table-row admin-table-head">
+                      <span>Booking</span>
+                      <span>Base</span>
+                      <span>Rule</span>
+                      <span>Commission</span>
+                      <span>Status</span>
+                      <span>Action</span>
+                    </div>
                     {selectedReport.transactions.map((transaction) => (
                       <div className="admin-table-row" key={transaction.id}>
-                        <span><strong>{transaction.bookingCode}</strong><small>{transaction.checkInDate} → {transaction.checkOutDate}</small></span>
+                        <span>
+                          <strong>{transaction.bookingCode}</strong>
+                          <small>
+                            {transaction.checkInDate} → {transaction.checkOutDate}
+                          </small>
+                        </span>
                         <span>{toCurrency(Number(transaction.baseAmount))}</span>
-                        <span>{transaction.commissionType === 'FIXED_PER_BOOKING' ? `Fixed ${toCurrency(Number(transaction.commissionFixedAmount))}` : `${transaction.commissionRatePercent}%`}</span>
+                        <span>
+                          {transaction.commissionType === 'FIXED_PER_BOOKING'
+                            ? `Fixed ${toCurrency(Number(transaction.commissionFixedAmount))}`
+                            : `${transaction.commissionRatePercent}%`}
+                        </span>
                         <span>{toCurrency(Number(transaction.commissionAmount))}</span>
                         <span>{transaction.status}</span>
-                        <span>{transaction.status === 'OUTSTANDING' ? <button className="button button-secondary" type="button" onClick={() => void voidTransaction(transaction.id)}>Void</button> : '—'}</span>
+                        <span>
+                          {transaction.status === 'OUTSTANDING' ? (
+                            <button
+                              className="button button-secondary"
+                              type="button"
+                              onClick={() => void voidTransaction(transaction.id)}
+                            >
+                              Void
+                            </button>
+                          ) : (
+                            '—'
+                          )}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </section>
 
                 <section className="table-panel">
-                  <div className="section-heading"><p className="eyebrow">Settlement History</p></div>
+                  <div className="section-heading">
+                    <p className="eyebrow">Settlement History</p>
+                  </div>
                   <div className="admin-table">
-                    <div className="admin-table-row admin-table-head"><span>Date</span><span>Amount</span><span>Method</span><span>Reference</span><span>Notes</span></div>
+                    <div className="admin-table-row admin-table-head">
+                      <span>Date</span>
+                      <span>Amount</span>
+                      <span>Method</span>
+                      <span>Reference</span>
+                      <span>Notes</span>
+                    </div>
                     {selectedReport.settlements.map((settlement) => (
                       <div className="admin-table-row" key={settlement.id}>
                         <span>{new Date(settlement.settledAt).toLocaleString('en-IN')}</span>
@@ -278,10 +420,20 @@ export default function AdminRevenuePage() {
         <section className="table-panel">
           <p className="eyebrow">Top Revenue Lodges</p>
           <div className="admin-table bi-ranking-table">
-            <div className="admin-table-row admin-table-head"><span>Lodge</span><span>Bookings</span><span>Revenue</span><span>Commission</span><span>Score</span></div>
+            <div className="admin-table-row admin-table-head">
+              <span>Lodge</span>
+              <span>Bookings</span>
+              <span>Revenue</span>
+              <span>Commission</span>
+              <span>Score</span>
+            </div>
             {rankings.slice(0, 10).map((row) => (
               <div className="admin-table-row" key={row.lodgeId}>
-                <span>{row.lodgeId}</span><span>{row.bookings}</span><span>{toCurrency(row.revenue)}</span><span>{toCurrency(row.commission)}</span><span>{Math.round(row.score)}</span>
+                <span>{row.lodgeId}</span>
+                <span>{row.bookings}</span>
+                <span>{toCurrency(row.revenue)}</span>
+                <span>{toCurrency(row.commission)}</span>
+                <span>{Math.round(row.score)}</span>
               </div>
             ))}
           </div>
@@ -292,9 +444,22 @@ export default function AdminRevenuePage() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="kpi-card"><span className="kpi-icon">INR</span><div><span className="kpi-label">{label}</span><strong>{value}</strong></div></div>;
+  return (
+    <div className="kpi-card">
+      <span className="kpi-icon">INR</span>
+      <div>
+        <span className="kpi-label">{label}</span>
+        <strong>{value}</strong>
+      </div>
+    </div>
+  );
 }
 
 function Insight({ label, value }: { label: string; value: string }) {
-  return <article className="feed-item"><span>{label}</span><strong>{value}</strong></article>;
+  return (
+    <article className="feed-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
 }

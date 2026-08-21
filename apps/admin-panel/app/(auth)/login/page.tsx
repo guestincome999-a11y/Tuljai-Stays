@@ -30,7 +30,7 @@ export default function AdminLoginPage() {
     if (result.success) {
       setOtpRequested(true);
       setExpiresAt(result.expiresAt);
-      setTestingOtp(IS_PRODUCTION_BUILD ? null : result.otpForTesting ?? null);
+      setTestingOtp(IS_PRODUCTION_BUILD ? null : (result.otpForTesting ?? null));
     }
   }
 
@@ -55,7 +55,9 @@ export default function AdminLoginPage() {
       window.dispatchEvent(new Event(ADMIN_SESSION_REFRESHED_EVENT));
       window.location.assign('/admin/dashboard');
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : 'OTP verification failed. Please try again.');
+      setLocalError(
+        error instanceof Error ? error.message : 'OTP verification failed. Please try again.',
+      );
     }
   }
 
@@ -116,7 +118,9 @@ export default function AdminLoginPage() {
             </>
           ) : null}
 
-          {auth.errorMessage || localError ? <p className="error-banner">{localError ?? auth.errorMessage}</p> : null}
+          {auth.errorMessage || localError ? (
+            <p className="error-banner">{localError ?? auth.errorMessage}</p>
+          ) : null}
 
           {expiresAt ? (
             <p className="muted-copy">

@@ -11,10 +11,28 @@ import { StaffService } from './staff.service';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'SUPER_ADMIN', 'FINANCE_ADMIN', 'OPERATIONS_MANAGER', 'SUPPORT_EXECUTIVE', 'PHOTO_REVIEWER', 'ANALYST')
+@Roles(
+  'ADMIN',
+  'SUPER_ADMIN',
+  'FINANCE_ADMIN',
+  'OPERATIONS_MANAGER',
+  'SUPPORT_EXECUTIVE',
+  'PHOTO_REVIEWER',
+  'ANALYST',
+)
 export class StaffController {
   public constructor(private readonly staffService: StaffService) {}
-  @Get('admin/staff/me') public me(@CurrentUser() user: AuthenticatedUser) { return this.staffService.getCurrentRole(user.id); }
-  @Roles('SUPER_ADMIN') @Get('admin/staff') public list() { return this.staffService.list(); }
-  @Roles('SUPER_ADMIN') @Patch('admin/staff/:userId/role') public assign(@Param('userId') userId: string, @Body() dto: AssignStaffRoleDto, @CurrentUser() actor: AuthenticatedUser) { return this.staffService.assign(userId, dto, actor.id); }
+  @Get('admin/staff/me') public me(@CurrentUser() user: AuthenticatedUser) {
+    return this.staffService.getCurrentRole(user.id);
+  }
+  @Roles('SUPER_ADMIN') @Get('admin/staff') public list() {
+    return this.staffService.list();
+  }
+  @Roles('SUPER_ADMIN') @Patch('admin/staff/:userId/role') public assign(
+    @Param('userId') userId: string,
+    @Body() dto: AssignStaffRoleDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.staffService.assign(userId, dto, actor.id);
+  }
 }

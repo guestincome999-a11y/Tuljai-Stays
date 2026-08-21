@@ -102,11 +102,7 @@ export class NotificationEventsService {
       lodgeId: booking.lodgeId,
       status: booking.status,
     };
-    this.realtimeEventsService.publishToUser(
-      booking.pilgrimUserId,
-      'booking:cancelled',
-      payload,
-    );
+    this.realtimeEventsService.publishToUser(booking.pilgrimUserId, 'booking:cancelled', payload);
     await this.notificationsService.create({
       body: `Booking ${booking.bookingCode} was cancelled.`,
       bookingId: booking.id,
@@ -264,5 +260,4 @@ export class NotificationEventsService {
       type,
     });
   }
-
 }

@@ -98,17 +98,20 @@ export function useNotifications() {
     }
   }, [load, refreshUnreadCount]);
 
-  const markRead = useCallback(async (notificationId: string) => {
-    setErrorMessage(null);
-    try {
-      await markNotificationRead(notificationId);
-      await load(true);
-      await refreshUnreadCount();
-    } catch {
-      setErrorMessage('Notification action failed. Please try again.');
-      await refreshUnreadCount();
-    }
-  }, [load, refreshUnreadCount]);
+  const markRead = useCallback(
+    async (notificationId: string) => {
+      setErrorMessage(null);
+      try {
+        await markNotificationRead(notificationId);
+        await load(true);
+        await refreshUnreadCount();
+      } catch {
+        setErrorMessage('Notification action failed. Please try again.');
+        await refreshUnreadCount();
+      }
+    },
+    [load, refreshUnreadCount],
+  );
 
   return {
     data,

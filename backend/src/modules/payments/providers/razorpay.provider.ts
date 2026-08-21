@@ -63,7 +63,10 @@ export class RazorpayProvider implements PaymentProvider {
     if (!response.ok) {
       const message =
         typeof parsed === 'object' && parsed && 'error' in parsed
-          ? String((parsed as { error?: { description?: string } }).error?.description ?? 'Razorpay request failed')
+          ? String(
+              (parsed as { error?: { description?: string } }).error?.description ??
+                'Razorpay request failed',
+            )
           : 'Razorpay request failed';
       throw new BadRequestException(message);
     }
@@ -73,7 +76,9 @@ export class RazorpayProvider implements PaymentProvider {
 
   public async createPayment(input: CreatePaymentInput): Promise<PaymentOrder> {
     if (!Number.isInteger(input.amount) || input.amount <= 0) {
-      throw new BadRequestException('Payment amount must be a positive integer in currency subunits');
+      throw new BadRequestException(
+        'Payment amount must be a positive integer in currency subunits',
+      );
     }
 
     const order = await this.request<RazorpayOrderResponse>('/orders', {
@@ -96,9 +101,7 @@ export class RazorpayProvider implements PaymentProvider {
     };
   }
 
-  public async verifyPayment(
-    input: PaymentVerificationInput,
-  ): Promise<PaymentVerificationResult> {
+  public async verifyPayment(input: PaymentVerificationInput): Promise<PaymentVerificationResult> {
     if (!input.signature) {
       throw new BadRequestException('Razorpay payment signature is required');
     }
@@ -127,10 +130,13 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   public async refundPayment(paymentId: string, amount?: number): Promise<{ refundId: string }> {
-    const refund = await this.request<{ id: string }>(`/payments/${encodeURIComponent(paymentId)}/refund`, {
-      method: 'POST',
-      body: JSON.stringify(amount ? { amount } : {}),
-    });
+    const refund = await this.request<{ id: string }>(
+      `/payments/${encodeURIComponent(paymentId)}/refund`,
+      {
+        method: 'POST',
+        body: JSON.stringify(amount ? { amount } : {}),
+      },
+    );
     return { refundId: refund.id };
   }
 }

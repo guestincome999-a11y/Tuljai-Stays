@@ -57,11 +57,7 @@ function totp(secret: string, counter: number): string {
   if (byte0 === undefined || byte1 === undefined || byte2 === undefined || byte3 === undefined) {
     throw new Error('Invalid TOTP digest offset');
   }
-  const value =
-    ((byte0 & 0x7f) << 24) |
-    (byte1 << 16) |
-    (byte2 << 8) |
-    byte3;
+  const value = ((byte0 & 0x7f) << 24) | (byte1 << 16) | (byte2 << 8) | byte3;
   return String(value % 1_000_000).padStart(6, '0');
 }
 

@@ -72,9 +72,7 @@ export async function verifyLoginOtp(phoneNumber: string, otp: string): Promise<
   });
 }
 
-export async function exchangeGoogleLogin(
-  supabaseAccessToken: string,
-): Promise<VerifyOtpResponse> {
+export async function exchangeGoogleLogin(supabaseAccessToken: string): Promise<VerifyOtpResponse> {
   const deviceId = await getOrCreateDeviceId();
 
   if (useMockExperience()) {

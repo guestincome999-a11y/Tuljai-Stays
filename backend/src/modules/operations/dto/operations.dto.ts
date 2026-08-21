@@ -2,7 +2,6 @@ import { BookingStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
-
 export class ReportQueryDto {
   @IsDateString()
   @IsOptional()

@@ -213,7 +213,10 @@ export function DashboardScreen() {
           <Text variant="titleMedium">{tr('Reception Snapshot')}</Text>
           <ReceptionRows title={tr("Today's Check-ins")} registers={reception.todayCheckIns} />
           <ReceptionRows title={tr("Today's Check-outs")} registers={reception.todayCheckOuts} />
-          <ReceptionRows title={tr('Upcoming Check-outs')} registers={reception.upcomingCheckOuts} />
+          <ReceptionRows
+            title={tr('Upcoming Check-outs')}
+            registers={reception.upcomingCheckOuts}
+          />
         </Card.Content>
       </Card>
     </ScrollView>
@@ -251,18 +254,41 @@ function ReceptionRows({
   );
 }
 
-function getDashboardStats(summary: OwnerDashboardSummary | null, tr: (english: string) => string): Array<{
+function getDashboardStats(
+  summary: OwnerDashboardSummary | null,
+  tr: (english: string) => string,
+): Array<{
   label: string;
   value: string;
 }> {
   if (!summary) {
     return [
-      { label: tr('Pending Bookings'), value: '0' }, { label: tr("Today's Bookings"), value: '0' }, { label: tr("Today's Check-ins"), value: '0' }, { label: tr("Today's Check-outs"), value: '0' }, { label: tr('Available Rooms'), value: '0' }, { label: tr('Occupied Rooms'), value: '0' }, { label: tr('Maintenance'), value: '0' }, { label: tr('Estimated Revenue'), value: 'Rs. 0' }, { label: tr('Estimated Commission'), value: 'Rs. 0' }, { label: tr('Average Rating'), value: '-' }, { label: tr('Unread Notifications'), value: '0' },
+      { label: tr('Pending Bookings'), value: '0' },
+      { label: tr("Today's Bookings"), value: '0' },
+      { label: tr("Today's Check-ins"), value: '0' },
+      { label: tr("Today's Check-outs"), value: '0' },
+      { label: tr('Available Rooms'), value: '0' },
+      { label: tr('Occupied Rooms'), value: '0' },
+      { label: tr('Maintenance'), value: '0' },
+      { label: tr('Estimated Revenue'), value: 'Rs. 0' },
+      { label: tr('Estimated Commission'), value: 'Rs. 0' },
+      { label: tr('Average Rating'), value: '-' },
+      { label: tr('Unread Notifications'), value: '0' },
     ];
   }
 
   return [
-    { label: tr('Pending Bookings'), value: String(summary.pendingBookings) }, { label: tr("Today's Bookings"), value: String(summary.todayBookings) }, { label: tr("Today's Check-ins"), value: String(summary.checkedInGuests) }, { label: tr("Today's Check-outs"), value: String(summary.todayCheckOuts) }, { label: tr('Available Rooms'), value: String(summary.availableRooms) }, { label: tr('Occupied Rooms'), value: String(summary.occupiedRooms) }, { label: tr('Maintenance'), value: String(summary.roomsUnderMaintenance) }, { label: tr('Estimated Revenue'), value: `Rs. ${formatMoney(summary.estimatedRevenue)}` }, { label: tr('Estimated Commission'), value: `Rs. ${formatMoney(summary.estimatedCommission)}` }, { label: tr('Average Rating'), value: summary.averageRating?.toFixed(1) ?? '-' }, { label: tr('Unread Notifications'), value: String(summary.recentNotifications.length) },
+    { label: tr('Pending Bookings'), value: String(summary.pendingBookings) },
+    { label: tr("Today's Bookings"), value: String(summary.todayBookings) },
+    { label: tr("Today's Check-ins"), value: String(summary.checkedInGuests) },
+    { label: tr("Today's Check-outs"), value: String(summary.todayCheckOuts) },
+    { label: tr('Available Rooms'), value: String(summary.availableRooms) },
+    { label: tr('Occupied Rooms'), value: String(summary.occupiedRooms) },
+    { label: tr('Maintenance'), value: String(summary.roomsUnderMaintenance) },
+    { label: tr('Estimated Revenue'), value: `Rs. ${formatMoney(summary.estimatedRevenue)}` },
+    { label: tr('Estimated Commission'), value: `Rs. ${formatMoney(summary.estimatedCommission)}` },
+    { label: tr('Average Rating'), value: summary.averageRating?.toFixed(1) ?? '-' },
+    { label: tr('Unread Notifications'), value: String(summary.recentNotifications.length) },
   ];
 }
 
@@ -276,7 +302,10 @@ function formatMoney(value: string): string {
   return parsed.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
-function formatOwnerStatus(status: 'AVAILABLE' | 'BUSY' | 'OFFLINE', tr: (english: string) => string): string {
+function formatOwnerStatus(
+  status: 'AVAILABLE' | 'BUSY' | 'OFFLINE',
+  tr: (english: string) => string,
+): string {
   if (status === 'AVAILABLE') {
     return tr('Available');
   }

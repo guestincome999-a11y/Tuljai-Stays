@@ -1,4 +1,13 @@
-import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsUUID, Matches, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  Matches,
+  Min,
+} from 'class-validator';
 
 export class CreatePromoCodeDto {
   @Matches(/^[A-Z0-9_-]{3,32}$/u)

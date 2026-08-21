@@ -127,13 +127,7 @@ function HeaderSection({
   );
 }
 
-function CheckInCard({
-  booking,
-  onOpen,
-}: {
-  booking: OwnerBookingSummary;
-  onOpen: () => void;
-}) {
+function CheckInCard({ booking, onOpen }: { booking: OwnerBookingSummary; onOpen: () => void }) {
   return (
     <Card mode="outlined" style={styles.card}>
       <Card.Content style={styles.cardContent}>
@@ -156,13 +150,7 @@ function CheckInCard({
   );
 }
 
-function CheckOutCard({
-  onOpen,
-  register,
-}: {
-  onOpen: () => void;
-  register: GuestRegister;
-}) {
+function CheckOutCard({ onOpen, register }: { onOpen: () => void; register: GuestRegister }) {
   return (
     <Card mode="outlined" style={styles.card}>
       <Card.Content style={styles.cardContent}>

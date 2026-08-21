@@ -17,7 +17,12 @@ export class PaymentNotificationsService {
     await this.notificationsService.create({
       body: `Online payment of ₹${input.amount.toLocaleString('en-IN')} is ready. Complete payment to confirm booking ${input.bookingCode}.`,
       bookingId: input.bookingId,
-      data: { context: 'PAYMENT', operationallyImportant: true, paymentStatus: 'PENDING', orderId: input.orderId },
+      data: {
+        context: 'PAYMENT',
+        operationallyImportant: true,
+        paymentStatus: 'PENDING',
+        orderId: input.orderId,
+      },
       lodgeId: input.lodgeId,
       priority: 'NORMAL',
       recipientRole: 'PILGRIM',
@@ -39,7 +44,13 @@ export class PaymentNotificationsService {
     await this.notificationsService.create({
       body: `₹${input.amount.toLocaleString('en-IN')} paid successfully. Booking ${input.bookingCode} is confirmed and your room is reserved.`,
       bookingId: input.bookingId,
-      data: { context: 'PAYMENT', operationallyImportant: true, paymentStatus: 'PAID', paymentId: input.paymentId, roomId: input.roomId },
+      data: {
+        context: 'PAYMENT',
+        operationallyImportant: true,
+        paymentStatus: 'PAID',
+        paymentId: input.paymentId,
+        roomId: input.roomId,
+      },
       lodgeId: input.lodgeId,
       priority: 'HIGH',
       recipientRole: 'PILGRIM',
@@ -79,7 +90,12 @@ export class PaymentNotificationsService {
     await this.notificationsService.create({
       body: `Payment was received for ${input.bookingCode}, but the room could not be reserved. Support needs to resolve this payment.`,
       bookingId: input.bookingId,
-      data: { context: 'PAYMENT', operationallyImportant: true, paymentStatus: 'PAID_ROOM_UNAVAILABLE', paymentId: input.paymentId },
+      data: {
+        context: 'PAYMENT',
+        operationallyImportant: true,
+        paymentStatus: 'PAID_ROOM_UNAVAILABLE',
+        paymentId: input.paymentId,
+      },
       lodgeId: input.lodgeId,
       priority: 'CRITICAL',
       recipientRole: 'PILGRIM',

@@ -19,10 +19,7 @@ import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
 import type { ListNotificationsQueryDto } from './dto/notifications.dto';
 import { NotificationDeliveryService } from './notification-delivery.service';
-import {
-  resolveNotificationPriority,
-  shouldDeliverPush,
-} from './notification-policy';
+import { resolveNotificationPriority, shouldDeliverPush } from './notification-policy';
 
 export interface CreateNotificationInput {
   body: string;
@@ -77,10 +74,7 @@ export class NotificationsService {
         channel: input.channel ?? 'IN_APP',
         data: input.data as Prisma.InputJsonValue | undefined,
         lodgeId: input.lodgeId,
-        priority: resolveNotificationPriority(
-          input.type,
-          input.priority ?? 'NORMAL',
-        ),
+        priority: resolveNotificationPriority(input.type, input.priority ?? 'NORMAL'),
         recipientRole: input.recipientRole,
         recipientUserId: input.recipientUserId,
         title: input.title,
