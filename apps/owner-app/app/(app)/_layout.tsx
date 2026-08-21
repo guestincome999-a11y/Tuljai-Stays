@@ -57,17 +57,12 @@ export default function AppLayout() {
         <Tabs.Screen name="rooms" options={{ href: null, title: tr('Rooms & pricing') }} />
         <Tabs.Screen name="scan-history" options={{ href: null, title: tr('Scan History') }} />
         <Tabs.Screen name="register" options={{ href: null, title: tr('Guest Register') }} />
-        <Tabs.Screen
-          name="previous-bookings"
-          options={{ href: null, title: tr('Previous Bookings') }}
-        />
-        <Tabs.Screen
-          name="register-dashboard"
-          options={{ href: null, title: tr('Register Dashboard') }}
-        />
+        <Tabs.Screen name="previous-bookings" options={{ href: null, title: tr('Previous Bookings') }} />
+        <Tabs.Screen name="register-dashboard" options={{ href: null, title: tr('Register Dashboard') }} />
         <Tabs.Screen name="notifications" options={{ href: null, title: tr('Notifications') }} />
         <Tabs.Screen name="announcements" options={{ href: null, title: tr('Announcements') }} />
         <Tabs.Screen name="reports" options={{ href: null, title: tr('Reports') }} />
+        <Tabs.Screen name="reviews" options={{ href: null, title: tr('Guest Reviews') }} />
         <Tabs.Screen name="settings" options={{ href: null, title: tr('Settings') }} />
       </Tabs>
       <IncomingBookingAlertHost />
@@ -80,5 +75,6 @@ function getTabIcon(routeName: string): IconName {
   if (routeName === 'scan') return 'qrcode-scan';
   if (routeName === 'lodge') return 'home-city-outline';
   if (routeName === 'profile') return 'account-circle-outline';
+  if (routeName === 'reviews') return 'star-outline';
   return 'view-dashboard-outline';
 }
