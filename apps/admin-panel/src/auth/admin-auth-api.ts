@@ -40,6 +40,10 @@ export async function getAdminProfile(): Promise<AuthUserProfile> {
   return apiClient.get<AuthUserProfile>('/auth/me');
 }
 
+export async function getCurrentStaffRole(): Promise<{ role: string | null }> {
+  return apiClient.get<{ role: string | null }>('/admin/staff/me');
+}
+
 export async function logoutAdmin(input: LogoutRequest): Promise<{ success: true }> {
   return apiClient.post<{ success: true }>('/auth/logout', input);
 }
