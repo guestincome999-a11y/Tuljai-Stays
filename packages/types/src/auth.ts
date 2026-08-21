@@ -50,6 +50,7 @@ export interface VerifyOtpRequest {
 }
 
 export interface VerifyOtpResponse {
+  onboardingRequired?: boolean;
   session: UserSession;
   tokens: AuthTokens;
   user: AuthUserProfile;
@@ -85,6 +86,7 @@ export interface RegisterDeviceTokenRequest {
   deviceId: string;
   fcmToken: string;
   platform: DevicePlatform;
+  userId?: UUID;
 }
 
 export interface UserSession {
