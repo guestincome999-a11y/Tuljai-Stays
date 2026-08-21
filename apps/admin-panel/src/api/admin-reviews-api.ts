@@ -14,3 +14,6 @@ export async function moderateAdminReview(id: string, status: ReviewStatus): Pro
     method: 'PATCH',
   });
 }
+
+// Backward-compatible named export used by older admin review screens.
+export const moderateReview = moderateAdminReview;
