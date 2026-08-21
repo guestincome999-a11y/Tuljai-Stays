@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - backup/pr15-before-merge-repair
+      - feature/onboarding-feedback
   workflow_dispatch:
 
 permissions:
