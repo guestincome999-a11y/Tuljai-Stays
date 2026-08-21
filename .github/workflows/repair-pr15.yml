@@ -1,0 +1,64 @@
+name: Repair PR 15 merge and verify
+
+on:
+  push:
+    branches:
+      - backup/pr15-before-merge-repair
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout feature snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: backup/pr15-before-merge-repair
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch current main
+        run: git fetch origin main --prune
+
+      - name: Merge main into feature snapshot
+        run: |
+          git merge --no-edit -X ours origin/main -m "merge: synchronize feature branch with main"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema backend/prisma/schema.prisma
+
+      - name: Typecheck all workspaces
+        run: npm run typecheck
+
+      - name: Lint all workspaces
+        run: npm run lint
+
+      - name: Build all workspaces
+        run: npm run build
+
+      - name: Formatting check
+        run: npm run format:check
+
+      - name: Push verified merged branch to PR
+        run: git push origin HEAD:refs/heads/feature/onboarding-feedback
