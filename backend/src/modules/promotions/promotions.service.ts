@@ -7,7 +7,7 @@ import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreatePromoCodeDto, ValidatePromoCodeDto } from './dto/promotions.dto';
 
-interface PromoRow {
+export interface PromoRow {
   id: string;
   code: string;
   discount_type: 'FLAT' | 'PERCENTAGE';
