@@ -18,6 +18,7 @@ import {
   UpdateProfileDto,
   VerifyOtpDto,
 } from './dto/auth.dto';
+import { AdminTotpGuard } from './guards/admin-totp.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
@@ -32,6 +33,7 @@ export class AuthController {
     return this.authService.requestOtp(dto, this.getRequestContext(request));
   }
 
+  @UseGuards(AdminTotpGuard)
   @Post('verify-otp')
   public verifyOtp(
     @Body() dto: VerifyOtpDto,
