@@ -86,7 +86,6 @@ export interface RegisterDeviceTokenRequest {
   deviceId: string;
   fcmToken: string;
   platform: DevicePlatform;
-  userId?: UUID;
 }
 
 export interface UserSession {
