@@ -5,6 +5,8 @@ import { useState } from 'react';
 
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
 
+const IS_PRODUCTION_BUILD = process.env.NODE_ENV === 'production';
+
 export default function AdminLoginPage() {
   const auth = useAdminAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -20,7 +22,7 @@ export default function AdminLoginPage() {
     if (result.success) {
       setOtpRequested(true);
       setExpiresAt(result.expiresAt);
-      setTestingOtp(result.otpForTesting ?? null);
+      setTestingOtp(IS_PRODUCTION_BUILD ? null : result.otpForTesting ?? null);
     }
   }
 
@@ -82,7 +84,9 @@ export default function AdminLoginPage() {
             </p>
           ) : null}
 
-          {testingOtp ? <p className="dev-otp">Development OTP: {testingOtp}</p> : null}
+          {!IS_PRODUCTION_BUILD && testingOtp ? (
+            <p className="dev-otp">Development OTP: {testingOtp}</p>
+          ) : null}
 
           <button className="button button-primary" disabled={auth.isSubmitting} type="submit">
             {otpRequested ? 'Verify OTP' : 'Send OTP'}
