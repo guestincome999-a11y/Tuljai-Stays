@@ -2,9 +2,9 @@ import type { Review } from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
-import { listLodgeReviews } from '../api/reviews-api';
 import { AppScreen, EmptyState, Rating, ui } from '../../../pilgrim-ui/components';
 import { usePilgrimApp } from '../../../pilgrim-ui/PilgrimAppProvider';
+import { listLodgeReviews } from '../api/reviews-api';
 
 export function PilgrimReviewsScreen() {
   const { lodges, t } = usePilgrimApp();
