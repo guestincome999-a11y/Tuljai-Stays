@@ -47,6 +47,7 @@ interface RequestOtpResult {
 }
 
 const AdminAuthContext = createContext<AdminAuthState | null>(null);
+const ADMIN_PREVIEW_MODE = process.env.NEXT_PUBLIC_ADMIN_PREVIEW_MODE === 'true';
 
 export function AdminAuthProvider({ children }: PropsWithChildren) {
   const router = useRouter();
@@ -160,7 +161,7 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
       const result = await requestAdminOtp(phoneNumber);
       return {
         expiresAt: result.expiresAt,
-        otpForTesting: process.env.NODE_ENV === 'production' ? undefined : result.otpForTesting,
+        otpForTesting: ADMIN_PREVIEW_MODE ? result.otpForTesting : undefined,
         success: true,
       };
     } catch (error) {
