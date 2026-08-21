@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
@@ -24,21 +24,22 @@ export function verifyTotp(secret: string, code: string, now = Date.now()): bool
 export function encryptTotpSecret(secret: string, keyMaterial: string): string {
   const key = createHash('sha256').update(keyMaterial).digest();
   const iv = randomBytes(12);
-  const cipher = createHmac('sha256', key).update(Buffer.concat([iv, Buffer.from(secret)])).digest('hex');
-  return `${iv.toString('base64url')}.${Buffer.from(secret).toString('base64url')}.${cipher}`;
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString('base64url')}.${ciphertext.toString('base64url')}.${tag.toString('base64url')}`;
 }
 
 export function decryptTotpSecret(payload: string, keyMaterial: string): string {
-  const [ivText, secretText, mac] = payload.split('.');
-  if (!ivText || !secretText || !mac) throw new Error('Invalid encrypted TOTP secret');
+  const [ivText, ciphertextText, tagText] = payload.split('.');
+  if (!ivText || !ciphertextText || !tagText) throw new Error('Invalid encrypted TOTP secret');
   const key = createHash('sha256').update(keyMaterial).digest();
-  const iv = Buffer.from(ivText, 'base64url');
-  const secret = Buffer.from(secretText, 'base64url');
-  const expected = createHmac('sha256', key).update(Buffer.concat([iv, secret])).digest('hex');
-  if (expected.length !== mac.length || !createHash('sha256').update(expected).digest().equals(createHash('sha256').update(mac).digest())) {
-    throw new Error('Invalid encrypted TOTP secret');
-  }
-  return secret.toString('utf8');
+  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivText, 'base64url'));
+  decipher.setAuthTag(Buffer.from(tagText, 'base64url'));
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertextText, 'base64url')),
+    decipher.final(),
+  ]).toString('utf8');
 }
 
 function totp(secret: string, counter: number): string {
