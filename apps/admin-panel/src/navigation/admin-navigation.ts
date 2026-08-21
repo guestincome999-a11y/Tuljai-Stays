@@ -20,6 +20,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { href: '/admin/rooms', label: 'Rooms', permission: 'rooms.view', section: 'Operations', status: 'ready' },
   { href: '/admin/photos', label: 'Photo Review', permission: 'photos.review', section: 'Operations', status: 'ready' },
   { href: '/admin/finance', label: 'Finance', permission: 'finance.view', section: 'Operations', status: 'ready' },
+  { href: '/admin/promotions', label: 'Promo Codes', permission: 'finance.manage', section: 'Operations', status: 'ready' },
   { href: '/admin/feedback', label: 'Feedback', permission: 'lodges.view', section: 'Operations', status: 'ready' },
   { href: '/admin/reviews', label: 'Review Moderation', permission: 'reviews.manage', section: 'Operations', status: 'ready' },
   { href: '/admin/support', label: 'User Support', permission: 'support.view', section: 'Operations', status: 'ready' },
