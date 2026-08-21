@@ -21,6 +21,7 @@ export type AdminPermission =
   | 'rooms.view'
   | 'rooms.manage'
   | 'photos.review'
+  | 'reviews.manage'
   | 'announcements.manage'
   | 'settings.manage'
   | 'feature_flags.manage'
@@ -48,6 +49,7 @@ export const allAdminPermissions: AdminPermission[] = [
   'rooms.view',
   'rooms.manage',
   'photos.review',
+  'reviews.manage',
   'announcements.manage',
   'settings.manage',
   'feature_flags.manage',
@@ -75,6 +77,7 @@ const adminPermissions: AdminPermission[] = [
   'rooms.view',
   'rooms.manage',
   'photos.review',
+  'reviews.manage',
   'announcements.manage',
   'settings.manage',
   'feature_flags.manage',
