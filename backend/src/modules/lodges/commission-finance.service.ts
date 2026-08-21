@@ -8,8 +8,8 @@ import { Prisma } from '@prisma/client';
 import type {
   AuthenticatedUser,
   LodgeCommissionFinanceReport,
-  LodgeCommissionTransaction,
   LodgeCommissionSettlement,
+  LodgeCommissionTransaction,
 } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
@@ -39,8 +39,8 @@ export class LodgeCommissionFinanceService {
     const [lodgeRows, settingRows, transactionRows, settlementRows, summaryRows] =
       await Promise.all([
         this.prisma.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
-        SELECT id, name FROM lodges WHERE id = ${lodgeId}::uuid AND deleted_at IS NULL LIMIT 1
-      `),
+          SELECT id, name FROM lodges WHERE id = ${lodgeId}::uuid AND deleted_at IS NULL LIMIT 1
+        `),
         this.prisma.$queryRaw<
           Array<{
             commissionEnabled: boolean;
@@ -50,52 +50,59 @@ export class LodgeCommissionFinanceService {
             effectiveFrom: string;
           }>
         >(Prisma.sql`
-        SELECT
-          commission_enabled AS "commissionEnabled",
-          commission_fixed_amount::text AS "commissionFixedAmount",
-          commission_rate_percent::text AS "commissionRatePercent",
-          commission_type AS "commissionType",
-          effective_from::text AS "effectiveFrom"
-        FROM lodge_commission_settings
-        WHERE lodge_id = ${lodgeId}::uuid
-        LIMIT 1
-      `),
+          SELECT
+            commission_enabled AS "commissionEnabled",
+            commission_fixed_amount::text AS "commissionFixedAmount",
+            commission_rate_percent::text AS "commissionRatePercent",
+            commission_type AS "commissionType",
+            effective_from::text AS "effectiveFrom"
+          FROM lodge_commission_settings
+          WHERE lodge_id = ${lodgeId}::uuid
+          LIMIT 1
+        `),
         this.prisma.$queryRaw<LodgeCommissionTransaction[]>(Prisma.sql`
-        SELECT
-          l.id,
-          l.booking_id AS "bookingId",
-          b.booking_code AS "bookingCode",
-          COALESCE(b.total_amount, 0)::text AS "baseAmount",
-          l.commission_type AS "commissionType",
-          l.commission_rate_percent::text AS "commissionRatePercent",
-          l.commission_fixed_amount::text AS "commissionFixedAmount",
-          l.commission_amount::text AS "commissionAmount",
-          l.status,
-          l.eligible_at::text AS "eligibleAt",
-          l.settled_at::text AS "settledAt",
-          l.voided_at::text AS "voidedAt",
-          l.notes,
-          b.check_in_date::text AS "checkInDate",
-          b.check_out_date::text AS "checkOutDate"
-        FROM lodge_commission_ledger l
-        INNER JOIN bookings b ON b.id = l.booking_id
-        WHERE l.lodge_id = ${lodgeId}::uuid
-        ORDER BY l.created_at DESC
-      `),
+          SELECT
+            l.id,
+            l.booking_id AS "bookingId",
+            b.booking_code AS "bookingCode",
+            COALESCE(b.total_amount, 0)::text AS "baseAmount",
+            l.commission_type AS "commissionType",
+            l.commission_rate_percent::text AS "commissionRatePercent",
+            l.commission_fixed_amount::text AS "commissionFixedAmount",
+            l.commission_amount::text AS "commissionAmount",
+            COALESCE(a.allocated_amount, 0)::text AS "allocatedAmount",
+            GREATEST(l.commission_amount - COALESCE(a.allocated_amount, 0), 0)::text AS "outstandingAmount",
+            l.status,
+            l.eligible_at::text AS "eligibleAt",
+            l.settled_at::text AS "settledAt",
+            l.voided_at::text AS "voidedAt",
+            l.notes,
+            b.check_in_date::text AS "checkInDate",
+            b.check_out_date::text AS "checkOutDate"
+          FROM lodge_commission_ledger l
+          INNER JOIN bookings b ON b.id = l.booking_id
+          LEFT JOIN (
+            SELECT ledger_id, SUM(amount) AS allocated_amount
+            FROM lodge_commission_settlement_allocations
+            GROUP BY ledger_id
+          ) a ON a.ledger_id = l.id
+          WHERE l.lodge_id = ${lodgeId}::uuid
+          ORDER BY l.created_at DESC
+        `),
         this.prisma.$queryRaw<LodgeCommissionSettlement[]>(Prisma.sql`
-        SELECT
-          id,
-          amount::text AS amount,
-          payment_method AS "paymentMethod",
-          reference,
-          notes,
-          settled_by_user_id AS "settledByUserId",
-          settled_at::text AS "settledAt",
-          created_at::text AS "createdAt"
-        FROM lodge_commission_settlements
-        WHERE lodge_id = ${lodgeId}::uuid
-        ORDER BY settled_at DESC
-      `),
+          SELECT
+            id,
+            amount::text AS amount,
+            payment_method AS "paymentMethod",
+            reference,
+            notes,
+            settled_by_user_id AS "settledByUserId",
+            settled_at::text AS "settledAt",
+            created_at::text AS "createdAt"
+          FROM lodge_commission_settlements
+          WHERE lodge_id = ${lodgeId}::uuid
+          ORDER BY settled_at DESC
+        `),
         this.prisma.$queryRaw<
           Array<{
             bookingRevenue: string;
@@ -106,14 +113,28 @@ export class LodgeCommissionFinanceService {
             totalSettlements: string;
           }>
         >(Prisma.sql`
-        SELECT
-          COALESCE((SELECT SUM(total_amount) FROM bookings WHERE lodge_id = ${lodgeId}::uuid AND deleted_at IS NULL), 0)::text AS "bookingRevenue",
-          COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status <> 'VOIDED'), 0)::text AS "commissionReceivable",
-          COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status = 'OUTSTANDING'), 0)::text AS outstanding,
-          COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status = 'SETTLED'), 0)::text AS settled,
-          COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status = 'VOIDED'), 0)::text AS voided,
-          COALESCE((SELECT SUM(amount) FROM lodge_commission_settlements WHERE lodge_id = ${lodgeId}::uuid), 0)::text AS "totalSettlements"
-      `),
+          SELECT
+            COALESCE((SELECT SUM(total_amount) FROM bookings WHERE lodge_id = ${lodgeId}::uuid AND deleted_at IS NULL), 0)::text AS "bookingRevenue",
+            COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status <> 'VOIDED'), 0)::text AS "commissionReceivable",
+            COALESCE((
+              SELECT SUM(GREATEST(l.commission_amount - COALESCE(a.allocated_amount, 0), 0))
+              FROM lodge_commission_ledger l
+              LEFT JOIN (
+                SELECT ledger_id, SUM(amount) AS allocated_amount
+                FROM lodge_commission_settlement_allocations
+                GROUP BY ledger_id
+              ) a ON a.ledger_id = l.id
+              WHERE l.lodge_id = ${lodgeId}::uuid AND l.status <> 'VOIDED'
+            ), 0)::text AS outstanding,
+            COALESCE((
+              SELECT SUM(a.amount)
+              FROM lodge_commission_settlement_allocations a
+              INNER JOIN lodge_commission_ledger l ON l.id = a.ledger_id
+              WHERE l.lodge_id = ${lodgeId}::uuid AND l.status <> 'VOIDED'
+            ), 0)::text AS settled,
+            COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status = 'VOIDED'), 0)::text AS voided,
+            COALESCE((SELECT SUM(amount) FROM lodge_commission_settlements WHERE lodge_id = ${lodgeId}::uuid), 0)::text AS "totalSettlements"
+        `),
       ]);
 
     const lodge = lodgeRows[0];
