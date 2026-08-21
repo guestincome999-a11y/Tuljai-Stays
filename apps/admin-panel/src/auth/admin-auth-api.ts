@@ -36,12 +36,26 @@ export async function verifyAdminOtp(input: {
   return apiClient.post<VerifyOtpResponse>('/auth/verify-otp', body);
 }
 
-export async function getAdminProfile(): Promise<AuthUserProfile> {
-  return apiClient.get<AuthUserProfile>('/auth/me');
-}
-
 export async function getCurrentStaffRole(): Promise<{ role: string | null }> {
   return apiClient.get<{ role: string | null }>('/admin/staff/me');
+}
+
+export async function getAdminProfile(): Promise<AuthUserProfile> {
+  const profile = await apiClient.get<AuthUserProfile>('/auth/me');
+  try {
+    const staff = await getCurrentStaffRole();
+    if (staff.role) {
+      return {
+        ...profile,
+        // AdminAuthProvider intentionally consumes roles as a string list for permission lookup.
+        // The underlying AuthUserProfile contract remains unchanged for the shared apps.
+        roles: [...profile.roles, staff.role] as AuthUserProfile['roles'],
+      };
+    }
+  } catch {
+    // A legacy admin without a staff assignment remains a normal ADMIN/SUPER_ADMIN.
+  }
+  return profile;
 }
 
 export async function logoutAdmin(input: LogoutRequest): Promise<{ success: true }> {
