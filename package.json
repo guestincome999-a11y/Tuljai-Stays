@@ -16,7 +16,7 @@
     "build:admin": "npm --workspace @tuljai/admin-panel run build",
     "build:backend": "npm --workspace @tuljai/backend run build",
     "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build --workspace @tuljai/utils && npm run typecheck --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
     "postinstall": "patch-package",
