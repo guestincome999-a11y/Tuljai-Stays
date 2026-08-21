@@ -10,7 +10,8 @@
     "noEmit": false,
     "outDir": "dist",
     "paths": {
-      "@tuljai/types": ["../packages/types/src/index.ts"]
+      "@tuljai/types": ["../packages/types/src/index.ts"],
+      "@tuljai/utils": ["../packages/utils/src/index.ts"]
     },
     "rootDir": "..",
     "sourceMap": true
