@@ -3,7 +3,7 @@
 import type { Review, ReviewStatus } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
-import { listAdminReviews, moderateReview } from '../../../src/api/admin-reviews-api';
+import { listAdminReviews, moderateAdminReview } from '../../../src/api/admin-reviews-api';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 
 const statuses: ReviewStatus[] = ['PUBLISHED', 'HIDDEN', 'REJECTED'];
@@ -29,7 +29,7 @@ export default function ReviewModerationPage() {
 
   async function updateStatus(review: Review, status: ReviewStatus) {
     try {
-      const updated = await moderateReview(review.id, status);
+      const updated = await moderateAdminReview(review.id, status);
       setReviews((items) => items.map((item) => item.id === updated.id ? updated : item));
       setMessage('Review status updated.');
     } catch {
