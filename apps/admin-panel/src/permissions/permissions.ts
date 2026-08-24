@@ -74,6 +74,7 @@ const adminPermissions: AdminPermission[] = [
   'owners.manage',
   'bookings.view',
   'bookings.manage',
+  'bookings.override',
   'rooms.view',
   'rooms.manage',
   'photos.review',
