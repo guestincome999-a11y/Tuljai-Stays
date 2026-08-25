@@ -219,6 +219,36 @@ export function DashboardScreen() {
           />
         </Card.Content>
       </Card>
+
+      <View style={styles.actions}>
+        <Button
+          accessibilityHint="Opens the owner booking list."
+          accessibilityLabel="Open owner bookings"
+          icon="clipboard-list-outline"
+          mode="contained"
+          onPress={() => router.push('/(app)/bookings')}
+        >
+          {tr('View Bookings')}
+        </Button>
+        <Button
+          accessibilityHint="Opens arrivals, departures, and guest register summary."
+          accessibilityLabel="Open register dashboard"
+          icon="book-open-variant"
+          mode="contained-tonal"
+          onPress={() => router.push('/(app)/register-dashboard')}
+        >
+          {tr('Register Dashboard')}
+        </Button>
+        <Button
+          accessibilityHint="Opens room status and gallery management."
+          accessibilityLabel="Open room management"
+          icon="bed-outline"
+          mode="contained-tonal"
+          onPress={() => router.push('/(app)/rooms')}
+        >
+          {tr('Manage Rooms')}
+        </Button>
+      </View>
     </ScrollView>
   );
 }
@@ -318,6 +348,9 @@ function formatOwnerStatus(
 }
 
 const styles = StyleSheet.create({
+  actions: {
+    gap: spacing.md,
+  },
   badge: {
     alignItems: 'center',
     borderRadius: radius.full,
