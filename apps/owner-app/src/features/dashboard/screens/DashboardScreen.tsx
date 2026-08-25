@@ -145,6 +145,41 @@ export function DashboardScreen() {
         </Card.Content>
       </Card>
 
+      <Card mode="outlined" style={styles.card}>
+        <Card.Content style={styles.cardContent}>
+          <Text variant="titleMedium">{tr('Quick Actions')}</Text>
+          <View style={styles.actions}>
+            <Button
+              accessibilityHint="Opens the owner booking list."
+              accessibilityLabel="Open owner bookings"
+              icon="clipboard-list-outline"
+              mode="contained"
+              onPress={() => router.push('/(app)/bookings')}
+            >
+              {tr('View Bookings')}
+            </Button>
+            <Button
+              accessibilityHint="Opens arrivals, departures, and guest register summary."
+              accessibilityLabel="Open register dashboard"
+              icon="book-open-variant"
+              mode="contained-tonal"
+              onPress={() => router.push('/(app)/register-dashboard')}
+            >
+              {tr('Register Dashboard')}
+            </Button>
+            <Button
+              accessibilityHint="Opens room status and gallery management."
+              accessibilityLabel="Open room management"
+              icon="bed-outline"
+              mode="contained-tonal"
+              onPress={() => router.push('/(app)/rooms')}
+            >
+              {tr('Manage Rooms')}
+            </Button>
+          </View>
+        </Card.Content>
+      </Card>
+
       {assignedLodges.lodges.length > 1 ? (
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.cardContent}>
@@ -318,6 +353,11 @@ function formatOwnerStatus(
 }
 
 const styles = StyleSheet.create({
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
   badge: {
     alignItems: 'center',
     borderRadius: radius.full,

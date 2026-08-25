@@ -53,7 +53,6 @@ export default function AppLayout() {
         <Tabs.Screen name="lodge" options={{ title: tr('Lodge') }} />
         <Tabs.Screen name="profile" options={{ title: tr('Profile') }} />
         <Tabs.Screen name="bookings" options={{ href: null, title: tr('Bookings') }} />
-        <Tabs.Screen name="earnings" options={{ href: null, title: tr('Earnings') }} />
         <Tabs.Screen name="rooms" options={{ href: null, title: tr('Rooms & pricing') }} />
         <Tabs.Screen name="scan-history" options={{ href: null, title: tr('Scan History') }} />
         <Tabs.Screen name="register" options={{ href: null, title: tr('Guest Register') }} />
