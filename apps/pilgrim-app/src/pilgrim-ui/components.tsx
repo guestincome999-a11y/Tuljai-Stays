@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { palette } from '@tuljai/ui';
 import type { ComponentProps, ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -18,18 +19,20 @@ import { usePilgrimApp } from './PilgrimAppProvider';
 
 export type PilgrimIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
+// These values previously duplicated the shared @tuljai/ui palette by hand
+// (they matched exactly); now sourced directly so the two can't drift apart.
 export const ui = {
-  bell: '#C98B17',
-  canvas: '#FAF7F2',
-  danger: '#C0392B',
-  green: '#4A7C59',
-  ink: '#2B2320',
-  maroon: '#7A1F2B',
-  muted: '#817267',
-  saffron: '#E67E22',
-  saffronDeep: '#C96818',
-  success: '#4A7C59',
-  surface: '#FFFFFF',
+  bell: palette.bell[600],
+  canvas: palette.warm[50],
+  danger: palette.red[500],
+  green: palette.green[500],
+  ink: palette.warm[900],
+  maroon: palette.maroon[700],
+  muted: palette.warm[600],
+  saffron: palette.saffron[500],
+  saffronDeep: palette.saffron[600],
+  success: palette.green[500],
+  surface: palette.warm[0],
 } as const;
 
 export function AppScreen({
@@ -491,7 +494,7 @@ export function StatusBadge({ status }: { status: BookingStatus }) {
       : status === 'cancelled'
         ? ui.danger
         : status === 'pending'
-          ? '#884E13'
+          ? palette.bell[700]
           : ui.muted;
   return (
     <View
