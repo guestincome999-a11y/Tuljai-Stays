@@ -125,4 +125,60 @@ export const shadows = {
     shadowRadius: 12,
     elevation: 4,
   },
+  /** Subtle colored glow for primary CTAs. Use sparingly - one glowing
+   * element per view (a hero button or the single most important action). */
+  primaryGlow: {
+    shadowColor: palette.saffron[600],
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+} as const;
+
+/**
+ * Gradient tokens for the Phase 8 design system.
+ *
+ * Each gradient ships two equivalent representations from the same source
+ * stops so web and native stay visually identical:
+ *  - `colors`: ordered stop array for React Native `LinearGradient` (pair
+ *    with `start`/`end` props, typically `{x:0,y:0}` -> `{x:1,y:1}` for the
+ *    135deg-style diagonal look used here).
+ *  - `css`: ready-to-use `linear-gradient(...)` string for admin-panel CSS.
+ *
+ * Usage guidance (see Phase 8 design system): reserve gradients for primary
+ * actions, hero areas, selected states, and small accent moments. Do not
+ * apply gradients to ordinary cards, tables, or body surfaces.
+ */
+export const gradients = {
+  /** Primary buttons, primary CTAs, active tab indicator. */
+  primary: {
+    colors: [palette.saffron[400], palette.saffron[500], palette.saffron[600]],
+    css: `linear-gradient(135deg, ${palette.saffron[400]} 0%, ${palette.saffron[500]} 55%, ${palette.saffron[600]} 100%)`,
+  },
+  /** Hover/pressed state for primary buttons - one step lighter. */
+  primaryHover: {
+    colors: [palette.saffron[300], palette.saffron[400], palette.saffron[500]],
+    css: `linear-gradient(135deg, ${palette.saffron[300]} 0%, ${palette.saffron[400]} 55%, ${palette.saffron[500]} 100%)`,
+  },
+  /** Full-bleed hero banners / auth screens - deeper, richer saffron-to-maroon. */
+  hero: {
+    colors: [palette.saffron[600], palette.saffron[700], palette.maroon[700]],
+    css: `linear-gradient(135deg, ${palette.saffron[600]} 0%, ${palette.saffron[700]} 55%, ${palette.maroon[700]} 100%)`,
+  },
+  /** Low-opacity wash for glass-effect panels over a dark hero/sidebar. */
+  heroGlass: {
+    colors: ['rgba(230,126,34,0.18)', 'rgba(168,58,72,0.12)'],
+    css: 'linear-gradient(160deg, rgba(230,126,34,0.18) 0%, rgba(168,58,72,0.12) 100%)',
+  },
+  /** Small accent moments: badges, avatar rings, icon chips, brand mark. */
+  accent: {
+    colors: [palette.saffron[500], palette.maroon[600]],
+    css: `linear-gradient(135deg, ${palette.saffron[500]} 0%, ${palette.maroon[600]} 100%)`,
+  },
+  /** Selected/active list rows, chips, and nav items. Soft, not a full CTA. */
+  selected: {
+    colors: ['rgba(230,126,34,0.16)', 'rgba(230,126,34,0.06)'],
+    css: 'linear-gradient(135deg, rgba(230,126,34,0.16) 0%, rgba(230,126,34,0.06) 100%)',
+  },
 } as const;
