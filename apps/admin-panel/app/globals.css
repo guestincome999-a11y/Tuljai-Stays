@@ -1,16 +1,38 @@
 :root {
   color-scheme: light;
-  --color-background: #f5f6f4;
+  --color-background: #f7f5f2;
   --color-surface: #ffffff;
-  --color-surface-muted: #eef2ee;
-  --color-primary: #245b4f;
-  --color-primary-strong: #143b34;
-  --color-accent: #8a4b20;
-  --color-text: #151b18;
-  --color-muted: #5d6a64;
-  --color-outline: #d7ddd8;
+  --color-surface-muted: #f4eee6;
+  --color-surface-subtle: #faf7f2;
+
+  /* Brand: saffron-orange primary + maroon secondary accent.
+     Values mirror packages/ui/src/theme/tokens.ts (palette.saffron / palette.maroon)
+     so admin-panel stays visually identical to the mobile apps' shared theme. */
+  --color-primary: #e67e22; /* saffron-500 */
+  --color-primary-strong: #853f16; /* saffron-800, for text/backgrounds needing extra contrast */
+  --color-primary-soft: #fff7ed; /* saffron-50, subtle tints/washes */
+  --color-accent: #7a1f2b; /* maroon-700, secondary accent (eyebrows, small highlights) */
+
+  /* Success semantics are intentionally kept separate from the brand color above -
+     "online"/"healthy"/"confirmed" states should always read as green, regardless
+     of what the brand primary color is. */
+  --color-success-strong: #143b34;
+
+  --color-text: #1c1512;
+  --color-muted: #6a5f57;
+  --color-outline: #e4dcd2;
   --color-danger: #a1332a;
-  --shadow-soft: 0 18px 50px rgba(26, 38, 32, 0.08);
+  --shadow-soft: 0 18px 50px rgba(38, 26, 18, 0.08);
+
+  /* Gradient tokens - reserved for primary actions, hero areas, selected states,
+     and small accent moments. Do not use for ordinary panels/cards/tables. */
+  --gradient-primary: linear-gradient(135deg, #fb923c 0%, #e67e22 55%, #c96818 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #fdba74 0%, #fb923c 55%, #e67e22 100%);
+  --gradient-hero: linear-gradient(135deg, #c96818 0%, #a64f12 55%, #7a1f2b 100%);
+  --gradient-accent: linear-gradient(135deg, #e67e22 0%, #8e2938 100%);
+  --gradient-selected: linear-gradient(135deg, rgba(230, 126, 34, 0.14) 0%, rgba(230, 126, 34, 0.05) 100%);
+  --shadow-primary-glow: 0 10px 28px rgba(201, 104, 24, 0.32);
+
   --radius-sm: 8px;
   --radius-md: 12px;
   --space-xs: 6px;
@@ -25,7 +47,7 @@
 }
 
 *:focus-visible {
-  outline: 3px solid #d19b20;
+  outline: 3px solid #c96818;
   outline-offset: 3px;
 }
 
@@ -67,7 +89,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  box-shadow: 0 0 0 4px rgba(209, 155, 32, 0.22);
+  box-shadow: 0 0 0 4px rgba(230, 126, 34, 0.24);
 }
 
 code {
@@ -118,8 +140,8 @@ code {
 }
 
 .admin-sidebar {
-  background: #10251f;
-  color: #f7fbf8;
+  background: #2b1512;
+  color: #faf7f2;
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
@@ -134,9 +156,9 @@ code {
 
 .brand-mark {
   align-items: center;
-  background: #d6efe6;
+  background: var(--gradient-accent);
   border-radius: var(--radius-sm);
-  color: #10251f;
+  color: #ffffff;
   display: inline-flex;
   font-weight: 800;
   height: 44px;
@@ -164,7 +186,7 @@ p {
 }
 
 .admin-sidebar .brand-subtitle {
-  color: #bed1ca;
+  color: rgba(250, 247, 242, 0.62);
 }
 
 .nav-stack,
@@ -184,7 +206,7 @@ p {
 }
 
 .nav-section-title {
-  color: #9fb7ae;
+  color: rgba(250, 247, 242, 0.48);
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -195,16 +217,29 @@ p {
 .nav-link {
   align-items: center;
   border-radius: var(--radius-sm);
-  color: #e7f1ed;
+  color: #f4eee6;
   display: flex;
   justify-content: space-between;
   min-height: 42px;
   padding: 9px 10px;
+  transition: background 160ms ease;
 }
 
-.nav-link:hover,
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .nav-link-active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--gradient-selected);
+  background-color: rgba(251, 146, 60, 0.16);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-link {
+    transition: none;
+  }
 }
 
 .nav-pill,
@@ -283,7 +318,59 @@ p {
   display: flex;
   gap: var(--space-lg);
   justify-content: space-between;
+  overflow: hidden;
   padding: var(--space-xl);
+  position: relative;
+}
+
+.hero-panel::before {
+  background: var(--gradient-primary);
+  content: '';
+  height: 4px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+/* The primary hero on dashboard/lodges pages gets the full gradient treatment.
+   Every other .hero-panel keeps a plain surface with just the accent bar above -
+   most pages don't need a bold gradient, only the true "hero" ones do. */
+.hero-panel.command-hero {
+  background: var(--gradient-hero);
+  border-color: transparent;
+}
+
+.hero-panel.command-hero::before {
+  display: none;
+}
+
+.hero-panel.command-hero .eyebrow {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.hero-panel.command-hero h2 {
+  color: #ffffff;
+}
+
+.hero-panel.command-hero p:not(.eyebrow) {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.hero-panel.command-hero .button-primary {
+  background: #ffffff;
+  color: var(--color-primary-strong);
+}
+
+.hero-panel.command-hero .button-primary:hover:not(:disabled) {
+  background: #fff7ed;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.hero-panel.command-hero .live-pill:not(.live-pill-on) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
 }
 
 .panel,
@@ -333,7 +420,7 @@ p {
 .status-card {
   align-items: center;
   background: #e5f4ef;
-  color: var(--color-primary-strong);
+  color: var(--color-success-strong);
   display: inline-flex;
   gap: var(--space-xs);
   padding: 8px 12px;
@@ -363,7 +450,7 @@ p {
 .live-pill-on {
   background: #e5f4ef;
   border-color: #b8dfd0;
-  color: var(--color-primary-strong);
+  color: var(--color-success-strong);
 }
 
 .emergency-banner {
@@ -418,6 +505,28 @@ p {
   min-height: 132px;
   padding: var(--space-md);
   text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.kpi-card:hover {
+  border-color: rgba(230, 126, 34, 0.35);
+  box-shadow:
+    var(--shadow-soft),
+    0 0 0 1px rgba(230, 126, 34, 0.12) inset;
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-card {
+    transition: none;
+  }
+
+  .kpi-card:hover {
+    transform: none;
+  }
 }
 
 .kpi-card strong {
@@ -605,8 +714,8 @@ p {
 
 .map-foundation {
   background:
-    linear-gradient(90deg, rgba(36, 91, 79, 0.08) 1px, transparent 1px),
-    linear-gradient(rgba(36, 91, 79, 0.08) 1px, transparent 1px), #f8fbf8;
+    linear-gradient(90deg, rgba(230, 126, 34, 0.07) 1px, transparent 1px),
+    linear-gradient(rgba(230, 126, 34, 0.07) 1px, transparent 1px), #faf7f2;
   background-size: 36px 36px;
   border: 1px solid var(--color-outline);
   border-radius: var(--radius-md);
@@ -688,9 +797,33 @@ p {
 }
 
 .button-primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--gradient-primary);
+  border-color: transparent;
   color: #ffffff;
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    filter 160ms ease;
+}
+
+.button-primary:hover:not(:disabled) {
+  box-shadow: var(--shadow-primary-glow);
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.button-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-primary {
+    transition: none;
+  }
+
+  .button-primary:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
 .button-secondary,
@@ -745,7 +878,7 @@ p {
 .success-banner {
   align-items: center;
   background: #e5f4ef;
-  color: var(--color-primary-strong);
+  color: var(--color-success-strong);
   display: flex;
   justify-content: space-between;
 }
@@ -826,7 +959,7 @@ p {
 
 .import-step-number {
   align-items: center;
-  background: var(--color-primary);
+  background: var(--gradient-accent);
   border-radius: 999px;
   color: #ffffff;
   display: inline-flex;
@@ -958,7 +1091,7 @@ p {
 }
 
 .timeline-dot {
-  background: var(--color-primary);
+  background: var(--gradient-accent);
   border-radius: 999px;
   height: 12px;
   margin-top: 5px;
@@ -1094,7 +1227,7 @@ p {
 .health-healthy,
 .severity-info {
   background: #e5f4ef;
-  color: var(--color-primary-strong);
+  color: var(--color-success-strong);
 }
 
 .health-warning,
