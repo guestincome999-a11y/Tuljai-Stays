@@ -211,9 +211,9 @@ export default function AdminLoginPage() {
       <style jsx global>{`
         .auth-shell-premium {
           background:
-            radial-gradient(circle at 12% 18%, rgba(63, 138, 119, 0.24), transparent 32%),
-            radial-gradient(circle at 88% 82%, rgba(209, 155, 32, 0.2), transparent 30%),
-            linear-gradient(135deg, #071b16 0%, #103c32 48%, #173e36 100%);
+            radial-gradient(circle at 12% 18%, rgba(230, 126, 34, 0.26), transparent 32%),
+            radial-gradient(circle at 88% 82%, rgba(142, 41, 56, 0.24), transparent 30%),
+            linear-gradient(135deg, #1d1210 0%, #3a1c14 48%, #2b1512 100%);
           overflow: hidden;
           position: relative;
         }
@@ -225,14 +225,14 @@ export default function AdminLoginPage() {
           position: absolute;
         }
         .auth-orb-one {
-          background: linear-gradient(135deg, #62d5b4, #d19b20);
+          background: linear-gradient(135deg, #fb923c, #8e2938);
           height: 260px;
           right: -90px;
           top: -90px;
           width: 260px;
         }
         .auth-orb-two {
-          background: linear-gradient(135deg, #d19b20, #4fb596);
+          background: linear-gradient(135deg, #a64f12, #e67e22);
           bottom: -120px;
           height: 300px;
           left: -110px;
@@ -256,9 +256,9 @@ export default function AdminLoginPage() {
         }
         .auth-brand-mark {
           align-items: center;
-          background: linear-gradient(135deg, #143b34, #3d8f79);
+          background: linear-gradient(135deg, #e67e22, #8e2938);
           border-radius: 14px;
-          box-shadow: 0 10px 25px rgba(20, 59, 52, 0.25);
+          box-shadow: 0 10px 25px rgba(201, 104, 24, 0.28);
           color: #fff;
           display: flex;
           font-size: 0.85rem;
@@ -269,7 +269,7 @@ export default function AdminLoginPage() {
           width: 46px;
         }
         .auth-secure-label {
-          color: #708078;
+          color: #7d7168;
           display: block;
           font-size: 0.74rem;
           font-weight: 700;
@@ -285,10 +285,10 @@ export default function AdminLoginPage() {
         }
         .auth-security-strip {
           align-items: center;
-          background: linear-gradient(90deg, rgba(36, 91, 79, 0.09), rgba(209, 155, 32, 0.08));
-          border: 1px solid rgba(36, 91, 79, 0.12);
+          background: linear-gradient(90deg, rgba(230, 126, 34, 0.1), rgba(142, 41, 56, 0.08));
+          border: 1px solid rgba(230, 126, 34, 0.16);
           border-radius: 14px;
-          color: #39534b;
+          color: #853f16;
           display: flex;
           font-size: 0.8rem;
           font-weight: 700;
@@ -310,18 +310,18 @@ export default function AdminLoginPage() {
           gap: 7px;
         }
         .auth-field span {
-          color: #263a34;
+          color: #2a201b;
           font-size: 0.84rem;
           font-weight: 850;
         }
         .auth-field small {
-          color: #718079;
+          color: #7d7168;
           font-size: 0.72rem;
           font-weight: 650;
         }
         .auth-field input {
-          background: #fbfdfc;
-          border: 1px solid #d5dfda;
+          background: #fdfbf9;
+          border: 1px solid #e4dcd2;
           border-radius: 13px;
           min-height: 50px;
           outline: none;
@@ -330,16 +330,16 @@ export default function AdminLoginPage() {
           width: 100%;
         }
         .auth-field input:focus {
-          border-color: #3c8c77;
-          box-shadow: 0 0 0 4px rgba(60, 140, 119, 0.13);
+          border-color: #e67e22;
+          box-shadow: 0 0 0 4px rgba(230, 126, 34, 0.15);
           transform: translateY(-1px);
         }
         .dev-otp-card {
-          background: linear-gradient(135deg, #0e3028 0%, #1c5a49 100%);
-          border: 1px solid rgba(209, 155, 32, 0.45);
+          background: linear-gradient(135deg, #2b1512 0%, #5a2a1c 100%);
+          border: 1px solid rgba(217, 166, 46, 0.45);
           border-radius: 18px;
-          box-shadow: 0 16px 35px rgba(13, 48, 40, 0.2);
-          color: #effaf6;
+          box-shadow: 0 16px 35px rgba(28, 15, 11, 0.24);
+          color: #f7ede4;
           padding: 16px;
         }
         .dev-otp-header,
@@ -364,12 +364,12 @@ export default function AdminLoginPage() {
           padding: 5px 8px;
         }
         .dev-otp-badge {
-          background: rgba(209, 155, 32, 0.18);
+          background: rgba(217, 166, 46, 0.22);
           color: #ffe4a1;
         }
         .dev-otp-live {
           background: rgba(255, 255, 255, 0.1);
-          color: #bfe9da;
+          color: #f0ddc9;
         }
         .dev-otp-code-row {
           background: rgba(255, 255, 255, 0.08);
@@ -400,21 +400,21 @@ export default function AdminLoginPage() {
           background: rgba(255, 255, 255, 0.2);
         }
         .dev-otp-card p {
-          color: #bfe1d6;
+          color: #e9d9c9;
           font-size: 0.72rem;
           line-height: 1.45;
           margin-top: 10px;
         }
         .auth-submit {
-          background: linear-gradient(135deg, #143b34, #2e8069) !important;
+          background: linear-gradient(135deg, #e67e22, #a64f12) !important;
           border: 0 !important;
           border-radius: 13px !important;
-          box-shadow: 0 12px 25px rgba(20, 59, 52, 0.22);
+          box-shadow: 0 12px 25px rgba(201, 104, 24, 0.28);
           min-height: 52px;
           transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
         }
         .auth-submit:hover:not(:disabled) {
-          box-shadow: 0 16px 30px rgba(20, 59, 52, 0.28);
+          box-shadow: 0 16px 30px rgba(201, 104, 24, 0.34);
           transform: translateY(-1px);
         }
         .auth-submit:disabled {
@@ -422,13 +422,13 @@ export default function AdminLoginPage() {
           opacity: 0.7;
         }
         .auth-expiry {
-          color: #687770;
+          color: #77685e;
           font-size: 0.75rem;
         }
         .auth-back-button {
           background: transparent;
           border: 0;
-          color: #3d695c;
+          color: #a64f12;
           cursor: pointer;
           font-size: 0.78rem;
           font-weight: 800;
@@ -438,7 +438,7 @@ export default function AdminLoginPage() {
           text-decoration: underline;
         }
         .auth-footer {
-          color: #87938e;
+          color: #8a7d72;
           font-size: 0.7rem;
           margin-top: 24px;
           text-align: center;
