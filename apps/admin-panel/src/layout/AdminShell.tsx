@@ -82,42 +82,42 @@ export function AdminShell({ children }: PropsWithChildren) {
           .admin-command-shell { min-height: 100vh; }
           .admin-command-shell .admin-sidebar { overflow-y: auto; scrollbar-width: thin; }
           .brand-copy { min-width: 0; }
-          .sidebar-status { align-items: center; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.09); border-radius: 12px; color: #d9ece6; display: flex; font-size: .68rem; font-weight: 800; gap: 8px; margin: 2px 14px 12px; padding: 9px 10px; }
-          .status-dot { background: #43c795; border-radius: 50%; box-shadow: 0 0 0 4px rgba(67,199,149,.1); display: inline-block; height: 7px; width: 7px; }
-          .status-location { color: rgba(217,236,230,.58); margin-left: auto; }
+          .sidebar-status { align-items: center; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; color: #f4eee6; display: flex; font-size: .68rem; font-weight: 800; gap: 8px; margin: 2px 14px 12px; padding: 9px 10px; }
+          .status-dot { background: #43c795; border-radius: 50%; box-shadow: 0 0 0 4px rgba(67,199,149,.12); display: inline-block; height: 7px; width: 7px; }
+          .status-location { color: rgba(250,247,242,.55); margin-left: auto; }
           .nav-link-leading { align-items: center; display: flex; gap: 10px; min-width: 0; }
-          .nav-icon-wrap { align-items: center; background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.07); border-radius: 9px; display: inline-flex; flex: 0 0 30px; height: 30px; justify-content: center; transition: transform 180ms ease, background 180ms ease; }
+          .nav-icon-wrap { align-items: center; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.07); border-radius: 9px; display: inline-flex; flex: 0 0 30px; height: 30px; justify-content: center; transition: transform 180ms ease, background 180ms ease; }
           .admin-nav-icon { display: block; }
-          .nav-link:hover .nav-icon-wrap, .nav-link-active .nav-icon-wrap { background: linear-gradient(135deg, rgba(243,196,109,.2), rgba(111,75,139,.22)); transform: scale(1.06); }
+          .nav-link:hover .nav-icon-wrap, .nav-link-active .nav-icon-wrap { background: linear-gradient(135deg, rgba(251,146,60,.28), rgba(142,41,56,.24)); transform: scale(1.06); }
           .nav-link { animation: admin-nav-in 360ms ease both; }
           .nav-section:nth-child(2) .nav-link { animation-delay: 25ms; }
           .nav-section:nth-child(3) .nav-link { animation-delay: 50ms; }
-          .sidebar-footer-card { align-items: center; background: linear-gradient(135deg, rgba(255,255,255,.1), rgba(111,75,139,.1)); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; display: flex; gap: 10px; margin: 14px; padding: 11px; }
-          .sidebar-footer-icon { align-items: center; background: rgba(255,255,255,.1); border-radius: 9px; color: #f3d7a2; display: flex; height: 32px; justify-content: center; width: 32px; }
+          .sidebar-footer-card { align-items: center; background: linear-gradient(135deg, rgba(230,126,34,.16), rgba(142,41,56,.14)); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; display: flex; gap: 10px; margin: 14px; padding: 11px; }
+          .sidebar-footer-icon { align-items: center; background: rgba(255,255,255,.12); border-radius: 9px; color: #fdba74; display: flex; height: 32px; justify-content: center; width: 32px; }
           .sidebar-footer-card strong, .sidebar-footer-card span { display: block; }
-          .sidebar-footer-card strong { color: #f3f8f6; font-size: .73rem; }
-          .sidebar-footer-card span { color: rgba(217,236,230,.58); font-size: .62rem; margin-top: 2px; }
+          .sidebar-footer-card strong { color: #faf7f2; font-size: .73rem; }
+          .sidebar-footer-card span { color: rgba(250,247,242,.58); font-size: .62rem; margin-top: 2px; }
           .admin-topbar-premium { align-items: center; }
           .topbar-title-group { align-items: center; display: flex; gap: 12px; min-width: 0; }
           .topbar-title-group h1 { animation: admin-title-in 320ms ease both; }
-          .breadcrumb b { color: #a7b2ad; margin: 0 5px; }
-          .icon-control { align-items: center; background: rgba(255,255,255,.65); border: 1px solid rgba(36,91,79,.11); border-radius: 11px; color: #31584e; display: inline-flex; height: 40px; justify-content: center; position: relative; transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease; width: 40px; }
-          .icon-control:hover { background: #fff; box-shadow: 0 10px 25px rgba(25,37,32,.1); transform: translateY(-2px); }
-          .notification-dot { background: #d08a3c; border: 2px solid #fff; border-radius: 50%; height: 8px; position: absolute; right: 8px; top: 7px; width: 8px; }
+          .breadcrumb b { color: #b0a89f; margin: 0 5px; }
+          .icon-control { align-items: center; background: rgba(255,255,255,.7); border: 1px solid rgba(230,126,34,.14); border-radius: 11px; color: #853f16; display: inline-flex; height: 40px; justify-content: center; position: relative; transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease; width: 40px; }
+          .icon-control:hover { background: #fff; box-shadow: 0 10px 25px rgba(38,26,18,.1); transform: translateY(-2px); }
+          .notification-dot { background: #c96818; border: 2px solid #fff; border-radius: 50%; height: 8px; position: absolute; right: 8px; top: 7px; width: 8px; }
           .user-menu { align-items: center; display: flex; gap: 8px; }
-          .user-avatar { align-items: center; background: linear-gradient(135deg,#245b4f,#76538d); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 7px 18px rgba(36,91,79,.2); color: #fff; display: inline-flex; font-size: .72rem; font-weight: 900; height: 35px; justify-content: center; width: 35px; }
-          .user-menu-name { color: #25443c; font-size: .76rem; font-weight: 850; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .user-avatar { align-items: center; background: linear-gradient(135deg,#e67e22,#8e2938); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 7px 18px rgba(201,104,24,.25); color: #fff; display: inline-flex; font-size: .72rem; font-weight: 900; height: 35px; justify-content: center; width: 35px; }
+          .user-menu-name { color: #3a2c24; font-size: .76rem; font-weight: 850; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .mobile-menu-button, .sidebar-close { display: none; }
-          .sidebar-backdrop { background: rgba(5,20,16,.4); border: 0; inset: 0; position: fixed; z-index: 4; }
+          .sidebar-backdrop { background: rgba(20,10,8,.45); border: 0; inset: 0; position: fixed; z-index: 4; }
           @keyframes admin-nav-in { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
           @keyframes admin-title-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
           @media (max-width: 900px) {
-            .admin-sidebar { box-shadow: 20px 0 60px rgba(5,20,16,.25); left: 0; position: fixed; transform: translateX(-102%); transition: transform 220ms ease; width: 280px; z-index: 6; }
+            .admin-sidebar { box-shadow: 20px 0 60px rgba(20,10,8,.25); left: 0; position: fixed; transform: translateX(-102%); transition: transform 220ms ease; width: 280px; z-index: 6; }
             .admin-sidebar.admin-sidebar-open { transform: translateX(0); }
             .sidebar-close, .mobile-menu-button { align-items: center; background: transparent; border: 0; display: inline-flex; justify-content: center; }
-            .sidebar-close { color: #d9ece6; font-size: 1.5rem; height: 34px; margin-left: auto; width: 34px; }
+            .sidebar-close { color: #faf7f2; font-size: 1.5rem; height: 34px; margin-left: auto; width: 34px; }
             .mobile-menu-button { flex-direction: column; gap: 4px; height: 38px; width: 38px; }
-            .mobile-menu-button span { background: #31584e; border-radius: 2px; height: 2px; width: 18px; }
+            .mobile-menu-button span { background: #3a2c24; border-radius: 2px; height: 2px; width: 18px; }
             .user-menu-name, .topbar-logout { display: none; }
             .admin-topbar { gap: 8px; padding-left: 12px; padding-right: 12px; }
           }
