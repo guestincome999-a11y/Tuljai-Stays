@@ -1,5 +1,5 @@
 import type { Announcement, AnnouncementCategory } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState, palette, radius, spacing } from '@tuljai/ui';
 import { useLocalSearchParams } from 'expo-router';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   focusedCard: {
-    borderColor: '#F97316',
+    borderColor: palette.saffron[500],
     borderWidth: 2,
   },
   header: {
