@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { spacing } from '@tuljai/ui';
+import { palette, spacing } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     paddingVertical: pilgrimSpacing.xl,
   },
   heroCopy: { flex: 1, gap: pilgrimSpacing.sm },
-  heroDescription: { color: '#FFE8DA', lineHeight: 21 },
+  heroDescription: { color: palette.saffron[100], lineHeight: 21 },
   heroLabel: { alignItems: 'center', flexDirection: 'row', gap: pilgrimSpacing.sm },
   heroTemple: {
     alignItems: 'center',
