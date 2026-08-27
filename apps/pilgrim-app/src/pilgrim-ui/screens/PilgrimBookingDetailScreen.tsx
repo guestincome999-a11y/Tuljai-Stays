@@ -1,6 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
@@ -103,11 +111,9 @@ export function PilgrimBookingDetailScreen() {
       />
 
       {params.justBooked === '1' ? (
-        <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-6">
-          <View className="h-16 w-16 items-center justify-center rounded-full bg-templeGreen-500">
-            <MaterialCommunityIcons color="#FFFFFF" name="check" size={35} />
-          </View>
-          <Text className="mt-4 text-center text-2xl font-extrabold text-templeGreen-700">
+        <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-7">
+          <BookingSuccessCheck />
+          <Text className="mt-5 text-center text-2xl font-extrabold text-templeGreen-700">
             {t('Your stay is booked!', 'तुमचा निवास बुक झाला!')}
           </Text>
           <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
@@ -116,6 +122,30 @@ export function PilgrimBookingDetailScreen() {
               'तुमच्या मोबाइल क्रमांकावर पुष्टीकरण पाठवले आहे.',
             )}
           </Text>
+          <View className="mt-5 w-full flex-row gap-3">
+            <Pressable
+              accessibilityRole="button"
+              className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
+              onPress={() =>
+                router.push({ pathname: '/(app)/pass', params: { bookingId: booking.id } })
+              }
+            >
+              <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={20} />
+              <Text className="text-sm font-extrabold text-white">
+                {t('Get Pass', 'पास मिळवा')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-templeGreen-200 bg-white active:bg-templeGreen-100"
+              onPress={() => void openDirections(lodge?.name ?? booking.lodgeName, t)}
+            >
+              <MaterialCommunityIcons color={ui.maroon} name="map-marker-outline" size={20} />
+              <Text className="text-sm font-extrabold text-maroon-700">
+                {t('Location', 'ठिकाण')}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
@@ -129,19 +159,6 @@ export function PilgrimBookingDetailScreen() {
               {lodge?.location ?? t('Tuljapur', 'तुळजापूर')}
             </Text>
           </View>
-          {lodge ? (
-            <Pressable
-              className="min-h-12 flex-row items-center justify-center gap-2 rounded-2xl bg-warm-100"
-              onPress={() =>
-                router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
-              }
-            >
-              <MaterialCommunityIcons color={ui.maroon} name="home-search-outline" size={20} />
-              <Text className="text-sm font-extrabold text-maroon-700">
-                {t('View lodge', 'लॉज पहा')}
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
       </View>
 
@@ -292,6 +309,42 @@ export function PilgrimBookingDetailScreen() {
         {t('Explore more stays', 'आणखी निवास पहा')}
       </PrimaryButton>
     </AppScreen>
+  );
+}
+
+function BookingSuccessCheck() {
+  const scale = useSharedValue(0);
+  const ringScale = useSharedValue(0.7);
+  const ringOpacity = useSharedValue(0.5);
+
+  useEffect(() => {
+    scale.value = withSpring(1, { damping: 8, mass: 0.6, stiffness: 140 });
+    ringScale.value = withDelay(120, withTiming(1.8, { duration: 850 }));
+    ringOpacity.value = withDelay(120, withTiming(0, { duration: 850 }));
+  }, [ringOpacity, ringScale, scale]);
+
+  const circleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: ringOpacity.value,
+    transform: [{ scale: ringScale.value }],
+  }));
+
+  return (
+    <View className="h-28 w-28 items-center justify-center">
+      <Animated.View
+        className="absolute h-28 w-28 rounded-full bg-templeGreen-500"
+        pointerEvents="none"
+        style={ringStyle}
+      />
+      <Animated.View
+        className="h-28 w-28 items-center justify-center rounded-full bg-templeGreen-500 shadow-lg shadow-black/20"
+        style={circleStyle}
+      >
+        <MaterialCommunityIcons color="#FFFFFF" name="check-bold" size={56} />
+      </Animated.View>
+    </View>
   );
 }
 
