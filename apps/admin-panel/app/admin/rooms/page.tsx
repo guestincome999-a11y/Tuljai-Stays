@@ -2,9 +2,11 @@
 
 import type { Lodge, Room, RoomStatus, RoomType } from '@tuljai/types';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import {
+  createGovernanceRoom,
+  createGovernanceRoomType,
   listGovernanceLodges,
   listGovernanceRooms,
   listGovernanceRoomTypes,
@@ -29,6 +31,8 @@ export default function AdminRoomsPage() {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [addRoomTypeFormVisible, setAddRoomTypeFormVisible] = useState(false);
+  const [isCreatingRoomType, setIsCreatingRoomType] = useState(false);
   const summary = summarizeRooms(rooms);
 
   const loadLodges = useCallback(async () => {
@@ -79,6 +83,72 @@ export default function AdminRoomsPage() {
     }
   }
 
+  async function submitRoomType(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedLodgeId) {
+      setErrorMessage('Select a lodge before adding a room type.');
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsCreatingRoomType(true);
+
+    const form = new FormData(event.currentTarget);
+    const text = (name: string) => {
+      const value = form.get(name);
+      return typeof value === 'string' ? value.trim() : '';
+    };
+    const optionalText = (name: string) => text(name) || undefined;
+    const optionalNumber = (name: string) => {
+      const value = text(name);
+      return value ? Number(value) : undefined;
+    };
+
+    const name = text('name');
+    const slug = text('slug') || slugify(name);
+    const totalRooms = Number(text('totalRooms') || '0');
+    const startingRoomNumber = optionalText('startingRoomNumber');
+    const floor = optionalText('floor');
+
+    try {
+      const roomType = await createGovernanceRoomType(selectedLodgeId, {
+        basePrice: Number(text('basePrice') || '0'),
+        capacityAdults: Number(text('capacityAdults') || '1'),
+        capacityChildren: Number(text('capacityChildren') || '0'),
+        description: optionalText('description'),
+        festivalPrice: optionalNumber('festivalPrice'),
+        name,
+        slug,
+        totalRooms,
+      });
+
+      let roomsCreated = 0;
+      for (let index = 0; index < totalRooms; index += 1) {
+        const roomNumber = startingRoomNumber
+          ? String(Number(startingRoomNumber) + index)
+          : `${slug}-${index + 1}`;
+        await createGovernanceRoom(roomType.id, { floor, roomNumber });
+        roomsCreated += 1;
+      }
+
+      await loadRooms();
+      setSuccessMessage(
+        roomsCreated > 0
+          ? `Room type "${roomType.name}" added with ${roomsCreated} room(s).`
+          : `Room type "${roomType.name}" added.`,
+      );
+      setAddRoomTypeFormVisible(false);
+      event.currentTarget.reset();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'The room type could not be created.',
+      );
+    } finally {
+      setIsCreatingRoomType(false);
+    }
+  }
+
   return (
     <PermissionGate permission="rooms.view">
       <div className="page-stack">
@@ -121,7 +191,101 @@ export default function AdminRoomsPage() {
               </select>
             </label>
           </div>
+          {canManage ? (
+            <div className="row-actions">
+              <button
+                className="button button-primary"
+                type="button"
+                disabled={!selectedLodgeId}
+                onClick={() => setAddRoomTypeFormVisible((current) => !current)}
+              >
+                {addRoomTypeFormVisible ? 'Close' : 'Add Room Type'}
+              </button>
+            </div>
+          ) : null}
         </section>
+
+        {canManage && addRoomTypeFormVisible ? (
+          <form className="panel form-stack" onSubmit={(event) => void submitRoomType(event)}>
+            <h3>Add room type</h3>
+            <p className="muted-copy">
+              Create a room type for the selected lodge, then generate its rooms in one step.
+            </p>
+            <div className="control-grid">
+              <Field label="Room type name" name="name" placeholder="Deluxe AC Room" required />
+              <Field
+                label="Slug (optional, auto-generated)"
+                name="slug"
+                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                placeholder="deluxe-ac-room"
+                title="Use lowercase letters, numbers, and hyphens."
+              />
+              <Field
+                label="Base price (₹ per night)"
+                name="basePrice"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+              />
+              <Field
+                label="Festival price (₹, optional)"
+                name="festivalPrice"
+                type="number"
+                min="0"
+                step="0.01"
+              />
+              <Field
+                label="Adult capacity"
+                name="capacityAdults"
+                type="number"
+                min="1"
+                defaultValue="2"
+                required
+              />
+              <Field
+                label="Children capacity"
+                name="capacityChildren"
+                type="number"
+                min="0"
+                defaultValue="0"
+                required
+              />
+              <Field
+                label="Number of rooms of this type"
+                name="totalRooms"
+                type="number"
+                min="1"
+                defaultValue="1"
+                required
+              />
+              <Field
+                label="Starting room number (optional)"
+                name="startingRoomNumber"
+                type="number"
+                min="1"
+                placeholder="e.g. 101"
+              />
+              <Field label="Floor (optional, applies to all)" name="floor" placeholder="1" />
+            </div>
+            <label className="form-field">
+              <span>Description (optional)</span>
+              <textarea name="description" rows={3} />
+            </label>
+            <div className="row-actions">
+              <button className="button button-primary" disabled={isCreatingRoomType} type="submit">
+                {isCreatingRoomType ? 'Creating…' : 'Create Room Type & Rooms'}
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => setAddRoomTypeFormVisible(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
 
         <section className="table-panel">
           <div className="admin-table governance-room-table">
@@ -182,4 +346,24 @@ function MetricCard({ label, value }: { label: string; value: number }) {
       </div>
     </div>
   );
+}
+
+function Field({
+  label,
+  ...inputProps
+}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label>
+      <span>{label}</span>
+      <input {...inputProps} />
+    </label>
+  );
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
