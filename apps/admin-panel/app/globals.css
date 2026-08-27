@@ -916,10 +916,34 @@ p {
   grid-template-columns: 1fr 1fr 1fr 1fr 1.4fr;
 }
 
+.table-panel {
+  /* .admin-table below enforces a 980px minimum so data columns stay
+     legible - without this, that minimum blew out the whole page's width
+     on any viewport under ~980px (i.e. every phone and most tablets),
+     producing horizontal page scroll instead of a contained table scroll. */
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+}
+
 .admin-table {
   display: grid;
   gap: var(--space-xs);
   min-width: 980px;
+}
+
+@media (max-width: 900px) {
+  /* A visible scrollbar-adjacent cue that there's more table to the right,
+     since touch devices often hide scrollbars entirely. */
+  .table-panel {
+    background:
+      linear-gradient(to right, var(--color-surface) 30%, transparent),
+      linear-gradient(to right, transparent, var(--color-surface) 70%) right,
+      linear-gradient(to right, rgba(38, 26, 18, 0.12), transparent) left,
+      linear-gradient(to right, transparent, rgba(38, 26, 18, 0.12)) right;
+    background-attachment: local, local, scroll, scroll;
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%, 12px 100%, 12px 100%;
+  }
 }
 
 .admin-table-row {
@@ -1323,13 +1347,39 @@ p {
   grid-template-columns: 1fr 1fr 0.8fr;
 }
 
-@media (max-width: 960px) {
+/* PHASE 9 - RESPONSIVE TIERS
+   One coordinated breakpoint system for the shell + shared grids.
+   (Previously .admin-shell/.admin-sidebar had conflicting rules here AND in
+   AdminShell.tsx's own <style jsx> at a different breakpoint (900px) - that
+   created a broken no-man's-land between ~901-960px where the sidebar was
+   "position: static" full-width block above the content, with no way to
+   collapse it, while the hamburger button stayed hidden. Consolidated to a
+   single 900px hand-off point that matches the off-canvas drawer in
+   AdminShell.tsx; the old orphaned admin-polish.css, which shipped a THIRD
+   set of breakpoints (1100/820/560) and was never imported anywhere, has
+   been removed entirely. */
+
+/* Tablet: still a two-pane layout, but dense 4/3-column grids get cramped
+   before the sidebar needs to collapse - ease them down to 2 columns first
+   instead of jumping straight from desktop to single-column. */
+@media (max-width: 1280px) {
+  .grid-4,
+  .ops-kpi-grid,
+  .settings-grid,
+  .bi-kpi-grid,
+  .control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Mobile / narrow tablet: sidebar becomes the off-canvas drawer (handled in
+   AdminShell.tsx), so .admin-shell drops to a single column here to match -
+   do NOT reintroduce "position: static" on .admin-sidebar, it fights the
+   drawer's fixed positioning and dumps the full nav as a block above the
+   page content. */
+@media (max-width: 900px) {
   .admin-shell {
     grid-template-columns: 1fr;
-  }
-
-  .admin-sidebar {
-    position: static;
   }
 
   .admin-topbar,
@@ -1350,7 +1400,48 @@ p {
   .health-grid,
   .alert-grid,
   .bi-kpi-grid,
-  .detail-list {
+  .control-grid,
+  .mini-metric-grid,
+  .amenity-checklist,
+  .detail-list,
+  .detail-list-wide {
     grid-template-columns: 1fr;
+  }
+
+  .table-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .chart-row {
+    align-items: center;
+    grid-template-columns: 72px 1fr 36px;
+    gap: var(--space-xs);
+  }
+
+  .chart-row span {
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Touch targets: 40px controls read fine with a mouse cursor but sit
+     under the ~44px minimum recommended for a fingertip; bump them up only
+     where a pointer is unlikely to be precise. */
+  .button,
+  .ghost-control,
+  .nav-link {
+    min-height: 44px;
+  }
+}
+
+/* Large desktop / ultrawide: nothing previously capped how wide the content
+   column could stretch, so on a 1680px+ monitor cards, tables, and KPI
+   grids spread thin with large dead gaps instead of staying legible. */
+@media (min-width: 1680px) {
+  .admin-content {
+    margin: 0 auto;
+    max-width: 1680px;
+    width: 100%;
   }
 }
