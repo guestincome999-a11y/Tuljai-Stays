@@ -112,12 +112,14 @@ export function AdminShell({ children }: PropsWithChildren) {
           @keyframes admin-nav-in { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
           @keyframes admin-title-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
           @media (max-width: 900px) {
-            .admin-sidebar { box-shadow: 20px 0 60px rgba(20,10,8,.25); left: 0; position: fixed; transform: translateX(-102%); transition: transform 220ms ease; width: 280px; z-index: 6; }
+            .admin-sidebar { box-shadow: 20px 0 60px rgba(20,10,8,.25); left: 0; position: fixed; transform: translateX(-102%); transition: transform 220ms ease; width: min(280px, 84vw); z-index: 6; }
             .admin-sidebar.admin-sidebar-open { transform: translateX(0); }
             .sidebar-close, .mobile-menu-button { align-items: center; background: transparent; border: 0; display: inline-flex; justify-content: center; }
-            .sidebar-close { color: #faf7f2; font-size: 1.5rem; height: 34px; margin-left: auto; width: 34px; }
-            .mobile-menu-button { flex-direction: column; gap: 4px; height: 38px; width: 38px; }
+            .sidebar-close { color: #faf7f2; font-size: 1.5rem; height: 44px; margin-left: auto; width: 44px; }
+            .mobile-menu-button { flex-direction: column; gap: 4px; height: 44px; width: 44px; }
             .mobile-menu-button span { background: #3a2c24; border-radius: 2px; height: 2px; width: 18px; }
+            .icon-control { height: 44px; width: 44px; }
+            .user-avatar { height: 44px; width: 44px; }
             .user-menu-name, .topbar-logout { display: none; }
             .admin-topbar { gap: 8px; padding-left: 12px; padding-right: 12px; }
           }
