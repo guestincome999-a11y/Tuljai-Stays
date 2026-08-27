@@ -64,6 +64,22 @@ export interface RoomStatusInput {
   status: RoomStatus;
 }
 
+export interface CreateRoomTypeInput {
+  basePrice: number;
+  capacityAdults: number;
+  capacityChildren: number;
+  description?: string;
+  festivalPrice?: number;
+  name: string;
+  slug: string;
+  totalRooms: number;
+}
+
+export interface CreateRoomInput {
+  floor?: string;
+  roomNumber: string;
+}
+
 export interface PhotoRejectionInput {
   rejectionReason: string;
 }
@@ -183,8 +199,22 @@ export async function listGovernanceRoomTypes(lodgeId: string): Promise<RoomType
   return apiClient.get<RoomType[]>(`/lodges/${lodgeId}/room-types`);
 }
 
+export async function createGovernanceRoomType(
+  lodgeId: string,
+  input: CreateRoomTypeInput,
+): Promise<RoomType> {
+  return apiClient.post<RoomType>(`/owner/lodges/${lodgeId}/room-types`, input);
+}
+
 export async function listGovernanceRooms(lodgeId: string): Promise<Room[]> {
   return apiClient.get<Room[]>(`/owner/lodges/${lodgeId}/rooms`);
+}
+
+export async function createGovernanceRoom(
+  roomTypeId: string,
+  input: CreateRoomInput,
+): Promise<Room> {
+  return apiClient.post<Room>(`/owner/room-types/${roomTypeId}/rooms`, input);
 }
 
 export async function updateGovernanceRoomStatus(
