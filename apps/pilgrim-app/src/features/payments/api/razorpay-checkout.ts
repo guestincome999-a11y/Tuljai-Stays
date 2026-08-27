@@ -1,3 +1,4 @@
+import { palette } from '@tuljai/ui';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import { createPaymentOrder, verifyPayment } from './payments-api';
@@ -34,7 +35,7 @@ export async function startRazorpayPayment(input: StartRazorpayPaymentInput) {
     },
 
     theme: {
-      color: '#8B1E1E',
+      color: palette.saffron[600],
     },
   });
 
