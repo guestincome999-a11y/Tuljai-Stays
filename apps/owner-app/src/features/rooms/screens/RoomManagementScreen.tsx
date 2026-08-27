@@ -6,7 +6,7 @@ import type {
   RoomStatus,
   RoomType,
 } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState, palette, radius, spacing } from '@tuljai/ui';
 import { useLocalSearchParams } from 'expo-router';
 import type { PropsWithChildren } from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -1085,7 +1085,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   focusedCard: {
-    borderColor: '#F97316',
+    borderColor: palette.saffron[500],
     borderWidth: 2,
   },
   header: {
