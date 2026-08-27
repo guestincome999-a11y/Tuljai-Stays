@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { palette } from '@tuljai/ui';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
@@ -153,7 +154,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   container: {
-    backgroundColor: '#F24A00',
+    backgroundColor: palette.saffron[600],
     flex: 1,
     overflow: 'hidden',
   },
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
     width: 62,
   },
   welcome: {
-    color: '#FFE1A0',
+    color: palette.bell[200],
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 3.2,
