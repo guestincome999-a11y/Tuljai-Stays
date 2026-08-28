@@ -1,7 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { palette } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
+import RazorpayCheckout from 'react-native-razorpay';
 
+import {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+} from '../../features/bookings/api/bookings-api';
 import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
   AnimatedResultBadge,
@@ -20,10 +27,13 @@ import { usePilgrimApp } from '../PilgrimAppProvider';
 export function PilgrimBookingDetailScreen() {
   const params = useLocalSearchParams<{ id?: string; justBooked?: string }>();
   const router = useRouter();
-  const { bookings, cancelBooking, isSyncing, lodges, t } = usePilgrimApp();
+  const { bookings, cancelBooking, isSyncing, lodges, refresh, t } = usePilgrimApp();
   const { supportEmail, supportPhone } = usePublicSettings();
   const booking = bookings.find((item) => item.id === params.id);
   const lodge = booking ? lodges.find((item) => item.id === booking.lodgeId) : undefined;
+  const [onlinePaymentBusy, setOnlinePaymentBusy] = useState(false);
+  const [paymentAttemptFailed, setPaymentAttemptFailed] = useState<string | null>(null);
+  const [justPaidOnline, setJustPaidOnline] = useState(false);
 
   if (!booking) {
     return (
@@ -53,6 +63,8 @@ export function PilgrimBookingDetailScreen() {
   }
 
   const bookingId = booking.id;
+  const bookingLodgeName = booking.lodgeName;
+  const bookingRoomName = booking.roomName;
 
   function askToCancel() {
     Alert.alert(
@@ -80,6 +92,48 @@ export function PilgrimBookingDetailScreen() {
         },
       ],
     );
+  }
+
+  async function payAndConfirmNow() {
+    setOnlinePaymentBusy(true);
+    setPaymentAttemptFailed(null);
+    try {
+      const order = await createRazorpayOrder(bookingId);
+      const result = await RazorpayCheckout.open({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.orderId,
+        name: 'Tuljai Stays',
+        description: `${bookingLodgeName} · ${bookingRoomName}`,
+        notes: { bookingId },
+        theme: { color: '#C2410C' },
+      });
+      const verified = await verifyRazorpayPayment(bookingId, {
+        orderId: result.razorpay_order_id,
+        paymentId: result.razorpay_payment_id,
+        signature: result.razorpay_signature,
+      });
+      const success = verified.paymentStatus === 'PAID' && verified.status === 'ACCEPTED';
+      if (!success) {
+        throw new Error(
+          t(
+            'Payment is being reconciled. Check your booking status shortly.',
+            'पेमेंट पडताळले जात आहे. थोड्या वेळाने बुकिंग स्थिती तपासा.',
+          ),
+        );
+      }
+      await refresh();
+      setJustPaidOnline(true);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t('Please try again.', 'कृपया पुन्हा प्रयत्न करा.');
+      setPaymentAttemptFailed(message);
+    } finally {
+      setOnlinePaymentBusy(false);
+    }
   }
 
   return (
@@ -130,30 +184,66 @@ export function PilgrimBookingDetailScreen() {
               'तुमच्या मोबाइल क्रमांकावर पुष्टीकरण पाठवले आहे.',
             )}
           </Text>
-          <View className="mt-5 w-full flex-row gap-3">
-            <Pressable
-              accessibilityRole="button"
-              className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
-              onPress={() =>
-                router.push({ pathname: '/(app)/pass', params: { bookingId: booking.id } })
-              }
-            >
-              <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={20} />
-              <Text className="text-sm font-extrabold text-white">
-                {t('Get Pass', 'पास मिळवा')}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-templeGreen-200 bg-white active:bg-templeGreen-100"
-              onPress={() => void openDirections(lodge?.name ?? booking.lodgeName, t)}
-            >
-              <MaterialCommunityIcons color={ui.maroon} name="map-marker-outline" size={20} />
-              <Text className="text-sm font-extrabold text-maroon-700">
-                {t('Location', 'ठिकाण')}
-              </Text>
-            </Pressable>
-          </View>
+          <ConfirmedNextSteps
+            bookingId={booking.id}
+            lodgeName={lodge?.name ?? booking.lodgeName}
+            router={router}
+            t={t}
+          />
+        </View>
+      ) : null}
+
+      {justPaidOnline ? (
+        <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-7">
+          <AnimatedResultBadge tone="success" />
+          <Text className="mt-5 text-center text-2xl font-extrabold text-templeGreen-700">
+            {t('Payment successful!', 'पेमेंट यशस्वी!')}
+          </Text>
+          <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
+            {t(
+              'Your stay is confirmed instantly. No lodge approval is needed.',
+              'तुमचा निवास त्वरित निश्चित झाला. लॉजच्या मंजुरीची गरज नाही.',
+            )}
+          </Text>
+          <ConfirmedNextSteps
+            bookingId={booking.id}
+            lodgeName={lodge?.name ?? booking.lodgeName}
+            router={router}
+            t={t}
+          />
+        </View>
+      ) : null}
+
+      {paymentAttemptFailed && booking.status === 'pending' ? (
+        <View className="items-center rounded-3xl bg-danger-50 px-5 py-7">
+          <AnimatedResultBadge tone="danger" />
+          <Text className="mt-5 text-center text-2xl font-extrabold text-danger-700">
+            {t('Payment failed', 'पेमेंट अयशस्वी')}
+          </Text>
+          <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
+            {paymentAttemptFailed}
+          </Text>
+          <Text className="mt-2 text-center text-xs leading-5 text-warm-500">
+            {t(
+              'Your booking is still pending — nothing is lost. Retry online payment or pay at the lodge instead.',
+              'तुमचे बुकिंग अजूनही प्रलंबित आहे — काहीही गमावले नाही. पुन्हा ऑनलाइन पेमेंट करा किंवा लॉजवर पैसे भरा.',
+            )}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            className="mt-5 min-h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
+            disabled={onlinePaymentBusy}
+            onPress={() => void payAndConfirmNow()}
+          >
+            {onlinePaymentBusy ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <MaterialCommunityIcons color="#FFFFFF" name="reload" size={20} />
+            )}
+            <Text className="text-sm font-extrabold text-white">
+              {t('Retry payment', 'पुन्हा पेमेंट करा')}
+            </Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -171,14 +261,45 @@ export function PilgrimBookingDetailScreen() {
       </View>
 
       {booking.status === 'pending' ? (
-        <View className="flex-row items-start gap-3 rounded-2xl bg-bell-50 p-4">
-          <MaterialCommunityIcons color="#884E13" name="clock-outline" size={22} />
-          <Text className="flex-1 text-sm leading-5 text-warm-600">
-            {t(
-              'The lodge is reviewing your request. We will notify you as soon as it is accepted.',
-              'लॉज तुमच्या विनंतीचे पुनरावलोकन करत आहे. स्वीकारल्यावर आम्ही लगेच कळवू.',
-            )}
-          </Text>
+        <View className="rounded-2xl bg-bell-50 p-4">
+          <View className="flex-row items-start gap-3">
+            <MaterialCommunityIcons color={palette.bell[400]} name="clock-outline" size={22} />
+            <Text className="flex-1 text-sm leading-5 text-warm-600">
+              {t(
+                'The lodge is reviewing your request. We will notify you as soon as it is accepted.',
+                'लॉज तुमच्या विनंतीचे पुनरावलोकन करत आहे. स्वीकारल्यावर आम्ही लगेच कळवू.',
+              )}
+            </Text>
+          </View>
+          {booking.paymentStatus === 'Pay at lodge' ? (
+            <>
+              <Text className="mt-3 text-xs leading-5 text-warm-500">
+                {t(
+                  'Want an instant confirmation instead of waiting for the lodge?',
+                  'लॉजच्या प्रतीक्षेऐवजी त्वरित पुष्टीकरण हवे आहे का?',
+                )}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                className="mt-3 min-h-14 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
+                disabled={onlinePaymentBusy}
+                onPress={() => void payAndConfirmNow()}
+              >
+                {onlinePaymentBusy ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <MaterialCommunityIcons
+                    color="#FFFFFF"
+                    name="credit-card-fast-outline"
+                    size={20}
+                  />
+                )}
+                <Text className="text-sm font-extrabold text-white">
+                  {t('Pay & Confirm Now', 'आता पैसे भरा आणि निश्चित करा')}
+                </Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
       ) : null}
 
@@ -317,6 +438,39 @@ export function PilgrimBookingDetailScreen() {
         {t('Explore more stays', 'आणखी निवास पहा')}
       </PrimaryButton>
     </AppScreen>
+  );
+}
+
+function ConfirmedNextSteps({
+  bookingId,
+  lodgeName,
+  router,
+  t,
+}: {
+  bookingId: string;
+  lodgeName: string;
+  router: ReturnType<typeof useRouter>;
+  t: (english: string, marathi: string) => string;
+}) {
+  return (
+    <View className="mt-5 w-full flex-row gap-3">
+      <Pressable
+        accessibilityRole="button"
+        className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
+        onPress={() => router.push({ pathname: '/(app)/pass', params: { bookingId } })}
+      >
+        <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={20} />
+        <Text className="text-sm font-extrabold text-white">{t('Get Pass', 'पास मिळवा')}</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-templeGreen-200 bg-white active:bg-templeGreen-100"
+        onPress={() => void openDirections(lodgeName, t)}
+      >
+        <MaterialCommunityIcons color={ui.maroon} name="map-marker-outline" size={20} />
+        <Text className="text-sm font-extrabold text-maroon-700">{t('Location', 'ठिकाण')}</Text>
+      </Pressable>
+    </View>
   );
 }
 
