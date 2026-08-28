@@ -1,17 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 
 import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
+  AnimatedResultBadge,
   AppScreen,
   EmptyState,
   InfoRow,
@@ -110,9 +103,24 @@ export function PilgrimBookingDetailScreen() {
         title={t('Booking details', 'बुकिंग तपशील')}
       />
 
+      {booking.status === 'cancelled' ? (
+        <View className="items-center rounded-3xl bg-danger-50 px-5 py-7">
+          <AnimatedResultBadge tone="danger" />
+          <Text className="mt-5 text-center text-2xl font-extrabold text-danger-700">
+            {t('Booking not confirmed', 'बुकिंग निश्चित झाले नाही')}
+          </Text>
+          <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
+            {t(
+              'This stay was cancelled or could not be accepted by the lodge. Any eligible refund will reach your original payment method.',
+              'हा निवास रद्द झाला आहे किंवा लॉजने स्वीकारला नाही. पात्र परतावा तुमच्या मूळ पेमेंट पद्धतीवर पोहोचेल.',
+            )}
+          </Text>
+        </View>
+      ) : null}
+
       {params.justBooked === '1' ? (
         <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-7">
-          <BookingSuccessCheck />
+          <AnimatedResultBadge tone="success" />
           <Text className="mt-5 text-center text-2xl font-extrabold text-templeGreen-700">
             {t('Your stay is booked!', 'तुमचा निवास बुक झाला!')}
           </Text>
@@ -309,42 +317,6 @@ export function PilgrimBookingDetailScreen() {
         {t('Explore more stays', 'आणखी निवास पहा')}
       </PrimaryButton>
     </AppScreen>
-  );
-}
-
-function BookingSuccessCheck() {
-  const scale = useSharedValue(0);
-  const ringScale = useSharedValue(0.7);
-  const ringOpacity = useSharedValue(0.5);
-
-  useEffect(() => {
-    scale.value = withSpring(1, { damping: 8, mass: 0.6, stiffness: 140 });
-    ringScale.value = withDelay(120, withTiming(1.8, { duration: 850 }));
-    ringOpacity.value = withDelay(120, withTiming(0, { duration: 850 }));
-  }, [ringOpacity, ringScale, scale]);
-
-  const circleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-  const ringStyle = useAnimatedStyle(() => ({
-    opacity: ringOpacity.value,
-    transform: [{ scale: ringScale.value }],
-  }));
-
-  return (
-    <View className="h-28 w-28 items-center justify-center">
-      <Animated.View
-        className="absolute h-28 w-28 rounded-full bg-templeGreen-500"
-        pointerEvents="none"
-        style={ringStyle}
-      />
-      <Animated.View
-        className="h-28 w-28 items-center justify-center rounded-full bg-templeGreen-500 shadow-lg shadow-black/20"
-        style={circleStyle}
-      >
-        <MaterialCommunityIcons color="#FFFFFF" name="check-bold" size={56} />
-      </Animated.View>
-    </View>
   );
 }
 
