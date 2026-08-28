@@ -11,7 +11,15 @@ import {
   verifyRazorpayPayment,
   type GuestIdProofFile,
 } from '../../features/bookings/api/bookings-api';
-import { AppScreen, EmptyState, Field, PrimaryButton, TopBar, ui } from '../components';
+import {
+  AnimatedResultBadge,
+  AppScreen,
+  EmptyState,
+  Field,
+  PrimaryButton,
+  TopBar,
+  ui,
+} from '../components';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
@@ -42,6 +50,7 @@ export function PilgrimCheckoutScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PAY_AT_LODGE');
   const [agree, setAgree] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentFailure, setPaymentFailure] = useState<string | null>(null);
   const documentPickerActiveRef = useRef(false);
 
   const room = lodge?.rooms.find((item) => item.id === roomId) ?? lodge?.rooms[0];
@@ -151,6 +160,7 @@ export function PilgrimCheckoutScreen() {
     }
 
     setSubmitting(true);
+    setPaymentFailure(null);
     let bookingId: string | null = null;
     let paymentStarted = false;
     let paymentVerified = false;
@@ -235,6 +245,7 @@ export function PilgrimCheckoutScreen() {
         error instanceof Error
           ? error.message
           : t('Please try again.', 'कृपया पुन्हा प्रयत्न करा.');
+      setPaymentFailure(message);
       Alert.alert(t('Booking could not be completed', 'बुकिंग पूर्ण होऊ शकले नाही'), message);
     } finally {
       setSubmitting(false);
@@ -414,6 +425,17 @@ export function PilgrimCheckoutScreen() {
 
       {step === 3 ? (
         <View className="gap-5">
+          {paymentFailure ? (
+            <View className="items-center rounded-3xl bg-danger-50 px-5 py-6">
+              <AnimatedResultBadge tone="danger" />
+              <Text className="mt-4 text-center text-lg font-extrabold text-danger-700">
+                {t('Payment failed', 'पेमेंट अयशस्वी')}
+              </Text>
+              <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
+                {paymentFailure}
+              </Text>
+            </View>
+          ) : null}
           <SectionTitle title={t('Review guest details', 'पाहुण्यांची माहिती तपासा')} />
           <Pressable
             onPress={() => setStep(2)}
@@ -460,7 +482,10 @@ export function PilgrimCheckoutScreen() {
               'UPI, cards and Razorpay · instant prepaid confirmation',
               'UPI, कार्ड आणि Razorpay · त्वरित प्रीपेड पुष्टीकरण',
             )}
-            onPress={() => setPaymentMethod('ONLINE')}
+            onPress={() => {
+              setPaymentFailure(null);
+              setPaymentMethod('ONLINE');
+            }}
           />
           <PaymentOption
             active={paymentMethod === 'PAY_AT_LODGE'}
@@ -470,7 +495,10 @@ export function PilgrimCheckoutScreen() {
               'Owner approval is required before confirmation',
               'पुष्टीकरणापूर्वी लॉज मालकाची मंजुरी आवश्यक',
             )}
-            onPress={() => setPaymentMethod('PAY_AT_LODGE')}
+            onPress={() => {
+              setPaymentFailure(null);
+              setPaymentMethod('PAY_AT_LODGE');
+            }}
           />
           <View className="rounded-3xl border border-warm-100 bg-white p-5">
             <Text className="text-lg font-extrabold text-warm-900">
