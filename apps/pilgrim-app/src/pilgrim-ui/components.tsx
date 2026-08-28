@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { palette } from '@tuljai/ui';
 import type { ComponentProps, ReactNode } from 'react';
+import { useEffect } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -12,6 +13,13 @@ import {
   type TextInputProps,
   View,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { formatRupees, type BookingStatus, type PilgrimLodge } from './mock-data';
@@ -502,6 +510,45 @@ export function StatusBadge({ status }: { status: BookingStatus }) {
     >
       <MaterialCommunityIcons color={color} name={item.icon} size={15} />
       <Text className={`text-xs font-extrabold ${item.text}`}>{item.label}</Text>
+    </View>
+  );
+}
+
+export function AnimatedResultBadge({ tone = 'success' }: { tone?: 'danger' | 'success' }) {
+  const scale = useSharedValue(0);
+  const ringScale = useSharedValue(0.7);
+  const ringOpacity = useSharedValue(0.5);
+
+  useEffect(() => {
+    scale.value = withSpring(1, { damping: 8, mass: 0.6, stiffness: 140 });
+    ringScale.value = withDelay(120, withTiming(1.8, { duration: 850 }));
+    ringOpacity.value = withDelay(120, withTiming(0, { duration: 850 }));
+  }, [ringOpacity, ringScale, scale]);
+
+  const circleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: ringOpacity.value,
+    transform: [{ scale: ringScale.value }],
+  }));
+
+  const shell = tone === 'success' ? 'bg-templeGreen-500' : 'bg-danger-500';
+  const icon = tone === 'success' ? 'check-bold' : 'close-thick';
+
+  return (
+    <View className="h-28 w-28 items-center justify-center">
+      <Animated.View
+        className={`absolute h-28 w-28 rounded-full ${shell}`}
+        pointerEvents="none"
+        style={ringStyle}
+      />
+      <Animated.View
+        className={`h-28 w-28 items-center justify-center rounded-full ${shell} shadow-lg shadow-black/20`}
+        style={circleStyle}
+      >
+        <MaterialCommunityIcons color="#FFFFFF" name={icon} size={56} />
+      </Animated.View>
     </View>
   );
 }
