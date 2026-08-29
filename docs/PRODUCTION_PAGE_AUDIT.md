@@ -58,25 +58,25 @@ to Claude's judgement (see row below).
 | UX | 500 / route error (admin-panel) | **DONE** | `apps/admin-panel/app/error.tsx` | Next.js app router | Implemented — generic message + digest reference, no stack traces |
 | UX | 500 / root layout error (admin-panel) | **DONE** | `apps/admin-panel/app/global-error.tsx` | Covers errors thrown by the root layout itself | Implemented, dependency-free fallback |
 | UX | 403 permission-denied (admin-panel) | EXISTS_AND_ADEQUATE | `apps/admin-panel/src/components/PermissionGate.tsx` | Granular roles exist | No change needed |
-| UX | Maintenance | NEEDS VERIFICATION | `apps/admin-panel/src/platform-control/platform-control-config.ts`, `admin/emergency-control` and `admin/festival-control` | May already be partly covered | Inspect config before building a duplicate — next session |
+| UX | Session Expired (owner-app, pilgrim-app) | **DONE** | `packages/shared/src/api-client.ts` (`onSessionExpired` hook + `resetSessionExpiredFlag`), `apps/owner-app/src/auth/auth-context.tsx`, `apps/pilgrim-app/src/auth/auth-context.tsx`, `PilgrimAuthScreens.tsx` login banner | `JwtAuthStrategy` live revalidation means a real "session ended" moment happens in normal use, not just token expiry | When a 401 can't be resolved by refresh, the app now clears the session and routes to login with a "Your session has ended. Please sign in again." message, reusing owner-app's existing `accessDeniedMessage` slot and a new equivalent field on pilgrim. Verified via typecheck/lint on a fresh clone; not manually verified on-device |
+| UX | Maintenance (owner-app, pilgrim-app) | **APPLICABLE_MISSING — config exists, enforcement deferred** | Admin can already toggle `maintenance_mode` and set `pilgrim_app_maintenance_message`/`owner_app_maintenance_message` via `admin/emergency-control`; backend exposes `/feature-flags/public` and `/settings/public` (unauthenticated) — but neither mobile app has ever read them, so the toggle currently does nothing for real users | Confirmed via `grep` across both app source trees: zero consumption of these public endpoints anywhere in client code | Added `fetchPlatformStatus()` to `packages/shared/src/platform-status.ts` (pushed, exported, but not called from either app). **Jay decided to defer wiring this into app launch for now** — do not re-raise; revisit only if Jay brings it up |
 | UX | Offline (owner-app, pilgrim-app) | EXISTS_AND_ADEQUATE | `OfflineBanner.tsx` + `connectivity-context.tsx` in both apps | Both mobile apps already detect connectivity | None found needed |
 | UX | Empty state / No results | NEEDS VERIFICATION | Not yet inspected per-screen | Applies to bookings, lodges lists, reviews | Inspect list screens next session |
 | UX | Loading state | NEEDS VERIFICATION (admin-panel partially done) | Admin-panel `AsyncState.tsx` rolled out to several pages per Phase 10 in progress | Applies broadly | Continue existing Phase 10 admin rollout; inspect mobile apps |
-| UX | Session Expired | **APPLICABLE_MISSING — next item** | `packages/shared/src/api-client.ts`: on a 401, if `refreshAccessToken` also fails, it just `throw`s a normalized `ApplicationError` with no global session-clear/redirect-to-login handler | `JwtAuthStrategy` live revalidation means a real "session ended" moment happens in normal use | Not yet built — see "Next unblocked item" |
 
 ## Not yet scanned (incomplete — listed for transparency, not guessed)
 
 - Owner-app/pilgrim-app empty-state and loading-state coverage per screen
-- Admin-panel maintenance-mode config (`platform-control-config.ts`) vs. a dedicated maintenance page
 - CI workflow definitions under `.github/`
 
 ## Resolved business facts (from Jay, 29 Aug 2026)
 
 1. Legal name: **Shri Tuljabhavani Technologies** — added to both legal documents.
 2. Address/jurisdiction: **Tuljapur** (Maharashtra) — added as operating base and governing-law forum.
-3. Support email: **tuljaistays@gmail.com**, typical reply **4–24 hours** — added to both legal documents, both consent modals, and owner settings.
+3. Support email: **tuljaistays@gmail.com**, typical reply **4–24 hours** — added to both legal documents, both consent modals, owner settings, and corrected in `packages/shared/src/app-config.ts` (was a stale unused placeholder).
 4. Refund/cancellation rules: Jay confirmed the language already in the pilgrim Terms is the source of truth — retained as-is rather than rewritten from a guess.
 5. DPA: delegated to Claude's judgement — decided NOT_APPLICABLE today, reasoning recorded in-code (see owner `legal-documents.tsx`).
+6. Maintenance-mode enforcement: found the gap (see UX table above), Jay decided **hold off for now** — deferred, not forgotten.
 
 ## Still open (do not guess)
 
@@ -87,16 +87,20 @@ to Claude's judgement (see row below).
 
 - `apps/admin-panel/app/not-found.tsx`, `error.tsx`, `global-error.tsx` — 404/500 UX states
 - `apps/pilgrim-app/src/pilgrim-ui/legal-documents.tsx` — legal entity, jurisdiction, support contact added
-- `apps/pilgrim-app/src/pilgrim-ui/screens/PilgrimAuthScreens.tsx` — real consent checkbox gating login/Google sign-in
+- `apps/pilgrim-app/src/pilgrim-ui/screens/PilgrimAuthScreens.tsx` — real consent checkbox gating login/Google sign-in; session-expired banner
 - `apps/owner-app/src/owner-ui/legal-documents.tsx` (new) — owner-facing Privacy Policy + Terms
 - `apps/owner-app/src/features/settings/screens/OwnerSettingsScreen.tsx` — Legal card added
 - `apps/owner-app/app/(auth)/login.tsx` — real consent checkbox gating OTP request
-- Verified on a fresh `git clone --depth 1`: shared-package builds PASSED, `typecheck` PASSED for admin-panel, owner-app, and pilgrim-app; `lint` PASSED for admin-panel, owner-app, and pilgrim-app (pre-existing unrelated lint errors elsewhere in admin-panel left untouched); `build:admin` PASSED
+- `packages/shared/src/api-client.ts` — `onSessionExpired` hook + `resetSessionExpiredFlag()`
+- `apps/owner-app/src/api/client.ts`, `apps/owner-app/src/auth/auth-context.tsx` — session-expiry clears session + routes to login
+- `apps/pilgrim-app/src/api/client.ts`, `apps/pilgrim-app/src/auth/auth-context.tsx` — same, plus new `sessionExpiredMessage` context field
+- `packages/shared/src/platform-status.ts` (new, exported, **not yet wired into any app**) — reads the public maintenance-mode flag/message
+- `packages/shared/src/app-config.ts` — corrected stale support email
+- Verified on two fresh `git clone --depth 1` passes: shared-package builds PASSED, `typecheck` PASSED for admin-panel, owner-app, and pilgrim-app; `lint` PASSED for admin-panel, owner-app, pilgrim-app, and shared (pre-existing unrelated lint errors in `admin/support/[id]/page.tsx` and `AdminShell.tsx` confirmed still present and untouched); `build:admin` PASSED
+- Not verified: on-device/simulator manual testing of any new screen or flow — only static analysis (typecheck/lint/build) has been run
 
 ## Next unblocked item
 
-Session-expired handling for owner-app and pilgrim-app: when token refresh fails, clear the stored
-session and route to login with a "your session ended, please sign in again" message, instead of
-letting each screen surface a generic error. Requires touching `packages/shared/src/api-client.ts`
-(shared by both apps) plus each app's auth context — owner-app first, verify, then mirror to
-pilgrim-app.
+Empty-state and loading-state coverage per screen in owner-app and pilgrim-app (bookings, lodges
+lists, reviews) — not yet inspected. Maintenance-mode enforcement is built at the shared-package
+level but deliberately not wired into app launch per Jay's instruction to hold off.
