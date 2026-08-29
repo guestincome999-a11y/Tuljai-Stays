@@ -139,6 +139,15 @@ export function PilgrimLoginScreen() {
         </Text>
       </View>
 
+      {auth.sessionExpiredMessage ? (
+        <View className="flex-row items-center gap-2 rounded-2xl bg-saffron-50 p-3">
+          <MaterialCommunityIcons color={ui.saffronDeep} name="information-outline" size={19} />
+          <Text className="flex-1 text-sm font-semibold text-warm-700">
+            {auth.sessionExpiredMessage}
+          </Text>
+        </View>
+      ) : null}
+
       <View>
         <Field
           icon="phone-outline"
