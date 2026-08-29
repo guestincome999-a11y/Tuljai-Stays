@@ -13,6 +13,15 @@ const publicApiClient = new ApiClient({ baseUrl: environment.apiBaseUrl });
 
 let pilgrimRefreshPromise: Promise<string | null> | null = null;
 
+// Set by AuthProvider once it mounts so the module-level apiClient (which has no direct access to
+// React state/navigation) can ask it to clear the session and route back to login when a token
+// refresh fails.
+let pilgrimSessionExpiredHandler: (() => void) | null = null;
+
+export function setPilgrimSessionExpiredHandler(handler: (() => void) | null): void {
+  pilgrimSessionExpiredHandler = handler;
+}
+
 async function refreshPilgrimAccessToken(): Promise<string | null> {
   if (pilgrimRefreshPromise) {
     return pilgrimRefreshPromise;
@@ -42,5 +51,6 @@ async function refreshPilgrimAccessToken(): Promise<string | null> {
 export const apiClient = new ApiClient({
   baseUrl: environment.apiBaseUrl,
   getAccessToken: () => secureTokenStore.getAccessToken(),
+  onSessionExpired: () => pilgrimSessionExpiredHandler?.(),
   refreshAccessToken: refreshPilgrimAccessToken,
 });
