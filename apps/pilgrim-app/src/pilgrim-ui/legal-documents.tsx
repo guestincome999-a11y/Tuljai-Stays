@@ -16,7 +16,8 @@ export function LegalDocument({ kind }: { kind: LegalDocumentKind }) {
             {isPrivacy ? 'Privacy Policy' : 'Terms & Conditions'}
           </Text>
           <Text className="mt-1 text-xs font-semibold text-warm-500">
-            Tuljai Stays · India · Effective date: 19 August 2026
+            Tuljai Stays is operated by Shri Tuljabhavani Technologies, Tuljapur, Maharashtra,
+            India · Effective date: 29 August 2026
           </Text>
         </View>
 
@@ -56,11 +57,12 @@ function PrivacyContent() {
 
       <Heading>1. Who we are</Heading>
       <Para>
-        Tuljai Stays operates an accommodation-booking platform connecting pilgrims and visitors
-        with participating lodges, bhakt niwases, guest houses and other stays in Tuljapur. Tuljai
-        Stays is not the owner or operator of every listed property. The participating lodge is
-        responsible for the accommodation it provides, subject to the booking terms shown in the
-        app.
+        Tuljai Stays is operated by Shri Tuljabhavani Technologies, based in Tuljapur, Maharashtra,
+        India (&quot;Tuljai Stays&quot;, &quot;we&quot;, &quot;us&quot;). Tuljai Stays operates an
+        accommodation-booking platform connecting pilgrims and visitors with participating lodges,
+        bhakt niwases, guest houses and other stays in Tuljapur. Tuljai Stays is not the owner or
+        operator of every listed property. The participating lodge is responsible for the
+        accommodation it provides, subject to the booking terms shown in the app.
       </Para>
 
       <Heading>2. Personal data we collect</Heading>
@@ -223,17 +225,17 @@ function PrivacyContent() {
 
       <Heading>14. Grievance and contact</Heading>
       <Para>
-        Privacy or data-related concerns can be raised through the support contact published in the
-        app. We will review and respond to grievances within the timelines required by applicable
-        law. If a matter remains unresolved, you retain any rights and remedies available under
-        applicable Indian law, including applicable consumer or data-protection mechanisms.
+        Privacy or data-related concerns can be raised at tuljaistays@gmail.com. We typically
+        reply within 4 to 24 hours. If a matter remains unresolved, you retain any rights and
+        remedies available under applicable Indian law, including applicable consumer or
+        data-protection mechanisms.
       </Para>
 
       <Para>
         Important: This document is a product-specific privacy notice drafted for Tuljai Stays and
-        should be reviewed against the final legal entity details, actual data flows, retention
-        schedule, contracts and applicable commencement/enforcement dates by an India-qualified
-        lawyer before being treated as the company’s final legal notice.
+        should be reviewed against actual data flows, the finalised retention schedule, third-party
+        contracts and applicable commencement/enforcement dates by an India-qualified lawyer before
+        being treated as the company’s final legal notice.
       </Para>
     </View>
   );
@@ -251,7 +253,8 @@ function TermsContent() {
 
       <Heading>1. What Tuljai Stays provides</Heading>
       <Para>
-        Tuljai Stays provides a digital marketplace/booking service that helps pilgrims and visitors
+        Tuljai Stays is operated by Shri Tuljabhavani Technologies, based in Tuljapur, Maharashtra,
+        India, and provides a digital marketplace/booking service that helps pilgrims and visitors
         discover participating accommodation providers in Tuljapur and submit or complete bookings.
         Unless the app expressly says otherwise, the actual accommodation is provided by the
         participating lodge, not by Tuljai Stays itself.
@@ -402,10 +405,11 @@ function TermsContent() {
 
       <Heading>16. Governing law</Heading>
       <Para>
-        These terms are governed by the laws of India. Any dispute will be subject to the
-        jurisdiction of competent Indian courts or consumer fora as permitted by applicable law.
-        Where a consumer-protection law provides a mandatory forum or remedy, that statutory right
-        prevails over any inconsistent contractual provision.
+        These terms are governed by the laws of India. Subject to applicable consumer-protection
+        law, any dispute will be subject to the jurisdiction of the competent courts and consumer
+        fora at Tuljapur, Maharashtra, or such other Indian forum as applicable law permits or
+        requires. Where a consumer-protection law provides a mandatory forum or remedy, that
+        statutory right prevails over any inconsistent contractual provision.
       </Para>
 
       <Heading>17. Changes</Heading>
@@ -418,17 +422,17 @@ function TermsContent() {
 
       <Heading>18. Contact</Heading>
       <Para>
-        For booking, payment, cancellation, privacy or other support, use the support phone or email
-        published in the Tuljai Stays app. Please include your booking reference where relevant so
-        the issue can be identified quickly.
+        For booking, payment, cancellation, privacy or other support, email tuljaistays@gmail.com.
+        We typically reply within 4 to 24 hours. Please include your booking reference where
+        relevant so the issue can be identified quickly.
       </Para>
 
       <Para>
         Important: This is a product-specific draft for Tuljai Stays, not a substitute for legal
         advice. Before public launch, the final document should be reviewed by an India-qualified
-        lawyer against the actual legal entity name, registered address, grievance/contact details,
-        lodge agreements, cancellation/refund rules, payment arrangements, data-retention schedule
-        and the applicable commencement dates of Indian data-protection requirements.
+        lawyer against the actual lodge agreements, finalised cancellation/refund rules, payment
+        arrangements, data-retention schedule and the applicable commencement dates of Indian
+        data-protection requirements.
       </Para>
     </View>
   );
