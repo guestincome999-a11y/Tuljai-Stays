@@ -16,6 +16,9 @@ export interface PilgrimLodge {
   description: string;
   distance: string;
   hero: string;
+  /** False while only lightweight summary data has loaded; the lodges screen
+   * renders a skeleton card in place of full content until this becomes true. */
+  hydrated?: boolean;
   id: string;
   location: string;
   name: string;
@@ -81,6 +84,7 @@ export const pilgrimLodges: PilgrimLodge[] = [
       'A peaceful, family-run stay with spotless rooms and a helpful reception team. The temple shuttle leaves every 30 minutes during the morning darshan rush.',
     distance: '450 m from temple',
     hero: 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=1200&q=82',
+    hydrated: true,
     id: 'tuljai-darshan',
     location: 'Bhavani Road, Tuljapur',
     name: 'Tuljai Darshan Residency',
@@ -127,6 +131,7 @@ export const pilgrimLodges: PilgrimLodge[] = [
       'A trusted Bhakt Niwas designed for pilgrims, with a quiet prayer hall, simple vegetarian food and priority assistance for senior citizens.',
     distance: '280 m from temple',
     hero: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=1200&q=82',
+    hydrated: true,
     id: 'bhavani-bhakt',
     location: 'Temple Gate Road, Tuljapur',
     name: 'Bhavani Bhakt Niwas',
@@ -176,6 +181,7 @@ export const pilgrimLodges: PilgrimLodge[] = [
       'Comfortable modern rooms on the main Solapur road, ideal for families arriving by car. Early breakfast and luggage storage are available.',
     distance: '1.2 km from temple',
     hero: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=82',
+    hydrated: true,
     id: 'yatri-comfort',
     location: 'Solapur Road, Tuljapur',
     name: 'Yatri Comfort Inn',
@@ -221,6 +227,7 @@ export const pilgrimLodges: PilgrimLodge[] = [
       'A warm guest house with spacious family rooms, a shared terrace and local hosts who can help arrange temple visits and nearby transport.',
     distance: '800 m from temple',
     hero: 'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=1200&q=82',
+    hydrated: true,
     id: 'ambai-guest',
     location: 'Friday Peth, Tuljapur',
     name: 'Ambai Family Guest House',
@@ -267,6 +274,7 @@ export const pilgrimLodges: PilgrimLodge[] = [
       'Simple and clean community accommodation for budget-conscious pilgrims, within walking distance of the main temple queue entrance.',
     distance: '650 m from temple',
     hero: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&w=1200&q=82',
+    hydrated: true,
     id: 'maharashtra-seva',
     location: 'Arya Chowk, Tuljapur',
     name: 'Maharashtra Seva Dharamshala',
