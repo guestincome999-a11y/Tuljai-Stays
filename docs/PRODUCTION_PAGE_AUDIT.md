@@ -1,62 +1,68 @@
 # Production Page & UX-State Audit — Tuljai Stays
 
 Scope: backend (NestJS/Fastify), admin-panel (Next.js), owner-app (Expo/RN), pilgrim-app (Expo/RN).
-This is Phase 1 of a structured audit. No implementation has occurred yet — this document is the
-evidence gate required before Phase 3.
+This is Phase 1 of a structured audit. This document is updated as implementation proceeds.
 
 Legend for Status: EXISTS_AND_ADEQUATE | EXISTS_NEEDS_IMPROVEMENT | APPLICABLE_MISSING |
 NOT_APPLICABLE | BLOCKED_BY_MISSING_INFORMATION
 
 ## Legal
 
+Business facts confirmed by Jay (29 Aug 2026): legal entity **Shri Tuljabhavani Technologies**,
+based in Tuljapur, Maharashtra, India; support contact **tuljaistays@gmail.com**, typical reply
+4–24 hours; refund/cancellation rules as already drafted in pilgrim Terms; DPA decision delegated
+to Claude's judgement (see row below).
+
 | Category | Page/state | Status | Evidence | Applicability reason | Required action |
 |---|---|---|---|---|---|
-| Legal | Privacy Policy (pilgrim) | EXISTS_NEEDS_IMPROVEMENT | `apps/pilgrim-app/src/pilgrim-ui/legal-documents.tsx`, rendered from `PilgrimProfileScreen.tsx` | App collects phone, guest ID docs, booking/payment data | Verify against `docs/privacy-policy-checklist.md` (retention periods, deletion process, service-provider list still unchecked there) |
-| Legal | Terms & Conditions (pilgrim) | EXISTS_NEEDS_IMPROVEMENT | same file, `TermsContent()` | Bookings + payments + user accounts | Cross-check against `docs/terms-checklist.md` (commission model, dispute process unchecked) |
-| Legal | Privacy Policy (owner-app) | APPLICABLE_MISSING | No privacy/terms reference found under `apps/owner-app/src` | Owner accounts collect lodge/owner personal + payout-adjacent data | Add owner-facing legal screen, reuse pilgrim content model, reachable from `OwnerSettingsScreen.tsx` |
-| Legal | Terms (owner-app) | APPLICABLE_MISSING | same | Owners enter into a commission/booking relationship | Same as above |
-| Legal | Cookie Policy / Cookie Preferences | NOT_APPLICABLE | admin-panel is an internal authenticated tool; owner/pilgrim are native apps (no browser cookies) | No public marketing website in repo; no cookie-based tracking found (`grep` for cookie/consent found none) | None — re-evaluate only if a public marketing site is added |
-| Legal | Refund Policy | BLOCKED_BY_MISSING_INFORMATION | `backend/src/modules/bookings/prepaid-bookings.service.ts`, Razorpay integration exists | Prepaid bookings exist, so refunds are possible | Need actual refund rules from Jay before publishing |
-| Legal | Cancellation Policy | EXISTS_NEEDS_IMPROVEMENT (checklist only, not published) | `docs/terms-checklist.md` "Cancellation and refund foundation" unchecked | Bookings can be cancelled | Needs business input, see open questions |
+| Legal | Privacy Policy (pilgrim) | **DONE** | `apps/pilgrim-app/src/pilgrim-ui/legal-documents.tsx`, rendered from `PilgrimProfileScreen.tsx` and now also from the new login-screen consent checkbox | App collects phone, guest ID docs, booking/payment data | Legal entity name, address/jurisdiction and real support contact added; still needs a final India-qualified legal review before public launch (flagged in-document) |
+| Legal | Terms & Conditions (pilgrim) | **DONE** | same file, `TermsContent()` | Bookings + payments + user accounts | Same as above; governing-law clause now names Tuljapur, Maharashtra courts |
+| Legal | Privacy Policy (owner-app) | **DONE** | `apps/owner-app/src/owner-ui/legal-documents.tsx` (new file) | Owner accounts collect lodge/owner personal data + guest data received through bookings | Scoped to data actually collected from owners (no invented banking/payout data — none exists in the codebase) |
+| Legal | Terms (owner-app) | **DONE** | same file | Owners enter into a commission/booking relationship | Reachable from `OwnerSettingsScreen.tsx` "Legal" card |
+| Legal | Terms/Privacy consent checkbox (pilgrim + owner) | **DONE** | `PilgrimAuthScreens.tsx` login screen, `apps/owner-app/app/(auth)/login.tsx` | Jay requested affirmative consent, not just passive notice text | Real functional checkbox (not decorative) — "Send OTP"/"Get OTP" and "Continue with Google" are disabled until checked; tapping the linked text opens the full document in-app |
+| Legal | Terms/Privacy consent checkbox (admin-panel) | NOT_APPLICABLE | Admin accounts are internal, provisioned by ops per `docs/lodge-owner-onboarding.md`-equivalent internal process, not self-registered | No public self-signup exists for staff | None — revisit only if admin-panel ever gains public self-registration |
+| Legal | Cookie Policy / Cookie Preferences | NOT_APPLICABLE | admin-panel is an internal authenticated tool; owner/pilgrim are native apps (no browser cookies) | No public marketing website in repo; no cookie-based tracking found | None — re-evaluate only if a public marketing site is added |
+| Legal | Refund Policy | EXISTS_NEEDS_IMPROVEMENT | `legal-documents.tsx` §8 "Cancellation, refund and failed payments" (pilgrim) | Prepaid Razorpay bookings exist | Jay confirmed the existing pilgrim T&C language is the source of truth; kept as-is, not rewritten from a guess |
+| Legal | Cancellation Policy | EXISTS_NEEDS_IMPROVEMENT | `legal-documents.tsx` §8 (pilgrim) | Bookings can be cancelled | Same as Refund Policy — existing language retained per Jay's instruction |
 | Legal | Shipping Policy | NOT_APPLICABLE | No product/shipment models in Prisma schema or backend modules | Lodging booking platform, no physical goods shipped | None |
 | Legal | Return/Exchange Policy | NOT_APPLICABLE | Same as above | No physical goods | None |
-| Legal | Disclaimer | APPLICABLE_MISSING | Platform intermediates third-party lodges (`legal-documents.tsx` §1 "not the owner or operator of every listed property") | Needs explicit liability-limitation disclaimer surfaced outside legal doc too | Draft using existing "who we are" language already vetted in pilgrim legal doc |
-| Legal | Accessibility Statement | APPLICABLE_MISSING | `docs/accessibility-qa-checklist.md` exists as an internal checklist, no public statement | Public-facing pilgrim/owner apps | Do not claim WCAG conformance; state current status only |
-| Legal | Data Processing Agreement | NOT_APPLICABLE (pending confirmation) | No B2B customer contracts found; lodge owners are platform users, not "controllers" contracting Tuljai as processor in current model | Would apply only if lodge owners are legally data controllers requiring a DPA | Confirm with Jay whether lodges are treated as independent data controllers |
-| Legal | Acceptable Use Policy | APPLICABLE_MISSING | Guest ID upload, QR system, reviews module exist | Accounts + uploads + reviews | Draft from real features only |
-| Legal | Security Policy / Responsible Disclosure | APPLICABLE_MISSING | `docs/security-hardening-report.md`, `docs/production-security-checklist.md` exist internally | Public product; no external vulnerability-reporting channel found | Needs a real reporting email before publishing |
-| Legal | Community Guidelines | EXISTS_NEEDS_IMPROVEMENT | `apps/pilgrim-app/src/features/reviews`, `apps/owner-app/.../reviews` (reviews are the only UGC) | Reviews are user-generated content | Lightweight guidelines scoped to reviews only, not full community/social claims |
+| Legal | Disclaimer | EXISTS_AND_ADEQUATE | `legal-documents.tsx` §1 "who we are" (both apps) states Tuljai Stays is not the operator of every listed property | Platform intermediates third-party lodges | Covered inline in both legal documents |
+| Legal | Accessibility Statement | APPLICABLE_MISSING | `docs/accessibility-qa-checklist.md` exists as an internal checklist, no public statement | Public-facing pilgrim/owner apps | Do not claim WCAG conformance; state current status only — not yet drafted |
+| Legal | Data Processing Agreement | **NOT_APPLICABLE (decided)** | No B2B customer contracts found; lodge owners use the Owner App as platform users under the Owner Terms, not as separate customers contracting Tuljai Stays as an independent processor | Jay delegated this decision; reasoning recorded as a code comment at the bottom of `apps/owner-app/src/owner-ui/legal-documents.tsx` | Revisit only if a future enterprise/chain-owner arrangement makes an owner a distinct data controller |
+| Legal | Acceptable Use Policy | EXISTS_AND_ADEQUATE | Folded into Terms §8 (pilgrim) / §8 (owner) rather than a separate document | Accounts + uploads + reviews | Covered inline; can be split into a standalone page later if Jay wants a dedicated one |
+| Legal | Security Policy / Responsible Disclosure | APPLICABLE_MISSING | `docs/security-hardening-report.md`, `docs/production-security-checklist.md` exist internally | Public product; no external vulnerability-reporting channel found | Needs a real reporting email before publishing — support inbox could be reused if Jay confirms, otherwise needs a dedicated address |
+| Legal | Community Guidelines | EXISTS_NEEDS_IMPROVEMENT | `apps/pilgrim-app/src/features/reviews`, `apps/owner-app/.../reviews` (reviews are the only UGC) | Reviews are user-generated content | Lightweight guidelines scoped to reviews only, not yet drafted |
 
 ## Customer lifecycle
 
 | Category | Page/state | Status | Evidence | Applicability reason | Required action |
 |---|---|---|---|---|---|
-| Lifecycle | Login/Register (pilgrim) | EXISTS_AND_ADEQUATE | `PilgrimAuthScreens.tsx`, OTP-based | Accounts required | None found needed |
+| Lifecycle | Login/Register (pilgrim) | EXISTS_AND_ADEQUATE | `PilgrimAuthScreens.tsx`, OTP-based, now with consent checkbox | Accounts required | None |
 | Lifecycle | Login (admin) | EXISTS_AND_ADEQUATE | `apps/admin-panel/app/(auth)/login/page.tsx` | Admin accounts | None |
-| Lifecycle | Login/Register/Verify-OTP (owner) | EXISTS_AND_ADEQUATE | `apps/owner-app/app/(auth)/login.tsx`, `verify-otp.tsx`, `register-lodge.tsx`, `pending-approval.tsx` | Owners must log in and register a lodge for approval | None — `pending-approval.tsx` already covers the lodge-approval lifecycle state |
-| Lifecycle | Email Verification | NOT_APPLICABLE | Auth is OTP/mobile-based across all three apps (`verify-otp.tsx`, pilgrim OTP screens); no email-verification module in `backend/src/modules` | No email-based auth flow | None |
-| Lifecycle | Forgot/Reset Password | NOT_APPLICABLE | OTP is the sole credential in all three apps (confirmed: owner-app `verify-otp.tsx`, pilgrim OTP screens, no password field found) | Only applies to password-based auth | None |
+| Lifecycle | Login/Register/Verify-OTP (owner) | EXISTS_AND_ADEQUATE | `apps/owner-app/app/(auth)/login.tsx` (now with consent checkbox), `verify-otp.tsx`, `register-lodge.tsx`, `pending-approval.tsx` | Owners must log in; lodge registration/approval handled by ops per `docs/lodge-owner-onboarding.md` | None |
+| Lifecycle | Email Verification | NOT_APPLICABLE | Auth is OTP/mobile-based across all three apps | No email-based auth flow | None |
+| Lifecycle | Forgot/Reset Password | NOT_APPLICABLE | OTP is the sole credential in all three apps (confirmed) | Only applies to password-based auth | None |
 | Lifecycle | Onboarding (pilgrim) | EXISTS_AND_ADEQUATE | `PilgrimOnboardingScreen.tsx` | New pilgrim users | None |
 | Lifecycle | Onboarding/registration (owner) | EXISTS_AND_ADEQUATE | `apps/owner-app/app/(auth)/register-lodge.tsx` + `pending-approval.tsx` | Owners need lodge/room setup + approval gating | None |
-| Lifecycle | Account Settings | EXISTS_AND_ADEQUATE | `OwnerSettingsScreen.tsx`, `PilgrimProfileScreen.tsx`, admin `account/page.tsx` | All three apps | None |
-| Lifecycle | Billing/Upgrade/Downgrade/Cancel Subscription | NOT_APPLICABLE | No subscription model found anywhere in `backend/src` or `packages` | No subscription product exists (commission-based booking model) | None |
-| Lifecycle | Payment Success/Failed/Pending | APPLICABLE_MISSING (needs deeper verification) | `backend/src/modules/payments/payments.controller.ts`, `razorpay.service.ts`, pilgrim `AnimatedResultBadge`/pending "Pay at lodge" states (per prior session work) | Prepaid Razorpay bookings exist | Confirm whether payment status is verified from backend/webhook (not URL params) end-to-end across all entry points, not just the flows built in the last session |
-| Lifecycle | Support (in-app contact) | EXISTS_NEEDS_IMPROVEMENT | `admin/support/page.tsx` (internal ticket view exists); `docs/support-contact-readiness.md` shows support email/phone as "Pending business input" | Users need a support path | Cannot publish real contact details until Jay confirms them |
-| Lifecycle | Help Center | APPLICABLE_MISSING | No FAQ/help content found in pilgrim or owner apps | Booking + QR flows benefit from self-serve help | Draft from actual features (booking, QR check-in, cancellation) once copy is approved |
+| Lifecycle | Account Settings | EXISTS_AND_ADEQUATE | `OwnerSettingsScreen.tsx` (now includes Legal card), `PilgrimProfileScreen.tsx`, admin `account/page.tsx` | All three apps | None |
+| Lifecycle | Billing/Upgrade/Downgrade/Cancel Subscription | NOT_APPLICABLE | No subscription model found anywhere in `backend/src` or `packages` | No subscription product exists | None |
+| Lifecycle | Payment Success/Failed/Pending | APPLICABLE_MISSING (needs deeper verification) | `backend/src/modules/payments/payments.controller.ts`, `razorpay.service.ts` | Prepaid Razorpay bookings exist | Confirm backend/webhook verification is used end-to-end, not just the flows built in a prior session |
+| Lifecycle | Support (in-app contact) | **DONE** | Support email surfaced in both legal-document modals and footers (`tuljaistays@gmail.com`, 4–24hr reply) | Users need a support path | Real contact now published; `admin/support/page.tsx` internal ticket view unchanged |
+| Lifecycle | Help Center | APPLICABLE_MISSING | No FAQ/help content found in pilgrim or owner apps | Booking + QR flows benefit from self-serve help | Not yet drafted |
 
 ## UX / system states
 
 | Category | Page/state | Status | Evidence | Applicability reason | Required action |
 |---|---|---|---|---|---|
-| UX | 404 / unknown route (admin-panel) | **DONE** | `apps/admin-panel/app/not-found.tsx` | Next.js app router | Implemented, typechecked, linted, verified in production build (`/_not-found` route present) |
-| UX | 500 / route error (admin-panel) | **DONE** | `apps/admin-panel/app/error.tsx` | Next.js app router | Implemented — shows generic message + digest reference, no stack traces, retry + dashboard link |
-| UX | 500 / root layout error (admin-panel) | **DONE** | `apps/admin-panel/app/global-error.tsx` | Covers errors thrown by the root layout itself, which `error.tsx` cannot catch | Implemented, dependency-free so it renders even if globals.css fails |
-| UX | 403 permission-denied (admin-panel) | EXISTS_AND_ADEQUATE | `apps/admin-panel/src/components/PermissionGate.tsx` | Granular roles exist | Shows a clear "Restricted" panel without revealing protected data; functional, no change needed |
-| UX | Maintenance | NEEDS VERIFICATION | `apps/admin-panel/src/platform-control/platform-control-config.ts`, `admin/emergency-control` and `admin/festival-control` pages suggest a platform-status flag may already exist | May already be partly covered by festival/emergency control | Inspect config before building a duplicate — next session |
-| UX | Offline (owner-app, pilgrim-app) | EXISTS_AND_ADEQUATE | `apps/owner-app/src/components/OfflineBanner.tsx` + `connectivity-context.tsx`; `apps/pilgrim-app/src/components/OfflineBanner.tsx` + `connectivity-context.tsx` | Both mobile apps already detect connectivity | None found needed on first inspection |
+| UX | 404 / unknown route (admin-panel) | **DONE** | `apps/admin-panel/app/not-found.tsx` | Next.js app router | Implemented, typechecked, linted, verified in production build |
+| UX | 500 / route error (admin-panel) | **DONE** | `apps/admin-panel/app/error.tsx` | Next.js app router | Implemented — generic message + digest reference, no stack traces |
+| UX | 500 / root layout error (admin-panel) | **DONE** | `apps/admin-panel/app/global-error.tsx` | Covers errors thrown by the root layout itself | Implemented, dependency-free fallback |
+| UX | 403 permission-denied (admin-panel) | EXISTS_AND_ADEQUATE | `apps/admin-panel/src/components/PermissionGate.tsx` | Granular roles exist | No change needed |
+| UX | Maintenance | NEEDS VERIFICATION | `apps/admin-panel/src/platform-control/platform-control-config.ts`, `admin/emergency-control` and `admin/festival-control` | May already be partly covered | Inspect config before building a duplicate — next session |
+| UX | Offline (owner-app, pilgrim-app) | EXISTS_AND_ADEQUATE | `OfflineBanner.tsx` + `connectivity-context.tsx` in both apps | Both mobile apps already detect connectivity | None found needed |
 | UX | Empty state / No results | NEEDS VERIFICATION | Not yet inspected per-screen | Applies to bookings, lodges lists, reviews | Inspect list screens next session |
-| UX | Loading state | NEEDS VERIFICATION (admin-panel partially done) | Admin-panel `AsyncState.tsx` (`LoadingState`/`ErrorBanner`/`EmptyState`) already rolled out to several pages per Phase 10 in progress; mobile apps not yet inspected | Applies broadly | Continue existing Phase 10 admin rollout; inspect mobile apps |
-| UX | Session Expired | APPLICABLE_MISSING | Traced `packages/shared/src/api-client.ts`: on a 401, it calls `refreshAccessToken`; if that also fails, it just `throw`s a normalized `ApplicationError` — there is no global handler that clears the session and routes the user back to login. Confirmed in both `apps/owner-app/src/api/client.ts` and pilgrim app's use of the same `ApiClient`. | `JwtAuthStrategy` can invalidate a session mid-request (live revalidation), so a real "your session ended" moment now happens in normal use, not just token expiry | Currently a user just sees a generic per-screen error, not a "please sign in again" flow. This is a real gap — next unblocked item to build |
+| UX | Loading state | NEEDS VERIFICATION (admin-panel partially done) | Admin-panel `AsyncState.tsx` rolled out to several pages per Phase 10 in progress | Applies broadly | Continue existing Phase 10 admin rollout; inspect mobile apps |
+| UX | Session Expired | **APPLICABLE_MISSING — next item** | `packages/shared/src/api-client.ts`: on a 401, if `refreshAccessToken` also fails, it just `throw`s a normalized `ApplicationError` with no global session-clear/redirect-to-login handler | `JwtAuthStrategy` live revalidation means a real "session ended" moment happens in normal use | Not yet built — see "Next unblocked item" |
 
 ## Not yet scanned (incomplete — listed for transparency, not guessed)
 
@@ -64,28 +70,33 @@ NOT_APPLICABLE | BLOCKED_BY_MISSING_INFORMATION
 - Admin-panel maintenance-mode config (`platform-control-config.ts`) vs. a dedicated maintenance page
 - CI workflow definitions under `.github/`
 
-## Consolidated questions blocking legal/business content (do not guess)
+## Resolved business facts (from Jay, 29 Aug 2026)
 
-1. Legal operating name, registered/operating address, and jurisdiction to print on Privacy Policy/Terms.
-2. Support email and/or phone (currently "Pending business input" in `docs/support-contact-readiness.md`).
-3. Actual refund and cancellation rules for prepaid Razorpay bookings (window, %, process).
-4. Security-reporting contact address for a Responsible Disclosure page.
-5. Data retention periods for guest ID documents, booking data, and QR/scan logs.
-6. Whether lodge owners are to be treated as independent data controllers (affects DPA applicability).
+1. Legal name: **Shri Tuljabhavani Technologies** — added to both legal documents.
+2. Address/jurisdiction: **Tuljapur** (Maharashtra) — added as operating base and governing-law forum.
+3. Support email: **tuljaistays@gmail.com**, typical reply **4–24 hours** — added to both legal documents, both consent modals, and owner settings.
+4. Refund/cancellation rules: Jay confirmed the language already in the pilgrim Terms is the source of truth — retained as-is rather than rewritten from a guess.
+5. DPA: delegated to Claude's judgement — decided NOT_APPLICABLE today, reasoning recorded in-code (see owner `legal-documents.tsx`).
 
-(Previously open question about OTP being the only credential is now resolved — confirmed true across all three apps.)
+## Still open (do not guess)
 
-## Implemented this session
+1. Security-reporting contact for a Responsible Disclosure page (may reuse the support inbox if Jay confirms).
+2. Data retention periods for guest ID documents, booking data, and QR/scan logs (currently described only in general terms — "as long as reasonably necessary" — no specific figure has been provided).
 
-- `apps/admin-panel/app/not-found.tsx` — 404 page, uses existing `.panel`/`.eyebrow`/`.button` design tokens
-- `apps/admin-panel/app/error.tsx` — route-level error boundary, safe logging (digest only), retry + dashboard actions
-- `apps/admin-panel/app/global-error.tsx` — root-layout error boundary, dependency-free fallback
-- Verified: `npm run typecheck --workspace @tuljai/admin-panel` PASSED, `npm run lint --workspace @tuljai/admin-panel` PASSED (pre-existing unrelated lint errors in `admin/support/[id]/page.tsx` and `AdminShell.tsx` left untouched), `npm run build:admin` PASSED with fresh install (`/_not-found` route confirmed present in build output)
+## Implemented this session (cumulative)
+
+- `apps/admin-panel/app/not-found.tsx`, `error.tsx`, `global-error.tsx` — 404/500 UX states
+- `apps/pilgrim-app/src/pilgrim-ui/legal-documents.tsx` — legal entity, jurisdiction, support contact added
+- `apps/pilgrim-app/src/pilgrim-ui/screens/PilgrimAuthScreens.tsx` — real consent checkbox gating login/Google sign-in
+- `apps/owner-app/src/owner-ui/legal-documents.tsx` (new) — owner-facing Privacy Policy + Terms
+- `apps/owner-app/src/features/settings/screens/OwnerSettingsScreen.tsx` — Legal card added
+- `apps/owner-app/app/(auth)/login.tsx` — real consent checkbox gating OTP request
+- Verified on a fresh `git clone --depth 1`: shared-package builds PASSED, `typecheck` PASSED for admin-panel, owner-app, and pilgrim-app; `lint` PASSED for admin-panel, owner-app, and pilgrim-app (pre-existing unrelated lint errors elsewhere in admin-panel left untouched); `build:admin` PASSED
 
 ## Next unblocked item
 
 Session-expired handling for owner-app and pilgrim-app: when token refresh fails, clear the stored
 session and route to login with a "your session ended, please sign in again" message, instead of
-letting each screen surface a generic error. This requires touching `packages/shared/src/api-client.ts`
-(shared by both apps) plus each app's auth context — will do owner-app first, verify, then mirror to
-pilgrim-app per the incremental-edit pattern.
+letting each screen surface a generic error. Requires touching `packages/shared/src/api-client.ts`
+(shared by both apps) plus each app's auth context — owner-app first, verify, then mirror to
+pilgrim-app.
