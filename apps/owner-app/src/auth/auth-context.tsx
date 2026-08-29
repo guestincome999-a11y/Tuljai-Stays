@@ -3,6 +3,8 @@ import type { AuthUserProfile, UserRole } from '@tuljai/types';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
+import { apiClient, setOwnerSessionExpiredHandler } from '../api/client';
+
 import { logoutFromApi, refreshAccessToken, verifyOwnerLoginOtp } from './auth-api';
 import {
   clearAuthSession,
@@ -32,6 +34,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession>(emptyAuthSession);
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
+
+  const handleSessionExpired = useCallback(() => {
+    void (async () => {
+      await clearAuthSession();
+      setSession(emptyAuthSession);
+      setAccessDeniedMessage('Your session has ended. Please sign in again.');
+      router.replace('/(auth)/login');
+    })();
+  }, [router]);
+
+  useEffect(() => {
+    setOwnerSessionExpiredHandler(handleSessionExpired);
+    return () => setOwnerSessionExpiredHandler(null);
+  }, [handleSessionExpired]);
 
   useEffect(() => subscribeAuthSession(setSession), []);
 
@@ -65,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           await saveAuthSession(nextSession);
           setSession(nextSession);
+          apiClient.resetSessionExpiredFlag();
         } else {
           await clearAuthSession();
           setSession(emptyAuthSession);
@@ -106,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccessDeniedMessage(null);
       await saveAuthSession(nextSession);
       setSession(nextSession);
+      apiClient.resetSessionExpiredFlag();
       router.replace('/(app)/dashboard');
     },
     [router],
@@ -146,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     await saveAuthSession(nextSession);
     setSession(nextSession);
+    apiClient.resetSessionExpiredFlag();
     return refreshed.accessToken;
   }, [session]);
 
