@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
+import { apiClient, setPilgrimSessionExpiredHandler } from '../api/client';
+
 import {
   exchangeGoogleLogin,
   logoutFromApi,
@@ -30,6 +32,7 @@ interface AuthContextValue {
   logout(): Promise<void>;
   refreshSession: () => Promise<string | null>;
   session: AuthSession;
+  sessionExpiredMessage: string | null;
   signInWithGoogle(supabaseAccessToken: string): Promise<void>;
   signInWithOtp(phoneNumber: string, otp: string): Promise<void>;
   updateProfile(displayName: string): Promise<void>;
@@ -51,6 +54,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [session, setSession] = useState<AuthSession>(emptyAuthSession);
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null);
+
+  const handleSessionExpired = useCallback(() => {
+    void (async () => {
+      await clearAuthSession();
+      await setOnboardingRequired(false);
+      setSession(emptyAuthSession);
+      setSessionExpiredMessage('Your session has ended. Please sign in again.');
+      router.replace('/(auth)/login');
+    })();
+  }, [router]);
+
+  useEffect(() => {
+    setPilgrimSessionExpiredHandler(handleSessionExpired);
+    return () => setPilgrimSessionExpiredHandler(null);
+  }, [handleSessionExpired]);
+
   useEffect(() => subscribeAuthSession(setSession), []);
   useEffect(() => {
     let mounted = true;
@@ -66,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           await saveAuthSession(nextSession);
           setSession(nextSession);
+          apiClient.resetSessionExpiredFlag();
           if (await isOnboardingRequired()) router.replace('/(auth)/onboarding');
         } else {
           await clearAuthSession();
@@ -98,6 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       await saveAuthSession(nextSession);
       setSession(nextSession);
+      apiClient.resetSessionExpiredFlag();
+      setSessionExpiredMessage(null);
       await routeAfterLogin(response);
     },
     [routeAfterLogin],
@@ -114,6 +137,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       await saveAuthSession(nextSession);
       setSession(nextSession);
+      apiClient.resetSessionExpiredFlag();
+      setSessionExpiredMessage(null);
       await routeAfterLogin(response);
     },
     [routeAfterLogin],
@@ -137,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     await saveAuthSession(nextSession);
     setSession(nextSession);
+    apiClient.resetSessionExpiredFlag();
     return refreshed.accessToken;
   }, [session]);
   const updateProfile = useCallback(
@@ -156,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshSession,
       session,
+      sessionExpiredMessage,
       signInWithGoogle,
       signInWithOtp,
       updateProfile,
@@ -166,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshSession,
       session,
+      sessionExpiredMessage,
       signInWithGoogle,
       signInWithOtp,
       updateProfile,
