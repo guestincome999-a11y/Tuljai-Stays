@@ -1,5 +1,7 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { radius, spacing } from '@tuljai/ui';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Modal as RNModal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
   Button,
@@ -10,7 +12,9 @@ import {
   Text,
   useTheme,
 } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LegalDocument, type LegalDocumentKind } from '../../../owner-ui/legal-documents';
 import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
 import { useOwnerSettings } from '../hooks/useOwnerSettings';
 import {
@@ -18,6 +22,8 @@ import {
   type OwnerLanguage,
   type OwnerThemeMode,
 } from '../storage/owner-settings-store';
+
+const SUPPORT_EMAIL = 'tuljaistays@gmail.com';
 
 const themeModes: Array<{ label: string; value: OwnerThemeMode }> = [
   { label: 'System', value: 'SYSTEM' },
@@ -41,6 +47,13 @@ export function OwnerSettingsScreen() {
   const theme = useTheme();
   const settings = useOwnerSettings();
   const { setLanguage, tr } = useOwnerApp();
+  const [legalOpen, setLegalOpen] = useState(false);
+  const [legalKind, setLegalKind] = useState<LegalDocumentKind>('terms');
+
+  function openLegal(kind: LegalDocumentKind) {
+    setLegalKind(kind);
+    setLegalOpen(true);
+  }
 
   if (settings.isLoading) {
     return (
@@ -161,6 +174,26 @@ export function OwnerSettingsScreen() {
             </Button>
           </Card.Content>
         </Card>
+
+        <Card mode="outlined" style={styles.card}>
+          <Card.Content style={styles.cardContent}>
+            <Text variant="titleMedium">{tr('Legal')}</Text>
+            <Button
+              accessibilityLabel="View Privacy Policy"
+              mode="outlined"
+              onPress={() => openLegal('privacy')}
+            >
+              {tr('Privacy Policy')}
+            </Button>
+            <Button
+              accessibilityLabel="View Terms and Conditions"
+              mode="outlined"
+              onPress={() => openLegal('terms')}
+            >
+              {tr('Terms & Conditions')}
+            </Button>
+          </Card.Content>
+        </Card>
       </ScrollView>
 
       <Snackbar
@@ -169,6 +202,42 @@ export function OwnerSettingsScreen() {
       >
         {settings.successMessage}
       </Snackbar>
+
+      <RNModal
+        animationType="slide"
+        onRequestClose={() => setLegalOpen(false)}
+        presentationStyle="pageSheet"
+        visible={legalOpen}
+      >
+        <SafeAreaView className="flex-1 bg-warm-50" edges={['top', 'bottom']}>
+          <View className="flex-row items-center justify-between border-b border-warm-100 bg-white px-5 py-4">
+            <View className="flex-1 pr-4">
+              <Text variant="titleMedium">
+                {legalKind === 'privacy' ? tr('Privacy Policy') : tr('Terms & Conditions')}
+              </Text>
+              <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+                Tuljai Stays Owner App · India
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel={tr('Close legal document')}
+              className="h-10 w-10 items-center justify-center rounded-full bg-warm-100"
+              hitSlop={8}
+              onPress={() => setLegalOpen(false)}
+            >
+              <MaterialCommunityIcons color="#7A1F2B" name="close" size={22} />
+            </Pressable>
+          </View>
+          <View className="flex-1 px-5 pt-5">
+            <LegalDocument kind={legalKind} />
+          </View>
+          <View className="border-t border-warm-100 bg-white px-5 py-3">
+            <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }} variant="bodySmall">
+              {tr('Questions or privacy requests?')} {SUPPORT_EMAIL}
+            </Text>
+          </View>
+        </SafeAreaView>
+      </RNModal>
     </View>
   );
 }
