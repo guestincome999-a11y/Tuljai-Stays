@@ -6,7 +6,7 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppScreen, LodgeCard, LodgeCardSkeleton, PrimaryButton, SearchBox, ui } from '../components';
-import { formatRupees } from '../mock-data';
+import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 import { PriceRangeSlider } from '../PriceRangeSlider';
 
@@ -29,15 +29,27 @@ interface PriceRange {
 
 // How many lodge cards render up front, and how many more get added each
 // time the user scrolls near the bottom. Keeps the initial render (and the
-// number of images mounted at once) small instead of drawing the whole
-// filtered list in one pass.
+// number of lodge-detail requests fired) small instead of drawing — and
+// hydrating — the whole filtered list in one pass.
 const RESULTS_PAGE_SIZE = 6;
 const SCROLL_LOAD_MORE_THRESHOLD_PX = 400;
+
+// Unhydrated lodges (still showing a skeleton) don't have a real price or
+// rating yet. Sorting by "price: low to high" with a 0 fallback or by
+// "rating" with a low fallback would incorrectly shove them to the front —
+// these values push them to the back instead until their real data loads.
+function sortablePrice(lodge: PilgrimLodge): number {
+  return lodge.hydrated === false ? Number.POSITIVE_INFINITY : lodge.price;
+}
+function sortableRating(lodge: PilgrimLodge): number {
+  return lodge.hydrated === false ? -1 : lodge.rating;
+}
 
 export function PilgrimLodgesScreen() {
   const params = useLocalSearchParams<{ quick?: string; search?: string }>();
   const router = useRouter();
-  const { favoriteIds, lodges, refresh, syncError, t, toggleFavorite } = usePilgrimApp();
+  const { ensureLodgesHydrated, favoriteIds, lodges, refresh, syncError, t, toggleFavorite } =
+    usePilgrimApp();
   const [search, setSearch] = useState(typeof params.search === 'string' ? params.search : '');
   const [activeFilter, setActiveFilter] = useState<QuickFilter>(() =>
     normalizeQuickFilter(params.quick),
@@ -47,7 +59,16 @@ export function PilgrimLodgesScreen() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftSort, setDraftSort] = useState<SortOption>('recommended');
   const [visibleCount, setVisibleCount] = useState(RESULTS_PAGE_SIZE);
-  const priceBounds = useMemo(() => getPriceBounds(lodges.map((lodge) => lodge.price)), [lodges]);
+  // Only hydrated lodges have a real price, so bounds are computed from
+  // those; unhydrated lodges (fallback price 0) would otherwise always drag
+  // the minimum down to ₹0.
+  const priceBounds = useMemo(
+    () =>
+      getPriceBounds(
+        lodges.filter((lodge) => lodge.hydrated !== false).map((lodge) => lodge.price),
+      ),
+    [lodges],
+  );
   const appliedPriceRange = useMemo(
     () => clampPriceRange(priceRange ?? priceBounds, priceBounds),
     [priceBounds, priceRange],
@@ -74,17 +95,22 @@ export function PilgrimLodgesScreen() {
         activeFilter === 'all' ||
         (activeFilter === 'saved' && favoriteIds.includes(lodge.id)) ||
         (activeFilter === 'near-temple' && distanceInMeters(lodge.distance) < 900) ||
-        (activeFilter === 'budget' && lodge.price <= 1200) ||
+        // Guarded by `hydrated`: an unhydrated lodge's fallback price is 0,
+        // which would otherwise wrongly satisfy "Under ₹1,200" for every
+        // lodge before its real price has loaded.
+        (activeFilter === 'budget' && lodge.hydrated !== false && lodge.price <= 1200) ||
         (activeFilter === 'family' &&
           lodge.tags.some((tag) => tag.toLowerCase().includes('family'))) ||
         (activeFilter === 'parking' &&
           lodge.amenities.some((item) => item.label.toLowerCase().includes('parking')));
       const matchesPrice =
-        lodge.price >= appliedPriceRange.minimum && lodge.price <= appliedPriceRange.maximum;
+        lodge.hydrated === false ||
+        (lodge.price >= appliedPriceRange.minimum && lodge.price <= appliedPriceRange.maximum);
       return matchesSearch && matchesFilter && matchesPrice;
     });
-    if (sort === 'price') items = [...items].sort((a, b) => a.price - b.price);
-    if (sort === 'rating') items = [...items].sort((a, b) => b.rating - a.rating);
+    if (sort === 'price') items = [...items].sort((a, b) => sortablePrice(a) - sortablePrice(b));
+    if (sort === 'rating')
+      items = [...items].sort((a, b) => sortableRating(b) - sortableRating(a));
     if (sort === 'distance')
       items = [...items].sort(
         (a, b) => distanceInMeters(a.distance) - distanceInMeters(b.distance),
@@ -101,6 +127,19 @@ export function PilgrimLodgesScreen() {
 
   const visibleResults = results.slice(0, visibleCount);
   const hasMoreToShow = visibleCount < results.length;
+
+  // Only request full details (photos, room prices) for lodges actually
+  // rendered right now. As visibleCount grows on scroll this re-runs and
+  // picks up the newly revealed lodges; ensureLodgesHydrated itself skips
+  // anything already hydrated or already in flight.
+  const visibleLodgeIdsKey = useMemo(
+    () => visibleResults.map((lodge) => lodge.id).join('|'),
+    [visibleResults],
+  );
+  useEffect(() => {
+    if (!visibleLodgeIdsKey) return;
+    ensureLodgesHydrated(visibleLodgeIdsKey.split('|'));
+  }, [ensureLodgesHydrated, visibleLodgeIdsKey]);
 
   function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (!hasMoreToShow) return;
