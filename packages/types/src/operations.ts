@@ -160,6 +160,18 @@ export interface LodgeCommissionFinanceReport {
   settlements: LodgeCommissionSettlement[];
 }
 
+export interface LodgeCommissionOverviewRow {
+  commissionEnabled: boolean;
+  commissionFixedAmount: string;
+  commissionRatePercent: string;
+  commissionType: LodgeCommissionType;
+  lodgeId: UUID;
+  lodgeName: string;
+  outstanding: string;
+  receivable: string;
+  settled: string;
+}
+
 export interface SystemSetting {
   createdAt?: string;
   description: string | null;
