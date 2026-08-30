@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PromotionalBanner } from '@tuljai/types';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Linking,
@@ -19,6 +19,7 @@ import {
   BrandMark,
   IconButton,
   LodgeCard,
+  LodgeCardSkeleton,
   SearchBox,
   SectionTitle,
   StatusBadge,
@@ -44,12 +45,19 @@ const categories = [
   { icon: 'car' as const, label: 'Parking', labelMr: 'पार्किंग', quick: 'parking' },
 ];
 
+// How many featured lodges show in the "Loved by pilgrims" strip. Only
+// these get their full details (photos, price) requested from the home
+// screen — the rest of the catalog stays untouched until the user opens
+// the full lodges list.
+const FEATURED_LODGE_COUNT = 4;
+
 export function PilgrimHomeScreen() {
   const router = useRouter();
   const auth = useAuth();
   const publicSettings = usePublicSettings();
   const {
     bookings,
+    ensureLodgesHydrated,
     favoriteIds,
     isSyncing,
     lodges,
@@ -64,6 +72,16 @@ export function PilgrimHomeScreen() {
   );
   const unread = notifications.filter((item) => !item.read).length;
   const firstName = auth.user?.displayName?.trim().split(/\s+/)[0];
+  const featuredLodges = useMemo(() => lodges.slice(0, FEATURED_LODGE_COUNT), [lodges]);
+  const featuredLodgeIdsKey = useMemo(
+    () => featuredLodges.map((lodge) => lodge.id).join('|'),
+    [featuredLodges],
+  );
+
+  useEffect(() => {
+    if (!featuredLodgeIdsKey) return;
+    ensureLodgesHydrated(featuredLodgeIdsKey.split('|'));
+  }, [ensureLodgesHydrated, featuredLodgeIdsKey]);
 
   return (
     <AppScreen className="gap-7 pt-2">
@@ -244,18 +262,22 @@ export function PilgrimHomeScreen() {
           showsHorizontalScrollIndicator={false}
           style={{ marginHorizontal: -20, paddingLeft: 20 }}
         >
-          {lodges.slice(0, 4).map((lodge) => (
-            <LodgeCard
-              favorite={favoriteIds.includes(lodge.id)}
-              horizontal
-              key={lodge.id}
-              lodge={lodge}
-              onFavorite={() => toggleFavorite(lodge.id)}
-              onPress={() =>
-                router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
-              }
-            />
-          ))}
+          {featuredLodges.map((lodge) =>
+            lodge.hydrated === false ? (
+              <LodgeCardSkeleton horizontal key={lodge.id} />
+            ) : (
+              <LodgeCard
+                favorite={favoriteIds.includes(lodge.id)}
+                horizontal
+                key={lodge.id}
+                lodge={lodge}
+                onFavorite={() => toggleFavorite(lodge.id)}
+                onPress={() =>
+                  router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
+                }
+              />
+            ),
+          )}
         </ScrollView>
       </View>
 
