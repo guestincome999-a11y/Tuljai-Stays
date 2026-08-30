@@ -163,6 +163,52 @@ export class LodgeCommissionFinanceService {
     };
   }
 
+  public listOverview(): Promise<
+    Array<{
+      commissionEnabled: boolean;
+      commissionFixedAmount: string;
+      commissionRatePercent: string;
+      commissionType: 'PERCENTAGE' | 'FIXED_PER_BOOKING';
+      lodgeId: string;
+      lodgeName: string;
+      outstanding: string;
+      receivable: string;
+      settled: string;
+    }>
+  > {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT
+        l.id AS "lodgeId",
+        l.name AS "lodgeName",
+        COALESCE(s.commission_enabled, false) AS "commissionEnabled",
+        COALESCE(s.commission_type, 'PERCENTAGE') AS "commissionType",
+        COALESCE(s.commission_rate_percent, 0)::text AS "commissionRatePercent",
+        COALESCE(s.commission_fixed_amount, 0)::text AS "commissionFixedAmount",
+        COALESCE((
+          SELECT SUM(led.commission_amount)
+          FROM lodge_commission_ledger led
+          WHERE led.lodge_id = l.id AND led.status <> 'VOIDED'
+        ), 0)::text AS receivable,
+        COALESCE((
+          SELECT SUM(GREATEST(led.commission_amount - COALESCE(alloc.allocated_amount, 0), 0))
+          FROM lodge_commission_ledger led
+          LEFT JOIN (
+            SELECT ledger_id, SUM(amount) AS allocated_amount
+            FROM lodge_commission_settlement_allocations
+            GROUP BY ledger_id
+          ) alloc ON alloc.ledger_id = led.id
+          WHERE led.lodge_id = l.id AND led.status <> 'VOIDED'
+        ), 0)::text AS outstanding,
+        COALESCE((
+          SELECT SUM(amount) FROM lodge_commission_settlements WHERE lodge_id = l.id
+        ), 0)::text AS settled
+      FROM lodges l
+      LEFT JOIN lodge_commission_settings s ON s.lodge_id = l.id
+      WHERE l.deleted_at IS NULL
+      ORDER BY l.name ASC
+    `);
+  }
+
   public async createSettlement(
     lodgeId: string,
     dto: CreateCommissionSettlementDto,
