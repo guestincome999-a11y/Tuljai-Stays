@@ -28,9 +28,10 @@ import { useRealtime } from '../realtime/realtime-provider';
 import {
   applyBackendBookingRecord,
   getFallbackNotifications,
+  hydrateBackendLodge,
   loadBackendBookings,
-  loadBackendLodges,
   loadBackendNotifications,
+  loadLodgeSummaries,
 } from './backend-sync';
 import {
   initialPilgrimBookings,
@@ -46,6 +47,11 @@ import {
 } from './pilgrim-preferences-store';
 
 export type PilgrimLanguage = 'en' | 'mr';
+
+// How many lodges to hydrate with full details (photos, room prices) at once
+// in the background. Keeps the summary list snappy on-screen while detail
+// calls trickle in, instead of blocking on all of them up front.
+const LODGE_HYDRATION_CONCURRENCY = 4;
 
 interface CreateBookingInput {
   checkInDate: string;
@@ -108,19 +114,47 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   const [isSyncing, setIsSyncing] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  // Hydrates lodge details in the background with limited concurrency,
+  // merging each lodge into state as soon as it resolves rather than
+  // waiting for the whole catalog. This is what lets the lodges screen show
+  // real cards immediately and swap skeletons out one by one while
+  // scrolling, instead of the previous behaviour of blocking app load on
+  // every lodge's photos/room-types before showing anything.
+  const hydrateLodgesInBackground = useCallback((summaries: PilgrimLodge[]) => {
+    const queue = summaries.filter((lodge) => !lodge.hydrated);
+    let cursor = 0;
+
+    const runNext = (): void => {
+      if (cursor >= queue.length) return;
+      const summary = queue[cursor];
+      cursor += 1;
+      void hydrateBackendLodge(summary)
+        .then((hydratedLodge) => {
+          setLodges((current) =>
+            current.map((lodge) => (lodge.id === hydratedLodge.id ? hydratedLodge : lodge)),
+          );
+        })
+        .catch(() => undefined)
+        .finally(runNext);
+    };
+
+    for (let worker = 0; worker < LODGE_HYDRATION_CONCURRENCY; worker += 1) runNext();
+  }, []);
+
   const loadLodges = useCallback(async (): Promise<PilgrimLodge[]> => {
-    const backendLodges = await loadBackendLodges();
-    setLodges(backendLodges);
+    const summaries = await loadLodgeSummaries();
+    setLodges(summaries);
     setFavoriteIds((current) =>
       current.map((favoriteId) => {
-        const matchingLodge = backendLodges.find(
+        const matchingLodge = summaries.find(
           (lodge) => lodge.id === favoriteId || lodge.slug === favoriteId,
         );
         return matchingLodge?.id ?? favoriteId;
       }),
     );
-    return backendLodges;
-  }, []);
+    hydrateLodgesInBackground(summaries);
+    return summaries;
+  }, [hydrateLodgesInBackground]);
 
   const loadPrivateData = useCallback(
     async (availableLodges: PilgrimLodge[]): Promise<PilgrimBooking[]> => {
