@@ -2,9 +2,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppScreen, LodgeCard, PrimaryButton, SearchBox, ui } from '../components';
+import { AppScreen, LodgeCard, LodgeCardSkeleton, PrimaryButton, SearchBox, ui } from '../components';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 import { PriceRangeSlider } from '../PriceRangeSlider';
@@ -26,6 +27,13 @@ interface PriceRange {
   minimum: number;
 }
 
+// How many lodge cards render up front, and how many more get added each
+// time the user scrolls near the bottom. Keeps the initial render (and the
+// number of images mounted at once) small instead of drawing the whole
+// filtered list in one pass.
+const RESULTS_PAGE_SIZE = 6;
+const SCROLL_LOAD_MORE_THRESHOLD_PX = 400;
+
 export function PilgrimLodgesScreen() {
   const params = useLocalSearchParams<{ quick?: string; search?: string }>();
   const router = useRouter();
@@ -38,6 +46,7 @@ export function PilgrimLodgesScreen() {
   const [priceRange, setPriceRange] = useState<PriceRange | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftSort, setDraftSort] = useState<SortOption>('recommended');
+  const [visibleCount, setVisibleCount] = useState(RESULTS_PAGE_SIZE);
   const priceBounds = useMemo(() => getPriceBounds(lodges.map((lodge) => lodge.price)), [lodges]);
   const appliedPriceRange = useMemo(
     () => clampPriceRange(priceRange ?? priceBounds, priceBounds),
@@ -83,6 +92,26 @@ export function PilgrimLodgesScreen() {
     return items;
   }, [activeFilter, appliedPriceRange, favoriteIds, lodges, search, sort]);
 
+  // Whenever the filtered set changes shape (new search, filter, sort or
+  // price range) start again from the first page instead of keeping a
+  // visibleCount left over from a different result set.
+  useEffect(() => {
+    setVisibleCount(RESULTS_PAGE_SIZE);
+  }, [activeFilter, appliedPriceRange, search, sort]);
+
+  const visibleResults = results.slice(0, visibleCount);
+  const hasMoreToShow = visibleCount < results.length;
+
+  function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (!hasMoreToShow) return;
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (distanceFromBottom < SCROLL_LOAD_MORE_THRESHOLD_PX) {
+      setVisibleCount((current) => Math.min(current + RESULTS_PAGE_SIZE, results.length));
+    }
+  }
+
   function openFilters() {
     setDraftPriceRange(appliedPriceRange);
     setDraftSort(sort);
@@ -107,7 +136,7 @@ export function PilgrimLodgesScreen() {
   }
 
   return (
-    <AppScreen className="gap-5 pt-2">
+    <AppScreen className="gap-5 pt-2" scrollEventThrottle={150} onScroll={handleScroll}>
       <View>
         <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
           {t('Find your stay', 'तुमचा निवास शोधा')}
@@ -208,17 +237,26 @@ export function PilgrimLodgesScreen() {
       ) : null}
 
       <View className="gap-5">
-        {results.map((lodge) => (
-          <LodgeCard
-            favorite={favoriteIds.includes(lodge.id)}
-            key={lodge.id}
-            lodge={lodge}
-            onFavorite={() => toggleFavorite(lodge.id)}
-            onPress={() =>
-              router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
-            }
-          />
-        ))}
+        {visibleResults.map((lodge) =>
+          lodge.hydrated === false ? (
+            <LodgeCardSkeleton key={lodge.id} />
+          ) : (
+            <LodgeCard
+              favorite={favoriteIds.includes(lodge.id)}
+              key={lodge.id}
+              lodge={lodge}
+              onFavorite={() => toggleFavorite(lodge.id)}
+              onPress={() =>
+                router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
+              }
+            />
+          ),
+        )}
+        {hasMoreToShow ? (
+          <View aria-label={t('Loading more stays', 'अधिक निवास लोड होत आहेत')}>
+            <LodgeCardSkeleton />
+          </View>
+        ) : null}
         {results.length === 0 ? (
           <View className="items-center rounded-3xl border border-warm-100 bg-white px-7 py-12">
             <View className="h-16 w-16 items-center justify-center rounded-full bg-saffron-50">
