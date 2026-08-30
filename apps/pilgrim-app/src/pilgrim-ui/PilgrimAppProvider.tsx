@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { AppState } from 'react-native';
@@ -48,11 +49,6 @@ import {
 
 export type PilgrimLanguage = 'en' | 'mr';
 
-// How many lodges to hydrate with full details (photos, room prices) at once
-// in the background. Keeps the summary list snappy on-screen while detail
-// calls trickle in, instead of blocking on all of them up front.
-const LODGE_HYDRATION_CONCURRENCY = 4;
-
 interface CreateBookingInput {
   checkInDate: string;
   checkOutDate: string;
@@ -74,6 +70,14 @@ interface PilgrimAppContextValue {
   bookings: PilgrimBooking[];
   cancelBooking: (id: string, reason?: string) => Promise<void>;
   createBooking: (input: CreateBookingInput) => Promise<PilgrimBooking>;
+  /**
+   * Requests full details (photos, room prices) for the given lodge ids.
+   * Only lodges not already hydrated or already in flight are fetched, so
+   * it's safe to call repeatedly (e.g. every time the visible list changes)
+   * without triggering duplicate requests. This is what keeps detail calls
+   * scoped to what's actually on screen instead of the whole catalog.
+   */
+  ensureLodgesHydrated: (lodgeIds: string[]) => void;
   favoriteIds: string[];
   isBackendConnected: boolean;
   isSyncing: boolean;
@@ -114,36 +118,45 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   const [isSyncing, setIsSyncing] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Hydrates lodge details in the background with limited concurrency,
-  // merging each lodge into state as soon as it resolves rather than
-  // waiting for the whole catalog. This is what lets the lodges screen show
-  // real cards immediately and swap skeletons out one by one while
-  // scrolling, instead of the previous behaviour of blocking app load on
-  // every lodge's photos/room-types before showing anything.
-  const hydrateLodgesInBackground = useCallback((summaries: PilgrimLodge[]) => {
-    const queue = summaries.filter((lodge) => !lodge.hydrated);
-    let cursor = 0;
+  // Tracks lodge ids currently being hydrated so ensureLodgesHydrated can be
+  // called repeatedly (e.g. from a scroll handler) without firing duplicate
+  // detail requests for the same lodge.
+  const hydratingIdsRef = useRef<Set<string>>(new Set());
 
-    const runNext = (): void => {
-      if (cursor >= queue.length) return;
-      const summary = queue[cursor];
-      cursor += 1;
-      void hydrateBackendLodge(summary)
-        .then((hydratedLodge) => {
-          setLodges((current) =>
-            current.map((lodge) => (lodge.id === hydratedLodge.id ? hydratedLodge : lodge)),
-          );
-        })
-        .catch(() => undefined)
-        .finally(runNext);
-    };
-
-    for (let worker = 0; worker < LODGE_HYDRATION_CONCURRENCY; worker += 1) runNext();
+  const ensureLodgesHydrated = useCallback((lodgeIds: string[]) => {
+    if (lodgeIds.length === 0) return;
+    setLodges((current) => {
+      const byId = new Map(current.map((lodge) => [lodge.id, lodge]));
+      const toHydrate = lodgeIds
+        .map((id) => byId.get(id))
+        .filter(
+          (lodge): lodge is PilgrimLodge =>
+            !!lodge && lodge.hydrated === false && !hydratingIdsRef.current.has(lodge.id),
+        );
+      toHydrate.forEach((lodge) => {
+        hydratingIdsRef.current.add(lodge.id);
+        void hydrateBackendLodge(lodge)
+          .then((hydratedLodge) => {
+            setLodges((prev) =>
+              prev.map((item) => (item.id === hydratedLodge.id ? hydratedLodge : item)),
+            );
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            hydratingIdsRef.current.delete(lodge.id);
+          });
+      });
+      // This call only kicks off requests; the actual state update happens
+      // asynchronously above, so return the same reference to avoid an
+      // extra render here.
+      return current;
+    });
   }, []);
 
   const loadLodges = useCallback(async (): Promise<PilgrimLodge[]> => {
     const summaries = await loadLodgeSummaries();
     setLodges(summaries);
+    hydratingIdsRef.current.clear();
     setFavoriteIds((current) =>
       current.map((favoriteId) => {
         const matchingLodge = summaries.find(
@@ -152,9 +165,8 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         return matchingLodge?.id ?? favoriteId;
       }),
     );
-    hydrateLodgesInBackground(summaries);
     return summaries;
-  }, [hydrateLodgesInBackground]);
+  }, []);
 
   const loadPrivateData = useCallback(
     async (availableLodges: PilgrimLodge[]): Promise<PilgrimBooking[]> => {
@@ -370,6 +382,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         if (!booking) throw new Error('Created booking could not be refreshed');
         return booking;
       },
+      ensureLodgesHydrated,
       favoriteIds,
       isBackendConnected,
       isSyncing,
@@ -403,6 +416,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       auth.isAuthenticated,
       bookingNotificationsEnabled,
       bookings,
+      ensureLodgesHydrated,
       favoriteIds,
       isBackendConnected,
       isSyncing,
