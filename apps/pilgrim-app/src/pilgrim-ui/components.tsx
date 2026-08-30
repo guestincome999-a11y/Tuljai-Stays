@@ -8,15 +8,18 @@ import {
   Pressable,
   type PressableProps,
   ScrollView,
+  type ScrollViewProps,
   Text,
   TextInput,
   type TextInputProps,
   View,
 } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -48,11 +51,15 @@ export function AppScreen({
   scroll = true,
   padded = true,
   className = '',
+  onScroll,
+  scrollEventThrottle,
 }: {
   children: ReactNode;
   className?: string;
+  onScroll?: ScrollViewProps['onScroll'];
   padded?: boolean;
   scroll?: boolean;
+  scrollEventThrottle?: number;
 }) {
   const contentClass = `${padded ? 'px-5' : ''} ${className}`;
   return (
@@ -63,6 +70,8 @@ export function AppScreen({
           contentContainerClassName={`${contentClass} pb-32`}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={onScroll ? (scrollEventThrottle ?? 150) : undefined}
         >
           {children}
         </ScrollView>
@@ -549,6 +558,57 @@ export function AnimatedResultBadge({ tone = 'success' }: { tone?: 'danger' | 's
       >
         <MaterialCommunityIcons color="#FFFFFF" name={icon} size={56} />
       </Animated.View>
+    </View>
+  );
+}
+
+function ShimmerBlock({ className }: { className: string }) {
+  const opacity = useSharedValue(0.55);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withTiming(1, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [opacity]);
+
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return <Animated.View className={`bg-warm-200 ${className}`} style={style} />;
+}
+
+/**
+ * Placeholder shown in place of a LodgeCard while that lodge's full details
+ * (photo, price, room data) are still loading in the background. Mirrors
+ * LodgeCard's layout/spacing so the list doesn't jump when the real card
+ * swaps in.
+ */
+export function LodgeCardSkeleton({ horizontal = false }: { horizontal?: boolean }) {
+  if (horizontal) {
+    return (
+      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+        <ShimmerBlock className="h-44 rounded-none" />
+        <View className="gap-3 p-4">
+          <ShimmerBlock className="h-4 w-3/4 rounded-full" />
+          <ShimmerBlock className="h-3 w-1/2 rounded-full" />
+          <ShimmerBlock className="h-5 w-1/3 rounded-full" />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+      <ShimmerBlock className="h-48 rounded-none" />
+      <View className="gap-3 p-4">
+        <ShimmerBlock className="h-5 w-2/3 rounded-full" />
+        <ShimmerBlock className="h-4 w-1/2 rounded-full" />
+        <View className="flex-row items-center justify-between border-t border-warm-100 pt-3">
+          <ShimmerBlock className="h-4 w-24 rounded-full" />
+          <ShimmerBlock className="h-6 w-20 rounded-full" />
+        </View>
+      </View>
     </View>
   );
 }
