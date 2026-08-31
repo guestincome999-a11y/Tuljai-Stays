@@ -15,6 +15,8 @@ export type AdminPermission =
   | 'lodges.manage'
   | 'owners.view'
   | 'owners.manage'
+  | 'users.view'
+  | 'users.manage'
   | 'bookings.view'
   | 'bookings.manage'
   | 'bookings.override'
@@ -43,6 +45,8 @@ export const allAdminPermissions: AdminPermission[] = [
   'lodges.manage',
   'owners.view',
   'owners.manage',
+  'users.view',
+  'users.manage',
   'bookings.view',
   'bookings.manage',
   'bookings.override',
@@ -72,6 +76,8 @@ const adminPermissions: AdminPermission[] = [
   'lodges.manage',
   'owners.view',
   'owners.manage',
+  'users.view',
+  'users.manage',
   'bookings.view',
   'bookings.manage',
   'bookings.override',
@@ -112,6 +118,7 @@ const rolePermissionMap: Record<AdminRole, AdminPermission[]> = {
     'lodges.manage',
     'owners.view',
     'owners.manage',
+    'users.view',
     'bookings.view',
     'bookings.manage',
     'rooms.view',
@@ -127,6 +134,7 @@ const rolePermissionMap: Record<AdminRole, AdminPermission[]> = {
   SUPPORT_EXECUTIVE: [
     'dashboard.view',
     'bookings.view',
+    'users.view',
     'support.view',
     'support.manage',
     'operations.view',
