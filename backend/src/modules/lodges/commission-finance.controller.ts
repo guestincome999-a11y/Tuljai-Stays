@@ -15,6 +15,13 @@ export class LodgeCommissionFinanceController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
+  @Get('admin/lodges/commission/overview')
+  public adminOverview() {
+    return this.financeService.listOverview();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Get('admin/lodges/:id/commission/report')
   public adminReport(@Param('id') lodgeId: string) {
     return this.financeService.getReport(lodgeId);
