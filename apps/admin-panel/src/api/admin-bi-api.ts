@@ -3,6 +3,7 @@ import type {
   BookingReportRow,
   CommissionSummary,
   LodgeCommissionFinanceReport,
+  LodgeCommissionOverviewRow,
   NotificationMetrics,
   PaginatedResponse,
   QrScanLogEntry,
@@ -70,6 +71,10 @@ export async function getLodgeCommissionFinanceReport(
   lodgeId: string,
 ): Promise<LodgeCommissionFinanceReport> {
   return apiClient.get<LodgeCommissionFinanceReport>(`/admin/lodges/${lodgeId}/commission/report`);
+}
+
+export async function listLodgeCommissionOverview(): Promise<LodgeCommissionOverviewRow[]> {
+  return apiClient.get<LodgeCommissionOverviewRow[]>('/admin/lodges/commission/overview');
 }
 
 export async function createLodgeCommissionSettlement(
