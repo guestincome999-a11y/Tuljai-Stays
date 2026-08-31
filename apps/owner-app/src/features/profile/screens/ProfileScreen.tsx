@@ -70,6 +70,13 @@ export function ProfileScreen() {
           onPress={() => router.push('/(app)/reports')}
         />
         <List.Item
+          description="Commission payable, ledger and settlement history"
+          left={(props) => <List.Icon {...props} icon="cash-multiple" />}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          title={tr('Commission & Settlement')}
+          onPress={() => router.push('/(app)/reports')}
+        />
+        <List.Item
           left={(props) => <List.Icon {...props} icon="cog-outline" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
           title={tr('Settings')}
