@@ -195,6 +195,24 @@ export function DashboardScreen() {
         </Card.Content>
       </Card>
 
+      <Card
+        accessibilityHint="Opens commission and settlement history for this lodge."
+        accessibilityLabel="Open commission payable and settlement history"
+        mode="contained"
+        onPress={() => router.push('/(app)/reports')}
+        style={styles.card}
+      >
+        <Card.Content style={styles.cardContent}>
+          <Text variant="titleMedium">{tr('Commission Payable')}</Text>
+          <Text style={{ color: theme.colors.primary }} variant="headlineSmall">
+            Rs. {dashboard.data ? formatMoney(dashboard.data.estimatedCommission) : '0'}
+          </Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+            {tr('Commission owed on eligible bookings. Tap to view the ledger and settlement history.')}
+          </Text>
+        </Card.Content>
+      </Card>
+
       <View style={styles.statGrid}>
         {stats.map((item) => (
           <Card key={item.label} mode="outlined" style={styles.statCard}>
