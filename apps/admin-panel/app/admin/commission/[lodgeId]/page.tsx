@@ -9,6 +9,10 @@ import {
   getLodgeCommissionFinanceReport,
   voidLodgeCommissionTransaction,
 } from '../../../../src/api/admin-bi-api';
+import {
+  updateLodgeCommission,
+  type LodgeCommissionType,
+} from '../../../../src/api/admin-governance-api';
 import { PermissionGate } from '../../../../src/components/PermissionGate';
 
 function money(value: string | number) {
@@ -30,11 +34,25 @@ export default function LodgeCommissionDetailPage({
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
 
+  const [editingRule, setEditingRule] = useState(false);
+  const [ruleEnabled, setRuleEnabled] = useState(false);
+  const [ruleType, setRuleType] = useState<LodgeCommissionType>('PERCENTAGE');
+  const [ruleRate, setRuleRate] = useState('0');
+  const [ruleFixedAmount, setRuleFixedAmount] = useState('0');
+  const [ruleEffectiveFrom, setRuleEffectiveFrom] = useState('');
+  const [savingRule, setSavingRule] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      setReport(await getLodgeCommissionFinanceReport(lodgeId));
+      const next = await getLodgeCommissionFinanceReport(lodgeId);
+      setReport(next);
+      setRuleEnabled(next.setting.commissionEnabled);
+      setRuleType(next.setting.commissionType);
+      setRuleRate(String(next.setting.commissionRatePercent));
+      setRuleFixedAmount(String(next.setting.commissionFixedAmount));
+      setRuleEffectiveFrom(next.setting.effectiveFrom.slice(0, 10));
     } catch {
       setError('Could not load this lodge commission account.');
     } finally {
@@ -45,6 +63,38 @@ export default function LodgeCommissionDetailPage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function saveRule() {
+    const numericRate = Number(ruleRate);
+    const numericFixedAmount = Number(ruleFixedAmount);
+    if (ruleType === 'PERCENTAGE' && (!Number.isFinite(numericRate) || numericRate < 0 || numericRate > 100)) {
+      setError('Percentage commission must be between 0% and 100%.');
+      return;
+    }
+    if (ruleType === 'FIXED_PER_BOOKING' && (!Number.isFinite(numericFixedAmount) || numericFixedAmount < 0)) {
+      setError('Fixed commission must be zero or greater.');
+      return;
+    }
+    setSavingRule(true);
+    setError('');
+    setMessage('');
+    try {
+      await updateLodgeCommission(lodgeId, {
+        commissionEnabled: ruleEnabled,
+        commissionType: ruleType,
+        commissionRatePercent: ruleType === 'PERCENTAGE' ? numericRate : 0,
+        commissionFixedAmount: ruleType === 'FIXED_PER_BOOKING' ? numericFixedAmount : 0,
+        effectiveFrom: ruleEffectiveFrom || undefined,
+      });
+      setMessage('Commission rule updated. Future bookings will use the new rule.');
+      setEditingRule(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Commission rule could not be saved.');
+    } finally {
+      setSavingRule(false);
+    }
+  }
 
   async function settle() {
     const numericAmount = Number(amount);
@@ -125,42 +175,120 @@ export default function LodgeCommissionDetailPage({
 
             <section className="grid grid-2">
               <section className="panel">
-                <p className="eyebrow">Active accounting rule</p>
-                <h3>Commission configuration</h3>
-                <div className="feed-list">
-                  <Insight
-                    label="Status"
-                    value={report.setting.commissionEnabled ? 'Enabled' : 'Disabled'}
-                  />
-                  <Insight
-                    label="Method"
-                    value={
-                      report.setting.commissionType === 'FIXED_PER_BOOKING'
-                        ? 'Fixed per booking'
-                        : 'Percentage'
-                    }
-                  />
-                  <Insight
-                    label="Rate"
-                    value={
-                      report.setting.commissionType === 'PERCENTAGE'
-                        ? `${report.setting.commissionRatePercent}%`
-                        : '—'
-                    }
-                  />
-                  <Insight
-                    label="Fixed amount"
-                    value={
-                      report.setting.commissionType === 'FIXED_PER_BOOKING'
-                        ? money(report.setting.commissionFixedAmount)
-                        : '—'
-                    }
-                  />
-                  <Insight
-                    label="Effective from"
-                    value={new Date(report.setting.effectiveFrom).toLocaleString('en-IN')}
-                  />
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">Active accounting rule</p>
+                    <h3>Commission configuration</h3>
+                  </div>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() => setEditingRule((value) => !value)}
+                  >
+                    {editingRule ? 'Cancel' : 'Edit rule'}
+                  </button>
                 </div>
+                {!editingRule ? (
+                  <div className="feed-list">
+                    <Insight
+                      label="Status"
+                      value={report.setting.commissionEnabled ? 'Enabled' : 'Disabled'}
+                    />
+                    <Insight
+                      label="Method"
+                      value={
+                        report.setting.commissionType === 'FIXED_PER_BOOKING'
+                          ? 'Fixed per booking'
+                          : 'Percentage'
+                      }
+                    />
+                    <Insight
+                      label="Rate"
+                      value={
+                        report.setting.commissionType === 'PERCENTAGE'
+                          ? `${report.setting.commissionRatePercent}%`
+                          : '—'
+                      }
+                    />
+                    <Insight
+                      label="Fixed amount"
+                      value={
+                        report.setting.commissionType === 'FIXED_PER_BOOKING'
+                          ? money(report.setting.commissionFixedAmount)
+                          : '—'
+                      }
+                    />
+                    <Insight
+                      label="Effective from"
+                      value={new Date(report.setting.effectiveFrom).toLocaleString('en-IN')}
+                    />
+                  </div>
+                ) : (
+                  <div className="form-grid">
+                    <label>
+                      Commission status
+                      <select
+                        value={ruleEnabled ? 'ON' : 'OFF'}
+                        onChange={(e) => setRuleEnabled(e.target.value === 'ON')}
+                      >
+                        <option value="OFF">OFF · No commission charged</option>
+                        <option value="ON">ON · Charge commission</option>
+                      </select>
+                    </label>
+                    <label>
+                      Commission type
+                      <select
+                        value={ruleType}
+                        onChange={(e) => setRuleType(e.target.value as LodgeCommissionType)}
+                      >
+                        <option value="PERCENTAGE">Percentage (%)</option>
+                        <option value="FIXED_PER_BOOKING">Fixed amount per booking (₹)</option>
+                      </select>
+                    </label>
+                    {ruleType === 'PERCENTAGE' ? (
+                      <label>
+                        Commission rate (%)
+                        <input
+                          inputMode="decimal"
+                          max="100"
+                          min="0"
+                          step="0.01"
+                          type="number"
+                          value={ruleRate}
+                          onChange={(e) => setRuleRate(e.target.value)}
+                        />
+                      </label>
+                    ) : (
+                      <label>
+                        Commission per booking (₹)
+                        <input
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          type="number"
+                          value={ruleFixedAmount}
+                          onChange={(e) => setRuleFixedAmount(e.target.value)}
+                        />
+                      </label>
+                    )}
+                    <label>
+                      Effective from
+                      <input
+                        type="date"
+                        value={ruleEffectiveFrom}
+                        onChange={(e) => setRuleEffectiveFrom(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      className="button button-primary"
+                      disabled={savingRule}
+                      type="button"
+                      onClick={() => void saveRule()}
+                    >
+                      {savingRule ? 'Saving…' : 'Save rule'}
+                    </button>
+                  </div>
+                )}
               </section>
 
               <section className="panel">
