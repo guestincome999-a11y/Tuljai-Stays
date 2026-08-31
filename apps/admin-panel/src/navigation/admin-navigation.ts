@@ -59,6 +59,13 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     status: 'ready',
   },
   {
+    href: '/admin/users',
+    label: 'Users',
+    permission: 'users.view',
+    section: 'Operations',
+    status: 'ready',
+  },
+  {
     href: '/admin/staff',
     label: 'Staff',
     permission: 'settings.manage',
