@@ -1,12 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import type { MultipartFile } from '@fastify/multipart';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthenticatedUser, LodgePhoto } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseStorageService } from '../storage/providers/supabase-storage.service';
 
 import type { CreateLodgePhotoDto, RejectPhotoDto } from './dto/photo.dto';
+
+const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
 
 @Injectable()
 export class PhotosService {
@@ -15,7 +21,46 @@ export class PhotosService {
     private readonly lodgeAccessService: LodgeAccessService,
     private readonly notificationEventsService: NotificationEventsService,
     private readonly prisma: PrismaService,
+    private readonly storageService: SupabaseStorageService,
   ) {}
+
+  public async uploadLodgePhoto(
+    file: MultipartFile,
+    lodgeId: string,
+    user: AuthenticatedUser,
+  ): Promise<{ fileUrl: string }> {
+    await this.lodgeAccessService.assertCanManageLodge(user, lodgeId);
+
+    const contents = await file.toBuffer();
+    if (contents.length === 0) {
+      throw new BadRequestException('The selected photo is empty');
+    }
+    if (contents.length > MAX_PHOTO_SIZE_BYTES) {
+      throw new BadRequestException('Photos must be 5 MB or smaller');
+    }
+
+    const detectedImage = this.detectImageType(contents);
+    if (!detectedImage) {
+      throw new BadRequestException('Upload a JPEG, PNG, or WebP photo');
+    }
+
+    const storagePath = `lodges/${lodgeId}/${randomUUID()}.${detectedImage.extension}`;
+    const fileUrl = await this.storageService.uploadPublicObject(
+      storagePath,
+      contents,
+      detectedImage.mimeType,
+      this.storageService.getLodgePhotosBucketName(),
+    );
+
+    await this.auditLogService.create({
+      action: 'LODGE_PHOTO_UPLOADED',
+      actorUserId: user.id,
+      entityType: 'lodge_photo',
+      metadata: { lodgeId, mimeType: detectedImage.mimeType, sizeBytes: contents.length, storagePath },
+    });
+
+    return { fileUrl };
+  }
 
   public async createLodgePhoto(
     lodgeId: string,
@@ -142,6 +187,38 @@ export class PhotosService {
     if (!lodge) {
       throw new NotFoundException('Lodge not found');
     }
+  }
+
+  private detectImageType(
+    contents: Buffer,
+  ):
+    | { extension: 'jpg'; mimeType: 'image/jpeg' }
+    | { extension: 'png'; mimeType: 'image/png' }
+    | { extension: 'webp'; mimeType: 'image/webp' }
+    | null {
+    if (
+      contents.length >= 3 &&
+      contents[0] === 0xff &&
+      contents[1] === 0xd8 &&
+      contents[2] === 0xff
+    ) {
+      return { extension: 'jpg', mimeType: 'image/jpeg' };
+    }
+    if (
+      contents.length >= 8 &&
+      contents.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    ) {
+      return { extension: 'png', mimeType: 'image/png' };
+    }
+    if (
+      contents.length >= 12 &&
+      contents.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      contents.subarray(8, 12).toString('ascii') === 'WEBP'
+    ) {
+      return { extension: 'webp', mimeType: 'image/webp' };
+    }
+
+    return null;
   }
 
   private toPhoto(photo: {
