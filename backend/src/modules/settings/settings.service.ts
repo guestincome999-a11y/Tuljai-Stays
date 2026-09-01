@@ -298,6 +298,7 @@ export class SettingsService {
       storagePath,
       contents,
       detectedImage.mimeType,
+      this.storageService.getLodgePhotosBucketName(),
     );
     await this.auditLogService.create({
       action: 'PROMOTIONAL_BANNER_IMAGE_UPLOADED',
