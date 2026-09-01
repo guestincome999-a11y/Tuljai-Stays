@@ -1,5 +1,16 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthenticatedUser, LodgePhoto } from '@tuljai/types';
+import type { FastifyRequest } from 'fastify';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,6 +23,22 @@ import { PhotosService } from './photos.service';
 @Controller()
 export class PhotosController {
   public constructor(private readonly photosService: PhotosService) {}
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Post('owner/lodges/:lodgeId/photos/upload')
+  public async uploadLodgePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('lodgeId') lodgeId: string,
+    @Req() request: FastifyRequest,
+  ): Promise<{ fileUrl: string }> {
+    const file = await request.file();
+    if (!file) {
+      throw new BadRequestException('Select a photo to upload');
+    }
+
+    return this.photosService.uploadLodgePhoto(file, lodgeId, user);
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'ADMIN')
