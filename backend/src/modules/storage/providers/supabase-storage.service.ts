@@ -11,6 +11,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 export class SupabaseStorageService {
   private readonly logger = new Logger(SupabaseStorageService.name);
   private readonly bucket: string;
+  private readonly lodgePhotosBucket: string;
   private readonly client: SupabaseClient | null;
 
   public constructor(configService: ConfigService) {
@@ -18,6 +19,7 @@ export class SupabaseStorageService {
     const url = configuredUrl?.replace(/\/rest\/v1\/?$/u, '');
     const serviceRoleKey = configService.get<string>('api.supabase.serviceRoleKey');
     this.bucket = configService.getOrThrow<string>('api.supabase.storageBucket');
+    this.lodgePhotosBucket = configService.getOrThrow<string>('api.supabase.lodgePhotosBucket');
 
     if (!url || !serviceRoleKey) {
       this.client = null;
@@ -38,6 +40,10 @@ export class SupabaseStorageService {
 
   public getBucketName(): string {
     return this.bucket;
+  }
+
+  public getLodgePhotosBucketName(): string {
+    return this.lodgePhotosBucket;
   }
 
   public async uploadPrivateObject(
@@ -81,9 +87,11 @@ export class SupabaseStorageService {
     storagePath: string,
     contents: Buffer,
     contentType: string,
+    bucketName?: string,
   ): Promise<string> {
     const client = this.getRequiredClient();
-    const { error } = await client.storage.from(this.bucket).upload(storagePath, contents, {
+    const bucket = bucketName ?? this.bucket;
+    const { error } = await client.storage.from(bucket).upload(storagePath, contents, {
       cacheControl: '3600',
       contentType,
       upsert: false,
@@ -94,7 +102,7 @@ export class SupabaseStorageService {
       throw new InternalServerErrorException('Unable to store the uploaded image');
     }
 
-    return client.storage.from(this.bucket).getPublicUrl(storagePath).data.publicUrl;
+    return client.storage.from(bucket).getPublicUrl(storagePath).data.publicUrl;
   }
 
   public async downloadPrivateObject(storagePath: string): Promise<Buffer> {
