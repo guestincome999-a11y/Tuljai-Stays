@@ -35,6 +35,12 @@ export interface PhotoMetadataInput {
   thumbnailUrl?: string;
 }
 
+export interface PickedPhoto {
+  fileName: string;
+  mimeType: string;
+  uri: string;
+}
+
 export interface ManualBookingInput {
   checkInDate: string;
   checkOutDate: string;
@@ -102,6 +108,26 @@ export async function deleteManualBooking(bookingId: string): Promise<{ deleted:
 
 export async function listOwnerPhotos(lodgeId: string): Promise<LodgePhoto[]> {
   return apiClient.get<LodgePhoto[]>(`/owner/lodges/${lodgeId}/photos`);
+}
+
+export async function uploadLodgePhoto(
+  lodgeId: string,
+  photo: PickedPhoto,
+): Promise<{ fileUrl: string }> {
+  const formData = new FormData();
+  formData.append('file', {
+    name: photo.fileName,
+    type: photo.mimeType,
+    uri: photo.uri,
+    // React Native's FormData accepts this file-descriptor shape; it does not match the DOM
+    // Blob/File type that TypeScript's lib.dom.d.ts expects for FormData.append.
+  } as unknown as Blob);
+
+  return apiClient.request<{ fileUrl: string }>(`/owner/lodges/${lodgeId}/photos/upload`, {
+    body: formData,
+    headers: { 'Content-Type': 'multipart/form-data' },
+    method: 'POST',
+  });
 }
 
 export async function createPhotoMetadata(
