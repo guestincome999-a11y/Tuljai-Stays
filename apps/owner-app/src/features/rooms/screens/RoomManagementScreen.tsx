@@ -7,6 +7,7 @@ import type {
   RoomType,
 } from '@tuljai/types';
 import { EmptyState, palette, radius, spacing } from '@tuljai/ui';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams } from 'expo-router';
 import type { PropsWithChildren } from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -16,6 +17,7 @@ import {
   Button,
   Card,
   Chip,
+  IconButton,
   Snackbar,
   Text,
   TextInput,
@@ -25,6 +27,7 @@ import {
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
 import { useOwnerAmenities } from '../../lodge-management/hooks/useOwnerAmenities';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
+import type { PickedPhoto } from '../api/owner-rooms-api';
 import { useRoomOperations } from '../hooks/useRoomOperations';
 
 type RoomTab = 'AMENITIES' | 'ROOM_TYPES' | 'ROOMS' | 'AVAILABILITY' | 'GALLERY';
@@ -279,13 +282,22 @@ export function RoomManagementScreen() {
         isSubmitting={rooms.isSubmitting}
         visible={photoFormVisible}
         onClose={() => setPhotoFormVisible(false)}
-        onSubmit={(input) => {
-          void rooms.createPhotoMetadata(input).then((saved) => {
-            if (saved) {
+        onSubmit={(inputs) => {
+          void (async () => {
+            let allSaved = true;
+            for (const input of inputs) {
+              // eslint-disable-next-line no-await-in-loop -- each photo must be saved before the next to keep sortOrder and cover flags correct
+              const saved = await rooms.createPhotoMetadata(input);
+              if (!saved) {
+                allSaved = false;
+              }
+            }
+            if (allSaved) {
               setPhotoFormVisible(false);
             }
-          });
+          })();
         }}
+        onUploadPhoto={rooms.uploadPhoto}
       />
       <Snackbar
         onDismiss={() => rooms.setSuccessMessage(null)}
@@ -604,10 +616,10 @@ function GalleryTab({ onAdd, photos }: { onAdd: () => void; photos: LodgePhoto[]
   return (
     <View style={styles.section}>
       <Button icon="image-plus" mode="contained" onPress={onAdd}>
-        Register Photo Metadata
+        Add Photos
       </Button>
       <Text variant="bodySmall">
-        Upload to storage first, then submit the hosted file URL for admin approval.
+        Choose photos from your device. They upload automatically and go live after admin approval.
       </Text>
       {photos.length === 0 ? (
         <EmptyState title="No photos" description="Submitted lodge photos will appear here." />
@@ -910,25 +922,109 @@ function PhotoMetadataModal({
   isSubmitting,
   onClose,
   onSubmit,
+  onUploadPhoto,
   visible,
 }: {
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (input: {
-    category: PhotoCategory;
-    fileUrl: string;
-    isCover?: boolean;
-    thumbnailUrl?: string;
-  }) => void;
+  onSubmit: (
+    inputs: Array<{
+      category: PhotoCategory;
+      fileUrl: string;
+      isCover?: boolean;
+      thumbnailUrl?: string;
+    }>,
+  ) => void;
+  onUploadPhoto: (photo: PickedPhoto) => Promise<{ fileUrl: string }>;
   visible: boolean;
 }) {
   const [category, setCategory] = useState<PhotoCategory>('ROOM');
-  const [fileUrl, setFileUrl] = useState('');
-  const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [isCover, setIsCover] = useState(false);
+  const [pickedImages, setPickedImages] = useState<PickedPhoto[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const busy = isSubmitting || isUploading;
+
+  const resetForm = () => {
+    setPickedImages([]);
+    setIsCover(false);
+    setUploadError(null);
+  };
+
+  const handleClose = () => {
+    if (busy) {
+      return;
+    }
+    resetForm();
+    onClose();
+  };
+
+  const handlePickImages = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setUploadError('Allow photo library access to add photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      mediaTypes: ['images'],
+      quality: 0.8,
+      selectionLimit: 10,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const newImages: PickedPhoto[] = result.assets.map((asset, index) => ({
+      fileName: asset.fileName ?? `photo-${Date.now()}-${index}.jpg`,
+      mimeType: asset.mimeType ?? 'image/jpeg',
+      uri: asset.uri,
+    }));
+
+    setPickedImages((current) => [...current, ...newImages]);
+    setUploadError(null);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setPickedImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const handleSubmit = async () => {
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const inputs: Array<{
+        category: PhotoCategory;
+        fileUrl: string;
+        isCover?: boolean;
+        thumbnailUrl?: string;
+      }> = [];
+
+      for (let index = 0; index < pickedImages.length; index += 1) {
+        // eslint-disable-next-line no-await-in-loop -- uploads run one at a time to keep upload order and error handling simple
+        const uploaded = await onUploadPhoto(pickedImages[index]);
+        inputs.push({
+          category,
+          fileUrl: uploaded.fileUrl,
+          isCover: index === 0 ? isCover : false,
+          thumbnailUrl: uploaded.fileUrl,
+        });
+      }
+
+      onSubmit(inputs);
+      resetForm();
+    } catch {
+      setUploadError('Upload failed. Check your connection and try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
-    <FormModal title="Photo Metadata" visible={visible} onClose={onClose}>
+    <FormModal title="Add Photos" visible={visible} onClose={handleClose}>
       <View style={styles.chips}>
         {photoCategories.map((item) => (
           <Chip key={item} selected={category === item} onPress={() => setCategory(item)}>
@@ -936,38 +1032,66 @@ function PhotoMetadataModal({
           </Chip>
         ))}
       </View>
-      <TextInput
-        label="Uploaded file URL"
-        mode="outlined"
-        value={fileUrl}
-        onChangeText={setFileUrl}
-      />
-      <TextInput
-        label="Thumbnail URL optional"
-        mode="outlined"
-        value={thumbnailUrl}
-        onChangeText={setThumbnailUrl}
-      />
-      <Chip selected={isCover} onPress={() => setIsCover((current) => !current)}>
-        Cover photo
-      </Chip>
-      <Text variant="bodySmall">
-        Storage upload is not wired in the app yet. Submit metadata only after uploading the image.
-      </Text>
+
       <Button
-        disabled={!fileUrl.trim() || isSubmitting}
-        loading={isSubmitting}
-        mode="contained"
-        onPress={() =>
-          onSubmit({
-            category,
-            fileUrl: fileUrl.trim(),
-            isCover,
-            thumbnailUrl: thumbnailUrl || undefined,
-          })
-        }
+        disabled={busy}
+        icon="image-plus"
+        mode="outlined"
+        onPress={() => {
+          void handlePickImages();
+        }}
       >
-        Submit for Approval
+        Choose Photos
+      </Button>
+
+      {pickedImages.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.thumbnailRow}>
+            {pickedImages.map((image, index) => (
+              <View key={`${image.uri}-${index}`} style={styles.thumbnailWrapper}>
+                <Image source={{ uri: image.uri }} style={styles.thumbnailImage} />
+                <IconButton
+                  accessibilityLabel="Remove photo"
+                  containerColor="rgba(0, 0, 0, 0.6)"
+                  disabled={busy}
+                  icon="close"
+                  iconColor="#FFFFFF"
+                  size={14}
+                  style={styles.thumbnailRemoveButton}
+                  onPress={() => handleRemoveImage(index)}
+                />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      ) : (
+        <EmptyState
+          title="No photos selected"
+          description="Choose one or more photos from your device to upload."
+        />
+      )}
+
+      <Chip
+        disabled={pickedImages.length === 0}
+        selected={isCover}
+        onPress={() => setIsCover((current) => !current)}
+      >
+        Set first photo as cover
+      </Chip>
+
+      <FormErrorBanner message={uploadError} />
+
+      <Button
+        disabled={pickedImages.length === 0 || busy}
+        loading={busy}
+        mode="contained"
+        onPress={() => {
+          void handleSubmit();
+        }}
+      >
+        {isUploading
+          ? 'Uploading...'
+          : `Upload ${pickedImages.length} Photo${pickedImages.length === 1 ? '' : 's'}`}
       </Button>
     </FormModal>
   );
@@ -1147,6 +1271,25 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  thumbnailImage: {
+    borderRadius: radius.sm,
+    height: 84,
+    width: 84,
+  },
+  thumbnailRemoveButton: {
+    margin: 0,
+    position: 'absolute',
+    right: -8,
+    top: -8,
+  },
+  thumbnailRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  thumbnailWrapper: {
+    position: 'relative',
   },
   titleBlock: {
     flex: 1,
