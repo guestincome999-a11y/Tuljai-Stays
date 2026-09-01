@@ -12,14 +12,15 @@
     "ios": {
       "bundleIdentifier": "com.tuljaistays.owner",
       "infoPlist": {
-        "NSCameraUsageDescription": "Tuljai Stays Owner uses the camera to scan pilgrim QR passes for secure check-in."
+        "NSCameraUsageDescription": "Tuljai Stays Owner uses the camera to scan pilgrim QR passes for secure check-in.",
+        "NSPhotoLibraryUsageDescription": "Tuljai Stays Owner needs access to your photos so you can upload lodge and room photos."
       },
       "supportsTablet": true
     },
     "android": {
       "package": "com.tuljaistays.owner",
       "googleServicesFile": "./google-services.json",
-      "permissions": ["CAMERA", "VIBRATE"],
+      "permissions": ["CAMERA", "VIBRATE", "READ_MEDIA_IMAGES"],
       "adaptiveIcon": {
         "backgroundColor": "#7A1F2B",
         "foregroundImage": "./assets/adaptive-icon.png"
@@ -50,6 +51,12 @@
           "barcodeScannerEnabled": true,
           "cameraPermission": "Allow Tuljai Stays Owner to use the camera for pilgrim QR check-in.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Tuljai Stays Owner to access your photos so you can upload lodge and room photos."
         }
       ],
       "expo-sharing"
