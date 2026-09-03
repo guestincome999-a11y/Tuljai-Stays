@@ -306,7 +306,7 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
               <h3>Room status governance</h3>
             </div>
             <Link className="ghost-control" href={`/admin/rooms?lodgeId=${lodgeId}`}>
-              Open Rooms Center
+              Manage Rooms &amp; Room Types
             </Link>
           </div>
           <div className="admin-table governance-room-table">
