@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
+import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { PaymentNotificationsService } from './payment-notifications.service';
@@ -12,6 +13,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly razorpayProvider: RazorpayProvider,
     private readonly paymentNotificationsService: PaymentNotificationsService,
+    private readonly notificationEventsService: NotificationEventsService,
   ) {}
 
   public ensureOnlinePaymentsEnabled(enabled: boolean): void {
@@ -295,6 +297,12 @@ export class PaymentsService {
       paymentId: input.paymentId,
       roomId,
     });
+    // The room-assignment transaction above sets the booking to ACCEPTED directly
+    // (it can't call the shared accept-booking flow since a physical room must be
+    // locked first), so the standard booking:accepted realtime push + BOOKING_ACCEPTED
+    // notification that the pilgrim app listens for never fired. Send it explicitly
+    // here so prepaid bookings get the same "booking confirmed" signal as owner-accepted ones.
+    await this.notificationEventsService.bookingAccepted(bookingId);
 
     return {
       bookingId,
