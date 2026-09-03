@@ -77,7 +77,7 @@ export class OperationsService {
       this.prisma.notificationDeliveryLog.count({ where: { status: 'FAILED' } }),
       this.prisma.booking.aggregate({
         _sum: { commissionAmount: true },
-        where: { deletedAt: null },
+        where: { deletedAt: null, AND: [this.commissionEligibleWhere] },
       }),
     ]);
 
@@ -114,7 +114,10 @@ export class OperationsService {
     const where = { deletedAt: null, lodgeId: { in: lodgeIds } } satisfies Prisma.BookingWhereInput;
     const [revenue, commission, rating, recentNotifications] = await Promise.all([
       this.prisma.booking.aggregate({ _sum: { totalAmount: true }, where }),
-      this.prisma.booking.aggregate({ _sum: { commissionAmount: true }, where }),
+      this.prisma.booking.aggregate({
+        _sum: { commissionAmount: true },
+        where: { ...where, AND: [this.commissionEligibleWhere] },
+      }),
       this.prisma.review.aggregate({
         _avg: { rating: true },
         where: { deletedAt: null, lodgeId: { in: lodgeIds }, status: 'PUBLISHED' },
@@ -191,6 +194,22 @@ export class OperationsService {
     };
   }
 
+  /**
+   * Commission is only real revenue once it's actually owed to the platform:
+   * - Pay-at-lodge (cash) bookings: only once the guest has actually checked in
+   *   (a no-show / cancelled cash booking never collected anything).
+   * - Online bookings: as soon as the Razorpay payment is verified successful —
+   *   the platform already holds the money, so it shouldn't wait for check-in.
+   * Anything else (pending approval, rejected, cancelled, unpaid online) must be
+   * excluded or owners see commission on money that was never actually collected.
+   */
+  private readonly commissionEligibleWhere: Prisma.BookingWhereInput = {
+    OR: [
+      { paymentStatus: 'PAY_AT_LODGE', status: { in: ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'] } },
+      { paymentStatus: 'FULLY_PAID' },
+    ],
+  };
+
   public async bookingReport(
     query: ReportQueryDto,
     actorUserId: string,
@@ -220,7 +239,7 @@ export class OperationsService {
       by: ['lodgeId'],
       _count: { id: true },
       _sum: { commissionAmount: true },
-      where,
+      where: { AND: [where, this.commissionEligibleWhere] },
     });
 
     return bookings.map((item) => ({
