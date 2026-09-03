@@ -160,6 +160,10 @@ export class PaymentsService {
         UPDATE payment_collections SET status = 'FAILED', provider_payment_id = ${input.paymentId}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${collection.id}::uuid
       `;
+      await this.prisma.booking.updateMany({
+        data: { paymentStatus: 'FAILED' },
+        where: { id: bookingId, paymentStatus: { not: 'FULLY_PAID' } },
+      });
       await this.paymentNotificationsService.failed({
         bookingId,
         bookingCode: booking.bookingCode,
@@ -180,6 +184,12 @@ export class PaymentsService {
           provider_payment_id = ${input.paymentId}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${collection.id}::uuid
       `;
+      if (payment.status === 'failed') {
+        await this.prisma.booking.updateMany({
+          data: { paymentStatus: 'FAILED' },
+          where: { id: bookingId, paymentStatus: { not: 'FULLY_PAID' } },
+        });
+      }
       await this.paymentNotificationsService.failed({
         bookingId,
         bookingCode: booking.bookingCode,
@@ -218,7 +228,12 @@ export class PaymentsService {
           WHERE id = ${collection.id}::uuid
         `;
         await tx.booking.update({
-          data: { roomId: selectedRoomId, status: 'ACCEPTED', acceptedByUserId: pilgrimUserId },
+          data: {
+            roomId: selectedRoomId,
+            status: 'ACCEPTED',
+            acceptedByUserId: pilgrimUserId,
+            paymentStatus: 'FULLY_PAID',
+          },
           where: { id: bookingId },
         });
         await tx.room.update({ data: { status: 'CONFIRMED' }, where: { id: selectedRoomId } });
@@ -245,6 +260,10 @@ export class PaymentsService {
                 paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
             WHERE id = ${collection.id}::uuid
           `;
+          await this.prisma.booking.updateMany({
+            data: { paymentStatus: 'REFUNDED' },
+            where: { id: bookingId },
+          });
         } catch {
           await this.prisma.$executeRaw`
             UPDATE payment_collections
