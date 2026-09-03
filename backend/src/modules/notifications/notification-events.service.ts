@@ -53,17 +53,25 @@ export class NotificationEventsService {
       });
     }
 
-    await this.notificationsService.create({
-      body: `Your booking ${booking.bookingCode} has been confirmed.`,
-      bookingId: booking.id,
-      data: payload,
-      lodgeId: booking.lodgeId,
-      priority: 'NORMAL',
-      recipientRole: 'PILGRIM',
-      recipientUserId: booking.pilgrimUserId,
-      title: 'Booking confirmed',
-      type: 'BOOKING_CONFIRMED',
-    });
+    // Pay-at-lodge bookings are still pending owner approval at this point, but the
+    // pilgrim expects an immediate acknowledgement that their request went through.
+    // Online-payment bookings must NOT get this notification here: no payment has
+    // happened yet, and the payment flow (payments.service.ts) sends its own
+    // "Payment ready" -> "Payment successful"/"failed" pushes driven by the actual
+    // Razorpay verification result, not by the tap that created the booking.
+    if (booking.paymentStatus !== 'PENDING') {
+      await this.notificationsService.create({
+        body: `Your booking request ${booking.bookingCode} has been sent to the lodge owner.`,
+        bookingId: booking.id,
+        data: payload,
+        lodgeId: booking.lodgeId,
+        priority: 'NORMAL',
+        recipientRole: 'PILGRIM',
+        recipientUserId: booking.pilgrimUserId,
+        title: 'Booking request sent',
+        type: 'BOOKING_CONFIRMED',
+      });
+    }
 
     this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
       bookingId: booking.id,
