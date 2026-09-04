@@ -29,7 +29,12 @@ export function DashboardScreen() {
   const displayName = auth.user?.displayName ?? auth.user?.phoneNumber ?? 'Owner';
   const selectedLodge = assignedLodges.selectedLodge;
   const stats = getDashboardStats(dashboard.data, tr);
-  const bellAlertCount = Math.max(notifications.unreadCount, dashboard.data?.pendingBookings ?? 0);
+  // Bell badge must reflect unread notifications only. Pending bookings is a
+  // separate operational metric (shown in its own stat card below) and must
+  // never be folded into this count — doing so kept the badge "stuck" at the
+  // pending-bookings number even after the owner marked all notifications
+  // read, since that number doesn't change on mark-all-read.
+  const bellAlertCount = notifications.unreadCount;
 
   if (assignedLodges.isLoading || dashboard.isLoading) {
     return (
