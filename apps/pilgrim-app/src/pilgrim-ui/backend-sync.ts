@@ -155,6 +155,27 @@ export function mapBooking(enriched: EnrichedBooking, lodges: PilgrimLodge[]): P
   };
 }
 
+/**
+ * Builds an EnrichedBooking straight from data already sitting in memory
+ * (the lodges list loaded earlier in the session), with zero network calls.
+ * Used right after booking creation so the payment/confirmation flow can
+ * proceed immediately instead of waiting on a full listMyBookings() +
+ * per-booking lodge/photo/room-type refetch just to learn the new booking's
+ * id. loadPrivateData() still runs afterwards in the background to reconcile
+ * the authoritative list.
+ */
+export function synthesizeEnrichedBooking(booking: Booking, lodges: PilgrimLodge[]): EnrichedBooking {
+  const lodge = lodges.find((item) => item.id === booking.lodgeId);
+  const room = lodge?.rooms.find((item) => item.id === booking.roomTypeId);
+  return {
+    booking,
+    coverPhotoUrl: lodge?.photos[0] ?? lodge?.hero ?? null,
+    directionsQuery: lodge?.location ?? lodge?.name ?? null,
+    lodgeName: lodge?.name ?? 'Tuljai Stays lodge',
+    roomTypeName: room?.name ?? 'Selected room',
+  };
+}
+
 export function applyBackendBookingRecord(
   current: PilgrimBooking,
   booking: Booking,
