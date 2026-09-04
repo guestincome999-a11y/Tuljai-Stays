@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,6 +9,8 @@ import { RazorpayProvider } from './providers/razorpay.provider';
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   public constructor(
     private readonly prisma: PrismaService,
     private readonly razorpayProvider: RazorpayProvider,
@@ -97,14 +99,25 @@ export class PaymentsService {
       `;
     }
 
-    await this.paymentNotificationsService.orderCreated({
-      bookingId,
-      bookingCode: booking.bookingCode,
-      pilgrimUserId,
-      lodgeId: booking.lodgeId,
-      amount: Number(booking.totalAmount),
-      orderId: order.orderId,
-    });
+    // Fire-and-forget: the "payment ready" notification is not required to
+    // compute the response and must not add its DB round trips to the
+    // critical path between the pay button and the Razorpay sheet opening.
+    // The order itself is already durably persisted above.
+    void this.paymentNotificationsService
+      .orderCreated({
+        bookingId,
+        bookingCode: booking.bookingCode,
+        pilgrimUserId,
+        lodgeId: booking.lodgeId,
+        amount: Number(booking.totalAmount),
+        orderId: order.orderId,
+      })
+      .catch((error) => {
+        this.logger.error(
+          `Failed to send order-created notification for booking ${bookingId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
 
     return {
       bookingId,
