@@ -1,3 +1,4 @@
+import type { BookingGuestIdProofUpload } from '@tuljai/types';
 import {
   createContext,
   type PropsWithChildren,
@@ -16,8 +17,6 @@ import {
   createBooking as createBackendBooking,
   createBookingLock,
   getBookingRecord,
-  type GuestIdProofFile,
-  uploadGuestIdProof,
 } from '../features/bookings/api/bookings-api';
 import {
   markAllNotificationsRead,
@@ -33,6 +32,8 @@ import {
   loadBackendBookings,
   loadBackendNotifications,
   loadLodgeSummaries,
+  mapBooking,
+  synthesizeEnrichedBooking,
 } from './backend-sync';
 import {
   initialPilgrimBookings,
@@ -54,7 +55,9 @@ interface CreateBookingInput {
   checkOutDate: string;
   checkoutDateFlexible: boolean;
   guestEmail?: string;
-  guestIdProof: GuestIdProofFile;
+  // Already uploaded to the backend by the checkout screen at pick time, so
+  // booking creation doesn't have to wait on a multipart upload round-trip.
+  guestIdProof: BookingGuestIdProofUpload;
   guestName: string;
   guestPhone: string;
   lodgeId: string;
@@ -353,7 +356,6 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         await loadPrivateData(lodges);
       },
       createBooking: async (input) => {
-        const uploadedIdProof = await uploadGuestIdProof(input.guestIdProof);
         const lock = await createBookingLock({
           checkInDate: input.checkInDate,
           checkOutDate: input.checkOutDate,
@@ -363,10 +365,10 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         const created = await createBackendBooking({
           checkoutDateFlexible: input.checkoutDateFlexible,
           guestEmail: input.guestEmail || undefined,
-          guestIdProofMimeType: uploadedIdProof.mimeType,
-          guestIdProofOriginalName: uploadedIdProof.originalName,
-          guestIdProofSizeBytes: uploadedIdProof.sizeBytes,
-          guestIdProofStoragePath: uploadedIdProof.storagePath,
+          guestIdProofMimeType: input.guestIdProof.mimeType,
+          guestIdProofOriginalName: input.guestIdProof.originalName,
+          guestIdProofSizeBytes: input.guestIdProof.sizeBytes,
+          guestIdProofStoragePath: input.guestIdProof.storagePath,
           guestName: input.guestName.trim(),
           guestPhone: input.guestPhone.startsWith('+')
             ? input.guestPhone
@@ -377,9 +379,13 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
           paymentMethod: input.paymentMethod,
           specialRequest: input.specialRequest?.trim() || undefined,
         });
-        const refreshedBookings = await loadPrivateData(lodges);
-        const booking = refreshedBookings.find((item) => item.id === created.id);
-        if (!booking) throw new Error('Created booking could not be refreshed');
+        // Build the booking the checkout screen needs (just the id, for
+        // navigation) entirely from data already in memory, so opening the
+        // Razorpay sheet doesn't wait on a full bookings list refresh. The
+        // authoritative list is reconciled in the background right after.
+        const booking = mapBooking(synthesizeEnrichedBooking(created, lodges), lodges);
+        setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id)]);
+        void loadPrivateData(lodges).catch(() => undefined);
         return booking;
       },
       ensureLodgesHydrated,
