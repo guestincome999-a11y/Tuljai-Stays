@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { BookingGuestIdProofUpload } from '@tuljai/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -8,6 +9,7 @@ import { useAuth } from '../../auth/auth-context';
 import {
   cancelBooking,
   createRazorpayOrder,
+  uploadGuestIdProof,
   verifyRazorpayPayment,
   type GuestIdProofFile,
 } from '../../features/bookings/api/bookings-api';
@@ -46,6 +48,13 @@ export function PilgrimCheckoutScreen() {
   const [phone, setPhone] = useState(auth.user?.phoneNumber?.replace(/\D/gu, '').slice(-10) ?? '');
   const [email, setEmail] = useState('');
   const [guestIdProof, setGuestIdProof] = useState<GuestIdProofFile | null>(null);
+  // The ID proof uploads to the backend the moment it's picked (see pickGuestIdProof)
+  // instead of at the final "Pay" press, so nothing is waiting on a multipart upload
+  // when the guest actually taps to pay. `uploadedIdProof` holds the server-confirmed
+  // storage descriptor that booking creation needs; `idProofUploading` drives the
+  // in-progress indicator on the picker.
+  const [uploadedIdProof, setUploadedIdProof] = useState<BookingGuestIdProofUpload | null>(null);
+  const [idProofUploading, setIdProofUploading] = useState(false);
   const [request, setRequest] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PAY_AT_LODGE');
   const [agree, setAgree] = useState(true);
@@ -82,7 +91,14 @@ export function PilgrimCheckoutScreen() {
       );
       return false;
     }
-    if (!guestIdProof) {
+    if (idProofUploading) {
+      Alert.alert(
+        t('ID proof uploading', 'ओळखपत्र अपलोड होत आहे'),
+        t('Please wait a moment for the ID proof to finish uploading.', 'ओळखपत्र अपलोड होईपर्यंत थोडा वेळ थांबा.'),
+      );
+      return false;
+    }
+    if (!guestIdProof || !uploadedIdProof) {
       Alert.alert(
         t('Upload guest ID proof', 'पाहुण्याचे ओळखपत्र अपलोड करा'),
         t('A government photo ID proof is required.', 'सरकारी फोटो ओळखपत्र आवश्यक आहे.'),
@@ -123,13 +139,33 @@ export function PilgrimCheckoutScreen() {
           t('ID proof must be 5 MB or smaller.', 'ओळखपत्र ५ MB किंवा त्यापेक्षा कमी असावे.'),
         );
       }
-      setGuestIdProof({
+      const picked: GuestIdProofFile = {
         mimeType,
         name: asset.name,
         sizeBytes,
         uri: asset.uri,
         webFile: asset.file,
-      });
+      };
+      setGuestIdProof(picked);
+      setUploadedIdProof(null);
+      // Upload right away instead of waiting for the "Pay" button press, so the
+      // multipart upload round-trip is already done well before checkout.
+      setIdProofUploading(true);
+      try {
+        const uploaded = await uploadGuestIdProof(picked);
+        setUploadedIdProof(uploaded);
+      } catch (uploadError) {
+        setGuestIdProof(null);
+        setUploadedIdProof(null);
+        Alert.alert(
+          t('ID proof', 'ओळखपत्र'),
+          uploadError instanceof Error
+            ? uploadError.message
+            : t('Could not upload ID proof. Please try again.', 'ओळखपत्र अपलोड करता आले नाही. पुन्हा प्रयत्न करा.'),
+        );
+      } finally {
+        setIdProofUploading(false);
+      }
     } catch (error) {
       if (error instanceof Error) Alert.alert(t('ID proof', 'ओळखपत्र'), error.message);
     } finally {
@@ -171,7 +207,7 @@ export function PilgrimCheckoutScreen() {
         checkOutDate,
         checkoutDateFlexible: false,
         guestEmail: email.trim() || undefined,
-        guestIdProof: guestIdProof!,
+        guestIdProof: uploadedIdProof!,
         guestName: name.trim(),
         guestPhone: phone,
         lodgeId: lodge.id,
@@ -400,15 +436,23 @@ export function PilgrimCheckoutScreen() {
             >
               <MaterialCommunityIcons
                 color={ui.saffronDeep}
-                name={guestIdProof ? 'file-check-outline' : 'upload-outline'}
+                name={
+                  idProofUploading
+                    ? 'cloud-upload-outline'
+                    : uploadedIdProof
+                      ? 'file-check-outline'
+                      : 'upload-outline'
+                }
                 size={26}
               />
               <Text className="mt-2 text-center text-sm font-extrabold text-maroon-700">
-                {guestIdProof?.name ??
-                  t(
-                    'Upload JPEG, PNG or PDF · Max 5 MB',
-                    'JPEG, PNG किंवा PDF अपलोड करा · कमाल ५ MB',
-                  )}
+                {idProofUploading
+                  ? t('Uploading…', 'अपलोड होत आहे…')
+                  : (guestIdProof?.name ??
+                    t(
+                      'Upload JPEG, PNG or PDF · Max 5 MB',
+                      'JPEG, PNG किंवा PDF अपलोड करा · कमाल ५ MB',
+                    ))}
               </Text>
             </Pressable>
           </View>
