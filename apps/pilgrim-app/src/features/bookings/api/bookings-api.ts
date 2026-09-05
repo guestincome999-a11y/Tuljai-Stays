@@ -69,6 +69,14 @@ export interface EnrichedBooking {
   roomTypeName: string;
 }
 
+export interface PrepaidOrder {
+  lockCode: string;
+  keyId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+}
+
 export async function checkAvailability(input: BookingLockRequest): Promise<AvailabilityResponse> {
   return apiClient.get<AvailabilityResponse>(
     `/lodges/${input.lodgeId}/room-types/${input.roomTypeId}/availability`,
@@ -100,6 +108,30 @@ export async function verifyRazorpayPayment(
   input: { orderId: string; paymentId: string; signature: string },
 ): Promise<RazorpayVerification> {
   return apiClient.post<RazorpayVerification>(`/payments/bookings/${bookingId}/verify`, input);
+}
+
+/**
+ * Creates (or reuses) a Razorpay order for a still-active room hold, before
+ * any booking exists. Call this as soon as the guest reaches the payment
+ * step with "Pay online" selected, so the order is already sitting ready by
+ * the time they tap Pay — opening the checkout sheet with no network wait.
+ */
+export async function createPrepaidOrder(lockCode: string): Promise<PrepaidOrder> {
+  return apiClient.post<PrepaidOrder>('/payments/prepaid/order', { lockCode });
+}
+
+/**
+ * Verifies a completed Razorpay payment and, only once verified, creates the
+ * booking already paid and accepted. Nothing is created if verification
+ * fails — there is no booking to clean up in that case.
+ */
+export async function confirmPrepaidBooking(
+  input: CreateBookingRequest & { orderId: string; paymentId: string; signature: string },
+): Promise<Booking> {
+  return apiClient.post<Booking>('/payments/prepaid/confirm', {
+    ...input,
+    paymentMethod: 'ONLINE',
+  });
 }
 
 export async function uploadGuestIdProof(
