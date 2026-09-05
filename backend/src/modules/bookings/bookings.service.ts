@@ -386,6 +386,7 @@ export class BookingsService {
       entityType: 'booking',
     });
     await this.notificationEventsService.bookingAccepted(booking.id);
+    await this.notificationEventsService.prepaidBookingConfirmed(booking.id);
 
     return this.toBooking(booking);
   }

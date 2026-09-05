@@ -88,6 +88,56 @@ export class NotificationEventsService {
     );
   }
 
+  /**
+   * Informs lodge owners that a room was just booked and paid for online —
+   * no approval needed. Deliberately does NOT use bookingCreated()'s
+   * 'booking:new'/'owner:alert' events or the BOOKING_REQUEST notification
+   * type: those are exactly what the owner app's IncomingBookingAlertHost
+   * listens for to pop the Accept/Reject sheet, and a prepaid booking is
+   * already ACCEPTED by the time this fires — there is nothing to approve.
+   * This is a plain heads-up so the guest doesn't just silently appear in
+   * the owner's upcoming check-ins list with no warning.
+   */
+  public async prepaidBookingConfirmed(bookingId: string): Promise<void> {
+    const booking = await this.prisma.booking.findUnique({
+      include: { lodge: { include: { owners: { where: { deletedAt: null, isActive: true } } } } },
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      return;
+    }
+
+    const payload = {
+      bookingCode: booking.bookingCode,
+      bookingId: booking.id,
+      checkInDate: booking.checkInDate.toISOString().slice(0, 10),
+      checkOutDate: booking.checkOutDate.toISOString().slice(0, 10),
+      guestName: booking.guestName,
+      lodgeId: booking.lodgeId,
+    };
+
+    for (const owner of booking.lodge.owners) {
+      this.realtimeEventsService.publishToUser(owner.userId, 'booking:confirmed', payload);
+      await this.notificationsService.create({
+        body: `${booking.guestName} paid online for booking ${booking.bookingCode}. Check-in on ${payload.checkInDate}.`,
+        bookingId: booking.id,
+        data: payload,
+        lodgeId: booking.lodgeId,
+        priority: 'NORMAL',
+        recipientRole: 'OWNER',
+        recipientUserId: owner.userId,
+        title: 'New confirmed booking',
+        type: 'BOOKING_CONFIRMED',
+      });
+    }
+
+    this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
+      bookingId: booking.id,
+      type: 'booking:confirmed',
+    });
+  }
+
   public async bookingRejected(bookingId: string): Promise<void> {
     await this.notifyPilgrimBookingStatus(
       bookingId,
