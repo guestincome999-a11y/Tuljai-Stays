@@ -190,6 +190,206 @@ export class BookingsService {
     return this.toBooking(booking);
   }
 
+  /**
+   * Validates a hold and returns the amount that should be charged for it,
+   * without creating a booking. Used by PaymentsService to create a Razorpay
+   * order against the hold as soon as the guest reaches the payment step —
+   * well before they tap Pay — so the checkout sheet can open instantly on
+   * tap instead of waiting on a booking-creation round trip first.
+   */
+  public async resolveLockForPrepay(
+    lockCode: string,
+    user: AuthenticatedUser,
+  ): Promise<{
+    amount: number;
+    lockId: string;
+    orderAmount: number | null;
+    providerOrderId: string | null;
+  }> {
+    const lock = await this.prisma.bookingLock.findFirst({
+      include: { lodge: true, roomType: true },
+      where: {
+        expiresAt: { gt: new Date() },
+        lockCode,
+        pilgrimUserId: user.id,
+        status: 'ACTIVE',
+      },
+    });
+
+    if (!lock) throw new BadRequestException('Booking lock is invalid or expired');
+    if (lock.lodge.status !== 'VERIFIED' || lock.lodge.verificationStatus !== 'VERIFIED') {
+      throw new BadRequestException('Lodge is not available for booking');
+    }
+    if (!lock.roomType.isActive || lock.roomType.deletedAt) {
+      throw new BadRequestException('Room type is not available');
+    }
+
+    const availability = await this.availabilityService.getAvailability(
+      lock.lodgeId,
+      lock.roomTypeId,
+      lock.checkInDate.toISOString().slice(0, 10),
+      lock.checkOutDate.toISOString().slice(0, 10),
+      { excludeLockId: lock.id },
+    );
+    if (!availability.available) throw new ConflictException('Room type is no longer available');
+
+    return {
+      amount: this.calculateBaseTotalAmount(
+        lock.roomType.basePrice,
+        lock.checkInDate,
+        lock.checkOutDate,
+      ),
+      lockId: lock.id,
+      orderAmount: lock.orderAmount?.toNumber() ?? null,
+      providerOrderId: lock.providerOrderId,
+    };
+  }
+
+  /**
+   * Creates a booking that is already paid and already accepted, straight
+   * from a verified Razorpay payment — no booking exists until this point.
+   * If no physical room can be assigned, the transaction rolls back and
+   * nothing is created; the caller (PaymentsService) is responsible for
+   * refunding the payment in that case since there is no booking to cancel.
+   */
+  public async createPrepaidBooking(
+    dto: CreateBookingDto,
+    user: AuthenticatedUser,
+    payment: { providerOrderId: string },
+  ): Promise<Booking> {
+    const lock = await this.prisma.bookingLock.findFirst({
+      include: { lodge: true, roomType: true },
+      where: {
+        expiresAt: { gt: new Date() },
+        lockCode: dto.lockCode,
+        pilgrimUserId: user.id,
+        providerOrderId: payment.providerOrderId,
+        status: 'ACTIVE',
+      },
+    });
+    if (!lock || lock.orderAmount === null) {
+      throw new BadRequestException(
+        'Booking lock is invalid, expired, or does not match this payment',
+      );
+    }
+    if (lock.lodge.status !== 'VERIFIED' || lock.lodge.verificationStatus !== 'VERIFIED') {
+      throw new BadRequestException('Lodge is not available for booking');
+    }
+    if (!lock.roomType.isActive || lock.roomType.deletedAt) {
+      throw new BadRequestException('Room type is not available');
+    }
+    if (dto.numberOfAdults > lock.roomType.capacityAdults) {
+      throw new BadRequestException('Adult guest count exceeds room capacity');
+    }
+    if (dto.numberOfChildren > lock.roomType.capacityChildren) {
+      throw new BadRequestException('Child guest count exceeds room capacity');
+    }
+
+    await this.guestIdProofService.assertOwnedUpload(
+      user.id,
+      dto.guestIdProofStoragePath,
+      dto.guestIdProofMimeType,
+    );
+
+    const totalAmount = lock.orderAmount.toNumber();
+
+    const booking = await this.prisma.$transaction(async (tx) => {
+      // Same FOR UPDATE SKIP LOCKED room selection used when confirming a
+      // legacy (booking-first) prepaid payment: money has already changed
+      // hands at this point, so this needs the stronger guarantee than the
+      // plain availability check used by the owner-approval accept flow.
+      const availableRooms = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT r.id FROM rooms r
+        WHERE r.lodge_id = ${lock.lodgeId}::uuid
+          AND r.room_type_id = ${lock.roomTypeId}::uuid
+          AND r.deleted_at IS NULL AND r.status = 'AVAILABLE'
+          AND NOT EXISTS (
+            SELECT 1 FROM bookings b
+            WHERE b.room_id = r.id AND b.deleted_at IS NULL
+              AND b.status IN ('ACCEPTED', 'QR_GENERATED', 'CHECKED_IN')
+              AND b.check_in_date < ${lock.checkOutDate}
+              AND b.check_out_date > ${lock.checkInDate}
+          )
+        ORDER BY r.id LIMIT 1 FOR UPDATE SKIP LOCKED
+      `;
+      const selectedRoomId = availableRooms[0]?.id;
+      if (!selectedRoomId) throw new ConflictException('ROOM_UNAVAILABLE_AFTER_PAYMENT');
+
+      const created = await tx.booking.create({
+        data: {
+          acceptedByUserId: user.id,
+          bookingCode: await this.generateBookingCode(),
+          checkInDate: lock.checkInDate,
+          checkOutDate: lock.checkOutDate,
+          checkoutDateFlexible: dto.checkoutDateFlexible,
+          cityId: lock.lodge.cityId,
+          commissionAmount: this.getConfiguredCommissionAmount(),
+          guestAddress: dto.guestAddress,
+          guestEmail: dto.guestEmail,
+          guestName: dto.guestName,
+          guestPhone: dto.guestPhone,
+          lodgeId: lock.lodgeId,
+          numberOfAdults: dto.numberOfAdults,
+          numberOfChildren: dto.numberOfChildren,
+          paymentStatus: PaymentStatus.FULLY_PAID,
+          pilgrimUserId: user.id,
+          roomId: selectedRoomId,
+          roomTypeId: lock.roomTypeId,
+          specialRequest: dto.specialRequest,
+          status: 'ACCEPTED',
+          totalAmount,
+          totalGuests: dto.numberOfAdults + dto.numberOfChildren,
+          guests: {
+            create: {
+              fullName: dto.guestName,
+              idProofMimeType: dto.guestIdProofMimeType,
+              idProofOriginalName: dto.guestIdProofOriginalName,
+              idProofSizeBytes: dto.guestIdProofSizeBytes,
+              idProofStoragePath: dto.guestIdProofStoragePath,
+              isPrimaryGuest: true,
+              phone: dto.guestPhone,
+            },
+          },
+        },
+        include: this.bookingInclude,
+      });
+
+      await tx.room.update({ data: { status: 'CONFIRMED' }, where: { id: selectedRoomId } });
+      await tx.bookingLock.update({ data: { status: 'CONSUMED' }, where: { id: lock.id } });
+      await tx.roomStatusHistory.create({
+        data: {
+          actorUserId: user.id,
+          bookingId: created.id,
+          fromStatus: 'AVAILABLE',
+          reason: 'BOOKING_ACCEPTED',
+          roomId: selectedRoomId,
+          toStatus: 'CONFIRMED',
+        },
+      });
+      await tx.bookingHistory.create({
+        data: {
+          action: 'BOOKING_CREATED',
+          actorUserId: user.id,
+          bookingId: created.id,
+          notes: 'Created directly as accepted after a successful prepaid Razorpay payment',
+          toStatus: 'ACCEPTED',
+        },
+      });
+
+      return created;
+    });
+
+    await this.auditLogService.create({
+      action: 'BOOKING_CREATED',
+      actorUserId: user.id,
+      entityId: booking.id,
+      entityType: 'booking',
+    });
+    await this.notificationEventsService.bookingAccepted(booking.id);
+
+    return this.toBooking(booking);
+  }
+
   public async listMyBookings(user: AuthenticatedUser): Promise<Booking[]> {
     const bookings = await this.prisma.booking.findMany({
       include: this.bookingInclude,

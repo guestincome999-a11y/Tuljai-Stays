@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { BookingsModule } from '../bookings/bookings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 import { PaymentNotificationsService } from './payment-notifications.service';
@@ -8,7 +9,7 @@ import { PaymentsService } from './payments.service';
 import { PaymentProvidersModule } from './providers/providers.module';
 
 @Module({
-  imports: [NotificationsModule, PaymentProvidersModule],
+  imports: [BookingsModule, NotificationsModule, PaymentProvidersModule],
   controllers: [PaymentsController],
   providers: [PaymentsService, PaymentNotificationsService],
   exports: [PaymentsService, PaymentNotificationsService, PaymentProvidersModule],

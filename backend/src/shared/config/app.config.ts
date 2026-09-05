@@ -31,6 +31,7 @@ export const appConfig = registerAs('api', () => ({
   },
   booking: {
     lockTtlSeconds: Number(process.env.BOOKING_LOCK_TTL_SECONDS ?? 300),
+    prepaidOrderHoldSeconds: Number(process.env.BOOKING_PREPAID_ORDER_HOLD_SECONDS ?? 900),
     ownerResponseDeadlineSeconds: Number(
       process.env.BOOKING_OWNER_RESPONSE_DEADLINE_SECONDS ?? 120,
     ),
@@ -50,9 +51,7 @@ export const appConfig = registerAs('api', () => ({
     url: process.env.SUPABASE_URL ?? defaultSupabaseUrl,
     publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? defaultSupabasePublishableKey,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    // Private bucket: guest ID proofs and other sensitive uploads. Never exposed via public URL.
     storageBucket: process.env.SUPABASE_STORAGE_BUCKET ?? 'tuljai-stays',
-    // Public bucket: lodge/room photos and promotional banners. Safe to expose via public URL.
     lodgePhotosBucket: process.env.SUPABASE_LODGE_PHOTOS_BUCKET ?? 'lodge-photos',
   },
 }));

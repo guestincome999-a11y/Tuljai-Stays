@@ -72,6 +72,34 @@ export class BookingLocksService {
     };
   }
 
+  /**
+   * Binds a Razorpay order to a still-active hold so the checkout sheet can
+   * be opened immediately when the guest taps Pay, instead of creating the
+   * order only after a booking exists. Called from PaymentsService once the
+   * order has been created with Razorpay.
+   *
+   * Also extends the hold's expiry: the normal lock TTL is sized for the
+   * short gap between creating a lock and creating a booking, but once an
+   * order is attached the lock must additionally survive however long the
+   * guest takes inside the Razorpay sheet (entering a UPI PIN, an OTP, a
+   * bank redirect, etc.), which can run well past that TTL.
+   */
+  public async attachProviderOrder(
+    lockId: string,
+    providerOrderId: string,
+    orderAmount: number,
+  ): Promise<void> {
+    const holdSeconds = this.configService.get<number>('api.booking.prepaidOrderHoldSeconds', 900);
+    await this.prisma.bookingLock.update({
+      data: {
+        expiresAt: new Date(Date.now() + holdSeconds * 1000),
+        orderAmount,
+        providerOrderId,
+      },
+      where: { id: lockId },
+    });
+  }
+
   public async expireLocks(): Promise<number> {
     const result = await this.prisma.bookingLock.updateMany({
       data: { status: 'EXPIRED' },

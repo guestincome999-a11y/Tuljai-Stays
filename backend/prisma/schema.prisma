@@ -750,6 +750,15 @@ model BookingLock {
   checkOutDate  DateTime          @map("check_out_date") @db.Date
   expiresAt     DateTime          @map("expires_at")
   status        BookingLockStatus @default(ACTIVE)
+  /// Razorpay order created against this lock before a booking exists, so the
+  /// checkout sheet can open immediately when the guest taps Pay. Null until
+  /// the guest reaches the payment step and an order is created for the hold.
+  providerOrderId String?         @unique @map("provider_order_id")
+  /// The exact amount the Razorpay order was created for. Booking creation
+  /// after payment uses this stored value rather than recomputing from the
+  /// room type's current price, so what the guest was charged always matches
+  /// what the booking records even if pricing changes in between.
+  orderAmount   Decimal?          @map("order_amount") @db.Decimal(12, 2)
   createdAt     DateTime          @default(now()) @map("created_at")
   updatedAt     DateTime          @updatedAt @map("updated_at")
   pilgrim       User?             @relation(fields: [pilgrimUserId], references: [id], onDelete: SetNull)

@@ -32,6 +32,7 @@ import { QrCheckinService } from './qr-checkin.service';
   ],
   exports: [
     BookingAvailabilityService,
+    BookingLocksService,
     BookingsService,
     GuestRegisterService,
     QrCheckinService,

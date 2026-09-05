@@ -1,5 +1,15 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import type { AuthenticatedUser, Booking } from '@tuljai/types';
 
+import { BookingLocksService } from '../bookings/booking-locks.service';
+import { BookingsService } from '../bookings/bookings.service';
+import type { CreateBookingDto } from '../bookings/dto/booking.dto';
 import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -12,6 +22,8 @@ export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
 
   public constructor(
+    private readonly bookingLocksService: BookingLocksService,
+    private readonly bookingsService: BookingsService,
     private readonly prisma: PrismaService,
     private readonly razorpayProvider: RazorpayProvider,
     private readonly paymentNotificationsService: PaymentNotificationsService,
@@ -20,6 +32,21 @@ export class PaymentsService {
 
   public ensureOnlinePaymentsEnabled(enabled: boolean): void {
     if (!enabled) throw new BadRequestException('Online payments are currently unavailable');
+  }
+
+  private async assertOnlinePaymentsEnabled(): Promise<void> {
+    const settings = await this.prisma.$queryRaw<
+      Array<{ enabled: boolean; provider: string; display_status: string }>
+    >`
+      SELECT online_payments_enabled AS enabled, provider, display_status
+      FROM payment_settings ORDER BY created_at ASC LIMIT 1
+    `;
+    const setting = settings[0];
+    this.ensureOnlinePaymentsEnabled(
+      Boolean(setting?.enabled) &&
+        setting?.provider === 'RAZORPAY' &&
+        setting.display_status === 'ACTIVE',
+    );
   }
 
   public async createPayment(
@@ -50,18 +77,7 @@ export class PaymentsService {
       throw new BadRequestException('This booking is not waiting for online payment');
     }
 
-    const settings = await this.prisma.$queryRaw<
-      Array<{ enabled: boolean; provider: string; display_status: string }>
-    >`
-      SELECT online_payments_enabled AS enabled, provider, display_status
-      FROM payment_settings ORDER BY created_at ASC LIMIT 1
-    `;
-    const setting = settings[0];
-    this.ensureOnlinePaymentsEnabled(
-      Boolean(setting?.enabled) &&
-        setting?.provider === 'RAZORPAY' &&
-        setting.display_status === 'ACTIVE',
-    );
+    await this.assertOnlinePaymentsEnabled();
 
     const existing = await this.prisma.$queryRaw<
       Array<{ id: string; status: string; provider_order_id: string | null }>
@@ -126,6 +142,128 @@ export class PaymentsService {
       amount: order.amount,
       currency: order.currency,
     };
+  }
+
+  /**
+   * Creates (or reuses) a Razorpay order for a still-active room hold,
+   * before any booking exists. Called as soon as the guest reaches the
+   * payment step with "Pay online" selected, so that by the time they
+   * actually tap Pay, the order already exists and the checkout sheet can
+   * open with no further network wait. The booking itself is only created
+   * once the payment this order collects is verified as captured — see
+   * confirmPrepaidBooking below.
+   */
+  public async createPrepaidOrder(lockCode: string, user: AuthenticatedUser) {
+    await this.assertOnlinePaymentsEnabled();
+
+    const resolved = await this.bookingsService.resolveLockForPrepay(lockCode, user);
+
+    if (resolved.providerOrderId && resolved.orderAmount !== null) {
+      return {
+        lockCode,
+        keyId: process.env.RAZORPAY_KEY_ID,
+        orderId: resolved.providerOrderId,
+        amount: Math.round(resolved.orderAmount * 100),
+        currency: 'INR',
+      };
+    }
+
+    const amountPaise = Math.round(resolved.amount * 100);
+    if (!Number.isFinite(amountPaise) || amountPaise <= 0) {
+      throw new BadRequestException('This booking has an invalid payment amount');
+    }
+
+    const order = await this.razorpayProvider.createPayment({
+      amount: amountPaise,
+      bookingId: lockCode,
+      currency: 'INR',
+      receipt: lockCode,
+    });
+
+    await this.bookingLocksService.attachProviderOrder(
+      resolved.lockId,
+      order.orderId,
+      resolved.amount,
+    );
+
+    return {
+      lockCode,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      orderId: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+    };
+  }
+
+  /**
+   * Verifies a Razorpay payment made against a pre-created prepaid order and,
+   * only once verified as captured, creates the booking directly as paid and
+   * accepted. If verification fails, or the payment isn't captured, or a
+   * physical room can't be assigned, no booking is ever created — there is
+   * nothing to cancel, by design, since booking creation only happens after
+   * payment success is confirmed.
+   */
+  public async confirmPrepaidBooking(
+    dto: CreateBookingDto,
+    user: AuthenticatedUser,
+    input: { orderId: string; paymentId: string; signature: string },
+  ): Promise<Booking> {
+    if (dto.paymentMethod !== 'ONLINE') {
+      throw new BadRequestException('This endpoint only confirms prepaid online bookings');
+    }
+
+    const verification = await this.razorpayProvider.verifyPayment(input);
+    if (!verification.verified) {
+      throw new BadRequestException('Razorpay payment verification failed');
+    }
+
+    const payment = await this.razorpayProvider.getPayment(input.paymentId);
+    if (payment.order_id !== input.orderId) {
+      throw new BadRequestException('Razorpay payment belongs to a different order');
+    }
+    if (payment.status !== 'captured' || !payment.captured) {
+      throw new BadRequestException('Razorpay payment is not captured yet');
+    }
+
+    try {
+      const booking = await this.bookingsService.createPrepaidBooking(dto, user, {
+        providerOrderId: input.orderId,
+      });
+
+      await this.prisma.$executeRaw`
+        INSERT INTO payment_collections
+          (booking_id, method, provider, amount, status, provider_order_id, provider_payment_id, provider_reference, paid_at)
+        VALUES
+          (${booking.id}::uuid, 'ONLINE', 'RAZORPAY', ${Number(booking.totalAmount)}, 'PAID', ${input.orderId}, ${input.paymentId}, ${input.orderId}, CURRENT_TIMESTAMP)
+      `;
+
+      await this.paymentNotificationsService.successful({
+        bookingId: booking.id,
+        bookingCode: booking.bookingCode,
+        pilgrimUserId: user.id,
+        lodgeId: booking.lodgeId,
+        amount: Number(booking.totalAmount),
+        paymentId: input.paymentId,
+        roomId: booking.roomId ?? '',
+      });
+
+      return booking;
+    } catch (error) {
+      if (error instanceof ConflictException && error.message === 'ROOM_UNAVAILABLE_AFTER_PAYMENT') {
+        try {
+          await this.razorpayProvider.refundPayment(input.paymentId);
+        } catch (refundError) {
+          this.logger.error(
+            `Failed to auto-refund payment ${input.paymentId} after room became unavailable`,
+            refundError instanceof Error ? refundError.stack : String(refundError),
+          );
+        }
+        throw new BadRequestException(
+          'The room became unavailable while your payment was processing. Your payment is being refunded automatically.',
+        );
+      }
+      throw error;
+    }
   }
 
   public async verifyBookingPayment(
