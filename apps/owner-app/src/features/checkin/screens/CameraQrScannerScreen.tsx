@@ -1,10 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { CheckInResponse } from '@tuljai/types';
-import { radius, spacing } from '@tuljai/ui';
+import type { Booking, CheckInResponse, PaymentStatus } from '@tuljai/types';
+import { colors, radius, spacing } from '@tuljai/ui';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Card, Switch, Text, useTheme } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
@@ -51,6 +51,8 @@ export function CameraQrScannerScreen() {
       const deviceId = await getOrCreateDeviceId();
       const response = await scanQrCode({ deviceId, qrPayload });
       setOutcome({ message: 'Check-in Successful', response, type: 'SUCCESS' });
+      const guidance = getPaymentGuidance(response.booking);
+      Alert.alert(guidance.title, guidance.detail ?? undefined);
     } catch (error) {
       setOutcome({ message: getScanErrorMessage(error), type: 'ERROR' });
     } finally {
@@ -174,6 +176,7 @@ export function CameraQrScannerScreen() {
               <Text style={{ color: theme.colors.primary }} variant="headlineSmall">
                 {outcome.message}
               </Text>
+              <PaymentGuidanceBanner booking={outcome.response.booking} />
               <Text variant="titleMedium">{outcome.response.booking.guestName}</Text>
               <Text variant="bodyMedium">{outcome.response.booking.bookingCode}</Text>
               <Text variant="bodyMedium">
@@ -227,6 +230,83 @@ export function CameraQrScannerScreen() {
           </Card>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+interface PaymentGuidance {
+  detail: string | null;
+  title: string;
+  tone: 'collect' | 'neutral' | 'paid';
+}
+
+function getPaymentGuidance(booking: Booking): PaymentGuidance {
+  const amountDue = booking.balanceAmount ?? booking.totalAmount;
+
+  switch (booking.paymentStatus) {
+    case 'PAY_AT_LODGE':
+      return {
+        detail: amountDue
+          ? `Collect ${formatAmount(amountDue)} from the guest at the lodge.`
+          : 'Collect payment from the guest at the lodge.',
+        title: 'Collect Payment',
+        tone: 'collect',
+      };
+    case 'ADVANCE_PAID':
+      return {
+        detail: amountDue
+          ? `Advance received online. Collect balance of ${formatAmount(amountDue)}.`
+          : 'Advance received online. Confirm balance with the guest.',
+        title: 'Advance Paid \u2014 Collect Balance',
+        tone: 'collect',
+      };
+    case 'FULLY_PAID':
+      return {
+        detail: 'Full payment received online. Nothing to collect from the guest.',
+        title: 'Paid Booking',
+        tone: 'paid',
+      };
+    default:
+      return {
+        detail: amountDue ? `Amount: ${formatAmount(amountDue)}` : null,
+        title: `Payment Status: ${formatPaymentStatusLabel(booking.paymentStatus)}`,
+        tone: 'neutral',
+      };
+  }
+}
+
+function formatPaymentStatusLabel(status: PaymentStatus): string {
+  return status
+    .split('_')
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function formatAmount(value: string): string {
+  const amount = Number(value);
+
+  return Number.isFinite(amount) ? `\u20B9${amount.toLocaleString('en-IN')}` : value;
+}
+
+function PaymentGuidanceBanner({ booking }: { booking: Booking }) {
+  const guidance = getPaymentGuidance(booking);
+  const toneColor =
+    guidance.tone === 'collect'
+      ? colors.light.warning
+      : guidance.tone === 'paid'
+        ? colors.light.success
+        : colors.light.textMuted;
+
+  return (
+    <View style={[styles.paymentBanner, { backgroundColor: `${toneColor}22`, borderColor: toneColor }]}>
+      <Text style={{ color: toneColor }} variant="titleMedium">
+        {guidance.title}
+      </Text>
+      {guidance.detail ? (
+        <Text style={{ color: toneColor }} variant="bodyMedium">
+          {guidance.detail}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -291,6 +371,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     padding: spacing.lg,
+  },
+  paymentBanner: {
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    gap: spacing.xs,
+    padding: spacing.md,
   },
   receptionToggle: {
     alignItems: 'center',
