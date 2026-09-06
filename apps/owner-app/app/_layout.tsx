@@ -6,6 +6,7 @@ import { AuthProvider } from '../src/auth/auth-context';
 import { OwnerErrorBoundary } from '../src/components/error-boundary/OwnerErrorBoundary';
 import { OfflineBanner } from '../src/components/OfflineBanner';
 import { ConnectivityProvider } from '../src/connectivity/connectivity-context';
+import { useDoubleBackToExit } from '../src/hooks/useDoubleBackToExit';
 import { OwnerPushNotifications } from '../src/notifications/OwnerPushNotifications';
 import { OwnerAppProvider } from '../src/owner-ui/OwnerAppProvider';
 import { RealtimeProvider } from '../src/realtime/realtime-provider';
@@ -14,6 +15,8 @@ import '../global.css';
 
 export default function RootLayout() {
   const theme = tuljaiLightTheme;
+
+  useDoubleBackToExit();
 
   return (
     <PaperProvider theme={theme}>
