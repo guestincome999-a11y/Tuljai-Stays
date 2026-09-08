@@ -1,13 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { palette } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import {
   createRazorpayOrder,
   verifyRazorpayPayment,
+  type RazorpayOrder,
 } from '../../features/bookings/api/bookings-api';
 import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
@@ -34,6 +35,36 @@ export function PilgrimBookingDetailScreen() {
   const [onlinePaymentBusy, setOnlinePaymentBusy] = useState(false);
   const [paymentAttemptFailed, setPaymentAttemptFailed] = useState<string | null>(null);
   const [justPaidOnline, setJustPaidOnline] = useState(false);
+  // Pre-create the Razorpay order as soon as this screen can show "Pay &
+  // Confirm Now" / "Retry payment", instead of waiting for the tap — so
+  // opening the checkout sheet doesn't wait on that round trip first. Mirrors
+  // the same technique used on the checkout screen's online-payment step.
+  const [prefetchedOrder, setPrefetchedOrder] = useState<RazorpayOrder | null>(null);
+  const preparedOrderBookingIdRef = useRef<string | null>(null);
+  const eligibleForOnlinePayment =
+    booking?.status === 'pending' && booking?.paymentStatus === 'Pay at lodge';
+
+  const prepareOrder = useCallback((forBookingId: string) => {
+    preparedOrderBookingIdRef.current = forBookingId;
+    let cancelled = false;
+    void createRazorpayOrder(forBookingId)
+      .then((order) => {
+        if (!cancelled) setPrefetchedOrder(order);
+      })
+      .catch(() => {
+        if (!cancelled && preparedOrderBookingIdRef.current === forBookingId)
+          preparedOrderBookingIdRef.current = null;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!eligibleForOnlinePayment || !booking) return undefined;
+    if (preparedOrderBookingIdRef.current === booking.id) return undefined;
+    return prepareOrder(booking.id);
+  }, [booking, eligibleForOnlinePayment, prepareOrder]);
 
   if (!booking) {
     return (
@@ -98,7 +129,13 @@ export function PilgrimBookingDetailScreen() {
     setOnlinePaymentBusy(true);
     setPaymentAttemptFailed(null);
     try {
-      const order = await createRazorpayOrder(bookingId);
+      // The order was (ideally) already created in the background as soon as
+      // this screen became eligible for online payment — see the prefetch
+      // effect above — so this just opens the sheet with no further network
+      // wait. If it isn't ready yet for some reason, fall back to creating
+      // it now rather than blocking the guest entirely.
+      const order = prefetchedOrder ?? (await createRazorpayOrder(bookingId));
+      setPrefetchedOrder(null);
       const result = await RazorpayCheckout.open({
         key: order.keyId,
         amount: order.amount,
@@ -131,6 +168,8 @@ export function PilgrimBookingDetailScreen() {
           ? error.message
           : t('Please try again.', 'कृपया पुन्हा प्रयत्न करा.');
       setPaymentAttemptFailed(message);
+      preparedOrderBookingIdRef.current = null;
+      prepareOrder(bookingId);
     } finally {
       setOnlinePaymentBusy(false);
     }

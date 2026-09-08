@@ -4,126 +4,100 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { useAuth } from '../auth/auth-context';
-import {
-  getUnreadNotificationCount,
-  markNotificationRead,
-} from '../features/notifications/api/notifications-api';
-import { useRealtime } from '../realtime/realtime-provider';
+import { markNotificationRead } from '../features/notifications/api/notifications-api';
 
-import {
-  registerExistingPilgrimPushToken,
-  registerRotatedPilgrimPushToken,
-  syncPilgrimNotificationBadge,
-} from './push-registration';
+import { registerExistingPilgrimPushToken, registerRotatedPilgrimPushToken } from './push-registration';
 
+// The OS app-icon badge is synced from `PilgrimAppProvider`, driven directly
+// off its `notifications` array (this app's single source of truth for read
+// state) instead of a separate `notification:unread-count` round trip. That
+// keeps the badge instant for every path — in-app reads, mark-all-read, and
+// new notifications arriving — without a second, competing badge writer
+// here. This component only handles push registration and acting on a
+// tapped push notification (marking it read and navigating).
 export function PilgrimPushNotifications() {
   const auth = useAuth();
-  const realtime = useRealtime();
   const router = useRouter();
   const handledResponseId = useRef<string | null>(null);
 
-  const refreshBadge = useCallback(async () => {
-    if (!auth.isAuthenticated) {
-      await syncPilgrimNotificationBadge(0);
+  const handleResponse = useCallback(async (response: Notifications.NotificationResponse) => {
+    const responseId = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+    if (handledResponseId.current === responseId) {
       return;
     }
 
-    const result = await getUnreadNotificationCount().catch(() => null);
-    if (result) {
-      await syncPilgrimNotificationBadge(result.unreadCount);
+    handledResponseId.current = responseId;
+    await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+    const data = response.notification.request.content.data ?? {};
+    const notificationId = readString(data.notificationId);
+
+    if (notificationId) {
+      await markNotificationRead(notificationId).catch(() => undefined);
     }
-  }, [auth.isAuthenticated]);
 
-  const handleResponse = useCallback(
-    async (response: Notifications.NotificationResponse) => {
-      const responseId = `${response.notification.request.identifier}:${response.actionIdentifier}`;
-      if (handledResponseId.current === responseId) {
-        return;
-      }
+    const type = readString(data.type);
+    const bookingId = readString(data.bookingId);
+    const announcementId = readString(data.announcementId);
+    const lodgeId = readString(data.lodgeId);
+    const roomId = readString(data.roomId);
+    const roomTypeId = readString(data.roomTypeId);
 
-      handledResponseId.current = responseId;
-      await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
-      const data = response.notification.request.content.data ?? {};
-      const notificationId = readString(data.notificationId);
+    if (announcementId || type === 'ADMIN_ANNOUNCEMENT' || type === 'EMERGENCY_ALERT') {
+      router.push({
+        pathname: '/(app)/announcements',
+        params: announcementId ? { announcementId } : {},
+      });
+      return;
+    }
 
-      if (notificationId) {
-        await markNotificationRead(notificationId).catch(() => undefined);
-      }
-      await refreshBadge();
+    if (type === 'QR_GENERATED' && bookingId) {
+      router.push({
+        pathname: '/(app)/pass',
+        params: { bookingId },
+      });
+      return;
+    }
 
-      const type = readString(data.type);
-      const bookingId = readString(data.bookingId);
-      const announcementId = readString(data.announcementId);
-      const lodgeId = readString(data.lodgeId);
-      const roomId = readString(data.roomId);
-      const roomTypeId = readString(data.roomTypeId);
+    if (bookingId) {
+      router.push({
+        pathname: '/(app)/bookings/[id]',
+        params: { id: bookingId },
+      });
+      return;
+    }
 
-      if (announcementId || type === 'ADMIN_ANNOUNCEMENT' || type === 'EMERGENCY_ALERT') {
-        router.push({
-          pathname: '/(app)/announcements',
-          params: announcementId ? { announcementId } : {},
-        });
-        return;
-      }
+    if (lodgeId && (roomId || roomTypeId)) {
+      router.push({
+        pathname: '/(app)/lodges/[id]',
+        params: {
+          id: lodgeId,
+          ...(roomId ? { roomId } : {}),
+          ...(roomTypeId ? { roomTypeId } : {}),
+        },
+      });
+      return;
+    }
 
-      if (type === 'QR_GENERATED' && bookingId) {
-        router.push({
-          pathname: '/(app)/pass',
-          params: { bookingId },
-        });
-        return;
-      }
-
-      if (bookingId) {
-        router.push({
-          pathname: '/(app)/bookings/[id]',
-          params: { id: bookingId },
-        });
-        return;
-      }
-
-      if (lodgeId && (roomId || roomTypeId)) {
-        router.push({
-          pathname: '/(app)/lodges/[id]',
-          params: {
-            id: lodgeId,
-            ...(roomId ? { roomId } : {}),
-            ...(roomTypeId ? { roomTypeId } : {}),
-          },
-        });
-        return;
-      }
-
-      router.push('/(app)/notifications');
-    },
-    [refreshBadge, router],
-  );
+    router.push('/(app)/notifications');
+  }, [router]);
 
   useEffect(() => {
     if (!auth.isAuthenticated) {
-      void syncPilgrimNotificationBadge(0);
       return undefined;
     }
 
     void registerExistingPilgrimPushToken().catch(() => false);
-    void refreshBadge();
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         void handleResponse(response);
       },
     );
-    const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
-      void refreshBadge();
-    });
     const tokenSubscription = Notifications.addPushTokenListener((token) => {
       void registerRotatedPilgrimPushToken(token).catch(() => false);
     });
     const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void registerExistingPilgrimPushToken().catch(() => false);
-        void refreshBadge();
-      }
+      if (state === 'active') void registerExistingPilgrimPushToken().catch(() => false);
     });
 
     void Notifications.getLastNotificationResponseAsync().then((response) => {
@@ -134,27 +108,10 @@ export function PilgrimPushNotifications() {
 
     return () => {
       appStateSubscription.remove();
-      receivedSubscription.remove();
       responseSubscription.remove();
       tokenSubscription.remove();
     };
-  }, [auth.isAuthenticated, handleResponse, refreshBadge]);
-
-  useEffect(() => {
-    const event = realtime.lastEvent;
-
-    if (event?.name === 'notification:unread-count') {
-      const unreadCount = event.payload.unreadCount;
-      if (typeof unreadCount === 'number') {
-        void syncPilgrimNotificationBadge(unreadCount);
-      }
-      return;
-    }
-
-    if (event?.name === 'notification:new') {
-      void refreshBadge();
-    }
-  }, [realtime.lastEvent, refreshBadge]);
+  }, [auth.isAuthenticated, handleResponse]);
 
   return null;
 }

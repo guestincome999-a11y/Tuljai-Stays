@@ -22,6 +22,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead as markBackendNotificationRead,
 } from '../features/notifications/api/notifications-api';
+import { syncPilgrimNotificationBadge } from '../notifications/push-registration';
 import { getEventBookingId, type PilgrimRealtimeEvent } from '../realtime/realtime-events';
 import { useRealtime } from '../realtime/realtime-provider';
 
@@ -300,6 +301,22 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     });
     return () => subscription.remove();
   }, [auth.isAuthenticated, loadPrivateData, lodges]);
+
+  // The bell badge and the OS app-icon badge both need to reflect unread
+  // notifications the instant a notification is read anywhere in the app
+  // (in-app list, push tap, mark-all-read) — not only when a
+  // `notification:unread-count` event round-trips back over the socket.
+  // `notifications` is this app's single source of truth for read state, so
+  // syncing the OS badge directly off it here keeps both badges instant and
+  // removes the OS badge's dependency on that extra network round trip.
+  useEffect(() => {
+    if (!auth.isAuthenticated) {
+      void syncPilgrimNotificationBadge(0);
+      return;
+    }
+    const unreadCount = notifications.filter((item) => !item.read).length;
+    void syncPilgrimNotificationBadge(unreadCount);
+  }, [auth.isAuthenticated, notifications]);
 
   const pendingBookingIds = useMemo(
     () =>
