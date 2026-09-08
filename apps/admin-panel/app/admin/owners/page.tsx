@@ -77,8 +77,12 @@ export default function AdminOwnersPage() {
         userId: form.userId,
       });
       setSuccessMessage('Owner assigned to lodge.');
-    } catch {
-      setErrorMessage('Owner assignment failed. Confirm the user id belongs to an owner account.');
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Owner assignment failed. Confirm the user id belongs to an owner account.',
+      );
     }
   }
 
