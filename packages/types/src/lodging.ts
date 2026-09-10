@@ -64,6 +64,8 @@ export interface LodgeAddress {
 }
 
 export interface Lodge {
+  /** Average of published review ratings for this lodge, rounded to 1 decimal. Null if it has no published reviews yet. */
+  averageRating: number | null;
   cityId: UUID;
   description: string | null;
   distanceFromTempleMeters: number | null;
@@ -72,6 +74,8 @@ export interface Lodge {
   name: string;
   primaryPhone: string;
   propertyType: PropertyType;
+  /** Count of published reviews backing averageRating. */
+  reviewCount: number;
   slug: string;
   status: LodgeStatus;
   verificationStatus: VerificationStatus;
