@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { AppScreen, EmptyState, PrimaryButton, Rating, SecondaryButton, ui } from '../components';
+import { LodgeReviewsSection } from '../../features/reviews/components/LodgeReviewsSection';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
@@ -307,6 +308,8 @@ export function PilgrimLodgeDetailScreen() {
               ))}
             </View>
           </View>
+
+          <LodgeReviewsSection lodgeId={lodge.id} />
 
           {lodge.primaryPhone ? (
             <View className="rounded-3xl bg-maroon-700 p-5">
