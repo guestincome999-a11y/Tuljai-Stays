@@ -21,3 +21,13 @@ export async function listLodgeReviews(lodgeId: string): Promise<PaginatedRespon
     params: { limit: 50, page: 1 },
   });
 }
+
+/**
+ * Returns the review already submitted for a booking, or null if the
+ * pilgrim hasn't reviewed that stay yet. Used to decide whether a completed
+ * booking is still eligible for the "Write a review" entry point on the
+ * lodge detail screen.
+ */
+export async function getBookingReview(bookingId: string): Promise<Review | null> {
+  return apiClient.get<Review | null>(`/reviews/booking/${bookingId}`);
+}
