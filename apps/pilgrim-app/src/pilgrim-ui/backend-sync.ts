@@ -67,9 +67,14 @@ export async function hydrateBackendLodge(summary: PilgrimLodge): Promise<Pilgri
     hero: photos[0] ?? visualFallback?.hero ?? pilgrimLodges[0].hero,
     hydrated: true,
     id: view.details.id,
+    // Precise coordinates for the "Open directions" action, when the owner/
+    // admin has set them. Falls back to a name-based Google Maps search on
+    // the detail screen when either value is missing.
+    latitude: view.details.latitude,
     location: address
       ? [address.addressLine1, address.city].filter(Boolean).join(', ')
       : (visualFallback?.location ?? 'Tuljapur'),
+    longitude: view.details.longitude,
     name: view.details.name,
     photos: photos.length > 0 ? photos : (visualFallback?.photos ?? [pilgrimLodges[0].hero]),
     price: Number.isFinite(lowestPrice) ? lowestPrice : (visualFallback?.price ?? 0),
