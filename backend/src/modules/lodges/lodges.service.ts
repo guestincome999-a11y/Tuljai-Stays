@@ -29,6 +29,13 @@ import type {
   VerifyLodgeDto,
 } from './dto/lodge.dto';
 
+interface ReviewAggregate {
+  averageRating: number | null;
+  reviewCount: number;
+}
+
+const EMPTY_REVIEW_AGGREGATE: ReviewAggregate = { averageRating: null, reviewCount: 0 };
+
 @Injectable()
 export class LodgesService {
   public constructor(
@@ -97,6 +104,7 @@ export class LodgesService {
       entityType: 'lodge',
     });
 
+    // A brand-new lodge has no reviews yet, so skip the aggregate query.
     return this.toLodgeDetails(lodge);
   }
 
@@ -377,9 +385,10 @@ export class LodgesService {
       }),
       this.prisma.lodge.count({ where }),
     ]);
+    const aggregates = await this.getReviewAggregates(items.map((lodge) => lodge.id));
 
     return {
-      items: items.map((lodge) => this.toLodge(lodge)),
+      items: items.map((lodge) => this.toLodge(lodge, aggregates.get(lodge.id))),
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalItems,
@@ -411,9 +420,10 @@ export class LodgesService {
       }),
       this.prisma.lodge.count({ where }),
     ]);
+    const aggregates = await this.getReviewAggregates(items.map((lodge) => lodge.id));
 
     return {
-      items: items.map((lodge) => this.toLodge(lodge)),
+      items: items.map((lodge) => this.toLodge(lodge, aggregates.get(lodge.id))),
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalItems,
@@ -437,7 +447,7 @@ export class LodgesService {
       throw new NotFoundException('Lodge not found');
     }
 
-    return this.toLodgeDetails(lodge);
+    return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
 
   public async getAdminById(id: string): Promise<LodgeDetails> {
@@ -453,7 +463,7 @@ export class LodgesService {
       throw new NotFoundException('Lodge not found');
     }
 
-    return this.toLodgeDetails(lodge);
+    return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
 
   public async update(id: string, dto: UpdateLodgeDto, actorUserId: string): Promise<LodgeDetails> {
@@ -515,7 +525,7 @@ export class LodgesService {
       entityType: 'lodge',
     });
 
-    return this.toLodgeDetails(lodge);
+    return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
 
   public async updateStatus(
@@ -536,7 +546,7 @@ export class LodgesService {
       metadata: { status: dto.status },
     });
 
-    return this.toLodgeDetails(lodge);
+    return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
 
   public async verify(id: string, dto: VerifyLodgeDto, actorUserId: string): Promise<LodgeDetails> {
@@ -563,7 +573,7 @@ export class LodgesService {
       metadata: { verificationStatus: dto.verificationStatus },
     });
 
-    return this.toLodgeDetails(lodge);
+    return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
 
   public async listForOwner(user: AuthenticatedUser): Promise<Lodge[]> {
@@ -582,8 +592,9 @@ export class LodgesService {
             },
           },
     });
+    const aggregates = await this.getReviewAggregates(lodges.map((lodge) => lodge.id));
 
-    return lodges.map((lodge) => this.toLodge(lodge));
+    return lodges.map((lodge) => this.toLodge(lodge, aggregates.get(lodge.id)));
   }
 
   private readonly detailInclude = {
@@ -599,20 +610,55 @@ export class LodgesService {
     return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
   }
 
-  private toLodge(lodge: {
-    cityId: string;
-    description: string | null;
-    distanceFromTempleMeters: number | null;
-    id: string;
-    isActive: boolean;
-    name: string;
-    primaryPhone: string;
-    propertyType: Lodge['propertyType'];
-    slug: string;
-    status: Lodge['status'];
-    verificationStatus: Lodge['verificationStatus'];
-  }): Lodge {
+  /**
+   * Live average rating and review count from published reviews, computed
+   * per lodge rather than stored, so it can never drift from what pilgrims
+   * actually submitted.
+   */
+  private async getReviewAggregates(lodgeIds: string[]): Promise<Map<string, ReviewAggregate>> {
+    if (lodgeIds.length === 0) return new Map();
+
+    const rows = await this.prisma.review.groupBy({
+      _avg: { rating: true },
+      _count: { rating: true },
+      by: ['lodgeId'],
+      where: { deletedAt: null, lodgeId: { in: lodgeIds }, status: 'PUBLISHED' },
+    });
+
+    return new Map(
+      rows.map((row) => [
+        row.lodgeId,
+        {
+          averageRating:
+            row._avg.rating !== null ? Math.round(row._avg.rating * 10) / 10 : null,
+          reviewCount: row._count.rating,
+        },
+      ]),
+    );
+  }
+
+  private async getReviewAggregate(lodgeId: string): Promise<ReviewAggregate> {
+    return (await this.getReviewAggregates([lodgeId])).get(lodgeId) ?? EMPTY_REVIEW_AGGREGATE;
+  }
+
+  private toLodge(
+    lodge: {
+      cityId: string;
+      description: string | null;
+      distanceFromTempleMeters: number | null;
+      id: string;
+      isActive: boolean;
+      name: string;
+      primaryPhone: string;
+      propertyType: Lodge['propertyType'];
+      slug: string;
+      status: Lodge['status'];
+      verificationStatus: Lodge['verificationStatus'];
+    },
+    reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
+  ): Lodge {
     return {
+      averageRating: reviewAggregate.averageRating,
       cityId: lodge.cityId,
       description: lodge.description,
       distanceFromTempleMeters: lodge.distanceFromTempleMeters,
@@ -621,6 +667,7 @@ export class LodgesService {
       name: lodge.name,
       primaryPhone: lodge.primaryPhone,
       propertyType: lodge.propertyType,
+      reviewCount: reviewAggregate.reviewCount,
       slug: lodge.slug,
       status: lodge.status,
       verificationStatus: lodge.verificationStatus,
@@ -629,9 +676,10 @@ export class LodgesService {
 
   private toLodgeDetails(
     lodge: Prisma.LodgeGetPayload<{ include: LodgesService['detailInclude'] }>,
+    reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): LodgeDetails {
     return {
-      ...this.toLodge(lodge),
+      ...this.toLodge(lodge, reviewAggregate),
       address: lodge.address
         ? {
             addressLine1: lodge.address.addressLine1,
