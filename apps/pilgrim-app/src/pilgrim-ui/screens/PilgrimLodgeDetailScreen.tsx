@@ -15,7 +15,7 @@ import {
 
 import { AppScreen, EmptyState, PrimaryButton, Rating, SecondaryButton, ui } from '../components';
 import { LodgeReviewsSection } from '../../features/reviews/components/LodgeReviewsSection';
-import { formatRupees } from '../mock-data';
+import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 export function PilgrimLodgeDetailScreen() {
@@ -156,7 +156,7 @@ export function PilgrimLodgeDetailScreen() {
           <View className="flex-row gap-3">
             <Pressable
               className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2"
-              onPress={() => void openDirections(lodge.name, t)}
+              onPress={() => void openDirections(lodge, t)}
             >
               <MaterialCommunityIcons color={ui.saffronDeep} name="map-marker-radius" size={24} />
               <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
@@ -365,14 +365,24 @@ export function PilgrimLodgeDetailScreen() {
   );
 }
 
+/**
+ * Opens Google Maps with the lodge's exact coordinates when the owner/admin
+ * has set them (precise pin-to-pin directions). Falls back to a name-based
+ * text search when latitude/longitude are missing, same as before.
+ */
 async function openDirections(
-  name: string,
+  lodge: Pick<PilgrimLodge, 'latitude' | 'location' | 'longitude' | 'name'>,
   t: (english: string, marathi: string) => string,
 ): Promise<void> {
-  await openExternalLink(
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`,
-    t,
-  );
+  const lat = lodge.latitude ? Number(lodge.latitude) : NaN;
+  const lng = lodge.longitude ? Number(lodge.longitude) : NaN;
+  const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
+
+  const url = hasCoordinates
+    ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lodge.name}, Tuljapur`)}`;
+
+  await openExternalLink(url, t);
 }
 
 async function openExternalLink(
