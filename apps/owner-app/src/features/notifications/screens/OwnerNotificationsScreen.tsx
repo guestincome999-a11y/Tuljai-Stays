@@ -27,6 +27,7 @@ const filters: Array<{ label: string; value: NotificationType | null }> = [
   { label: 'Check-in', value: 'CHECKIN_COMPLETED' },
   { label: 'Checkout', value: 'CHECKOUT_COMPLETED' },
   { label: 'Photos', value: 'PHOTO_APPROVED' },
+  { label: 'Reviews', value: 'REVIEW_RECEIVED' },
   { label: 'Admin', value: 'ADMIN_ANNOUNCEMENT' },
   { label: 'Emergency', value: 'EMERGENCY_ALERT' },
   { label: 'System', value: 'SYSTEM' },
@@ -280,6 +281,17 @@ export function OwnerNotificationsScreen() {
                 });
               }
             }}
+            onViewReview={() => {
+              void notifications.markRead(notification.id);
+              const reviewId =
+                typeof notification.data?.reviewId === 'string'
+                  ? notification.data.reviewId
+                  : null;
+              router.push({
+                pathname: '/(app)/reviews',
+                params: reviewId ? { reviewId } : undefined,
+              });
+            }}
           />
         ))}
       </View>
@@ -329,6 +341,7 @@ const NotificationCard = memo(function NotificationCard({
   onRead,
   onReject,
   onViewBooking,
+  onViewReview,
 }: {
   disabled: boolean;
   notification: Notification;
@@ -338,10 +351,12 @@ const NotificationCard = memo(function NotificationCard({
   onRead: () => void;
   onReject: () => void;
   onViewBooking: () => void;
+  onViewReview: () => void;
 }) {
   const theme = useTheme();
   const isUnread = !notification.readAt;
   const isBookingRequest = notification.type === 'BOOKING_REQUEST' && notification.bookingId;
+  const isReviewReceived = notification.type === 'REVIEW_RECEIVED';
 
   return (
     <Card
@@ -381,6 +396,11 @@ const NotificationCard = memo(function NotificationCard({
                 Reject Booking
               </Button>
             </>
+          ) : null}
+          {isReviewReceived ? (
+            <Button disabled={disabled} mode="contained" onPress={onViewReview}>
+              View Review
+            </Button>
           ) : null}
           {notification.bookingId ? (
             <Button disabled={disabled} mode="contained-tonal" onPress={onViewBooking}>
