@@ -74,8 +74,10 @@ export async function hydrateBackendLodge(summary: PilgrimLodge): Promise<Pilgri
     photos: photos.length > 0 ? photos : (visualFallback?.photos ?? [pilgrimLodges[0].hero]),
     price: Number.isFinite(lowestPrice) ? lowestPrice : (visualFallback?.price ?? 0),
     primaryPhone: view.details.primaryPhone,
-    rating: visualFallback?.rating ?? 4.5,
-    reviewCount: visualFallback?.reviewCount ?? 0,
+    // Real average of published reviews (null/0 for a lodge with no reviews
+    // yet), not the old cosmetic seed-data fallback.
+    rating: view.details.averageRating ?? 0,
+    reviewCount: view.details.reviewCount,
     rooms,
     rules: view.details.rules
       ? view.details.rules.split(/\r?\n/).filter(Boolean)
@@ -101,8 +103,10 @@ function toSummaryLodge(summary: Lodge): PilgrimLodge {
     photos: visualFallback?.photos ?? [pilgrimLodges[0].hero],
     price: visualFallback?.price ?? 0,
     primaryPhone: summary.primaryPhone,
-    rating: visualFallback?.rating ?? 4.5,
-    reviewCount: visualFallback?.reviewCount ?? 0,
+    // Real average of published reviews (null/0 for a lodge with no reviews
+    // yet), not the old cosmetic seed-data fallback.
+    rating: summary.averageRating ?? 0,
+    reviewCount: summary.reviewCount,
     rooms: visualFallback?.rooms ?? [],
     rules: visualFallback?.rules ?? [],
     slug: summary.slug,
