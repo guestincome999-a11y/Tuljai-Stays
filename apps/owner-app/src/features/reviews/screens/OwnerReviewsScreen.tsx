@@ -1,5 +1,6 @@
 import type { Review } from '@tuljai/types';
-import { useCallback, useEffect, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
@@ -17,6 +18,8 @@ import { listOwnerReviews, respondToReview } from '../api/owner-reviews-api';
 export function OwnerReviewsScreen() {
   const theme = useTheme();
   const { tr } = useOwnerApp();
+  const params = useLocalSearchParams<{ reviewId?: string }>();
+  const highlightedReviewId = typeof params.reviewId === 'string' ? params.reviewId : null;
   const [reviews, setReviews] = useState<Review[]>([]);
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -43,6 +46,18 @@ export function OwnerReviewsScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A tap on a "New guest feedback" notification lands here with reviewId set,
+  // so surface that review first even if it isn't the newest one.
+  const orderedReviews = useMemo(() => {
+    if (!highlightedReviewId) return reviews;
+
+    return [...reviews].sort((left, right) => {
+      if (left.id === highlightedReviewId) return -1;
+      if (right.id === highlightedReviewId) return 1;
+      return 0;
+    });
+  }, [highlightedReviewId, reviews]);
 
   async function save(review: Review) {
     const response = (responses[review.id] ?? '').trim();
@@ -98,39 +113,59 @@ export function OwnerReviewsScreen() {
           </Card>
         ) : null}
 
-        {reviews.map((review) => (
-          <Card key={review.id} mode="outlined" style={styles.card}>
-            <Card.Content style={styles.cardContent}>
-              <Text style={{ color: theme.colors.primary }} variant="titleMedium">
-                {'★'.repeat(review.rating)}
-                {'☆'.repeat(5 - review.rating)}
-              </Text>
-              <Text variant="titleMedium">{review.title ?? tr('Guest review')}</Text>
-              <Text variant="bodyMedium">{review.comment ?? tr('No written comment.')}</Text>
-              <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-                {review.isVerifiedStay ? tr('Verified stay') : tr('Stay not verified')}
-              </Text>
+        {orderedReviews.map((review) => {
+          const isHighlighted = review.id === highlightedReviewId;
 
-              <TextInput
-                disabled={savingId === review.id}
-                label={tr('Owner response')}
-                maxLength={2000}
-                mode="outlined"
-                multiline
-                onChangeText={(text) => setResponses((items) => ({ ...items, [review.id]: text }))}
-                value={responses[review.id] ?? ''}
-              />
-              <Button
-                disabled={savingId === review.id || (responses[review.id] ?? '').trim().length < 2}
-                loading={savingId === review.id}
-                mode="contained"
-                onPress={() => void save(review)}
-              >
-                {review.ownerResponse ? tr('Update response') : tr('Reply to guest')}
-              </Button>
-            </Card.Content>
-          </Card>
-        ))}
+          return (
+            <Card
+              key={review.id}
+              mode={isHighlighted ? 'contained' : 'outlined'}
+              style={[
+                styles.card,
+                isHighlighted ? { borderColor: theme.colors.primary, borderWidth: 2 } : null,
+              ]}
+            >
+              <Card.Content style={styles.cardContent}>
+                {isHighlighted ? (
+                  <Text style={{ color: theme.colors.primary }} variant="labelLarge">
+                    {tr('New feedback')}
+                  </Text>
+                ) : null}
+                <Text style={{ color: theme.colors.primary }} variant="titleMedium">
+                  {'★'.repeat(review.rating)}
+                  {'☆'.repeat(5 - review.rating)}
+                </Text>
+                <Text variant="titleMedium">{review.title ?? tr('Guest review')}</Text>
+                <Text variant="bodyMedium">{review.comment ?? tr('No written comment.')}</Text>
+                <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+                  {review.isVerifiedStay ? tr('Verified stay') : tr('Stay not verified')}
+                </Text>
+
+                <TextInput
+                  disabled={savingId === review.id}
+                  label={tr('Owner response')}
+                  maxLength={2000}
+                  mode="outlined"
+                  multiline
+                  onChangeText={(text) =>
+                    setResponses((items) => ({ ...items, [review.id]: text }))
+                  }
+                  value={responses[review.id] ?? ''}
+                />
+                <Button
+                  disabled={
+                    savingId === review.id || (responses[review.id] ?? '').trim().length < 2
+                  }
+                  loading={savingId === review.id}
+                  mode="contained"
+                  onPress={() => void save(review)}
+                >
+                  {review.ownerResponse ? tr('Update response') : tr('Reply to guest')}
+                </Button>
+              </Card.Content>
+            </Card>
+          );
+        })}
       </ScrollView>
       <Snackbar visible={Boolean(message)} onDismiss={() => setMessage('')} duration={2500}>
         {message}
