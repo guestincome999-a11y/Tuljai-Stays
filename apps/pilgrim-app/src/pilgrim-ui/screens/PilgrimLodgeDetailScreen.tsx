@@ -366,26 +366,16 @@ export function PilgrimLodgeDetailScreen() {
 }
 
 /**
- * Opens directions to the lodge, in order of precision:
- * 1. The owner/admin-provided Google Maps link, if set — opened directly.
- * 2. Exact coordinates, if set — precise pin-to-pin directions.
- * 3. A name-based Google Maps text search, as a last resort.
+ * Opens directions to the lodge: the owner/admin-provided Google Maps link
+ * when it's set, or a name-based Google Maps text search as a fallback for
+ * lodges that don't have a link yet.
  */
 async function openDirections(
-  lodge: Pick<PilgrimLodge, 'googleMapsLink' | 'latitude' | 'location' | 'longitude' | 'name'>,
+  lodge: Pick<PilgrimLodge, 'googleMapsLink' | 'name'>,
   t: (english: string, marathi: string) => string,
 ): Promise<void> {
-  if (lodge.googleMapsLink) {
-    await openExternalLink(lodge.googleMapsLink, t);
-    return;
-  }
-
-  const lat = lodge.latitude ? Number(lodge.latitude) : NaN;
-  const lng = lodge.longitude ? Number(lodge.longitude) : NaN;
-  const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
-
-  const url = hasCoordinates
-    ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+  const url = lodge.googleMapsLink
+    ? lodge.googleMapsLink
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lodge.name}, Tuljapur`)}`;
 
   await openExternalLink(url, t);
