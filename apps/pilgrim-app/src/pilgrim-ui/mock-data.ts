@@ -15,6 +15,10 @@ export interface PilgrimLodge {
   badge?: string;
   description: string;
   distance: string;
+  /** Owner/admin-provided Google Maps share link. When set, this is used
+   * directly for the "Open directions" action in preference to
+   * latitude/longitude, since it is what the owner actually shared. */
+  googleMapsLink?: string | null;
   hero: string;
   /** False while only lightweight summary data has loaded; the lodges screen
    * renders a skeleton card in place of full content until this becomes true. */
