@@ -64,12 +64,15 @@ export async function hydrateBackendLodge(summary: PilgrimLodge): Promise<Pilgri
     badge: visualFallback?.badge,
     description: view.details.description ?? visualFallback?.description ?? '',
     distance: formatDistance(view.details.distanceFromTempleMeters),
+    // Owner/admin-provided Google Maps share link, preferred by the "Open
+    // directions" action over latitude/longitude when set.
+    googleMapsLink: view.details.googleMapsLink,
     hero: photos[0] ?? visualFallback?.hero ?? pilgrimLodges[0].hero,
     hydrated: true,
     id: view.details.id,
-    // Precise coordinates for the "Open directions" action, when the owner/
-    // admin has set them. Falls back to a name-based Google Maps search on
-    // the detail screen when either value is missing.
+    // Coordinate fallback for the "Open directions" action when no
+    // googleMapsLink has been set. Falls back further to a name-based
+    // Google Maps search on the detail screen when both are missing.
     latitude: view.details.latitude,
     location: address
       ? [address.addressLine1, address.city].filter(Boolean).join(', ')
