@@ -366,14 +366,20 @@ export function PilgrimLodgeDetailScreen() {
 }
 
 /**
- * Opens Google Maps with the lodge's exact coordinates when the owner/admin
- * has set them (precise pin-to-pin directions). Falls back to a name-based
- * text search when latitude/longitude are missing, same as before.
+ * Opens directions to the lodge, in order of precision:
+ * 1. The owner/admin-provided Google Maps link, if set — opened directly.
+ * 2. Exact coordinates, if set — precise pin-to-pin directions.
+ * 3. A name-based Google Maps text search, as a last resort.
  */
 async function openDirections(
-  lodge: Pick<PilgrimLodge, 'latitude' | 'location' | 'longitude' | 'name'>,
+  lodge: Pick<PilgrimLodge, 'googleMapsLink' | 'latitude' | 'location' | 'longitude' | 'name'>,
   t: (english: string, marathi: string) => string,
 ): Promise<void> {
+  if (lodge.googleMapsLink) {
+    await openExternalLink(lodge.googleMapsLink, t);
+    return;
+  }
+
   const lat = lodge.latitude ? Number(lodge.latitude) : NaN;
   const lng = lodge.longitude ? Number(lodge.longitude) : NaN;
   const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
