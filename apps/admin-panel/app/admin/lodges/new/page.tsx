@@ -67,8 +67,7 @@ export default function NewLodgePage() {
       description: optionalText('description'),
       distanceFromTempleMeters: optionalNumber('distanceFromTempleMeters'),
       email: optionalText('email'),
-      latitude: optionalNumber('latitude'),
-      longitude: optionalNumber('longitude'),
+      googleMapsLink: optionalText('googleMapsLink'),
       name: text('name'),
       primaryPhone: text('primaryPhone'),
       propertyType: text('propertyType') as PropertyType,
@@ -167,14 +166,12 @@ export default function NewLodgePage() {
               type="number"
               min="0"
             />
-            <Field label="Latitude" name="latitude" type="number" min="-90" max="90" step="any" />
             <Field
-              label="Longitude"
-              name="longitude"
-              type="number"
-              min="-180"
-              max="180"
-              step="any"
+              label="Google Maps link"
+              name="googleMapsLink"
+              type="url"
+              placeholder="https://maps.app.goo.gl/..."
+              title="Open the lodge's pin in Google Maps, tap Share, and paste the link here."
             />
             <Field label="Check-in time" name="checkInTime" type="time" />
             <Field label="Check-out time" name="checkOutTime" type="time" />
