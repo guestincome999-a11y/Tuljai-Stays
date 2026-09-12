@@ -363,15 +363,13 @@ model Lodge {
   whatsappNumber           String?                @map("whatsapp_number")
   email                    String?
   distanceFromTempleMeters Int?                   @map("distance_from_temple_meters")
-  latitude                 Decimal?               @db.Decimal(10, 7)
-  longitude                Decimal?               @db.Decimal(10, 7)
   /// Owner/admin-provided Google Maps share link (e.g. a maps.app.goo.gl or
-  /// maps.google.com URL). Consuming apps prefer this for "get directions"
-  /// over latitude/longitude when it is set, since it is simpler for admins
-  /// to paste from the Google Maps app than to look up coordinates.
+  /// maps.google.com URL), used by consuming apps for "get directions".
+  /// Replaced separate latitude/longitude fields since most owners/admins
+  /// don't know their property's coordinates but can easily share a pin.
   googleMapsLink           String?                @map("google_maps_link")
   checkInTime              String?                @map("check_in_time")
-  checkOutTime              String?                @map("check_out_time")
+  checkOutTime             String?                @map("check_out_time")
   rules                    String?
   isActive                 Boolean                @default(true) @map("is_active")
   createdAt                DateTime               @default(now()) @map("created_at")
