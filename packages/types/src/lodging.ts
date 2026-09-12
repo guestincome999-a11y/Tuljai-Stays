@@ -87,11 +87,11 @@ export interface LodgeDetails extends Lodge {
   checkInTime: string | null;
   checkOutTime: string | null;
   email: string | null;
-  /** Owner/admin-provided Google Maps share link. Preferred over
-   * latitude/longitude by consuming apps for "get directions" when set. */
+  /** Owner/admin-provided Google Maps share link, used by consuming apps
+   * for "get directions". The sole location field on a lodge — simpler for
+   * owners/admins to paste from the Google Maps app than to look up and
+   * enter raw coordinates. */
   googleMapsLink: string | null;
-  latitude: string | null;
-  longitude: string | null;
   rules: string | null;
   secondaryPhone: string | null;
   whatsappNumber: string | null;
@@ -116,8 +116,6 @@ export interface BulkLodgeImportRow {
   distanceFromTempleMeters?: number;
   email?: string;
   googleMapsLink?: string;
-  latitude?: number;
-  longitude?: number;
   name: string;
   ownerEmail?: string;
   ownerName?: string;
