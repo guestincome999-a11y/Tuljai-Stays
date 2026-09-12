@@ -11,6 +11,7 @@ import {
   listGovernanceLodgePhotos,
   listGovernanceRooms,
   listGovernanceRoomTypes,
+  updateGovernanceLodge,
   updateGovernanceLodgeStatus,
   updateGovernancePhotoApproval,
   updateGovernanceRoomStatus,
@@ -50,6 +51,8 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
   const canReviewPhotos = hasPermission(auth.permissions, 'photos.review');
   const [selectedAmenityIds, setSelectedAmenityIds] = useState<string[]>([]);
   const [verificationNotes, setVerificationNotes] = useState('');
+  const [googleMapsLinkDraft, setGoogleMapsLinkDraft] = useState('');
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [state, setState] = useState<LodgeDetailState>({
     amenities: [],
     errorMessage: null,
@@ -82,6 +85,7 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
         successMessage: null,
       });
       setSelectedAmenityIds(lodge.amenities.map((amenity) => amenity.id));
+      setGoogleMapsLinkDraft(lodge.googleMapsLink ?? '');
     } catch {
       setState((current) => ({
         ...current,
@@ -116,6 +120,18 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
         ...current,
         errorMessage: 'Action failed. Please verify permissions and retry.',
       }));
+    }
+  }
+
+  async function saveGoogleMapsLink() {
+    setIsSavingLocation(true);
+    try {
+      await runAction(
+        () => updateGovernanceLodge(lodgeId, { googleMapsLink: googleMapsLinkDraft.trim() || undefined }),
+        'Google Maps link updated.',
+      );
+    } finally {
+      setIsSavingLocation(false);
     }
   }
 
@@ -205,6 +221,46 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
               Status, verification, rooms, address, and photos are ready.
             </p>
           )}
+        </section>
+
+        <section className="panel">
+          <p className="eyebrow">Location</p>
+          <h3>Directions link for pilgrims</h3>
+          <p className="muted-copy">
+            Open this lodge&apos;s pin in the Google Maps app, tap Share, and paste the link here.
+            Pilgrims see an &quot;Open directions&quot; button that uses this link for precise,
+            pin-to-pin directions.
+          </p>
+          <label className="form-field">
+            <span>Google Maps link</span>
+            <input
+              disabled={!canManageLodges}
+              placeholder="https://maps.app.goo.gl/..."
+              type="url"
+              value={googleMapsLinkDraft}
+              onChange={(event) => setGoogleMapsLinkDraft(event.target.value)}
+            />
+          </label>
+          <div className="row-actions">
+            <button
+              className="button button-primary"
+              disabled={!canManageLodges || isSavingLocation}
+              type="button"
+              onClick={() => void saveGoogleMapsLink()}
+            >
+              {isSavingLocation ? 'Saving…' : 'Save Google Maps Link'}
+            </button>
+            {state.lodge.googleMapsLink ? (
+              <a
+                className="button button-secondary"
+                href={state.lodge.googleMapsLink}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open Current Link
+              </a>
+            ) : null}
+          </div>
         </section>
 
         <section className="grid grid-2">
