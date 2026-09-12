@@ -13,8 +13,7 @@ export const lodgeImportHeaders = [
   'lodge_email',
   'description',
   'distance_from_temple_meters',
-  'latitude',
-  'longitude',
+  'google_maps_link',
   'check_in_time',
   'check_out_time',
   'rules',
@@ -114,8 +113,7 @@ export async function parseLodgeImportFile(file: File): Promise<LodgeImportParse
       rowNumber,
       errors,
     );
-    const latitude = parseOptionalNumber(value('latitude'), 'latitude', rowNumber, errors);
-    const longitude = parseOptionalNumber(value('longitude'), 'longitude', rowNumber, errors);
+    const googleMapsLink = optional(value('google_maps_link'));
 
     for (const header of requiredHeaders) {
       if (!value(header)) errors.push(`Row ${rowNumber}: ${header} is required.`);
@@ -134,11 +132,8 @@ export async function parseLodgeImportFile(file: File): Promise<LodgeImportParse
         `Row ${rowNumber}: distance_from_temple_meters must be a whole number of 0 or more.`,
       );
     }
-    if (latitude !== undefined && (latitude < -90 || latitude > 90)) {
-      errors.push(`Row ${rowNumber}: latitude must be between -90 and 90.`);
-    }
-    if (longitude !== undefined && (longitude < -180 || longitude > 180)) {
-      errors.push(`Row ${rowNumber}: longitude must be between -180 and 180.`);
+    if (googleMapsLink && !/^https:\/\//u.test(googleMapsLink)) {
+      errors.push(`Row ${rowNumber}: google_maps_link must start with https://.`);
     }
 
     rows.push({
@@ -159,8 +154,7 @@ export async function parseLodgeImportFile(file: File): Promise<LodgeImportParse
       description: optional(value('description')),
       distanceFromTempleMeters: distance,
       email: optional(value('lodge_email').toLowerCase()),
-      latitude,
-      longitude,
+      googleMapsLink,
       name: value('lodge_name'),
       ownerEmail: optional(value('owner_email').toLowerCase()),
       ownerName: optional(value('owner_name')),
