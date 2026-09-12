@@ -15,22 +15,17 @@ export interface PilgrimLodge {
   badge?: string;
   description: string;
   distance: string;
-  /** Owner/admin-provided Google Maps share link. When set, this is used
-   * directly for the "Open directions" action in preference to
-   * latitude/longitude, since it is what the owner actually shared. */
+  /** Owner/admin-provided Google Maps share link, used directly for the
+   * "Open directions" action. Falls back to a name-based Google Maps search
+   * on the detail screen when this is missing (e.g. summary cards, mock
+   * data, or lodges the admin hasn't added a link for yet). */
   googleMapsLink?: string | null;
   hero: string;
   /** False while only lightweight summary data has loaded; the lodges screen
    * renders a skeleton card in place of full content until this becomes true. */
   hydrated?: boolean;
   id: string;
-  /** Decimal string from the backend, e.g. "18.0086". Only present once full
-   * lodge details have hydrated and the owner/admin has set a location; null
-   * or absent for summary cards, mock data, and lodges without coordinates. */
-  latitude?: string | null;
   location: string;
-  /** Decimal string from the backend, e.g. "76.0994". See latitude. */
-  longitude?: string | null;
   name: string;
   photos: string[];
   price: number;
