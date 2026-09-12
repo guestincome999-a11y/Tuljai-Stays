@@ -40,14 +40,29 @@ export interface CreateLodgeInput {
   description?: string;
   distanceFromTempleMeters?: number;
   email?: string;
-  latitude?: number;
-  longitude?: number;
+  /** Google Maps share link (e.g. from the "Share" button on a pin in the
+   * Google Maps app). Used by the pilgrim app for precise directions. */
+  googleMapsLink?: string;
   name: string;
   primaryPhone: string;
   propertyType: Lodge['propertyType'];
   rules?: string;
   secondaryPhone?: string;
   slug: string;
+  whatsappNumber?: string;
+}
+
+export interface UpdateLodgeInput {
+  checkInTime?: string;
+  checkOutTime?: string;
+  description?: string;
+  distanceFromTempleMeters?: number;
+  email?: string;
+  googleMapsLink?: string;
+  name?: string;
+  primaryPhone?: string;
+  rules?: string;
+  secondaryPhone?: string;
   whatsappNumber?: string;
 }
 
@@ -170,6 +185,16 @@ export async function bulkImportGovernanceLodges(
 
 export async function getGovernanceLodge(lodgeId: string): Promise<LodgeDetails> {
   return apiClient.get<LodgeDetails>(`/admin/lodges/${lodgeId}`);
+}
+
+export async function updateGovernanceLodge(
+  lodgeId: string,
+  input: UpdateLodgeInput,
+): Promise<LodgeDetails> {
+  return apiClient.request<LodgeDetails>(`/admin/lodges/${lodgeId}`, {
+    body: input,
+    method: 'PATCH',
+  });
 }
 
 export async function updateGovernanceLodgeStatus(
