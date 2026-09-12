@@ -108,6 +108,12 @@ export class CreateLodgeDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
+  @Matches(/^https:\/\//, { message: 'googleMapsLink must start with https://' })
+  googleMapsLink?: string;
+
+  @IsOptional()
+  @IsString()
   checkInTime?: string;
 
   @IsOptional()
@@ -181,6 +187,12 @@ export class UpdateLodgeDto {
   @Max(180)
   @Min(-180)
   longitude?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  @Matches(/^https:\/\//, { message: 'googleMapsLink must start with https://' })
+  googleMapsLink?: string;
 
   @IsOptional()
   @IsString()
@@ -295,6 +307,12 @@ export class BulkImportLodgeRowDto {
   @Max(180)
   @Min(-180)
   longitude?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  @Matches(/^https:\/\//, { message: 'googleMapsLink must start with https://' })
+  googleMapsLink?: string;
 
   @IsOptional()
   @IsString()
