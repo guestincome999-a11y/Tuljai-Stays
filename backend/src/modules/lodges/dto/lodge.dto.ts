@@ -9,7 +9,6 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -94,18 +93,6 @@ export class CreateLodgeDto {
   @Min(0)
   distanceFromTempleMeters?: number;
 
-  @IsNumber()
-  @IsOptional()
-  @Max(90)
-  @Min(-90)
-  latitude?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Max(180)
-  @Min(-180)
-  longitude?: number;
-
   @IsOptional()
   @IsString()
   @MaxLength(2048)
@@ -175,18 +162,6 @@ export class UpdateLodgeDto {
   @IsOptional()
   @Min(0)
   distanceFromTempleMeters?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Max(90)
-  @Min(-90)
-  latitude?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Max(180)
-  @Min(-180)
-  longitude?: number;
 
   @IsOptional()
   @IsString()
@@ -295,18 +270,6 @@ export class BulkImportLodgeRowDto {
   @IsOptional()
   @Min(0)
   distanceFromTempleMeters?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Max(90)
-  @Min(-90)
-  latitude?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Max(180)
-  @Min(-180)
-  longitude?: number;
 
   @IsOptional()
   @IsString()
