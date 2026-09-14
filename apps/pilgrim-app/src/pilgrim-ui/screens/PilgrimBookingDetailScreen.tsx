@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { BookingLodgeContact } from '@tuljai/types';
 import { palette } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -7,6 +8,7 @@ import RazorpayCheckout from 'react-native-razorpay';
 
 import {
   createRazorpayOrder,
+  getBookingLodgeContact,
   verifyRazorpayPayment,
   type RazorpayOrder,
 } from '../../features/bookings/api/bookings-api';
@@ -24,6 +26,14 @@ import {
 } from '../components';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
+
+// Statuses at which the booked lodge's contact details may be shown. Mirrors
+// the backend's PILGRIM_CONTACT_ELIGIBLE_STATUSES: the lodge must have
+// actually confirmed the booking (or it was already paid+accepted through
+// the prepaid flow) — merely creating or submitting a request is not enough.
+// This is only used to decide whether to fetch/render the section; the
+// backend independently re-checks eligibility on every request.
+const LODGE_CONTACT_ELIGIBLE_STATUSES = ['confirmed', 'checked-in', 'completed'];
 
 export function PilgrimBookingDetailScreen() {
   const params = useLocalSearchParams<{ id?: string; justBooked?: string }>();
@@ -43,6 +53,34 @@ export function PilgrimBookingDetailScreen() {
   const preparedOrderBookingIdRef = useRef<string | null>(null);
   const eligibleForOnlinePayment =
     booking?.status === 'pending' && booking?.paymentStatus === 'Pay at lodge';
+
+  // Lodge contact details ("Lodge Contact Details" section below) are
+  // fetched from the protected GET /bookings/:id/lodge-contact endpoint —
+  // never read from the lodge object itself, which no longer carries
+  // contact fields. The backend re-verifies booking ownership and status on
+  // every call; a rejection (booking not yet confirmed, or not the
+  // requester's own booking) just means the section stays hidden.
+  const [lodgeContact, setLodgeContact] = useState<BookingLodgeContact | null>(null);
+  const bookingId = booking?.id;
+  const bookingStatus = booking?.status;
+
+  useEffect(() => {
+    if (!bookingId || !bookingStatus || !LODGE_CONTACT_ELIGIBLE_STATUSES.includes(bookingStatus)) {
+      setLodgeContact(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void getBookingLodgeContact(bookingId)
+      .then((contact) => {
+        if (!cancelled) setLodgeContact(contact);
+      })
+      .catch(() => {
+        if (!cancelled) setLodgeContact(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId, bookingStatus]);
 
   const prepareOrder = useCallback((forBookingId: string) => {
     preparedOrderBookingIdRef.current = forBookingId;
@@ -93,7 +131,7 @@ export function PilgrimBookingDetailScreen() {
     );
   }
 
-  const bookingId = booking.id;
+  const currentBookingId = booking.id;
   const bookingLodgeName = booking.lodgeName;
   const bookingRoomName = booking.roomName;
 
@@ -110,15 +148,17 @@ export function PilgrimBookingDetailScreen() {
           style: 'destructive',
           text: t('Yes, cancel', 'हो, रद्द करा'),
           onPress: () => {
-            void cancelBooking(bookingId, 'Cancelled by pilgrim from mobile app').catch(() => {
-              Alert.alert(
-                t('Could not cancel booking', 'बुकिंग रद्द करता आली नाही'),
-                t(
-                  'Please try again or contact Tuljai support.',
-                  'कृपया पुन्हा प्रयत्न करा किंवा तुळजाई सहाय्याशी संपर्क साधा.',
-                ),
-              );
-            });
+            void cancelBooking(currentBookingId, 'Cancelled by pilgrim from mobile app').catch(
+              () => {
+                Alert.alert(
+                  t('Could not cancel booking', 'बुकिंग रद्द करता आली नाही'),
+                  t(
+                    'Please try again or contact Tuljai support.',
+                    'कृपया पुन्हा प्रयत्न करा किंवा तुळजाई सहाय्याशी संपर्क साधा.',
+                  ),
+                );
+              },
+            );
           },
         },
       ],
@@ -134,7 +174,7 @@ export function PilgrimBookingDetailScreen() {
       // effect above — so this just opens the sheet with no further network
       // wait. If it isn't ready yet for some reason, fall back to creating
       // it now rather than blocking the guest entirely.
-      const order = prefetchedOrder ?? (await createRazorpayOrder(bookingId));
+      const order = prefetchedOrder ?? (await createRazorpayOrder(currentBookingId));
       setPrefetchedOrder(null);
       const result = await RazorpayCheckout.open({
         key: order.keyId,
@@ -143,10 +183,10 @@ export function PilgrimBookingDetailScreen() {
         order_id: order.orderId,
         name: 'Tuljai Stays',
         description: `${bookingLodgeName} · ${bookingRoomName}`,
-        notes: { bookingId },
+        notes: { bookingId: currentBookingId },
         theme: { color: '#C2410C' },
       });
-      const verified = await verifyRazorpayPayment(bookingId, {
+      const verified = await verifyRazorpayPayment(currentBookingId, {
         orderId: result.razorpay_order_id,
         paymentId: result.razorpay_payment_id,
         signature: result.razorpay_signature,
@@ -169,7 +209,7 @@ export function PilgrimBookingDetailScreen() {
           : t('Please try again.', 'कृपया पुन्हा प्रयत्न करा.');
       setPaymentAttemptFailed(message);
       preparedOrderBookingIdRef.current = null;
-      prepareOrder(bookingId);
+      prepareOrder(currentBookingId);
     } finally {
       setOnlinePaymentBusy(false);
     }
@@ -435,17 +475,47 @@ export function PilgrimBookingDetailScreen() {
         </View>
       </View>
 
-      <View className="gap-3">
-        <View className="flex-row gap-3">
-          {lodge?.primaryPhone ? (
+      {lodgeContact ? (
+        <View className="rounded-3xl border border-templeGreen-200 bg-templeGreen-50 p-5">
+          <View className="flex-row items-center gap-3">
+            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-templeGreen-500">
+              <MaterialCommunityIcons color="#FFFFFF" name="phone-in-talk-outline" size={24} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-extrabold text-templeGreen-800">
+                {t('Lodge Contact Details', 'लॉज संपर्क माहिती')}
+              </Text>
+              <Text className="mt-1 text-sm text-templeGreen-700">{lodgeContact.lodgeName}</Text>
+            </View>
+          </View>
+          <View className="mt-4 flex-row gap-3">
             <SecondaryButton
               className="flex-1"
               icon="phone-outline"
-              onPress={() => void openExternalLink(`tel:${lodge.primaryPhone}`, t)}
+              onPress={() => void openExternalLink(`tel:${lodgeContact.primaryPhone}`, t)}
             >
               {t('Call lodge', 'लॉजला कॉल')}
             </SecondaryButton>
-          ) : null}
+            {lodgeContact.whatsappNumber ? (
+              <SecondaryButton
+                className="flex-1"
+                icon="whatsapp"
+                onPress={() =>
+                  void openExternalLink(
+                    `https://wa.me/${lodgeContact.whatsappNumber!.replace(/\D/g, '')}`,
+                    t,
+                  )
+                }
+              >
+                {t('WhatsApp', 'व्हॉट्सअॅप')}
+              </SecondaryButton>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      <View className="gap-3">
+        <View className="flex-row gap-3">
           <SecondaryButton
             className="flex-1"
             icon="map-marker-outline"
