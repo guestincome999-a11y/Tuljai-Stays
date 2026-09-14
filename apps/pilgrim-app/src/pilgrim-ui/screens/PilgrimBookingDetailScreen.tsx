@@ -479,7 +479,7 @@ export function PilgrimBookingDetailScreen() {
         <View className="rounded-3xl border border-templeGreen-200 bg-templeGreen-50 p-5">
           <View className="flex-row items-center gap-3">
             <View className="h-12 w-12 items-center justify-center rounded-2xl bg-templeGreen-500">
-              <MaterialCommunityIcons color="#FFFFFF" name="phone-in-talk-outline" size={24} />
+              <MaterialCommunityIcons color="#FFFFFF" name="phone-outline" size={24} />
             </View>
             <View className="flex-1">
               <Text className="text-base font-extrabold text-templeGreen-800">
