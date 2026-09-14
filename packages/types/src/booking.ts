@@ -259,3 +259,20 @@ export interface QrScanLogEntry {
   lodgeId: UUID | null;
   result: QrScanResult;
 }
+
+/**
+ * Lodge contact details for a pilgrim's own booking. Only ever returned by
+ * the protected `GET /bookings/:id/lodge-contact` endpoint after the
+ * backend verifies the requesting pilgrim owns the booking and that the
+ * booking has reached an eligible (confirmed or later) status. Never
+ * included in the public lodge listing/details endpoints — see
+ * PublicLodge / PublicLodgeDetails in lodging.ts.
+ */
+export interface BookingLodgeContact {
+  bookingId: UUID;
+  lodgeId: UUID;
+  lodgeName: string;
+  primaryPhone: string;
+  secondaryPhone: string | null;
+  whatsappNumber: string | null;
+}
