@@ -13,6 +13,7 @@ import type {
   AdminBookingSummary,
   AuthenticatedUser,
   Booking,
+  BookingLodgeContact,
   OwnerBookingSummary,
   PaginatedResponse,
 } from '@tuljai/types';
@@ -36,6 +37,19 @@ import type {
 import { GuestIdProofService } from './guest-id-proof.service';
 
 const OWNER_VISIBLE_CONTACT_STATUSES: BookingStatus[] = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'];
+
+// Statuses at which a pilgrim's booking counts as "confirmed or later" for
+// the purpose of releasing lodge contact details. Deliberately excludes
+// DRAFT and PENDING_OWNER_APPROVAL — merely creating or submitting a
+// booking request must never unlock contact details, only the lodge (or an
+// already-paid prepaid flow) accepting it does.
+const PILGRIM_CONTACT_ELIGIBLE_STATUSES: BookingStatus[] = [
+  'ACCEPTED',
+  'QR_GENERATED',
+  'CHECKED_IN',
+  'CHECKED_OUT',
+  'COMPLETED',
+];
 
 const ADMIN_ALLOWED_STATUS_UPDATES: BookingStatus[] = [
   'PENDING_OWNER_APPROVAL',
@@ -409,6 +423,40 @@ export class BookingsService {
     await this.assertCanViewBooking(booking, user);
 
     return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
+  }
+
+  /**
+   * Returns the booked lodge's contact details, but only for the pilgrim
+   * who owns the booking (or an admin) and only once the booking has
+   * reached a confirmed-or-later status. This is the sole place in the API
+   * that ever returns lodge contact details to a pilgrim — the public
+   * lodge listing/details endpoints never include them (see
+   * LodgesService.toPublicLodge / toPublicLodgeDetails).
+   */
+  public async getLodgeContactForBooking(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<BookingLodgeContact> {
+    const booking = await this.findBookingOrThrow(id);
+
+    if (booking.pilgrimUserId !== user.id && !this.lodgeAccessService.isAdmin(user)) {
+      throw new ForbiddenException('You cannot view this booking');
+    }
+
+    if (!PILGRIM_CONTACT_ELIGIBLE_STATUSES.includes(booking.status)) {
+      throw new ForbiddenException(
+        'Lodge contact details are available once your booking is confirmed by the lodge.',
+      );
+    }
+
+    return {
+      bookingId: booking.id,
+      lodgeId: booking.lodgeId,
+      lodgeName: booking.lodge.name,
+      primaryPhone: booking.lodge.primaryPhone,
+      secondaryPhone: booking.lodge.secondaryPhone,
+      whatsappNumber: booking.lodge.whatsappNumber,
+    };
   }
 
   public async cancelBooking(
