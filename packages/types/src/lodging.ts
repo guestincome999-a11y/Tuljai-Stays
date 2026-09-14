@@ -97,6 +97,25 @@ export interface LodgeDetails extends Lodge {
   whatsappNumber: string | null;
 }
 
+/**
+ * Shape returned by the unauthenticated public lodge-listing endpoint.
+ * Deliberately omits `primaryPhone`: pilgrims must not receive lodge
+ * contact details before they have an eligible active booking. Contact
+ * details are only ever served through the protected, booking-eligibility-
+ * checked endpoint (see BookingLodgeContact in booking.ts).
+ */
+export type PublicLodge = Omit<Lodge, 'primaryPhone'>;
+
+/**
+ * Shape returned by the unauthenticated public lodge-details endpoint.
+ * Omits all direct-contact fields (`primaryPhone`, `email`, `secondaryPhone`,
+ * `whatsappNumber`) for the same reason as PublicLodge above.
+ */
+export type PublicLodgeDetails = Omit<
+  LodgeDetails,
+  'primaryPhone' | 'email' | 'secondaryPhone' | 'whatsappNumber'
+>;
+
 export interface BulkLodgeImportRow {
   address: {
     addressLine1: string;
