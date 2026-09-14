@@ -5,6 +5,8 @@ import type {
   Lodge,
   LodgeDetails,
   PaginatedResponse,
+  PublicLodge,
+  PublicLodgeDetails,
 } from '@tuljai/types';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -60,13 +62,19 @@ export class LodgesController {
     return this.lodgesService.getAdminById(id);
   }
 
+  // Unauthenticated pilgrim-facing endpoints. These intentionally return the
+  // PublicLodge/PublicLodgeDetails shapes (no primaryPhone/email/
+  // secondaryPhone/whatsappNumber) — lodge contact details must never be
+  // reachable before a pilgrim has an eligible active booking. See
+  // BookingsController's GET bookings/:id/lodge-contact for the protected
+  // route that does expose them.
   @Get('lodges')
-  public list(@Query() query: ListLodgesQueryDto): Promise<PaginatedResponse<Lodge>> {
+  public list(@Query() query: ListLodgesQueryDto): Promise<PaginatedResponse<PublicLodge>> {
     return this.lodgesService.listPublic(query);
   }
 
   @Get('lodges/:id')
-  public getById(@Param('id') id: string): Promise<LodgeDetails> {
+  public getById(@Param('id') id: string): Promise<PublicLodgeDetails> {
     return this.lodgesService.getPublicById(id);
   }
 
