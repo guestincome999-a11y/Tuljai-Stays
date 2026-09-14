@@ -93,6 +93,16 @@ export class BookingsController {
     return this.bookingsService.getBookingById(id, user);
   }
 
+  // Protected lodge-contact endpoint: the ONLY route that returns a lodge's
+  // phone/WhatsApp details to a pilgrim. BookingsService verifies the
+  // requester owns this booking and that it has reached a confirmed-or-later
+  // status before returning anything — see getLodgeContactForBooking().
+  @UseGuards(JwtAuthGuard)
+  @Get('bookings/:id/lodge-contact')
+  public getLodgeContact(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.bookingsService.getLodgeContactForBooking(id, user);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('bookings/:id/cancel')
   public cancelBooking(
