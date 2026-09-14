@@ -3,6 +3,7 @@ import type {
   Booking,
   BookingGuestIdProofUpload,
   BookingLock,
+  BookingLodgeContact,
 } from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
@@ -159,6 +160,19 @@ export async function getBooking(bookingId: string): Promise<EnrichedBooking> {
 
 export async function getBookingRecord(bookingId: string): Promise<Booking> {
   return apiClient.get<Booking>(`/bookings/${bookingId}`);
+}
+
+/**
+ * Fetches the booked lodge's contact details (phone/WhatsApp) for the
+ * "Lodge Contact Details" section on the booking detail screen. The
+ * backend only returns data here once the booking has reached a
+ * confirmed-or-later status and the caller owns it — callers should treat
+ * any rejection (e.g. 403 while the booking is still pending) as "not
+ * available yet" and simply not render the section, rather than surfacing
+ * an error.
+ */
+export async function getBookingLodgeContact(bookingId: string): Promise<BookingLodgeContact> {
+  return apiClient.get<BookingLodgeContact>(`/bookings/${bookingId}/lodge-contact`);
 }
 
 export async function cancelBooking(bookingId: string, reason?: string): Promise<Booking> {
