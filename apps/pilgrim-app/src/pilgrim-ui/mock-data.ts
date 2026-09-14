@@ -29,7 +29,6 @@ export interface PilgrimLodge {
   name: string;
   photos: string[];
   price: number;
-  primaryPhone?: string;
   rating: number;
   reviewCount: number;
   rooms: PilgrimRoom[];
