@@ -77,7 +77,11 @@ export async function hydrateBackendLodge(summary: PilgrimLodge): Promise<Pilgri
     name: view.details.name,
     photos: photos.length > 0 ? photos : (visualFallback?.photos ?? [pilgrimLodges[0].hero]),
     price: Number.isFinite(lowestPrice) ? lowestPrice : (visualFallback?.price ?? 0),
-    primaryPhone: view.details.primaryPhone,
+    // NOTE: lodge contact details (primaryPhone/email/secondaryPhone/
+    // whatsappNumber) are deliberately never requested or stored here.
+    // The public lodge-details endpoint no longer returns them; pilgrims
+    // only get contact details after an eligible active booking, via
+    // getBookingLodgeContact() on the booking detail screen.
     // Real average of published reviews (null/0 for a lodge with no reviews
     // yet), not the old cosmetic seed-data fallback.
     rating: view.details.averageRating ?? 0,
@@ -106,7 +110,6 @@ function toSummaryLodge(summary: Lodge): PilgrimLodge {
     name: summary.name,
     photos: visualFallback?.photos ?? [pilgrimLodges[0].hero],
     price: visualFallback?.price ?? 0,
-    primaryPhone: summary.primaryPhone,
     // Real average of published reviews (null/0 for a lodge with no reviews
     // yet), not the old cosmetic seed-data fallback.
     rating: summary.averageRating ?? 0,
