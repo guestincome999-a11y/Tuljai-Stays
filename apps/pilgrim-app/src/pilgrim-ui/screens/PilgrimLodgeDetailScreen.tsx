@@ -311,33 +311,14 @@ export function PilgrimLodgeDetailScreen() {
 
           <LodgeReviewsSection lodgeId={lodge.id} />
 
-          {lodge.primaryPhone ? (
-            <View className="rounded-3xl bg-maroon-700 p-5">
-              <View className="flex-row items-center gap-3">
-                <View className="h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
-                  <MaterialCommunityIcons color="#FFFFFF" name="phone-outline" size={25} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-extrabold text-white">
-                    {t('Need help before booking?', 'बुकिंगपूर्वी मदत हवी आहे?')}
-                  </Text>
-                  <Text className="mt-1 text-sm text-orange-100">
-                    {t(
-                      'Call the lodge directly with your stay questions.',
-                      'निवासाबद्दलच्या प्रश्नांसाठी लॉजला थेट कॉल करा.',
-                    )}
-                  </Text>
-                </View>
-              </View>
-              <SecondaryButton
-                className="mt-4 border-white/20 bg-white/10"
-                icon="phone-outline"
-                onPress={() => void openExternalLink(`tel:${lodge.primaryPhone}`, t)}
-              >
-                {t('Call lodge', 'लॉजला कॉल करा')}
-              </SecondaryButton>
-            </View>
-          ) : null}
+          {/*
+            Lodge contact details (phone / WhatsApp) are intentionally NOT
+            shown on this page, even in part or masked form. Pilgrims only
+            get contact details after an eligible active booking, via the
+            dedicated "Lodge Contact Details" section on the booking detail
+            screen (PilgrimBookingDetailScreen), which is backed by the
+            protected GET /bookings/:id/lodge-contact endpoint.
+          */}
         </View>
       </ScrollView>
 
