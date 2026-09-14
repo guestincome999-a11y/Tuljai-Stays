@@ -13,6 +13,8 @@ import type {
   Lodge,
   LodgeDetails,
   PaginatedResponse,
+  PublicLodge,
+  PublicLodgeDetails,
 } from '@tuljai/types';
 import { normalizePagination } from '@tuljai/utils';
 
@@ -363,7 +365,14 @@ export class LodgesService {
     };
   }
 
-  public async listPublic(query: ListLodgesQueryDto): Promise<PaginatedResponse<Lodge>> {
+  /**
+   * Unauthenticated pilgrim-facing lodge list. Returns PublicLodge, which
+   * omits `primaryPhone` — lodge contact details must never reach a pilgrim
+   * before they have an eligible active booking (see BookingsService
+   * .getLodgeContactForBooking for the only endpoint that returns contact
+   * details, gated on booking ownership + status).
+   */
+  public async listPublic(query: ListLodgesQueryDto): Promise<PaginatedResponse<PublicLodge>> {
     const pagination = normalizePagination(query.page, query.pageSize);
     const where: Prisma.LodgeWhereInput = {
       deletedAt: null,
@@ -386,7 +395,7 @@ export class LodgesService {
     const aggregates = await this.getReviewAggregates(items.map((lodge) => lodge.id));
 
     return {
-      items: items.map((lodge) => this.toLodge(lodge, aggregates.get(lodge.id))),
+      items: items.map((lodge) => this.toPublicLodge(lodge, aggregates.get(lodge.id))),
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalItems,
@@ -429,7 +438,12 @@ export class LodgesService {
     };
   }
 
-  public async getPublicById(id: string): Promise<LodgeDetails> {
+  /**
+   * Unauthenticated pilgrim-facing lodge details. Returns PublicLodgeDetails,
+   * which omits `primaryPhone`, `email`, `secondaryPhone`, and
+   * `whatsappNumber`. See listPublic() above for why.
+   */
+  public async getPublicById(id: string): Promise<PublicLodgeDetails> {
     const lodge = await this.prisma.lodge.findFirst({
       include: this.detailInclude,
       where: {
@@ -445,7 +459,7 @@ export class LodgesService {
       throw new NotFoundException('Lodge not found');
     }
 
-    return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
+    return this.toPublicLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
 
   public async getAdminById(id: string): Promise<LodgeDetails> {
@@ -671,6 +685,15 @@ export class LodgesService {
     };
   }
 
+  /** Same fields as toLodge(), minus the private `primaryPhone`. */
+  private toPublicLodge(
+    lodge: Parameters<LodgesService['toLodge']>[0],
+    reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
+  ): PublicLodge {
+    const { primaryPhone: _primaryPhone, ...publicLodge } = this.toLodge(lodge, reviewAggregate);
+    return publicLodge;
+  }
+
   private toLodgeDetails(
     lodge: Prisma.LodgeGetPayload<{ include: LodgesService['detailInclude'] }>,
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
@@ -705,5 +728,23 @@ export class LodgesService {
       secondaryPhone: lodge.secondaryPhone,
       whatsappNumber: lodge.whatsappNumber,
     };
+  }
+
+  /**
+   * Same fields as toLodgeDetails(), minus all direct-contact fields
+   * (`primaryPhone`, `email`, `secondaryPhone`, `whatsappNumber`).
+   */
+  private toPublicLodgeDetails(
+    lodge: Prisma.LodgeGetPayload<{ include: LodgesService['detailInclude'] }>,
+    reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
+  ): PublicLodgeDetails {
+    const {
+      primaryPhone: _primaryPhone,
+      email: _email,
+      secondaryPhone: _secondaryPhone,
+      whatsappNumber: _whatsappNumber,
+      ...publicLodgeDetails
+    } = this.toLodgeDetails(lodge, reviewAggregate);
+    return publicLodgeDetails;
   }
 }
