@@ -38,18 +38,16 @@ import { GuestIdProofService } from './guest-id-proof.service';
 
 const OWNER_VISIBLE_CONTACT_STATUSES: BookingStatus[] = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'];
 
-// Statuses at which a pilgrim's booking counts as "confirmed or later" for
-// the purpose of releasing lodge contact details. Deliberately excludes
-// DRAFT and PENDING_OWNER_APPROVAL — merely creating or submitting a
-// booking request must never unlock contact details, only the lodge (or an
-// already-paid prepaid flow) accepting it does.
-const PILGRIM_CONTACT_ELIGIBLE_STATUSES: BookingStatus[] = [
-  'ACCEPTED',
-  'QR_GENERATED',
-  'CHECKED_IN',
-  'CHECKED_OUT',
-  'COMPLETED',
-];
+// Statuses at which a pilgrim's booking counts as an "active upcoming
+// stay" for the purpose of releasing lodge contact details: the lodge has
+// confirmed (or the booking was already paid+accepted via the prepaid
+// flow), but the guest hasn't checked in yet. Deliberately excludes:
+//   - DRAFT / PENDING_OWNER_APPROVAL — merely creating or submitting a
+//     request must never unlock contact details.
+//   - CHECKED_IN / CHECKED_OUT / COMPLETED — once the guest has actually
+//     arrived, contact is no longer needed for planning the stay; those
+//     bookings show as history/summary only, with contact hidden.
+const PILGRIM_CONTACT_ELIGIBLE_STATUSES: BookingStatus[] = ['ACCEPTED', 'QR_GENERATED'];
 
 const ADMIN_ALLOWED_STATUS_UPDATES: BookingStatus[] = [
   'PENDING_OWNER_APPROVAL',
@@ -427,11 +425,14 @@ export class BookingsService {
 
   /**
    * Returns the booked lodge's contact details, but only for the pilgrim
-   * who owns the booking (or an admin) and only once the booking has
-   * reached a confirmed-or-later status. This is the sole place in the API
-   * that ever returns lodge contact details to a pilgrim — the public
-   * lodge listing/details endpoints never include them (see
-   * LodgesService.toPublicLodge / toPublicLodgeDetails).
+   * who owns the booking (or an admin) and only while the booking is an
+   * "active upcoming stay" — confirmed by the lodge but not yet checked
+   * in. This is the sole place in the API that ever returns lodge contact
+   * details to a pilgrim — the public lodge listing/details endpoints
+   * never include them (see LodgesService.toPublicLodge /
+   * toPublicLodgeDetails). Once the guest checks in, checks out, or the
+   * stay completes, this endpoint stops returning contact details — the
+   * booking detail screen shows history/summary only from that point.
    */
   public async getLodgeContactForBooking(
     id: string,
@@ -445,7 +446,7 @@ export class BookingsService {
 
     if (!PILGRIM_CONTACT_ELIGIBLE_STATUSES.includes(booking.status)) {
       throw new ForbiddenException(
-        'Lodge contact details are available once your booking is confirmed by the lodge.',
+        'Lodge contact details are only available for your active upcoming stay, from when the lodge confirms your booking until you check in.',
       );
     }
 
