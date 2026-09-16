@@ -27,13 +27,15 @@ import {
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
-// Statuses at which the booked lodge's contact details may be shown. Mirrors
-// the backend's PILGRIM_CONTACT_ELIGIBLE_STATUSES: the lodge must have
-// actually confirmed the booking (or it was already paid+accepted through
-// the prepaid flow) — merely creating or submitting a request is not enough.
+// Statuses at which the booked lodge's contact details may be shown: an
+// "active upcoming stay" — the lodge has confirmed the booking (or it was
+// already paid+accepted through the prepaid flow), but the guest hasn't
+// checked in yet. Mirrors the backend's PILGRIM_CONTACT_ELIGIBLE_STATUSES.
+// Once the booking moves to checked-in, checked-out, or completed, contact
+// is hidden again — the screen shows history/summary only from then on.
 // This is only used to decide whether to fetch/render the section; the
 // backend independently re-checks eligibility on every request.
-const LODGE_CONTACT_ELIGIBLE_STATUSES = ['confirmed', 'checked-in', 'completed'];
+const LODGE_CONTACT_ELIGIBLE_STATUSES = ['confirmed'];
 
 export function PilgrimBookingDetailScreen() {
   const params = useLocalSearchParams<{ id?: string; justBooked?: string }>();
@@ -58,8 +60,9 @@ export function PilgrimBookingDetailScreen() {
   // fetched from the protected GET /bookings/:id/lodge-contact endpoint —
   // never read from the lodge object itself, which no longer carries
   // contact fields. The backend re-verifies booking ownership and status on
-  // every call; a rejection (booking not yet confirmed, or not the
-  // requester's own booking) just means the section stays hidden.
+  // every call; a rejection (booking not yet confirmed, already checked in,
+  // or not the requester's own booking) just means the section stays
+  // hidden.
   const [lodgeContact, setLodgeContact] = useState<BookingLodgeContact | null>(null);
   const bookingId = booking?.id;
   const bookingStatus = booking?.status;
@@ -440,7 +443,7 @@ export function PilgrimBookingDetailScreen() {
             label={t('Confirmed by lodge', 'लॉजने पुष्टी केली')}
             subtitle={
               booking.status === 'pending'
-                ? t('Waiting for response', 'प्रतिसादाची प्रतीक्षा')
+                ? t('Waiting for response', 'प्रतीक्षा')
                 : formatBookingTimestamp(booking.updatedAt)
             }
           />
