@@ -107,7 +107,7 @@ export function PilgrimCheckoutScreen() {
     setPrepaidOrder(null);
     setPrepaidError(null);
     setPrepaidPreparing(true);
-    (async () => {
+    void (async () => {
       try {
         const lock = await createBookingLock({
           checkInDate,
