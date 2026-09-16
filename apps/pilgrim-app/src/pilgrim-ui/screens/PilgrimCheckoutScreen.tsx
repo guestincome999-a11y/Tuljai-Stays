@@ -85,6 +85,10 @@ export function PilgrimCheckoutScreen() {
   const subtotal = (room?.price ?? 0) * nights;
   const taxes = Math.round(subtotal * 0.05);
   const total = subtotal + taxes;
+  // The backend requires guestPhone in E.164 form (+91XXXXXXXXXX). The field
+  // itself only ever collects a 10-digit national number, so normalize it
+  // here once rather than at each call site that needs to send it on.
+  const normalizedGuestPhone = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/gu, '')}`;
 
   // Pre-create the room hold + Razorpay order as soon as the guest reaches
   // the payment step with "Pay online" selected, instead of waiting for the
@@ -304,7 +308,7 @@ export function PilgrimCheckoutScreen() {
           guestIdProofSizeBytes: uploadedIdProof!.sizeBytes,
           guestIdProofStoragePath: uploadedIdProof!.storagePath,
           guestName: name.trim(),
-          guestPhone: phone,
+          guestPhone: normalizedGuestPhone,
           lockCode,
           numberOfAdults: adults,
           numberOfChildren: children,
@@ -324,7 +328,7 @@ export function PilgrimCheckoutScreen() {
           guestEmail: email.trim() || undefined,
           guestIdProof: uploadedIdProof!,
           guestName: name.trim(),
-          guestPhone: phone,
+          guestPhone: normalizedGuestPhone,
           lodgeId: lodge.id,
           numberOfAdults: adults,
           numberOfChildren: children,
