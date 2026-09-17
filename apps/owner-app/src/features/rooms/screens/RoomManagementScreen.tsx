@@ -286,7 +286,6 @@ export function RoomManagementScreen() {
           void (async () => {
             let allSaved = true;
             for (const input of inputs) {
-              // eslint-disable-next-line no-await-in-loop -- each photo must be saved before the next to keep sortOrder and cover flags correct
               const saved = await rooms.createPhotoMetadata(input);
               if (!saved) {
                 allSaved = false;
@@ -1004,7 +1003,6 @@ function PhotoMetadataModal({
       }> = [];
 
       for (let index = 0; index < pickedImages.length; index += 1) {
-        // eslint-disable-next-line no-await-in-loop -- uploads run one at a time to keep upload order and error handling simple
         const uploaded = await onUploadPhoto(pickedImages[index]);
         inputs.push({
           category,
