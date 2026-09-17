@@ -1,9 +1,9 @@
 'use client';
 
-import type { AdminUserBooking, AdminUserDetail } from '../../../../src/api/admin-support-api';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 
+import type { AdminUserBooking, AdminUserDetail } from '../../../../src/api/admin-support-api';
 import {
   getAdminUser,
   updateAdminUserBooking,
