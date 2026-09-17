@@ -6,8 +6,8 @@ import { useMemo, useState, type PropsWithChildren } from 'react';
 
 import { getAdminDisplayName, useAdminAuth } from '../auth/AdminAuthProvider';
 import { AdminProtectedRoute } from '../auth/AdminProtectedRoute';
-import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
 import { AdminIcon, type AdminIconName } from '../components/AdminIcon';
+import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
 import { adminNavigationItems } from '../navigation/admin-navigation';
 import { hasPermission } from '../permissions/permissions';
 
