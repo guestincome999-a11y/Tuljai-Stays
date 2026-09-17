@@ -749,13 +749,7 @@ export class LodgesService {
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): PublicLodgeDetails {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripping direct-contact fields from the public shape, see method doc above
-    const {
-      primaryPhone: _primaryPhone,
-      email: _email,
-      secondaryPhone: _secondaryPhone,
-      whatsappNumber: _whatsappNumber,
-      ...publicLodgeDetails
-    } = this.toLodgeDetails(lodge, reviewAggregate);
+    const { primaryPhone: _primaryPhone, email: _email, secondaryPhone: _secondaryPhone, whatsappNumber: _whatsappNumber, ...publicLodgeDetails } = this.toLodgeDetails(lodge, reviewAggregate);
     return publicLodgeDetails;
   }
 }
