@@ -61,7 +61,7 @@ export function LodgeReviewsSection({ lodgeId }: { lodgeId: string }) {
       setReviewableBookingId(null);
       return undefined;
     }
-    (async () => {
+    void (async () => {
       for (const stay of completedStays) {
         try {
           const existing = await getBookingReview(stay.id);
