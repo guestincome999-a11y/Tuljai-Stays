@@ -13,8 +13,8 @@ import {
   View,
 } from 'react-native';
 
-import { AppScreen, EmptyState, PrimaryButton, Rating, SecondaryButton, ui } from '../components';
 import { LodgeReviewsSection } from '../../features/reviews/components/LodgeReviewsSection';
+import { AppScreen, EmptyState, PrimaryButton, Rating, SecondaryButton, ui } from '../components';
 import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
