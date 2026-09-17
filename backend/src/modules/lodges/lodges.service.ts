@@ -685,11 +685,17 @@ export class LodgesService {
     };
   }
 
-  /** Same fields as toLodge(), minus the private `primaryPhone`. */
+  /**
+   * Same fields as toLodge(), minus the private `primaryPhone`. The
+   * destructured `_primaryPhone` below is intentionally unused — this is
+   * how that field gets stripped before the object reaches a pilgrim who
+   * has no eligible booking with this lodge. Do not delete it.
+   */
   private toPublicLodge(
     lodge: Parameters<LodgesService['toLodge']>[0],
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): PublicLodge {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripping primaryPhone from the public shape, see method doc above
     const { primaryPhone: _primaryPhone, ...publicLodge } = this.toLodge(lodge, reviewAggregate);
     return publicLodge;
   }
@@ -732,12 +738,17 @@ export class LodgesService {
 
   /**
    * Same fields as toLodgeDetails(), minus all direct-contact fields
-   * (`primaryPhone`, `email`, `secondaryPhone`, `whatsappNumber`).
+   * (`primaryPhone`, `email`, `secondaryPhone`, `whatsappNumber`). The
+   * destructured `_primaryPhone`/`_email`/`_secondaryPhone`/
+   * `_whatsappNumber` below are intentionally unused — this is how those
+   * fields get stripped before the object reaches a pilgrim with no
+   * eligible booking at this lodge. Do not delete them.
    */
   private toPublicLodgeDetails(
     lodge: Prisma.LodgeGetPayload<{ include: LodgesService['detailInclude'] }>,
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): PublicLodgeDetails {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripping direct-contact fields from the public shape, see method doc above
     const {
       primaryPhone: _primaryPhone,
       email: _email,
