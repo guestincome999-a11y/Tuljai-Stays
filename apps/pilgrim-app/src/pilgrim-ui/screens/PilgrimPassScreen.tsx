@@ -1,14 +1,16 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { QrDisplayPayload } from '@tuljai/types';
+import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { captureRef } from 'react-native-view-shot';
 
 import { useAuth } from '../../auth/auth-context';
 import { getBookingQrMetadata } from '../../features/bookings/api/booking-qr-api';
 import { isActionablePassBooking, selectCurrentPassBooking } from '../booking-selection';
-import { AppScreen, EmptyState, InfoRow, ui } from '../components';
+import { AppScreen, EmptyState, InfoRow, PrimaryButton, ui } from '../components';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 export function PilgrimPassScreen() {
@@ -25,6 +27,8 @@ export function PilgrimPassScreen() {
   const [payload, setPayload] = useState<QrDisplayPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [savingPass, setSavingPass] = useState(false);
+  const passCardRef = useRef<View>(null);
 
   const loadPass = useCallback(async () => {
     setPayload(null);
@@ -52,6 +56,42 @@ export function PilgrimPassScreen() {
   async function refreshPass() {
     await refresh();
     await loadPass();
+  }
+
+  async function downloadPass() {
+    if (!booking || !payload || savingPass) return;
+
+    setSavingPass(true);
+    try {
+      const permission = await MediaLibrary.requestPermissionsAsync(true);
+      if (!permission.granted) {
+        Alert.alert(
+          t('Permission needed', 'परवानगी आवश्यक'),
+          t(
+            'Allow photo access so your pass can be saved to the gallery.',
+            'पास गॅलरीत जतन करण्यासाठी फोटोंचा प्रवेश द्या.',
+          ),
+        );
+        return;
+      }
+
+      const uri = await captureRef(passCardRef, { format: 'png', quality: 1, result: 'tmpfile' });
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert(
+        t('Pass saved', 'पास जतन झाला'),
+        t(
+          'Your stay pass is saved to your gallery. You can show it to the lodge reception even without opening the app.',
+          'तुमचा निवास पास गॅलरीत जतन झाला आहे. अ‍ॅप न उघडताही तो लॉज रिसेप्शनला दाखवता येईल.',
+        ),
+      );
+    } catch {
+      Alert.alert(
+        t('Could not save pass', 'पास जतन करता आला नाही'),
+        t('Please try again.', 'कृपया पुन्हा प्रयत्न करा.'),
+      );
+    } finally {
+      setSavingPass(false);
+    }
   }
 
   return (
@@ -159,72 +199,96 @@ export function PilgrimPassScreen() {
         </View>
       ) : (
         <>
-          <View className="items-center overflow-hidden rounded-3xl bg-maroon-700 px-5 py-7">
-            <View className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-saffron-500/20" />
-            <View className="absolute -bottom-16 -left-12 h-44 w-44 rounded-full bg-white/5" />
-            <Text className="mb-4 text-sm font-extrabold uppercase tracking-widest text-orange-100">
-              {booking.bookingCode}
-            </Text>
-            <View className="h-[270px] w-[270px] items-center justify-center rounded-3xl bg-white p-5 shadow-lg shadow-black/20">
-              {payload ? (
-                <QRCode
-                  backgroundColor="#FFFFFF"
-                  color={ui.ink}
-                  size={230}
-                  value={payload.qrPayload}
+          {/* Everything inside this ref is exactly what gets saved as the
+              downloadable pass photo, so it must stand on its own without
+              relying on the app's nav bar or other screen chrome. */}
+          <View className="gap-5" collapsable={false} ref={passCardRef}>
+            <View className="items-center overflow-hidden rounded-3xl bg-maroon-700 px-5 py-7">
+              <View className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-saffron-500/20" />
+              <View className="absolute -bottom-16 -left-12 h-44 w-44 rounded-full bg-white/5" />
+              <View className="mb-5 flex-row items-center gap-2.5">
+                <Image
+                  className="h-9 w-9 rounded-xl"
+                  resizeMode="cover"
+                  source={require('../../../assets/icon.png')}
                 />
-              ) : loading ? (
-                <ActivityIndicator color={ui.saffronDeep} size="large" />
-              ) : (
-                <MaterialCommunityIcons color={ui.maroon} name="qrcode-remove" size={72} />
-              )}
+                <Text className="text-base font-extrabold tracking-tight text-white">
+                  Tuljai Stays
+                </Text>
+              </View>
+              <Text className="mb-4 text-sm font-extrabold uppercase tracking-widest text-orange-100">
+                {booking.bookingCode}
+              </Text>
+              <View className="h-[270px] w-[270px] items-center justify-center rounded-3xl bg-white p-5 shadow-lg shadow-black/20">
+                {payload ? (
+                  <QRCode
+                    backgroundColor="#FFFFFF"
+                    color={ui.ink}
+                    size={230}
+                    value={payload.qrPayload}
+                  />
+                ) : loading ? (
+                  <ActivityIndicator color={ui.saffronDeep} size="large" />
+                ) : (
+                  <MaterialCommunityIcons color={ui.maroon} name="qrcode-remove" size={72} />
+                )}
+              </View>
+              <View className="mt-5 flex-row items-center gap-2 rounded-full bg-white/10 px-4 py-2">
+                <View
+                  className={`h-2 w-2 rounded-full ${payload ? 'bg-green-300' : 'bg-orange-200'}`}
+                />
+                <Text className="text-sm font-extrabold text-white">
+                  {payload
+                    ? t('Ready to scan at check-in', 'चेक-इनसाठी स्कॅन करण्यास तयार')
+                    : loading
+                      ? t('Preparing secure QR…', 'सुरक्षित QR तयार करत आहोत…')
+                      : t('QR could not be loaded', 'QR लोड करता आला नाही')}
+                </Text>
+              </View>
+              <Text className="mt-3 text-center text-sm leading-5 text-orange-100">
+                {t(
+                  'Keep this screen open and let the lodge reception scan the code.',
+                  'ही स्क्रीन उघडी ठेवा आणि लॉज रिसेप्शनला कोड स्कॅन करू द्या.',
+                )}
+              </Text>
             </View>
-            <View className="mt-5 flex-row items-center gap-2 rounded-full bg-white/10 px-4 py-2">
-              <View
-                className={`h-2 w-2 rounded-full ${payload ? 'bg-green-300' : 'bg-orange-200'}`}
+
+            {error ? (
+              <Pressable
+                className="min-h-14 flex-row items-center justify-center gap-2 rounded-2xl border border-warm-200 bg-white"
+                onPress={() => void refreshPass()}
+              >
+                <MaterialCommunityIcons color={ui.maroon} name="refresh" size={21} />
+                <Text className="text-sm font-extrabold text-maroon-700">
+                  {t('Try loading QR again', 'QR पुन्हा लोड करा')}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <View className="rounded-3xl border border-warm-100 bg-white px-4">
+              <InfoRow icon="home-heart" label={t('Lodge', 'लॉज')} value={booking.lodgeName} />
+              <InfoRow
+                icon="account-outline"
+                label={t('Lead guest', 'मुख्य पाहुणे')}
+                value={auth.user?.displayName ?? t('Pilgrim', 'भाविक')}
               />
-              <Text className="text-sm font-extrabold text-white">
-                {payload
-                  ? t('Ready to scan at check-in', 'चेक-इनसाठी स्कॅन करण्यास तयार')
-                  : loading
-                    ? t('Preparing secure QR…', 'सुरक्षित QR तयार करत आहोत…')
-                    : t('QR could not be loaded', 'QR लोड करता आला नाही')}
-              </Text>
+              <InfoRow
+                icon="calendar-check"
+                label={t('Check-in', 'चेक-इन')}
+                value={booking.checkIn}
+              />
+              <InfoRow icon="bed-outline" label={t('Room', 'खोली')} value={booking.roomName} last />
             </View>
-            <Text className="mt-3 text-center text-sm leading-5 text-orange-100">
-              {t(
-                'Keep this screen open and let the lodge reception scan the code.',
-                'ही स्क्रीन उघडी ठेवा आणि लॉज रिसेप्शनला कोड स्कॅन करू द्या.',
-              )}
-            </Text>
           </View>
 
-          {error ? (
-            <Pressable
-              className="min-h-14 flex-row items-center justify-center gap-2 rounded-2xl border border-warm-200 bg-white"
-              onPress={() => void refreshPass()}
-            >
-              <MaterialCommunityIcons color={ui.maroon} name="refresh" size={21} />
-              <Text className="text-sm font-extrabold text-maroon-700">
-                {t('Try loading QR again', 'QR पुन्हा लोड करा')}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          <View className="rounded-3xl border border-warm-100 bg-white px-4">
-            <InfoRow icon="home-heart" label={t('Lodge', 'लॉज')} value={booking.lodgeName} />
-            <InfoRow
-              icon="account-outline"
-              label={t('Lead guest', 'मुख्य पाहुणे')}
-              value={auth.user?.displayName ?? t('Pilgrim', 'भाविक')}
-            />
-            <InfoRow
-              icon="calendar-check"
-              label={t('Check-in', 'चेक-इन')}
-              value={booking.checkIn}
-            />
-            <InfoRow icon="bed-outline" label={t('Room', 'खोली')} value={booking.roomName} last />
-          </View>
+          <PrimaryButton
+            disabled={!payload}
+            icon="download"
+            loading={savingPass}
+            onPress={() => void downloadPass()}
+          >
+            {t('Download pass', 'पास डाउनलोड करा')}
+          </PrimaryButton>
 
           <View className="flex-row items-start gap-3 rounded-2xl bg-bell-50 p-4">
             <MaterialCommunityIcons color="#884E13" name="shield-check-outline" size={22} />
