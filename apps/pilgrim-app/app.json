@@ -41,7 +41,15 @@
           "icon": "./assets/notification-icon.png"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Tuljai Stays to save your stay pass to your photos.",
+          "savePhotosPermission": "Allow Tuljai Stays to save your stay pass to your photos.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
