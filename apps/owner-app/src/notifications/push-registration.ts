@@ -74,7 +74,16 @@ export async function syncOwnerNotificationBadge(unreadCount: number): Promise<v
     return;
   }
 
-  await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(unreadCount))).catch(() => false);
+  const count = Math.max(0, Math.floor(unreadCount));
+  await Notifications.setBadgeCountAsync(count).catch(() => false);
+
+  // On Android the launcher badge follows the notifications still sitting in
+  // the tray, and setBadgeCountAsync(0) does not clear it on many launchers.
+  // Once everything is read, drop the delivered notifications so the last
+  // number can't stay stuck on the icon.
+  if (count === 0) {
+    await Notifications.dismissAllNotificationsAsync().catch(() => undefined);
+  }
 }
 
 async function savePushToken(token: string): Promise<void> {
