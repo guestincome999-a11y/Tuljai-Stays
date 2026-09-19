@@ -1,16 +1,15 @@
 import type { Notification } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
-import { syncPilgrimNotificationBadge } from '../../../notifications/push-registration';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import {
-  getUnreadNotificationCount,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from '../api/notifications-api';
 import {
   getNotificationUnreadCount,
+  refreshNotificationUnreadCount,
   setNotificationUnreadCount,
   subscribeNotificationUnreadCount,
 } from '../notification-count-store';
@@ -21,18 +20,11 @@ export function useUnreadNotificationCount() {
 
   useEffect(() => subscribeNotificationUnreadCount(setUnreadCount), []);
 
-  const refresh = useCallback(async () => {
-    const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
-    setNotificationUnreadCount(result.unreadCount);
-  }, []);
+  const refresh = refreshNotificationUnreadCount;
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    void syncPilgrimNotificationBadge(unreadCount);
-  }, [unreadCount]);
 
   useEffect(() => {
     const event = realtime.lastEvent;
@@ -72,10 +64,7 @@ export function useNotifications() {
     }
   }, []);
 
-  const refreshUnreadCount = useCallback(async () => {
-    const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
-    setNotificationUnreadCount(result.unreadCount);
-  }, []);
+  const refreshUnreadCount = refreshNotificationUnreadCount;
 
   useEffect(() => {
     void load();
