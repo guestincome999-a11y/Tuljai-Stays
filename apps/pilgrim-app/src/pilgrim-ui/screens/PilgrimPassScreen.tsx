@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { QrDisplayPayload } from '@tuljai/types';
-import * as MediaLibrary from 'expo-media-library';
+// expo-media-library 57 root exports throw for legacy calls like saveToLibraryAsync,
+// so the pass download must import from the /legacy entry to actually save to the gallery.
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, Text, View } from 'react-native';
