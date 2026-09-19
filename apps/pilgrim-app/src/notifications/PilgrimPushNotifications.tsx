@@ -4,25 +4,20 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { useAuth } from '../auth/auth-context';
+import { markNotificationRead } from '../features/notifications/api/notifications-api';
 import { refreshNotificationUnreadCount } from '../features/notifications/notification-count-store';
-import { usePilgrimApp } from '../pilgrim-ui/PilgrimAppProvider';
 
 import { registerExistingPilgrimPushToken, registerRotatedPilgrimPushToken } from './push-registration';
 
-// The OS app-icon badge is written only by `PilgrimAppProvider`, from the
-// shared unread-count store. This component never writes it: marking a tapped
-// push as read goes through the provider (so the list, the bell and the badge
-// all update), and a push arriving while the app is open just refreshes the
-// count. Otherwise it only handles push registration and tap-to-navigate.
+// The OS app-icon badge is written only by `PilgrimAppProvider`, which mirrors
+// the shared unread-count store. This component never writes the badge; when
+// a tapped push marks a notification read it just refreshes that store, so
+// the icon can't be left on the old number. It handles push registration and
+// acting on a tapped push notification (marking it read and navigating).
 export function PilgrimPushNotifications() {
   const auth = useAuth();
   const router = useRouter();
-  const { markNotificationRead } = usePilgrimApp();
   const handledResponseId = useRef<string | null>(null);
-  // Latest provider action without re-subscribing the notification listeners
-  // every time provider state changes.
-  const markNotificationReadRef = useRef(markNotificationRead);
-  markNotificationReadRef.current = markNotificationRead;
 
   const handleResponse = useCallback(async (response: Notifications.NotificationResponse) => {
     const responseId = `${response.notification.request.identifier}:${response.actionIdentifier}`;
@@ -36,7 +31,8 @@ export function PilgrimPushNotifications() {
     const notificationId = readString(data.notificationId);
 
     if (notificationId) {
-      await markNotificationReadRef.current(notificationId).catch(() => undefined);
+      await markNotificationRead(notificationId).catch(() => undefined);
+      await refreshNotificationUnreadCount();
     }
 
     const type = readString(data.type);
@@ -97,9 +93,6 @@ export function PilgrimPushNotifications() {
         void handleResponse(response);
       },
     );
-    const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
-      void refreshNotificationUnreadCount();
-    });
     const tokenSubscription = Notifications.addPushTokenListener((token) => {
       void registerRotatedPilgrimPushToken(token).catch(() => false);
     });
@@ -115,7 +108,6 @@ export function PilgrimPushNotifications() {
 
     return () => {
       appStateSubscription.remove();
-      receivedSubscription.remove();
       responseSubscription.remove();
       tokenSubscription.remove();
     };
