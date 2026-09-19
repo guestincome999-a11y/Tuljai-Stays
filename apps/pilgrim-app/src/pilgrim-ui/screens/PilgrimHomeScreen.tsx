@@ -61,16 +61,16 @@ export function PilgrimHomeScreen() {
     favoriteIds,
     isSyncing,
     lodges,
-    notifications,
     refresh,
     syncError,
     t,
     toggleFavorite,
+    unreadCount,
   } = usePilgrimApp();
   const upcoming = bookings.find(
     (booking) => booking.status === 'checked-in' || booking.status === 'confirmed',
   );
-  const unread = notifications.filter((item) => !item.read).length;
+  const unread = unreadCount;
   const firstName = auth.user?.displayName?.trim().split(/\s+/)[0];
   const featuredLodges = useMemo(() => lodges.slice(0, FEATURED_LODGE_COUNT), [lodges]);
   const featuredLodgeIdsKey = useMemo(
