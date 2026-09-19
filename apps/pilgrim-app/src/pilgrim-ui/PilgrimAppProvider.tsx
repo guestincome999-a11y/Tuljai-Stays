@@ -22,6 +22,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead as markBackendNotificationRead,
 } from '../features/notifications/api/notifications-api';
+import {
+  getNotificationUnreadCount,
+  refreshNotificationUnreadCount,
+  setNotificationUnreadCount,
+  subscribeNotificationUnreadCount,
+} from '../features/notifications/notification-count-store';
 import { syncPilgrimNotificationBadge } from '../notifications/push-registration';
 import { getEventBookingId, type PilgrimRealtimeEvent } from '../realtime/realtime-events';
 import { useRealtime } from '../realtime/realtime-provider';
@@ -96,6 +102,8 @@ interface PilgrimAppContextValue {
   syncError: string | null;
   t: (english: string, marathi: string) => string;
   toggleFavorite: (lodgeId: string) => void;
+  /** Server-side unread count (all pages) — the single source for the bell and OS badge. */
+  unreadCount: number;
 }
 
 const PilgrimAppContext = createContext<PilgrimAppContextValue | null>(null);
@@ -121,6 +129,12 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   const [isBackendConnected, setIsBackendConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
+
+  // Bumped whenever the notification list is (re)fetched or changed locally, so
+  // only the most recent operation may write `notifications`. Without it a
+  // slow, older fetch resurrects an already-read notification as unread.
+  const notificationsVersionRef = useRef(0);
 
   // Tracks lodge ids currently being hydrated so ensureLodgesHydrated can be
   // called repeatedly (e.g. from a scroll handler) without firing duplicate
@@ -175,20 +189,41 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   const loadPrivateData = useCallback(
     async (availableLodges: PilgrimLodge[]): Promise<PilgrimBooking[]> => {
       if (!auth.isAuthenticated) {
+        notificationsVersionRef.current += 1;
         setBookings([]);
         setNotifications([]);
         return [];
       }
+      const notificationsVersion = ++notificationsVersionRef.current;
+      void refreshNotificationUnreadCount();
       const [backendBookings, backendNotifications] = await Promise.all([
         loadBackendBookings(availableLodges),
         loadBackendNotifications(),
       ]);
       setBookings((current) => mergeBackendBookingSnapshot(current, backendBookings));
-      setNotifications(backendNotifications);
+      if (notificationsVersion === notificationsVersionRef.current) {
+        setNotifications(backendNotifications);
+      }
       return backendBookings;
     },
     [auth.isAuthenticated],
   );
+
+  const reloadNotifications = useCallback(async () => {
+    const version = ++notificationsVersionRef.current;
+    const items = await loadBackendNotifications();
+    if (version === notificationsVersionRef.current) setNotifications(items);
+  }, []);
+
+  // After any local read/unread change, re-align both the list and the count
+  // with the server once the request has settled (also reverts the optimistic
+  // change if the request failed).
+  const reconcileNotifications = useCallback(async () => {
+    await Promise.all([
+      reloadNotifications().catch(() => undefined),
+      refreshNotificationUnreadCount(),
+    ]);
+  }, [reloadNotifications]);
 
   const refresh = useCallback(async () => {
     setIsSyncing(true);
@@ -279,9 +314,14 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!auth.isAuthenticated || realtime.lastEvent?.name !== 'notification:new') return;
-    void loadBackendNotifications()
-      .then(setNotifications)
-      .catch(() => undefined);
+    void reconcileNotifications();
+  }, [auth.isAuthenticated, reconcileNotifications, realtime.lastEvent]);
+
+  useEffect(() => {
+    const event = realtime.lastEvent;
+    if (!auth.isAuthenticated || event?.name !== 'notification:unread-count') return;
+    const nextCount = event.payload.unreadCount;
+    if (typeof nextCount === 'number') setNotificationUnreadCount(nextCount);
   }, [auth.isAuthenticated, realtime.lastEvent]);
 
   useEffect(() => {
@@ -302,21 +342,27 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     return () => subscription.remove();
   }, [auth.isAuthenticated, loadPrivateData, lodges]);
 
-  // The bell badge and the OS app-icon badge both need to reflect unread
-  // notifications the instant a notification is read anywhere in the app
-  // (in-app list, push tap, mark-all-read) — not only when a
-  // `notification:unread-count` event round-trips back over the socket.
-  // `notifications` is this app's single source of truth for read state, so
-  // syncing the OS badge directly off it here keeps both badges instant and
-  // removes the OS badge's dependency on that extra network round trip.
+  // One count (server-side, all pages) drives both the bell and the OS
+  // app-icon badge, and this is the only place that writes the OS badge. Every
+  // read path (in-app list, push tap, mark-all-read, realtime) updates the
+  // count store; several writers with different sources is what left the badge
+  // stuck on whichever value wrote last.
   useEffect(() => {
-    if (!auth.isAuthenticated) {
-      void syncPilgrimNotificationBadge(0);
-      return;
-    }
-    const unreadCount = notifications.filter((item) => !item.read).length;
-    void syncPilgrimNotificationBadge(unreadCount);
-  }, [auth.isAuthenticated, notifications]);
+    setUnreadCount(getNotificationUnreadCount());
+    return subscribeNotificationUnreadCount((count) => {
+      setUnreadCount(count);
+      void syncPilgrimNotificationBadge(count);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) setNotificationUnreadCount(0);
+  }, [auth.isAuthenticated]);
+
+  useEffect(() => {
+    if (!mockMode) return;
+    setNotificationUnreadCount(notifications.filter((item) => !item.read).length);
+  }, [mockMode, notifications]);
 
   const pendingBookingIds = useMemo(
     () =>
@@ -412,14 +458,24 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       language,
       lodges,
       markNotificationsRead: async () => {
+        notificationsVersionRef.current += 1;
         setNotifications((current) => current.map((item) => ({ ...item, read: true })));
-        if (auth.isAuthenticated) await markAllNotificationsRead().catch(() => undefined);
+        setNotificationUnreadCount(0);
+        if (!auth.isAuthenticated) return;
+        await markAllNotificationsRead().catch(() => undefined);
+        await reconcileNotifications();
       },
       markNotificationRead: async (id) => {
+        // Not in the loaded page (e.g. opened from a push) still counts as unread.
+        const wasUnread = notifications.find((item) => item.id === id)?.read !== true;
+        notificationsVersionRef.current += 1;
         setNotifications((current) =>
           current.map((item) => (item.id === id ? { ...item, read: true } : item)),
         );
-        if (auth.isAuthenticated) await markBackendNotificationRead(id).catch(() => undefined);
+        if (wasUnread) setNotificationUnreadCount(getNotificationUnreadCount() - 1);
+        if (!auth.isAuthenticated) return;
+        await markBackendNotificationRead(id).catch(() => undefined);
+        await reconcileNotifications();
       },
       notifications,
       refresh,
@@ -434,6 +490,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
             : [...current, lodgeId],
         );
       },
+      unreadCount,
     }),
     [
       auth.isAuthenticated,
@@ -447,8 +504,10 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       loadPrivateData,
       lodges,
       notifications,
+      reconcileNotifications,
       refresh,
       syncError,
+      unreadCount,
     ],
   );
 
