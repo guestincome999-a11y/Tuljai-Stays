@@ -17,6 +17,10 @@ import {
 } from '../notification-count-store';
 import { loadNotificationsCache, saveNotificationsCache } from '../storage/notifications-cache';
 
+// The OS app-icon badge is written from exactly one place
+// (`OwnerPushNotifications`, mirroring the shared unread-count store). Hooks
+// here only update the store, so two writers can never leave the icon on a
+// stale number.
 export function useUnreadNotificationCount() {
   const realtime = useRealtime();
   const { isOffline } = useConnectivity();
@@ -126,6 +130,7 @@ export function useOwnerNotifications(activeType: NotificationType | null) {
         await refreshUnreadCount();
       } catch {
         setErrorMessage('Notification action failed. Please try again.');
+        await refreshUnreadCount();
       } finally {
         setIsSubmitting(false);
       }

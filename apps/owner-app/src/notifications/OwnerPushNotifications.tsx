@@ -11,6 +11,7 @@ import {
 import { saveSelectedLodgeId } from '../features/lodges/storage/selected-lodge-store';
 import { markNotificationRead } from '../features/notifications/api/owner-notifications-api';
 import {
+  getNotificationUnreadCount,
   refreshNotificationUnreadCount,
   setNotificationUnreadCount,
   subscribeNotificationUnreadCount,
@@ -32,10 +33,18 @@ export function OwnerPushNotifications() {
   const router = useRouter();
   const handledResponseId = useRef<string | null>(null);
 
-  // Refreshes the shared unread-count store (which also drives the dashboard
-  // bell). The OS app-icon badge is written only by the store subscription
-  // below — never directly from a fetch result, which could land out of order
-  // and leave the badge stuck on a stale number.
+  // This is the ONLY writer of the OS app-icon badge. It mirrors the shared
+  // unread-count store (server-authoritative and version-guarded, so a slow
+  // older response can never overwrite a newer count). Everything else — push
+  // received/tapped, realtime events, in-app reads — only updates the store,
+  // so the bell badge and the icon badge always show the same number.
+  useEffect(() => {
+    void syncOwnerNotificationBadge(getNotificationUnreadCount());
+    return subscribeNotificationUnreadCount((count) => {
+      void syncOwnerNotificationBadge(count);
+    });
+  }, []);
+
   const refreshBadge = useCallback(async () => {
     if (!auth.isAuthenticated) {
       setNotificationUnreadCount(0);
@@ -44,14 +53,6 @@ export function OwnerPushNotifications() {
 
     await refreshNotificationUnreadCount();
   }, [auth.isAuthenticated]);
-
-  useEffect(
-    () =>
-      subscribeNotificationUnreadCount((count) => {
-        void syncOwnerNotificationBadge(count);
-      }),
-    [],
-  );
 
   const handleResponse = useCallback(
     async (response: Notifications.NotificationResponse) => {
