@@ -14,13 +14,17 @@ import {
   subscribeNotificationUnreadCount,
 } from '../notification-count-store';
 
+// The OS app-icon badge is written from exactly one place
+// (`PilgrimAppProvider`, mirroring the shared unread-count store). Hooks here
+// only update the store, so two writers can never leave the icon on a stale
+// number.
 export function useUnreadNotificationCount() {
   const realtime = useRealtime();
   const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
 
   useEffect(() => subscribeNotificationUnreadCount(setUnreadCount), []);
 
-  const refresh = refreshNotificationUnreadCount;
+  const refresh = useCallback(() => refreshNotificationUnreadCount(), []);
 
   useEffect(() => {
     void refresh();
@@ -64,7 +68,7 @@ export function useNotifications() {
     }
   }, []);
 
-  const refreshUnreadCount = refreshNotificationUnreadCount;
+  const refreshUnreadCount = useCallback(() => refreshNotificationUnreadCount(), []);
 
   useEffect(() => {
     void load();
