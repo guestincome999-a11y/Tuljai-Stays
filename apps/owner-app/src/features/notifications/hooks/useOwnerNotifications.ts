@@ -2,17 +2,16 @@ import type { Notification, NotificationType } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
-import { syncOwnerNotificationBadge } from '../../../notifications/push-registration';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import {
   deleteNotification,
-  getUnreadNotificationCount,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from '../api/owner-notifications-api';
 import {
   getNotificationUnreadCount,
+  refreshNotificationUnreadCount,
   setNotificationUnreadCount,
   subscribeNotificationUnreadCount,
 } from '../notification-count-store';
@@ -27,17 +26,12 @@ export function useUnreadNotificationCount() {
 
   const refresh = useCallback(async () => {
     if (isOffline) return;
-    const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
-    setNotificationUnreadCount(result.unreadCount);
+    await refreshNotificationUnreadCount();
   }, [isOffline]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    void syncOwnerNotificationBadge(unreadCount);
-  }, [unreadCount]);
 
   useEffect(() => {
     const event = realtime.lastEvent;
@@ -104,8 +98,7 @@ export function useOwnerNotifications(activeType: NotificationType | null) {
 
   const refreshUnreadCount = useCallback(async () => {
     if (isOffline) return;
-    const result = await getUnreadNotificationCount().catch(() => ({ unreadCount: 0 }));
-    setNotificationUnreadCount(result.unreadCount);
+    await refreshNotificationUnreadCount();
   }, [isOffline]);
 
   useEffect(() => {

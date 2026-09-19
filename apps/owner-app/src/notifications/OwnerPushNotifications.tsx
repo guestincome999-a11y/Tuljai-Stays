@@ -9,10 +9,12 @@ import {
   rejectOwnerBooking,
 } from '../features/bookings/api/owner-bookings-api';
 import { saveSelectedLodgeId } from '../features/lodges/storage/selected-lodge-store';
+import { markNotificationRead } from '../features/notifications/api/owner-notifications-api';
 import {
-  getUnreadNotificationCount,
-  markNotificationRead,
-} from '../features/notifications/api/owner-notifications-api';
+  refreshNotificationUnreadCount,
+  setNotificationUnreadCount,
+  subscribeNotificationUnreadCount,
+} from '../features/notifications/notification-count-store';
 import { useRealtime } from '../realtime/realtime-provider';
 
 import { publishBookingAlert } from './booking-alert-events';
@@ -30,17 +32,26 @@ export function OwnerPushNotifications() {
   const router = useRouter();
   const handledResponseId = useRef<string | null>(null);
 
+  // Refreshes the shared unread-count store (which also drives the dashboard
+  // bell). The OS app-icon badge is written only by the store subscription
+  // below — never directly from a fetch result, which could land out of order
+  // and leave the badge stuck on a stale number.
   const refreshBadge = useCallback(async () => {
     if (!auth.isAuthenticated) {
-      await syncOwnerNotificationBadge(0);
+      setNotificationUnreadCount(0);
       return;
     }
 
-    const result = await getUnreadNotificationCount().catch(() => null);
-    if (result) {
-      await syncOwnerNotificationBadge(result.unreadCount);
-    }
+    await refreshNotificationUnreadCount();
   }, [auth.isAuthenticated]);
+
+  useEffect(
+    () =>
+      subscribeNotificationUnreadCount((count) => {
+        void syncOwnerNotificationBadge(count);
+      }),
+    [],
+  );
 
   const handleResponse = useCallback(
     async (response: Notifications.NotificationResponse) => {
@@ -137,7 +148,7 @@ export function OwnerPushNotifications() {
 
   useEffect(() => {
     if (!auth.isAuthenticated) {
-      void syncOwnerNotificationBadge(0);
+      setNotificationUnreadCount(0);
       return undefined;
     }
 
@@ -192,7 +203,7 @@ export function OwnerPushNotifications() {
     if (event?.name === 'notification:unread-count') {
       const unreadCount = event.payload.unreadCount;
       if (typeof unreadCount === 'number') {
-        void syncOwnerNotificationBadge(unreadCount);
+        setNotificationUnreadCount(unreadCount);
       }
       return;
     }
