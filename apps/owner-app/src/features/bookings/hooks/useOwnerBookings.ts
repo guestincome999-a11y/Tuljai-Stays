@@ -10,35 +10,50 @@ import {
   rejectOwnerBooking,
 } from '../api/owner-bookings-api';
 
+const PAGE_SIZE = 30;
+
 interface OwnerBookingsState {
   data: OwnerBookingSummary[];
   errorMessage: string | null;
   isLoading: boolean;
+  isLoadingMore: boolean;
   isRefreshing: boolean;
+  page: number;
   totalItems: number;
+  totalPages: number;
 }
 
-export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) {
+export interface OwnerBookingsFilters {
+  checkInFrom?: string;
+  checkInTo?: string;
+  order?: 'asc' | 'desc';
+}
+
+const emptyState: OwnerBookingsState = {
+  data: [],
+  errorMessage: null,
+  isLoading: false,
+  isLoadingMore: false,
+  isRefreshing: false,
+  page: 1,
+  totalItems: 0,
+  totalPages: 1,
+};
+
+export function useOwnerBookings(
+  lodgeId: string | null,
+  status: BookingStatus | null,
+  filters: OwnerBookingsFilters = {},
+) {
+  const { checkInFrom, checkInTo, order } = filters;
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
-  const [state, setState] = useState<OwnerBookingsState>({
-    data: [],
-    errorMessage: null,
-    isLoading: true,
-    isRefreshing: false,
-    totalItems: 0,
-  });
+  const [state, setState] = useState<OwnerBookingsState>({ ...emptyState, isLoading: true });
 
   const load = useCallback(
     async (refreshing = false) => {
       if (!lodgeId) {
-        setState({
-          data: [],
-          errorMessage: null,
-          isLoading: false,
-          isRefreshing: false,
-          totalItems: 0,
-        });
+        setState(emptyState);
         return;
       }
       setState((current) => ({
@@ -57,13 +72,24 @@ export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) 
         return;
       }
       try {
-        const result = await listOwnerBookings({ limit: 30, lodgeId, page: 1, status });
+        const result = await listOwnerBookings({
+          checkInFrom,
+          checkInTo,
+          limit: PAGE_SIZE,
+          lodgeId,
+          order,
+          page: 1,
+          status: status ?? undefined,
+        });
         setState({
           data: result.items,
           errorMessage: null,
           isLoading: false,
+          isLoadingMore: false,
           isRefreshing: false,
+          page: result.page,
           totalItems: result.totalItems,
+          totalPages: result.totalPages,
         });
       } catch {
         setState((current) => ({
@@ -74,8 +100,54 @@ export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) 
         }));
       }
     },
-    [isOffline, lodgeId, status],
+    [checkInFrom, checkInTo, isOffline, lodgeId, order, status],
   );
+
+  const loadMore = useCallback(async () => {
+    if (!lodgeId || isOffline || state.isLoadingMore || state.page >= state.totalPages) {
+      return;
+    }
+    const nextPage = state.page + 1;
+    setState((current) => ({ ...current, errorMessage: null, isLoadingMore: true }));
+    try {
+      const result = await listOwnerBookings({
+        checkInFrom,
+        checkInTo,
+        limit: PAGE_SIZE,
+        lodgeId,
+        order,
+        page: nextPage,
+        status: status ?? undefined,
+      });
+      setState((current) => ({
+        ...current,
+        data: [
+          ...current.data,
+          ...result.items.filter((item) => !current.data.some((existing) => existing.id === item.id)),
+        ],
+        isLoadingMore: false,
+        page: result.page,
+        totalItems: result.totalItems,
+        totalPages: result.totalPages,
+      }));
+    } catch {
+      setState((current) => ({
+        ...current,
+        errorMessage: 'More bookings could not be loaded. Please try again.',
+        isLoadingMore: false,
+      }));
+    }
+  }, [
+    checkInFrom,
+    checkInTo,
+    isOffline,
+    lodgeId,
+    order,
+    state.isLoadingMore,
+    state.page,
+    state.totalPages,
+    status,
+  ]);
 
   useEffect(() => {
     void load();
@@ -118,7 +190,7 @@ export function useOwnerBookings(lodgeId: string | null, status: BookingStatus) 
     return () => clearInterval(interval);
   }, [isOffline, load, lodgeId, realtime.connected]);
 
-  return useMemo(() => ({ ...state, refresh: () => load(true) }), [load, state]);
+  return useMemo(() => ({ ...state, loadMore, refresh: () => load(true) }), [load, loadMore, state]);
 }
 
 export function useOwnerBookingActions(onCompleted: () => void) {
