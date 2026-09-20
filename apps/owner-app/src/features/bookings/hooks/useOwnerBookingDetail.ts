@@ -1,4 +1,4 @@
-import type { Booking } from '@tuljai/types';
+import type { OwnerBookingSummary } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
 import { getEventBookingId } from '../../../realtime/realtime-events';
@@ -6,7 +6,7 @@ import { useRealtime } from '../../../realtime/realtime-provider';
 import { getOwnerBooking } from '../api/owner-bookings-api';
 
 interface OwnerBookingDetailState {
-  data: Booking | null;
+  data: OwnerBookingSummary | null;
   errorMessage: string | null;
   isLoading: boolean;
   isRefreshing: boolean;
