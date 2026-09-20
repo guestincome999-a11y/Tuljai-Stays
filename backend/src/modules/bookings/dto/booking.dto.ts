@@ -61,6 +61,9 @@ export class OwnerBookingsQueryDto {
   @IsEnum(BookingStatus) @IsOptional() status?: BookingStatus;
   @IsOptional() @IsString() lodgeId?: string;
   @IsDateString() @IsOptional() date?: string;
+  @IsDateString() @IsOptional() checkInFrom?: string;
+  @IsDateString() @IsOptional() checkInTo?: string;
+  @IsIn(['asc', 'desc']) @IsOptional() order?: 'asc' | 'desc';
   @Type(() => Number) @IsInt() @IsOptional() @Min(1) page?: number;
   @Type(() => Number) @IsInt() @IsOptional() @Min(1) @Max(100) limit?: number;
 }
