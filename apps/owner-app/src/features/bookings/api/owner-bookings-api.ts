@@ -3,9 +3,12 @@ import type { Booking, BookingStatus, OwnerBookingSummary, PaginatedResponse } f
 import { apiClient } from '../../../api/client';
 
 export interface OwnerBookingsQuery {
+  checkInFrom?: string;
+  checkInTo?: string;
   date?: string;
   limit?: number;
   lodgeId?: string;
+  order?: 'asc' | 'desc';
   page?: number;
   status?: BookingStatus;
 }
@@ -18,8 +21,8 @@ export async function listOwnerBookings(
   });
 }
 
-export async function getOwnerBooking(bookingId: string): Promise<Booking> {
-  return apiClient.get<Booking>(`/bookings/${bookingId}`);
+export async function getOwnerBooking(bookingId: string): Promise<OwnerBookingSummary> {
+  return apiClient.get<OwnerBookingSummary>(`/owner/bookings/${bookingId}`);
 }
 
 export async function acceptOwnerBooking(bookingId: string): Promise<Booking> {
