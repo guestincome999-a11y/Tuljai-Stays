@@ -142,6 +142,13 @@ export class BookingsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'ADMIN')
+  @Get('owner/bookings/:id')
+  public getOwnerBooking(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.bookingsService.getOwnerBookingSummary(id, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
   @Get('owner/register')
   public listOwnerRegisters(
     @Query() query: RegisterQueryDto,
