@@ -519,12 +519,36 @@ export class BookingsService {
     return this.toBooking(booking);
   }
 
+  /**
+   * Owner-facing booking detail: same shape as a list row (adds lodge name,
+   * room type and assigned room number) and always masks guest contact
+   * details until the guest has checked in.
+   */
+  public async getOwnerBookingSummary(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<OwnerBookingSummary> {
+    const booking = await this.findBookingOrThrow(id);
+    await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
+
+    return this.toOwnerBookingSummary(booking);
+  }
+
   public async listOwnerBookings(
     query: OwnerBookingsQueryDto,
     user: AuthenticatedUser,
   ): Promise<PaginatedResponse<OwnerBookingSummary>> {
     if (query.lodgeId) {
       await this.lodgeAccessService.assertCanManageLodge(user, query.lodgeId);
+    }
+
+    const checkInFrom = query.checkInFrom
+      ? this.availabilityService.parseDateOnly(query.checkInFrom)
+      : null;
+    const checkInTo = query.checkInTo ? this.availabilityService.parseDateOnly(query.checkInTo) : null;
+
+    if (checkInFrom && checkInTo && checkInFrom > checkInTo) {
+      throw new BadRequestException('checkInFrom must not be after checkInTo');
     }
 
     const pagination = normalizePagination(query.page, query.limit);
@@ -536,6 +560,18 @@ export class BookingsService {
         ? {
             checkInDate: { lte: this.availabilityService.parseDateOnly(query.date) },
             checkOutDate: { gt: this.availabilityService.parseDateOnly(query.date) },
+          }
+        : {}),
+      ...(checkInFrom || checkInTo
+        ? {
+            AND: [
+              {
+                checkInDate: {
+                  ...(checkInFrom ? { gte: checkInFrom } : {}),
+                  ...(checkInTo ? { lte: checkInTo } : {}),
+                },
+              },
+            ],
           }
         : {}),
       ...(this.lodgeAccessService.isAdmin(user)
@@ -555,7 +591,10 @@ export class BookingsService {
     const [items, totalItems] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
         include: this.bookingInclude,
-        orderBy: { createdAt: 'desc' },
+        orderBy:
+          checkInFrom || checkInTo
+            ? [{ checkInDate: query.order ?? 'desc' }, { createdAt: 'desc' }]
+            : { createdAt: 'desc' },
         skip: pagination.skip,
         take: pagination.take,
         where,
@@ -578,6 +617,12 @@ export class BookingsService {
 
     if (existing.status !== 'PENDING_OWNER_APPROVAL') {
       throw new BadRequestException('Only pending bookings can be accepted');
+    }
+
+    // Only pay-at-lodge (cash) bookings go through owner approval. Prepaid
+    // bookings are confirmed and assigned a room automatically on payment.
+    if (existing.paymentStatus !== PaymentStatus.PAY_AT_LODGE) {
+      throw new BadRequestException('Only pay-at-lodge bookings can be accepted by the owner');
     }
 
     const selectedRoom = existing.room
@@ -638,7 +683,7 @@ export class BookingsService {
     });
     await this.notificationEventsService.bookingAccepted(id);
 
-    return this.toBooking(booking);
+    return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
   }
 
   public async rejectBooking(
@@ -651,6 +696,10 @@ export class BookingsService {
 
     if (existing.status !== 'PENDING_OWNER_APPROVAL') {
       throw new BadRequestException('Only pending bookings can be rejected');
+    }
+
+    if (existing.paymentStatus !== PaymentStatus.PAY_AT_LODGE) {
+      throw new BadRequestException('Only pay-at-lodge bookings can be rejected by the owner');
     }
 
     const booking = await this.prisma.booking.update({
@@ -678,7 +727,7 @@ export class BookingsService {
     });
     await this.notificationEventsService.bookingRejected(id);
 
-    return this.toBooking(booking);
+    return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
   }
 
   public async listAdminBookings(
