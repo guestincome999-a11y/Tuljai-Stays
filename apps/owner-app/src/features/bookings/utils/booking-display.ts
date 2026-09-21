@@ -42,14 +42,6 @@ export function canOwnerRespond(booking: BookingLike): boolean {
   return booking.status === 'PENDING_OWNER_APPROVAL' && isCashBooking(booking);
 }
 
-/**
- * Owners may change dates only for pay-at-lodge bookings that are pending or
- * accepted. The backend enforces the same rule and re-checks availability.
- */
-export function canOwnerModifyDates(booking: BookingLike): boolean {
-  return isCashBooking(booking) && ['PENDING_OWNER_APPROVAL', 'ACCEPTED'].includes(booking.status);
-}
-
 export function getStatusLabel(booking: BookingLike): string {
   if (isPrepaidBooking(booking) && ['ACCEPTED', 'QR_GENERATED'].includes(booking.status)) {
     return 'Assigned';
