@@ -17,6 +17,14 @@ import { listGuestRegisters } from '../../checkin/api/checkin-api';
 import { RejectBookingModal } from '../components/RejectBookingModal';
 import { useOwnerBookingDetail } from '../hooks/useOwnerBookingDetail';
 import { useOwnerBookingActions } from '../hooks/useOwnerBookings';
+import {
+  canOwnerRespond,
+  formatStayRange,
+  getGuestSummary,
+  getPaymentLabel,
+  getStatusLabel,
+  isPrepaidBooking,
+} from '../utils/booking-display';
 
 export function OwnerBookingDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -83,7 +91,11 @@ export function OwnerBookingDetailScreen() {
     );
   }
 
-  const isPending = booking.status === 'PENDING_OWNER_APPROVAL';
+  const canRespond = canOwnerRespond(booking);
+  const isPrepaid = isPrepaidBooking(booking);
+  const isAwaitingOnlinePayment =
+    booking.status === 'PENDING_OWNER_APPROVAL' && !canRespond && !isPrepaid;
+  const totalAmount = Number(booking.totalAmount);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -103,30 +115,74 @@ export function OwnerBookingDetailScreen() {
           <Card.Content style={styles.cardContent}>
             <View style={styles.header}>
               <View style={styles.titleBlock}>
-                <Text variant="headlineSmall">{booking.bookingCode}</Text>
+                <Text variant="headlineSmall">{booking.guestName}</Text>
                 <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
-                  {booking.guestName}
+                  {booking.bookingCode}
                 </Text>
               </View>
-              <Chip>{formatStatus(booking.status)}</Chip>
+              <Chip>{getStatusLabel(booking)}</Chip>
             </View>
-            <Text variant="bodyMedium">Guests: {booking.totalGuests}</Text>
-            <Text variant="bodyMedium">Adults: {booking.numberOfAdults}</Text>
-            <Text variant="bodyMedium">Children: {booking.numberOfChildren}</Text>
+            <Text variant="bodyMedium">Stay: {formatStayRange(booking)}</Text>
             <Text variant="bodyMedium">
-              Stay: {booking.checkInDate} to{' '}
-              {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
+              Room: {booking.roomTypeName}
+              {booking.roomNumber ? ` (Room ${booking.roomNumber})` : ''}
+            </Text>
+            <Text variant="bodyMedium">
+              Guests: {booking.totalGuests} ({getGuestSummary(booking)})
             </Text>
             <Text variant="bodyMedium">
               Special Request: {booking.specialRequest ?? 'No special request'}
             </Text>
-            {booking.ownerResponseDeadline ? (
+            {canRespond && booking.ownerResponseDeadline ? (
               <Text style={{ color: theme.colors.primary }} variant="bodySmall">
                 Respond by {new Date(booking.ownerResponseDeadline).toLocaleString('en-IN')}
               </Text>
             ) : null}
           </Card.Content>
         </Card>
+
+        <Card mode="outlined" style={styles.card}>
+          <Card.Content style={styles.cardContent}>
+            <Text variant="titleMedium">Payment</Text>
+            <Text style={{ color: theme.colors.primary }} variant="titleSmall">
+              {getPaymentLabel(booking.paymentStatus)}
+            </Text>
+            {booking.totalAmount && Number.isFinite(totalAmount) ? (
+              <Text variant="bodyMedium">
+                Total: Rs. {totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </Text>
+            ) : null}
+            {isPrepaid ? (
+              <Text variant="bodyMedium">
+                Prepaid booking. A room is assigned automatically based on availability, so no
+                approval is needed.
+              </Text>
+            ) : null}
+            {canRespond ? (
+              <Text variant="bodyMedium">
+                Cash booking. Accept or reject this request, then collect payment at the lodge.
+              </Text>
+            ) : null}
+            {isAwaitingOnlinePayment ? (
+              <Text variant="bodyMedium">Waiting for the guest&apos;s online payment.</Text>
+            ) : null}
+          </Card.Content>
+        </Card>
+
+        {booking.guests.length > 0 ? (
+          <Card mode="outlined" style={styles.card}>
+            <Card.Content style={styles.cardContent}>
+              <Text variant="titleMedium">Guests</Text>
+              {booking.guests.map((guest) => (
+                <Text key={guest.id} variant="bodyMedium">
+                  {guest.fullName}
+                  {guest.age ? `, ${guest.age}` : ''}
+                  {guest.isPrimaryGuest ? ' (primary)' : ''}
+                </Text>
+              ))}
+            </Card.Content>
+          </Card>
+        ) : null}
 
         <Card mode="outlined" style={styles.card}>
           <Card.Content style={styles.cardContent}>
@@ -176,10 +232,10 @@ export function OwnerBookingDetailScreen() {
 
         <FormErrorBanner message={detail.errorMessage ?? actions.errorMessage} />
 
-        {isPending ? (
+        {canRespond ? (
           <View style={styles.actions}>
             <Button
-              accessibilityHint="Accepts this pending booking request."
+              accessibilityHint="Accepts this pending cash booking request."
               accessibilityLabel={`Accept booking ${booking.bookingCode}`}
               disabled={actions.isOffline || Boolean(actions.submittingBookingId)}
               loading={actions.submittingBookingId === booking.id}
@@ -221,13 +277,6 @@ export function OwnerBookingDetailScreen() {
       </Snackbar>
     </View>
   );
-}
-
-function formatStatus(status: string): string {
-  return status
-    .split('_')
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(' ');
 }
 
 function formatDateTime(value: string): string {
