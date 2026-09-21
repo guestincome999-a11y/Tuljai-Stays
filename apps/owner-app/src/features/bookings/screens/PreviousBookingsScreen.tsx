@@ -84,15 +84,7 @@ export function PreviousBookingsScreen() {
 
       <View style={styles.list}>
         {bookings.data.map((booking) => (
-          <OwnerBookingCard
-            booking={booking}
-            isActionDisabled
-            isSubmitting={false}
-            key={booking.id}
-            onAccept={() => undefined}
-            onOpen={openBooking}
-            onReject={() => undefined}
-          />
+          <OwnerBookingCard booking={booking} key={booking.id} onOpen={openBooking} />
         ))}
       </View>
     </ScrollView>
