@@ -30,6 +30,7 @@ import {
   CreateBookingLockDto,
   OwnerBookingsQueryDto,
   RejectBookingDto,
+  UpdateBookingDatesDto,
   UpdateBookingStatusDto,
 } from './dto/booking.dto';
 import {
@@ -145,6 +146,17 @@ export class BookingsController {
   @Get('owner/bookings/:id')
   public getOwnerBooking(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.bookingsService.getOwnerBookingSummary(id, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Patch('owner/bookings/:id/dates')
+  public updateOwnerBookingDates(
+    @Param('id') id: string,
+    @Body() dto: UpdateBookingDatesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.updateOwnerBookingDates(id, dto, user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
