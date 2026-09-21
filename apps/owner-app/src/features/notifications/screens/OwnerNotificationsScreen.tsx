@@ -18,6 +18,7 @@ import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { OwnerBookingCard } from '../../bookings/components/OwnerBookingCard';
 import { RejectBookingModal } from '../../bookings/components/RejectBookingModal';
 import { useOwnerBookingActions, useOwnerBookings } from '../../bookings/hooks/useOwnerBookings';
+import { canOwnerRespond } from '../../bookings/utils/booking-display';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { useOwnerNotifications } from '../hooks/useOwnerNotifications';
 
@@ -165,7 +166,7 @@ export function OwnerNotificationsScreen() {
             <View style={styles.titleBlock}>
               <Text variant="titleLarge">Pending booking requests</Text>
               <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
-                Accept or reject requests directly from the bell screen.
+                Accept or reject pay at lodge requests directly from the bell screen.
               </Text>
             </View>
             <Chip compact icon="bell-ring-outline">
@@ -182,34 +183,54 @@ export function OwnerNotificationsScreen() {
           ) : null}
 
           <View style={styles.list}>
-            {pendingBookings.data.map((booking) => (
-              <OwnerBookingCard
-                booking={booking}
-                isActionDisabled={isOffline || actions.submittingBookingId === booking.id}
-                isSubmitting={actions.submittingBookingId === booking.id}
-                key={booking.id}
-                onAccept={(selectedBooking) => {
-                  void actions.accept(selectedBooking.id).then((completed) => {
-                    if (completed) {
-                      setResultMessage('Booking accepted successfully.');
-                    }
-                  });
-                }}
-                onOpen={(selectedBooking) => {
-                  router.push({
-                    pathname: '/(app)/bookings/[id]',
-                    params: { id: selectedBooking.id },
-                  });
-                }}
-                onReject={(selectedBooking) =>
-                  setRejectTarget({
-                    bookingCode: selectedBooking.bookingCode,
-                    bookingId: selectedBooking.id,
-                    notificationId: null,
-                  })
-                }
-              />
-            ))}
+            {pendingBookings.data.map((booking) => {
+              const isBusy = isOffline || actions.submittingBookingId === booking.id;
+
+              return (
+                <View key={booking.id} style={styles.pendingItem}>
+                  <OwnerBookingCard
+                    booking={booking}
+                    onOpen={(selectedBooking) => {
+                      router.push({
+                        pathname: '/(app)/bookings/[id]',
+                        params: { id: selectedBooking.id },
+                      });
+                    }}
+                  />
+                  {canOwnerRespond(booking) ? (
+                    <View style={styles.actions}>
+                      <Button
+                        disabled={isBusy}
+                        loading={actions.submittingBookingId === booking.id}
+                        mode="contained"
+                        onPress={() => {
+                          void actions.accept(booking.id).then((completed) => {
+                            if (completed) {
+                              setResultMessage('Booking accepted successfully.');
+                            }
+                          });
+                        }}
+                      >
+                        Accept Booking
+                      </Button>
+                      <Button
+                        disabled={isBusy}
+                        mode="outlined"
+                        onPress={() =>
+                          setRejectTarget({
+                            bookingCode: booking.bookingCode,
+                            bookingId: booking.id,
+                            notificationId: null,
+                          })
+                        }
+                      >
+                        Reject Booking
+                      </Button>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         </View>
       ) : null}
@@ -496,6 +517,9 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: spacing.md,
+  },
+  pendingItem: {
+    gap: spacing.sm,
   },
   pendingSection: {
     gap: spacing.md,
