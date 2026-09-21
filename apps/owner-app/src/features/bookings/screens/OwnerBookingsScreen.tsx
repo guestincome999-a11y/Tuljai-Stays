@@ -14,6 +14,7 @@ import type { OwnerBookingsFilters } from '../hooks/useOwnerBookings';
 import { addDays, formatDateKey, toDateKey } from '../utils/booking-display';
 
 type WhenKey = 'ALL' | 'TODAY' | 'UPCOMING' | 'PAST' | 'CUSTOM';
+type PaymentFilter = 'PAY_AT_LODGE' | 'PREPAID' | null;
 
 interface DateRange {
   from: string;
@@ -23,8 +24,14 @@ interface DateRange {
 const whenFilters: Array<{ key: Exclude<WhenKey, 'CUSTOM'>; label: string }> = [
   { key: 'ALL', label: 'All' },
   { key: 'TODAY', label: 'Today' },
-  { key: 'UPCOMING', label: 'Upcoming' },
+  { key: 'UPCOMING', label: 'Upcoming / Active' },
   { key: 'PAST', label: 'Past' },
+];
+
+const paymentFilters: Array<{ label: string; value: PaymentFilter }> = [
+  { label: 'All', value: null },
+  { label: 'Pay at Lodge', value: 'PAY_AT_LODGE' },
+  { label: 'Prepaid', value: 'PREPAID' },
 ];
 
 const statusFilters: Array<{ label: string; status: BookingStatus | null }> = [
@@ -41,23 +48,35 @@ const statusFilters: Array<{ label: string; status: BookingStatus | null }> = [
   { label: 'No-show', status: 'NO_SHOW' },
 ];
 
-// The date filter applies to the guest's check-in date.
-function resolveFilters(when: WhenKey, customRange: DateRange | null): OwnerBookingsFilters {
+// Today = guests arriving or staying today. Upcoming / Active = stays that have not
+// ended yet (includes guests currently staying). Past = stays that have ended.
+// A picked range filters on the guest's check-in date.
+function resolveFilters(
+  when: WhenKey,
+  customRange: DateRange | null,
+  payment: PaymentFilter,
+): OwnerBookingsFilters {
   const today = new Date();
+  const paymentFilter = payment ? { payment } : {};
 
   switch (when) {
     case 'TODAY':
-      return { checkInFrom: toDateKey(today), checkInTo: toDateKey(today), order: 'asc' };
+      return { ...paymentFilter, date: toDateKey(today) };
     case 'UPCOMING':
-      return { checkInFrom: toDateKey(addDays(today, 1)), order: 'asc' };
+      return { ...paymentFilter, checkOutFrom: toDateKey(today), order: 'asc' };
     case 'PAST':
-      return { checkInTo: toDateKey(addDays(today, -1)), order: 'desc' };
+      return { ...paymentFilter, checkOutTo: toDateKey(addDays(today, -1)), order: 'desc' };
     case 'CUSTOM':
       return customRange
-        ? { checkInFrom: customRange.from, checkInTo: customRange.to, order: 'asc' }
-        : {};
+        ? {
+            ...paymentFilter,
+            checkInFrom: customRange.from,
+            checkInTo: customRange.to,
+            order: 'asc',
+          }
+        : paymentFilter;
     default:
-      return {};
+      return paymentFilter;
   }
 }
 
@@ -74,9 +93,14 @@ export function OwnerBookingsScreen() {
   const [when, setWhen] = useState<WhenKey>('ALL');
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [payment, setPayment] = useState<PaymentFilter>(null);
   const [activeStatus, setActiveStatus] = useState<BookingStatus | null>(null);
   const lodgeId = assignedLodges.selectedLodge?.id ?? null;
-  const bookings = useOwnerBookings(lodgeId, activeStatus, resolveFilters(when, customRange));
+  const bookings = useOwnerBookings(
+    lodgeId,
+    activeStatus,
+    resolveFilters(when, customRange, payment),
+  );
   const refresh = useCallback(() => {
     void bookings.refresh();
   }, [bookings]);
@@ -108,7 +132,7 @@ export function OwnerBookingsScreen() {
 
         <View style={styles.filterGroup}>
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="labelMedium">
-            Check-in date
+            Dates
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.filters}>
@@ -128,6 +152,25 @@ export function OwnerBookingsScreen() {
               >
                 {when === 'CUSTOM' && customRange ? formatRange(customRange) : 'Pick dates'}
               </Chip>
+            </View>
+          </ScrollView>
+        </View>
+
+        <View style={styles.filterGroup}>
+          <Text style={{ color: theme.colors.onSurfaceVariant }} variant="labelMedium">
+            Payment
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.filters}>
+              {paymentFilters.map((filter) => (
+                <Chip
+                  key={filter.label}
+                  onPress={() => setPayment(filter.value)}
+                  selected={payment === filter.value}
+                >
+                  {filter.label}
+                </Chip>
+              ))}
             </View>
           </ScrollView>
         </View>
@@ -164,7 +207,7 @@ export function OwnerBookingsScreen() {
         {!bookings.isLoading && bookings.data.length === 0 ? (
           <EmptyState
             title="No bookings found"
-            description="Try another date range or status. Bookings matching your filters appear here."
+            description="Try other dates, payment or status filters."
             actionLabel="Refresh"
             onActionPress={refresh}
           />
@@ -199,6 +242,7 @@ export function OwnerBookingsScreen() {
           setPickerVisible(false);
         }}
         onCancel={() => setPickerVisible(false)}
+        title="Choose check-in dates"
         visible={pickerVisible}
       />
     </View>
