@@ -8,7 +8,9 @@ import {
   acceptOwnerBooking,
   listOwnerBookings,
   rejectOwnerBooking,
+  updateOwnerBookingDates,
 } from '../api/owner-bookings-api';
+import type { OwnerBookingDatesInput, OwnerBookingsQuery } from '../api/owner-bookings-api';
 
 const PAGE_SIZE = 30;
 
@@ -26,7 +28,11 @@ interface OwnerBookingsState {
 export interface OwnerBookingsFilters {
   checkInFrom?: string;
   checkInTo?: string;
+  checkOutFrom?: string;
+  checkOutTo?: string;
+  date?: string;
   order?: 'asc' | 'desc';
+  payment?: 'PAY_AT_LODGE' | 'PREPAID';
 }
 
 const emptyState: OwnerBookingsState = {
@@ -45,10 +51,27 @@ export function useOwnerBookings(
   status: BookingStatus | null,
   filters: OwnerBookingsFilters = {},
 ) {
-  const { checkInFrom, checkInTo, order } = filters;
+  const { checkInFrom, checkInTo, checkOutFrom, checkOutTo, date, order, payment } = filters;
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
   const [state, setState] = useState<OwnerBookingsState>({ ...emptyState, isLoading: true });
+
+  const buildQuery = useCallback(
+    (page: number): OwnerBookingsQuery => ({
+      checkInFrom,
+      checkInTo,
+      checkOutFrom,
+      checkOutTo,
+      date,
+      limit: PAGE_SIZE,
+      lodgeId: lodgeId ?? undefined,
+      order,
+      page,
+      payment,
+      status: status ?? undefined,
+    }),
+    [checkInFrom, checkInTo, checkOutFrom, checkOutTo, date, lodgeId, order, payment, status],
+  );
 
   const load = useCallback(
     async (refreshing = false) => {
@@ -72,15 +95,7 @@ export function useOwnerBookings(
         return;
       }
       try {
-        const result = await listOwnerBookings({
-          checkInFrom,
-          checkInTo,
-          limit: PAGE_SIZE,
-          lodgeId,
-          order,
-          page: 1,
-          status: status ?? undefined,
-        });
+        const result = await listOwnerBookings(buildQuery(1));
         setState({
           data: result.items,
           errorMessage: null,
@@ -100,30 +115,23 @@ export function useOwnerBookings(
         }));
       }
     },
-    [checkInFrom, checkInTo, isOffline, lodgeId, order, status],
+    [buildQuery, isOffline, lodgeId],
   );
 
   const loadMore = useCallback(async () => {
     if (!lodgeId || isOffline || state.isLoadingMore || state.page >= state.totalPages) {
       return;
     }
-    const nextPage = state.page + 1;
     setState((current) => ({ ...current, errorMessage: null, isLoadingMore: true }));
     try {
-      const result = await listOwnerBookings({
-        checkInFrom,
-        checkInTo,
-        limit: PAGE_SIZE,
-        lodgeId,
-        order,
-        page: nextPage,
-        status: status ?? undefined,
-      });
+      const result = await listOwnerBookings(buildQuery(state.page + 1));
       setState((current) => ({
         ...current,
         data: [
           ...current.data,
-          ...result.items.filter((item) => !current.data.some((existing) => existing.id === item.id)),
+          ...result.items.filter(
+            (item) => !current.data.some((existing) => existing.id === item.id),
+          ),
         ],
         isLoadingMore: false,
         page: result.page,
@@ -137,17 +145,7 @@ export function useOwnerBookings(
         isLoadingMore: false,
       }));
     }
-  }, [
-    checkInFrom,
-    checkInTo,
-    isOffline,
-    lodgeId,
-    order,
-    state.isLoadingMore,
-    state.page,
-    state.totalPages,
-    status,
-  ]);
+  }, [buildQuery, isOffline, lodgeId, state.isLoadingMore, state.page, state.totalPages]);
 
   useEffect(() => {
     void load();
@@ -190,7 +188,10 @@ export function useOwnerBookings(
     return () => clearInterval(interval);
   }, [isOffline, load, lodgeId, realtime.connected]);
 
-  return useMemo(() => ({ ...state, loadMore, refresh: () => load(true) }), [load, loadMore, state]);
+  return useMemo(
+    () => ({ ...state, loadMore, refresh: () => load(true) }),
+    [load, loadMore, state],
+  );
 }
 
 export function useOwnerBookingActions(onCompleted: () => void) {
@@ -247,10 +248,40 @@ export function useOwnerBookingActions(onCompleted: () => void) {
     [isOffline, onCompleted],
   );
 
+  const modifyDates = useCallback(
+    async (bookingId: string, input: OwnerBookingDatesInput) => {
+      if (isOffline) {
+        setErrorMessage('Connect to the internet to change booking dates.');
+        return false;
+      }
+      setSubmittingBookingId(bookingId);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      try {
+        await updateOwnerBookingDates(bookingId, input);
+        setSuccessMessage('Booking dates updated.');
+        onCompleted();
+        return true;
+      } catch (error) {
+        // The backend explains why (room not available, prepaid booking, etc.).
+        setErrorMessage(
+          error instanceof Error && error.message
+            ? error.message
+            : 'Dates could not be changed. Please try again.',
+        );
+        return false;
+      } finally {
+        setSubmittingBookingId(null);
+      }
+    },
+    [isOffline, onCompleted],
+  );
+
   return {
     accept,
     errorMessage,
     isOffline,
+    modifyDates,
     reject,
     setSuccessMessage,
     submittingBookingId,
