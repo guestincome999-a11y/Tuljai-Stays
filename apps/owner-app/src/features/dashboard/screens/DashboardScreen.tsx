@@ -113,6 +113,16 @@ export function DashboardScreen() {
         </View>
       </View>
 
+      <Button
+        accessibilityHint="Opens all bookings with date and status filters."
+        accessibilityLabel="Open owner bookings"
+        icon="clipboard-list-outline"
+        mode="contained"
+        onPress={() => router.push('/(app)/bookings')}
+      >
+        {tr('View Bookings')}
+      </Button>
+
       {announcements.emergencyAnnouncement ? (
         <Card mode="contained" style={styles.card}>
           <Card.Content style={styles.cardContent}>
@@ -244,15 +254,6 @@ export function DashboardScreen() {
       </Card>
 
       <View style={styles.actions}>
-        <Button
-          accessibilityHint="Opens the owner booking list."
-          accessibilityLabel="Open owner bookings"
-          icon="clipboard-list-outline"
-          mode="contained"
-          onPress={() => router.push('/(app)/bookings')}
-        >
-          {tr('View Bookings')}
-        </Button>
         <Button
           accessibilityHint="Opens arrivals, departures, and guest register summary."
           accessibilityLabel="Open register dashboard"
