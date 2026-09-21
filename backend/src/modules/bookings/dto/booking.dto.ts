@@ -53,10 +53,6 @@ export class UpdateBookingStatusDto {
   @IsEnum(BookingStatus) status!: BookingStatus;
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
 }
-export class UpdateBookingDatesDto {
-  @IsDateString() checkInDate!: string;
-  @IsDateString() checkOutDate!: string;
-}
 export class BookingAvailabilityQueryDto {
   @IsDateString() checkInDate!: string;
   @IsDateString() checkOutDate!: string;
