@@ -5,12 +5,20 @@ import { apiClient } from '../../../api/client';
 export interface OwnerBookingsQuery {
   checkInFrom?: string;
   checkInTo?: string;
+  checkOutFrom?: string;
+  checkOutTo?: string;
   date?: string;
   limit?: number;
   lodgeId?: string;
   order?: 'asc' | 'desc';
   page?: number;
+  payment?: 'PAY_AT_LODGE' | 'PREPAID';
   status?: BookingStatus;
+}
+
+export interface OwnerBookingDatesInput {
+  checkInDate: string;
+  checkOutDate: string;
 }
 
 export async function listOwnerBookings(
@@ -31,4 +39,11 @@ export async function acceptOwnerBooking(bookingId: string): Promise<Booking> {
 
 export async function rejectOwnerBooking(bookingId: string, reason: string): Promise<Booking> {
   return apiClient.post<Booking>(`/owner/bookings/${bookingId}/reject`, { reason });
+}
+
+export async function updateOwnerBookingDates(
+  bookingId: string,
+  input: OwnerBookingDatesInput,
+): Promise<OwnerBookingSummary> {
+  return apiClient.patch<OwnerBookingSummary>(`/owner/bookings/${bookingId}/dates`, input);
 }
