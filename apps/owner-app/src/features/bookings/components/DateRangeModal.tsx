@@ -8,10 +8,18 @@ import { formatDateKey, parseDateKey, toDateKey } from '../utils/booking-display
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 interface DateRangeModalProps {
+  applyLabel?: string;
+  hint?: string;
   initialFrom: string | null;
   initialTo: string | null;
+  isSubmitting?: boolean;
   onApply: (from: string, to: string) => void;
   onCancel: () => void;
+  // First day that can be picked (YYYY-MM-DD). Earlier days are disabled.
+  minDate?: string;
+  // When true the end date must be after the start date (a stay, not a single day).
+  requireRange?: boolean;
+  title?: string;
   visible: boolean;
 }
 
@@ -20,10 +28,16 @@ function startOfMonth(date: Date): Date {
 }
 
 export function DateRangeModal({
+  applyLabel = 'Apply',
+  hint = 'Tap a start date, then an end date. Tap one date twice for a single day.',
   initialFrom,
   initialTo,
+  isSubmitting = false,
+  minDate,
   onApply,
   onCancel,
+  requireRange = false,
+  title = 'Choose check-in dates',
   visible,
 }: DateRangeModalProps) {
   const theme = useTheme();
@@ -58,8 +72,13 @@ export function DateRangeModal({
   }, [cursor]);
 
   const rangeEnd = to ?? from;
+  const canApply = Boolean(from) && (!requireRange || Boolean(to && from && to > from));
 
   function selectDay(key: string) {
+    if (minDate && key < minDate) {
+      return;
+    }
+
     if (!from || to) {
       setFrom(key);
       setTo(null);
@@ -68,6 +87,10 @@ export function DateRangeModal({
 
     if (key < from) {
       setFrom(key);
+      return;
+    }
+
+    if (requireRange && key === from) {
       return;
     }
 
@@ -83,9 +106,9 @@ export function DateRangeModal({
       <View style={styles.backdrop}>
         <Card mode="elevated" style={styles.card}>
           <Card.Content style={styles.content}>
-            <Text variant="titleLarge">Choose check-in dates</Text>
+            <Text variant="titleLarge">{title}</Text>
             <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-              Tap a start date, then an end date. Tap one date twice for a single day.
+              {hint}
             </Text>
 
             <View style={styles.monthRow}>
@@ -117,6 +140,7 @@ export function DateRangeModal({
                   return <View key={`blank-${index}`} style={styles.cell} />;
                 }
 
+                const isDisabled = Boolean(minDate && key < minDate);
                 const isEndpoint = key === from || key === rangeEnd;
                 const isInRange = Boolean(from && rangeEnd && key >= from && key <= rangeEnd);
 
@@ -125,12 +149,14 @@ export function DateRangeModal({
                     <Pressable
                       accessibilityLabel={formatDateKey(key)}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: isInRange }}
+                      accessibilityState={{ disabled: isDisabled, selected: isInRange }}
+                      disabled={isDisabled}
                       onPress={() => selectDay(key)}
                       style={[
                         styles.day,
                         isInRange ? { backgroundColor: theme.colors.primaryContainer } : null,
                         isEndpoint ? { backgroundColor: theme.colors.primary } : null,
+                        isDisabled ? styles.dayDisabled : null,
                       ]}
                     >
                       <Text
@@ -160,11 +186,12 @@ export function DateRangeModal({
             </Text>
 
             <View style={styles.actions}>
-              <Button mode="outlined" onPress={onCancel}>
+              <Button disabled={isSubmitting} mode="outlined" onPress={onCancel}>
                 Cancel
               </Button>
               <Button
-                disabled={!from}
+                disabled={!canApply || isSubmitting}
+                loading={isSubmitting}
                 mode="contained"
                 onPress={() => {
                   if (from) {
@@ -172,7 +199,7 @@ export function DateRangeModal({
                   }
                 }}
               >
-                Apply
+                {applyLabel}
               </Button>
             </View>
           </Card.Content>
@@ -212,6 +239,9 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: 'center',
     width: 38,
+  },
+  dayDisabled: {
+    opacity: 0.35,
   },
   grid: {
     flexDirection: 'row',
