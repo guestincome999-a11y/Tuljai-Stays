@@ -14,12 +14,10 @@ import {
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
 import { listGuestRegisters } from '../../checkin/api/checkin-api';
-import { DateRangeModal } from '../components/DateRangeModal';
 import { RejectBookingModal } from '../components/RejectBookingModal';
 import { useOwnerBookingDetail } from '../hooks/useOwnerBookingDetail';
 import { useOwnerBookingActions } from '../hooks/useOwnerBookings';
 import {
-  canOwnerModifyDates,
   canOwnerRespond,
   formatCheckOut,
   formatDateKey,
@@ -30,7 +28,6 @@ import {
   getRoomRequirement,
   getStatusLabel,
   isPrepaidBooking,
-  toDateKey,
 } from '../utils/booking-display';
 
 export function OwnerBookingDetailScreen() {
@@ -40,7 +37,6 @@ export function OwnerBookingDetailScreen() {
   const router = useRouter();
   const theme = useTheme();
   const [rejectVisible, setRejectVisible] = useState(false);
-  const [datesVisible, setDatesVisible] = useState(false);
   const [registerId, setRegisterId] = useState<string | null>(null);
   const actions = useOwnerBookingActions(() => {
     void detail.refresh();
@@ -100,11 +96,9 @@ export function OwnerBookingDetailScreen() {
   }
 
   const canRespond = canOwnerRespond(booking);
-  const canModifyDates = canOwnerModifyDates(booking);
   const isPrepaid = isPrepaidBooking(booking);
   const isAwaitingOnlinePayment =
     booking.status === 'PENDING_OWNER_APPROVAL' && !canRespond && !isPrepaid;
-  const isBusy = actions.isOffline || Boolean(actions.submittingBookingId);
   const totalAmount = Number(booking.totalAmount);
 
   return (
@@ -146,6 +140,9 @@ export function OwnerBookingDetailScreen() {
               Special requirements: {booking.specialRequest ?? 'None'}
             </Text>
             <Text variant="bodyMedium">Check-in status: {getCheckInStatusLabel(booking)}</Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+              Booking dates can only be changed by Tuljai Stays admin on the guest&apos;s request.
+            </Text>
             {canRespond && booking.ownerResponseDeadline ? (
               <Text style={{ color: theme.colors.primary }} variant="bodySmall">
                 Respond by {new Date(booking.ownerResponseDeadline).toLocaleString('en-IN')}
@@ -169,8 +166,7 @@ export function OwnerBookingDetailScreen() {
             {isPrepaid ? (
               <Text variant="bodyMedium">
                 Prepaid booking. A room is assigned automatically based on availability, so it
-                needs no approval. It cannot be rejected or cancelled from here, and its dates
-                can only be changed by Tuljai Stays support.
+                needs no approval and cannot be rejected or cancelled from here.
               </Text>
             ) : null}
             {canRespond ? (
@@ -248,45 +244,29 @@ export function OwnerBookingDetailScreen() {
 
         <FormErrorBanner message={detail.errorMessage ?? actions.errorMessage} />
 
-        {canRespond || canModifyDates ? (
+        {canRespond ? (
           <View style={styles.actions}>
-            {canRespond ? (
-              <>
-                <Button
-                  accessibilityHint="Accepts this pending pay at lodge booking request."
-                  accessibilityLabel={`Accept booking ${booking.bookingCode}`}
-                  disabled={isBusy}
-                  loading={actions.submittingBookingId === booking.id}
-                  mode="contained"
-                  onPress={() => {
-                    void actions.accept(booking.id);
-                  }}
-                >
-                  Accept Booking
-                </Button>
-                <Button
-                  accessibilityHint="Opens the rejection reason form."
-                  accessibilityLabel={`Reject booking ${booking.bookingCode}`}
-                  disabled={isBusy}
-                  mode="outlined"
-                  onPress={() => setRejectVisible(true)}
-                >
-                  Reject Booking
-                </Button>
-              </>
-            ) : null}
-            {canModifyDates ? (
-              <Button
-                accessibilityHint="Opens a calendar to choose new dates. Availability is checked first."
-                accessibilityLabel={`Modify dates for booking ${booking.bookingCode}`}
-                disabled={isBusy}
-                icon="calendar-edit"
-                mode="contained-tonal"
-                onPress={() => setDatesVisible(true)}
-              >
-                Modify Dates
-              </Button>
-            ) : null}
+            <Button
+              accessibilityHint="Accepts this pending pay at lodge booking request."
+              accessibilityLabel={`Accept booking ${booking.bookingCode}`}
+              disabled={actions.isOffline || Boolean(actions.submittingBookingId)}
+              loading={actions.submittingBookingId === booking.id}
+              mode="contained"
+              onPress={() => {
+                void actions.accept(booking.id);
+              }}
+            >
+              Accept Booking
+            </Button>
+            <Button
+              accessibilityHint="Opens the rejection reason form."
+              accessibilityLabel={`Reject booking ${booking.bookingCode}`}
+              disabled={actions.isOffline || Boolean(actions.submittingBookingId)}
+              mode="outlined"
+              onPress={() => setRejectVisible(true)}
+            >
+              Reject Booking
+            </Button>
           </View>
         ) : null}
       </ScrollView>
@@ -299,23 +279,6 @@ export function OwnerBookingDetailScreen() {
         onConfirm={(reason) => {
           void actions.reject(booking.id, reason);
         }}
-      />
-      <DateRangeModal
-        applyLabel="Change dates"
-        hint="Tap the new check-in date, then the new check-out date. Availability is checked before the change is saved."
-        initialFrom={booking.checkInDate}
-        initialTo={booking.checkOutDate}
-        isSubmitting={actions.submittingBookingId === booking.id}
-        minDate={toDateKey(new Date())}
-        onApply={(from, to) => {
-          void actions
-            .modifyDates(booking.id, { checkInDate: from, checkOutDate: to })
-            .then(() => setDatesVisible(false));
-        }}
-        onCancel={() => setDatesVisible(false)}
-        requireRange
-        title="Modify dates"
-        visible={datesVisible}
       />
       <Snackbar
         onDismiss={() => actions.setSuccessMessage(null)}
