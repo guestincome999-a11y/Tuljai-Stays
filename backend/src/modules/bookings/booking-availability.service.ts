@@ -14,6 +14,9 @@ export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
 const BLOCKING_ROOM_STATUSES: RoomStatus[] = ['OCCUPIED', 'MAINTENANCE', 'BLOCKED'];
 
 interface AvailabilityOptions {
+  // Ignore this booking when counting conflicts, so an existing booking does
+  // not block its own date change.
+  excludeBookingId?: string;
   excludeLockId?: string;
 }
 
@@ -52,6 +55,7 @@ export class BookingAvailabilityService {
     const availableRoomCount = await this.countAvailableRooms({
       checkInDate,
       checkOutDate,
+      excludeBookingId: options.excludeBookingId,
       excludeLockId: options.excludeLockId,
       lodgeId,
       roomTypeId,
@@ -129,6 +133,7 @@ export class BookingAvailabilityService {
   public async isRoomAvailable(input: {
     checkInDate: Date;
     checkOutDate: Date;
+    excludeBookingId?: string;
     roomId: string;
   }): Promise<boolean> {
     return !(await this.hasRoomConflict(input));
@@ -137,6 +142,7 @@ export class BookingAvailabilityService {
   private async countAvailableRooms(input: {
     checkInDate: Date;
     checkOutDate: Date;
+    excludeBookingId?: string;
     excludeLockId?: string;
     lodgeId: string;
     roomTypeId: string;
@@ -158,6 +164,7 @@ export class BookingAvailabilityService {
       const hasConflict = await this.hasRoomConflict({
         checkInDate: input.checkInDate,
         checkOutDate: input.checkOutDate,
+        excludeBookingId: input.excludeBookingId,
         excludeLockId: input.excludeLockId,
         roomId: room.id,
       });
@@ -173,6 +180,7 @@ export class BookingAvailabilityService {
           checkInDate: { lt: input.checkOutDate },
           checkOutDate: { gt: input.checkInDate },
           deletedAt: null,
+          id: input.excludeBookingId ? { not: input.excludeBookingId } : undefined,
           lodgeId: input.lodgeId,
           roomId: null,
           roomTypeId: input.roomTypeId,
@@ -199,6 +207,7 @@ export class BookingAvailabilityService {
   private async hasRoomConflict(input: {
     checkInDate: Date;
     checkOutDate: Date;
+    excludeBookingId?: string;
     excludeLockId?: string;
     roomId: string;
   }): Promise<boolean> {
@@ -212,6 +221,7 @@ export class BookingAvailabilityService {
         where: {
           ...overlapWhere,
           deletedAt: null,
+          id: input.excludeBookingId ? { not: input.excludeBookingId } : undefined,
           roomId: input.roomId,
           status: { in: ACTIVE_BOOKING_STATUSES },
         },
