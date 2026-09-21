@@ -32,11 +32,16 @@ import type {
   CreateBookingDto,
   OwnerBookingsQueryDto,
   RejectBookingDto,
+  UpdateBookingDatesDto,
   UpdateBookingStatusDto,
 } from './dto/booking.dto';
 import { GuestIdProofService } from './guest-id-proof.service';
 
 const OWNER_VISIBLE_CONTACT_STATUSES: BookingStatus[] = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'];
+
+// Owners may only change the dates of a pay-at-lodge booking, and only until
+// the guest has a QR / has checked in.
+const OWNER_DATE_CHANGE_STATUSES: BookingStatus[] = ['PENDING_OWNER_APPROVAL', 'ACCEPTED'];
 
 // Statuses at which a pilgrim's booking counts as an "active upcoming
 // stay" for the purpose of releasing lodge contact details: the lodge has
@@ -542,13 +547,34 @@ export class BookingsService {
       await this.lodgeAccessService.assertCanManageLodge(user, query.lodgeId);
     }
 
-    const checkInFrom = query.checkInFrom
-      ? this.availabilityService.parseDateOnly(query.checkInFrom)
-      : null;
-    const checkInTo = query.checkInTo ? this.availabilityService.parseDateOnly(query.checkInTo) : null;
+    const checkInFrom = this.parseOptionalDate(query.checkInFrom);
+    const checkInTo = this.parseOptionalDate(query.checkInTo);
+    const checkOutFrom = this.parseOptionalDate(query.checkOutFrom);
+    const checkOutTo = this.parseOptionalDate(query.checkOutTo);
 
     if (checkInFrom && checkInTo && checkInFrom > checkInTo) {
       throw new BadRequestException('checkInFrom must not be after checkInTo');
+    }
+    if (checkOutFrom && checkOutTo && checkOutFrom > checkOutTo) {
+      throw new BadRequestException('checkOutFrom must not be after checkOutTo');
+    }
+
+    const rangeFilters: Prisma.BookingWhereInput[] = [];
+    if (checkInFrom || checkInTo) {
+      rangeFilters.push({
+        checkInDate: {
+          ...(checkInFrom ? { gte: checkInFrom } : {}),
+          ...(checkInTo ? { lte: checkInTo } : {}),
+        },
+      });
+    }
+    if (checkOutFrom || checkOutTo) {
+      rangeFilters.push({
+        checkOutDate: {
+          ...(checkOutFrom ? { gte: checkOutFrom } : {}),
+          ...(checkOutTo ? { lte: checkOutTo } : {}),
+        },
+      });
     }
 
     const pagination = normalizePagination(query.page, query.limit);
@@ -556,24 +582,17 @@ export class BookingsService {
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
       ...(query.lodgeId ? { lodgeId: query.lodgeId } : {}),
+      ...(query.payment === 'PAY_AT_LODGE' ? { paymentStatus: PaymentStatus.PAY_AT_LODGE } : {}),
+      ...(query.payment === 'PREPAID'
+        ? { paymentStatus: { in: [PaymentStatus.ADVANCE_PAID, PaymentStatus.FULLY_PAID] } }
+        : {}),
       ...(query.date
         ? {
             checkInDate: { lte: this.availabilityService.parseDateOnly(query.date) },
             checkOutDate: { gt: this.availabilityService.parseDateOnly(query.date) },
           }
         : {}),
-      ...(checkInFrom || checkInTo
-        ? {
-            AND: [
-              {
-                checkInDate: {
-                  ...(checkInFrom ? { gte: checkInFrom } : {}),
-                  ...(checkInTo ? { lte: checkInTo } : {}),
-                },
-              },
-            ],
-          }
-        : {}),
+      ...(rangeFilters.length > 0 ? { AND: rangeFilters } : {}),
       ...(this.lodgeAccessService.isAdmin(user)
         ? {}
         : {
@@ -592,7 +611,7 @@ export class BookingsService {
       this.prisma.booking.findMany({
         include: this.bookingInclude,
         orderBy:
-          checkInFrom || checkInTo
+          rangeFilters.length > 0
             ? [{ checkInDate: query.order ?? 'desc' }, { createdAt: 'desc' }]
             : { createdAt: 'desc' },
         skip: pagination.skip,
@@ -728,6 +747,118 @@ export class BookingsService {
     await this.notificationEventsService.bookingRejected(id);
 
     return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
+  }
+
+  /**
+   * Owner date change. Only pay-at-lodge bookings that are still pending or
+   * accepted (not yet checked in) can be changed, and the new dates must pass
+   * the same inventory check used at booking time — the booking itself is
+   * ignored so it does not block its own change. The total is recalculated
+   * from the room type's base price. Prepaid bookings are never changed here
+   * because a date change can alter the amount already paid.
+   */
+  public async updateOwnerBookingDates(
+    id: string,
+    dto: UpdateBookingDatesDto,
+    user: AuthenticatedUser,
+  ): Promise<OwnerBookingSummary> {
+    const existing = await this.findBookingOrThrow(id);
+    await this.lodgeAccessService.assertCanManageLodge(user, existing.lodgeId);
+
+    if (existing.paymentStatus !== PaymentStatus.PAY_AT_LODGE) {
+      throw new ForbiddenException(
+        'Owners can only change dates of pay-at-lodge bookings. For prepaid bookings, please contact Tuljai Stays support.',
+      );
+    }
+
+    if (!OWNER_DATE_CHANGE_STATUSES.includes(existing.status)) {
+      throw new BadRequestException('Dates can only be changed before check-in');
+    }
+
+    const { checkInDate, checkOutDate } = this.availabilityService.parseDateRange(
+      dto.checkInDate,
+      dto.checkOutDate,
+    );
+    const today = this.availabilityService.parseDateOnly(new Date().toISOString());
+
+    if (checkInDate < today) {
+      throw new BadRequestException('Check-in date cannot be in the past');
+    }
+
+    if (
+      checkInDate.getTime() === existing.checkInDate.getTime() &&
+      checkOutDate.getTime() === existing.checkOutDate.getTime()
+    ) {
+      throw new BadRequestException('Choose different dates to make a change');
+    }
+
+    if (existing.roomId) {
+      const isRoomFree = await this.availabilityService.isRoomAvailable({
+        checkInDate,
+        checkOutDate,
+        excludeBookingId: existing.id,
+        roomId: existing.roomId,
+      });
+
+      if (!isRoomFree) {
+        throw new ConflictException('The assigned room is not available for those dates');
+      }
+    } else {
+      const availability = await this.availabilityService.getAvailability(
+        existing.lodgeId,
+        existing.roomTypeId,
+        dto.checkInDate,
+        dto.checkOutDate,
+        { excludeBookingId: existing.id },
+      );
+
+      if (!availability.available) {
+        throw new ConflictException('No room of this type is available for those dates');
+      }
+    }
+
+    const previousRange = `${existing.checkInDate.toISOString().slice(0, 10)} to ${existing.checkOutDate
+      .toISOString()
+      .slice(0, 10)}`;
+    const newRange = `${checkInDate.toISOString().slice(0, 10)} to ${checkOutDate
+      .toISOString()
+      .slice(0, 10)}`;
+    const booking = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.update({
+        data: {
+          checkInDate,
+          checkOutDate,
+          totalAmount: this.calculateBaseTotalAmount(
+            existing.roomType.basePrice,
+            checkInDate,
+            checkOutDate,
+          ),
+        },
+        include: this.bookingInclude,
+        where: { id },
+      });
+      await tx.bookingHistory.create({
+        data: {
+          action: 'BOOKING_DATES_CHANGED',
+          actorUserId: user.id,
+          bookingId: id,
+          fromStatus: existing.status,
+          notes: `Dates changed by owner from ${previousRange} to ${newRange}`,
+          toStatus: existing.status,
+        },
+      });
+
+      return updated;
+    });
+
+    await this.auditLogService.create({
+      action: 'BOOKING_DATES_CHANGED',
+      actorUserId: user.id,
+      entityId: id,
+      entityType: 'booking',
+    });
+
+    return this.toOwnerBookingSummary(booking);
   }
 
   public async listAdminBookings(
@@ -923,6 +1054,10 @@ export class BookingsService {
     const seconds = this.configService.get<number>('api.booking.ownerResponseDeadlineSeconds', 120);
 
     return new Date(Date.now() + seconds * 1000);
+  }
+
+  private parseOptionalDate(value: string | undefined): Date | null {
+    return value ? this.availabilityService.parseDateOnly(value) : null;
   }
 
   private shouldMaskContactForUser(
