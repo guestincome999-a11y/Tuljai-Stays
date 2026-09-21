@@ -53,6 +53,10 @@ export class UpdateBookingStatusDto {
   @IsEnum(BookingStatus) status!: BookingStatus;
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
 }
+export class UpdateBookingDatesDto {
+  @IsDateString() checkInDate!: string;
+  @IsDateString() checkOutDate!: string;
+}
 export class BookingAvailabilityQueryDto {
   @IsDateString() checkInDate!: string;
   @IsDateString() checkOutDate!: string;
@@ -63,6 +67,9 @@ export class OwnerBookingsQueryDto {
   @IsDateString() @IsOptional() date?: string;
   @IsDateString() @IsOptional() checkInFrom?: string;
   @IsDateString() @IsOptional() checkInTo?: string;
+  @IsDateString() @IsOptional() checkOutFrom?: string;
+  @IsDateString() @IsOptional() checkOutTo?: string;
+  @IsIn(['PAY_AT_LODGE', 'PREPAID']) @IsOptional() payment?: 'PAY_AT_LODGE' | 'PREPAID';
   @IsIn(['asc', 'desc']) @IsOptional() order?: 'asc' | 'desc';
   @Type(() => Number) @IsInt() @IsOptional() @Min(1) page?: number;
   @Type(() => Number) @IsInt() @IsOptional() @Min(1) @Max(100) limit?: number;
