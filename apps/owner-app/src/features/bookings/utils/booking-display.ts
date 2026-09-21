@@ -2,6 +2,8 @@ import type { OwnerBookingSummary, PaymentStatus } from '@tuljai/types';
 
 type BookingLike = Pick<OwnerBookingSummary, 'paymentStatus' | 'status'>;
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const PREPAID_PAYMENT_STATUSES: PaymentStatus[] = ['ADVANCE_PAID', 'FULLY_PAID'];
 
 const PAYMENT_LABELS: Record<PaymentStatus, string> = {
@@ -12,6 +14,16 @@ const PAYMENT_LABELS: Record<PaymentStatus, string> = {
   PAY_AT_LODGE: 'Pay at lodge (cash)',
   PENDING: 'Online payment pending',
   REFUNDED: 'Refunded',
+};
+
+const PAYMENT_METHOD_LABELS: Record<PaymentStatus, string> = {
+  ADVANCE_PAID: 'Prepaid',
+  FAILED: 'Prepaid (payment failed)',
+  FULLY_PAID: 'Prepaid',
+  NOT_REQUIRED: 'No payment required',
+  PAY_AT_LODGE: 'Pay at Lodge',
+  PENDING: 'Prepaid (awaiting payment)',
+  REFUNDED: 'Prepaid (refunded)',
 };
 
 export function isPrepaidBooking(booking: BookingLike): boolean {
@@ -28,6 +40,14 @@ export function isCashBooking(booking: BookingLike): boolean {
  */
 export function canOwnerRespond(booking: BookingLike): boolean {
   return booking.status === 'PENDING_OWNER_APPROVAL' && isCashBooking(booking);
+}
+
+/**
+ * Owners may change dates only for pay-at-lodge bookings that are pending or
+ * accepted. The backend enforces the same rule and re-checks availability.
+ */
+export function canOwnerModifyDates(booking: BookingLike): boolean {
+  return isCashBooking(booking) && ['PENDING_OWNER_APPROVAL', 'ACCEPTED'].includes(booking.status);
 }
 
 export function getStatusLabel(booking: BookingLike): string {
@@ -51,8 +71,24 @@ export function getStatusLabel(booking: BookingLike): string {
     .join(' ');
 }
 
+export function getCheckInStatusLabel(booking: Pick<OwnerBookingSummary, 'status'>): string {
+  if (booking.status === 'CHECKED_IN') {
+    return 'Checked in';
+  }
+
+  if (booking.status === 'CHECKED_OUT' || booking.status === 'COMPLETED') {
+    return 'Checked in and out';
+  }
+
+  return 'Not checked in';
+}
+
 export function getPaymentLabel(paymentStatus: PaymentStatus): string {
   return PAYMENT_LABELS[paymentStatus];
+}
+
+export function getPaymentMethodLabel(paymentStatus: PaymentStatus): string {
+  return PAYMENT_METHOD_LABELS[paymentStatus];
 }
 
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
@@ -69,8 +105,9 @@ export function getGuestSummary(booking: OwnerBookingSummary): string {
   return parts.join(', ');
 }
 
-export function getRoomRequirement(booking: OwnerBookingSummary): string {
-  return `1 × ${booking.roomTypeName} · ${getGuestSummary(booking)}`;
+// One booking always reserves exactly one room of the requested type.
+export function getRoomRequirement(booking: Pick<OwnerBookingSummary, 'roomTypeName'>): string {
+  return `1 × ${booking.roomTypeName}`;
 }
 
 export function toDateKey(date: Date): string {
@@ -91,15 +128,15 @@ export function addDays(date: Date, days: number): Date {
 }
 
 export function formatDateKey(value: string): string {
-  return parseDateKey(value).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const date = parseDateKey(value);
+
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+export function formatCheckOut(booking: OwnerBookingSummary): string {
+  return booking.checkoutDateFlexible ? 'Not fixed' : formatDateKey(booking.checkOutDate);
 }
 
 export function formatStayRange(booking: OwnerBookingSummary): string {
-  const checkOut = booking.checkoutDateFlexible ? 'not fixed' : formatDateKey(booking.checkOutDate);
-
-  return `${formatDateKey(booking.checkInDate)} → ${checkOut}`;
+  return `${formatDateKey(booking.checkInDate)} → ${formatCheckOut(booking)}`;
 }
