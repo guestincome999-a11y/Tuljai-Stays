@@ -5,8 +5,9 @@ import { StyleSheet, View } from 'react-native';
 import { Card, Chip, Text, useTheme } from 'react-native-paper';
 
 import {
-  formatStayRange,
-  getPaymentLabel,
+  formatCheckOut,
+  formatDateKey,
+  getPaymentMethodLabel,
   getRoomRequirement,
   getStatusLabel,
 } from '../utils/booking-display';
@@ -16,6 +17,7 @@ interface OwnerBookingCardProps {
   onOpen: (booking: OwnerBookingSummary) => void;
 }
 
+// Intentionally minimal: no phone, email, WhatsApp, ID documents or address.
 export const OwnerBookingCard = memo(function OwnerBookingCard({
   booking,
   onOpen,
@@ -25,7 +27,7 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
   return (
     <Card
       accessibilityHint="Opens the full booking details."
-      accessibilityLabel={`Booking for ${booking.guestName}, ${formatStayRange(booking)}`}
+      accessibilityLabel={`Booking for ${booking.guestName}`}
       mode="outlined"
       onPress={() => onOpen(booking)}
       style={styles.card}
@@ -37,12 +39,13 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
           </Text>
           <Chip compact>{getStatusLabel(booking)}</Chip>
         </View>
-        <Text variant="bodyMedium">{formatStayRange(booking)}</Text>
-        <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
-          {getRoomRequirement(booking)}
+        <Text variant="bodyMedium">Check-in: {formatDateKey(booking.checkInDate)}</Text>
+        <Text variant="bodyMedium">Check-out: {formatCheckOut(booking)}</Text>
+        <Text style={{ color: theme.colors.primary }} variant="bodyMedium">
+          Payment: {getPaymentMethodLabel(booking.paymentStatus)}
         </Text>
-        <Text style={{ color: theme.colors.primary }} variant="labelLarge">
-          {getPaymentLabel(booking.paymentStatus)}
+        <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
+          Requirement: {getRoomRequirement(booking)}
         </Text>
       </Card.Content>
     </Card>
