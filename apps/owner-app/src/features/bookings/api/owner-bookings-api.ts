@@ -16,11 +16,6 @@ export interface OwnerBookingsQuery {
   status?: BookingStatus;
 }
 
-export interface OwnerBookingDatesInput {
-  checkInDate: string;
-  checkOutDate: string;
-}
-
 export async function listOwnerBookings(
   query: OwnerBookingsQuery,
 ): Promise<PaginatedResponse<OwnerBookingSummary>> {
@@ -39,11 +34,4 @@ export async function acceptOwnerBooking(bookingId: string): Promise<Booking> {
 
 export async function rejectOwnerBooking(bookingId: string, reason: string): Promise<Booking> {
   return apiClient.post<Booking>(`/owner/bookings/${bookingId}/reject`, { reason });
-}
-
-export async function updateOwnerBookingDates(
-  bookingId: string,
-  input: OwnerBookingDatesInput,
-): Promise<OwnerBookingSummary> {
-  return apiClient.patch<OwnerBookingSummary>(`/owner/bookings/${bookingId}/dates`, input);
 }
