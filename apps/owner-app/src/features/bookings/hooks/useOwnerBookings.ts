@@ -4,13 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { getEventBookingId } from '../../../realtime/realtime-events';
 import { useRealtime } from '../../../realtime/realtime-provider';
-import {
-  acceptOwnerBooking,
-  listOwnerBookings,
-  rejectOwnerBooking,
-  updateOwnerBookingDates,
-} from '../api/owner-bookings-api';
-import type { OwnerBookingDatesInput, OwnerBookingsQuery } from '../api/owner-bookings-api';
+import { acceptOwnerBooking, listOwnerBookings, rejectOwnerBooking } from '../api/owner-bookings-api';
+import type { OwnerBookingsQuery } from '../api/owner-bookings-api';
 
 const PAGE_SIZE = 30;
 
@@ -248,40 +243,10 @@ export function useOwnerBookingActions(onCompleted: () => void) {
     [isOffline, onCompleted],
   );
 
-  const modifyDates = useCallback(
-    async (bookingId: string, input: OwnerBookingDatesInput) => {
-      if (isOffline) {
-        setErrorMessage('Connect to the internet to change booking dates.');
-        return false;
-      }
-      setSubmittingBookingId(bookingId);
-      setErrorMessage(null);
-      setSuccessMessage(null);
-      try {
-        await updateOwnerBookingDates(bookingId, input);
-        setSuccessMessage('Booking dates updated.');
-        onCompleted();
-        return true;
-      } catch (error) {
-        // The backend explains why (room not available, prepaid booking, etc.).
-        setErrorMessage(
-          error instanceof Error && error.message
-            ? error.message
-            : 'Dates could not be changed. Please try again.',
-        );
-        return false;
-      } finally {
-        setSubmittingBookingId(null);
-      }
-    },
-    [isOffline, onCompleted],
-  );
-
   return {
     accept,
     errorMessage,
     isOffline,
-    modifyDates,
     reject,
     setSuccessMessage,
     submittingBookingId,
