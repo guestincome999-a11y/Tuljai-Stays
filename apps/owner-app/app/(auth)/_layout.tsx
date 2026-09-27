@@ -10,7 +10,8 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="verify-otp" options={{ title: 'Verify OTP' }} />
+      <Stack.Screen name="forgot-password" options={{ title: 'Reset password' }} />
+      <Stack.Screen name="reset-password" options={{ title: 'Reset password' }} />
       <Stack.Screen name="register-lodge" options={{ headerShown: false }} />
       <Stack.Screen name="pending-approval" options={{ headerShown: false }} />
     </Stack>
