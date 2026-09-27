@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { requestOwnerLoginOtp } from '../../src/auth/auth-api';
 import { useAuth } from '../../src/auth/auth-context';
 import { LanguagePill, PrimaryButton, Screen } from '../../src/owner-ui/components';
 import { LegalDocument, type LegalDocumentKind } from '../../src/owner-ui/legal-documents';
@@ -16,7 +15,9 @@ export default function LoginScreen() {
   const router = useRouter();
   const auth = useAuth();
   const { t } = useOwnerApp();
-  const [phone, setPhone] = useState(process.env.EXPO_PUBLIC_OWNER_PREVIEW_PHONE ?? '');
+  const [email, setEmail] = useState(process.env.EXPO_PUBLIC_OWNER_PREVIEW_EMAIL ?? '');
+  const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -28,7 +29,7 @@ export default function LoginScreen() {
     setLegalOpen(true);
   }
 
-  async function continueToOtp() {
+  async function signIn() {
     if (!agreedToTerms) {
       setError(
         t(
@@ -39,34 +40,28 @@ export default function LoginScreen() {
       return;
     }
 
-    const digits = phone.replace(/\D/g, '');
+    const trimmedEmail = email.trim();
 
-    if (!/^[6-9]\d{9}$/.test(digits)) {
-      setError(t('Enter a valid 10-digit mobile number.', 'वैध १० अंकी मोबाईल नंबर टाका.'));
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError(t('Enter a valid email address.', 'वैध ईमेल पत्ता टाका.'));
+      return;
+    }
+
+    if (!password) {
+      setError(t('Enter your password.', 'तुमचा पासवर्ड टाका.'));
       return;
     }
 
     setIsSubmitting(true);
     setError('');
-    const phoneNumber = `+91${digits}`;
 
     try {
-      const response = await requestOwnerLoginOtp(phoneNumber);
-      router.push({
-        pathname: '/(auth)/verify-otp',
-        params: {
-          phone: phoneNumber,
-          ...(response.otpForTesting ? { testingOtp: response.otpForTesting } : {}),
-        },
-      });
-    } catch (requestError) {
+      await auth.signInWithPassword(trimmedEmail, password);
+    } catch (signInError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : t(
-              'OTP could not be sent. Please try again.',
-              'OTP पाठवता आला नाही. पुन्हा प्रयत्न करा.',
-            ),
+        signInError instanceof Error
+          ? signInError.message
+          : t('Sign in failed. Please try again.', 'साइन इन अयशस्वी. पुन्हा प्रयत्न करा.'),
       );
     } finally {
       setIsSubmitting(false);
@@ -97,34 +92,83 @@ export default function LoginScreen() {
         <View className="gap-5 rounded-2xl border border-warm-200 bg-white p-5">
           <View className="gap-1">
             <Text className="font-heading text-2xl font-bold text-warm-900">
-              {t('Welcome', 'नमस्कार')}
+              {t('Welcome back', 'पुन्हा स्वागत आहे')}
             </Text>
             <Text className="font-body text-base leading-6 text-warm-600">
               {t(
-                'Enter your registered mobile number to manage your lodge.',
-                'तुमचे लॉज व्यवस्थापित करण्यासाठी नोंदणीकृत मोबाईल नंबर टाका.',
+                'Sign in with your email and password to manage your lodge.',
+                'तुमचे लॉज व्यवस्थापित करण्यासाठी ईमेल आणि पासवर्डने साइन इन करा.',
               )}
             </Text>
           </View>
+
           <View className="gap-2">
             <Text className="font-body text-sm font-bold text-warm-700">
-              {t('Mobile number', 'मोबाईल नंबर')}
+              {t('Email', 'ईमेल')}
             </Text>
             <View className="min-h-14 flex-row items-center rounded-xl border border-warm-300 bg-warm-50 px-4">
-              <Text className="font-body text-base font-bold text-warm-700">+91</Text>
-              <View className="mx-3 h-7 w-px bg-warm-300" />
               <TextInput
-                accessibilityLabel="Mobile number"
-                className="flex-1 font-body text-lg text-warm-900"
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={phone}
+                accessibilityLabel="Email"
+                autoCapitalize="none"
+                autoComplete="email"
+                className="flex-1 font-body text-base text-warm-900"
+                keyboardType="email-address"
+                textContentType="username"
+                value={email}
                 onChangeText={(value) => {
-                  setPhone(value.replace(/\D/g, ''));
+                  setEmail(value);
                   setError('');
                 }}
               />
             </View>
+          </View>
+
+          <View className="gap-2">
+            <Text className="font-body text-sm font-bold text-warm-700">
+              {t('Password', 'पासवर्ड')}
+            </Text>
+            <View className="min-h-14 flex-row items-center rounded-xl border border-warm-300 bg-warm-50 px-4">
+              <TextInput
+                accessibilityLabel="Password"
+                autoCapitalize="none"
+                autoComplete="password"
+                className="flex-1 font-body text-base text-warm-900"
+                secureTextEntry={!isPasswordVisible}
+                textContentType="password"
+                value={password}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setError('');
+                }}
+              />
+              <Pressable
+                accessibilityLabel={
+                  isPasswordVisible
+                    ? t('Hide password', 'पासवर्ड लपवा')
+                    : t('Show password', 'पासवर्ड दाखवा')
+                }
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setIsPasswordVisible((value) => !value)}
+              >
+                <MaterialCommunityIcons
+                  color="#8A7B6C"
+                  name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+                  size={22}
+                />
+              </Pressable>
+            </View>
+            <Pressable
+              accessibilityLabel={t('Forgot password?', 'पासवर्ड विसरलात?')}
+              accessibilityRole="button"
+              className="self-end"
+              hitSlop={8}
+              onPress={() => router.push('/(auth)/forgot-password')}
+            >
+              <Text className="font-body text-sm font-bold text-maroon-700">
+                {t('Forgot password?', 'पासवर्ड विसरलात?')}
+              </Text>
+            </Pressable>
             {error ? <Text className="font-body text-sm text-danger-500">{error}</Text> : null}
           </View>
 
@@ -174,14 +218,14 @@ export default function LoginScreen() {
             disabled={isSubmitting || !agreedToTerms}
             icon="arrow-right"
             label={
-              isSubmitting ? t('Sending OTP...', 'OTP पाठवत आहे...') : t('Get OTP', 'OTP मिळवा')
+              isSubmitting ? t('Signing in...', 'साइन इन करत आहे...') : t('Sign in', 'साइन इन करा')
             }
-            onPress={() => void continueToOtp()}
+            onPress={() => void signIn()}
           />
           <Text className="text-center font-body text-xs leading-5 text-warm-500">
             {t(
-              'Use the number registered with your approved owner account.',
-              'तुमच्या मंजूर मालक खात्याशी नोंदणीकृत नंबर वापरा.',
+              'Use the email registered with your approved owner account.',
+              'तुमच्या मंजूर मालक खात्याशी नोंदणीकृत ईमेल वापरा.',
             )}
           </Text>
           {auth.accessDeniedMessage ? (
