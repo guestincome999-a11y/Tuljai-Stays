@@ -1,34 +1,37 @@
 import type {
   LogoutRequest,
+  OwnerForgotPasswordResponse,
+  OwnerLoginResponse,
+  OwnerResetPasswordResponse,
   RefreshTokenResponse,
-  RequestOtpResponse,
-  VerifyOtpResponse,
 } from '@tuljai/types';
 
 import { apiClient } from '../api/client';
 import { getDeviceName, getDevicePlatform, getOrCreateDeviceId } from '../device/device-identity';
 
-export async function requestOwnerLoginOtp(phoneNumber: string): Promise<RequestOtpResponse> {
-  return apiClient.post<RequestOtpResponse>('/auth/request-otp', {
-    appType: 'OWNER_APP',
-    phoneNumber,
-    purpose: 'LOGIN',
+export async function ownerLogin(email: string, password: string): Promise<OwnerLoginResponse> {
+  const deviceId = await getOrCreateDeviceId();
+
+  return apiClient.post<OwnerLoginResponse>('/auth/owner/login', {
+    deviceId,
+    deviceName: getDeviceName(),
+    email,
+    password,
+    platform: getDevicePlatform(),
   });
 }
 
-export async function verifyOwnerLoginOtp(
-  phoneNumber: string,
-  otp: string,
-): Promise<VerifyOtpResponse> {
-  const deviceId = await getOrCreateDeviceId();
+export async function ownerForgotPassword(email: string): Promise<OwnerForgotPasswordResponse> {
+  return apiClient.post<OwnerForgotPasswordResponse>('/auth/owner/forgot-password', { email });
+}
 
-  return apiClient.post<VerifyOtpResponse>('/auth/verify-otp', {
-    appType: 'OWNER_APP',
-    deviceId,
-    deviceName: getDeviceName(),
-    otp,
-    phoneNumber,
-    platform: getDevicePlatform(),
+export async function ownerResetPassword(
+  token: string,
+  newPassword: string,
+): Promise<OwnerResetPasswordResponse> {
+  return apiClient.post<OwnerResetPasswordResponse>('/auth/owner/reset-password', {
+    newPassword,
+    token,
   });
 }
 
