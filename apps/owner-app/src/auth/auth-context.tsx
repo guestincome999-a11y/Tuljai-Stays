@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { apiClient, setOwnerSessionExpiredHandler } from '../api/client';
 
-import { logoutFromApi, refreshAccessToken, verifyOwnerLoginOtp } from './auth-api';
+import { logoutFromApi, ownerLogin, refreshAccessToken } from './auth-api';
 import {
   clearAuthSession,
   restoreAuthSession,
@@ -23,7 +23,7 @@ interface AuthContextValue {
   logout(): Promise<void>;
   refreshSession: () => Promise<string | null>;
   session: AuthSession;
-  signInWithOtp(phoneNumber: string, otp: string): Promise<void>;
+  signInWithPassword(email: string, password: string): Promise<void>;
   user: AuthUserProfile | null;
 }
 
@@ -100,15 +100,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signInWithOtp = useCallback(
-    async (phoneNumber: string, otp: string) => {
-      const response = await verifyOwnerLoginOtp(phoneNumber, otp);
+  const signInWithPassword = useCallback(
+    async (email: string, password: string) => {
+      const response = await ownerLogin(email, password);
 
       if (!hasAllowedOwnerRole(response.user)) {
         await clearAuthSession();
         setSession(emptyAuthSession);
         setAccessDeniedMessage(
-          'This number is not registered as a lodge owner. Please contact Tuljai Stays admin.',
+          'This account is not registered as a lodge owner. Please contact Tuljai Stays admin.',
         );
         router.replace('/(auth)/login');
         return;
@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshSession,
       session,
-      signInWithOtp,
+      signInWithPassword,
       user: session.user,
     }),
     [
@@ -188,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshSession,
       session,
-      signInWithOtp,
+      signInWithPassword,
     ],
   );
 
