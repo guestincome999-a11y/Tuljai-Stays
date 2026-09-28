@@ -91,6 +91,50 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   BOOKING_SHOW_OWNER_PHONE_AFTER_ACCEPTED?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  OWNER_PASSWORD_RESET_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  OWNER_PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  OWNER_PASSWORD_RESET_RATE_LIMIT_MAX_REQUESTS?: number;
+
+  @IsOptional()
+  @IsString()
+  OWNER_PASSWORD_RESET_DEEP_LINK?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_HOST?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  SMTP_PORT?: number;
+
+  @IsOptional()
+  @IsString()
+  SMTP_SECURE?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASS?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_FROM?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {

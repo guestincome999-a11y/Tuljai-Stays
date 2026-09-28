@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsEmail,
   IsIn,
   IsNotEmpty,
   IsOptional,
@@ -136,4 +137,57 @@ export class UpdateProfileDto {
   @MinLength(2)
   @MaxLength(120)
   displayName!: string;
+}
+
+// At least one letter and one digit, 8-72 characters. Kept deliberately simple
+// (no special-character mandate) to avoid pushing owners into "password
+// theatre" while still ruling out purely numeric or trivially short passwords.
+const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
+
+export class OwnerLoginDto {
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  deviceId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deviceName?: string;
+
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  fcmToken?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  password!: string;
+
+  @IsIn(platforms)
+  platform!: (typeof platforms)[number];
+}
+
+export class OwnerForgotPasswordDto {
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+}
+
+export class OwnerResetPasswordDto {
+  @Matches(passwordPattern, {
+    message:
+      'Password must be 8-72 characters and include at least one letter and one number.',
+  })
+  newPassword!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(512)
+  token!: string;
 }

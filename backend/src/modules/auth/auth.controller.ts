@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type {
   AuthUserProfile,
+  OwnerForgotPasswordResponse,
+  OwnerLoginResponse,
+  OwnerResetPasswordResponse,
   RefreshTokenResponse,
   RequestOtpResponse,
   VerifyOtpResponse,
@@ -12,6 +15,9 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import {
   GoogleLoginDto,
   LogoutDto,
+  OwnerForgotPasswordDto,
+  OwnerLoginDto,
+  OwnerResetPasswordDto,
   RefreshTokenDto,
   RegisterDeviceTokenDto,
   RequestOtpDto,
@@ -48,6 +54,29 @@ export class AuthController {
     @Req() request: FastifyRequest,
   ): Promise<VerifyOtpResponse> {
     return this.authService.signInWithGoogle(dto, this.getRequestContext(request));
+  }
+
+  @Post('owner/login')
+  public ownerLogin(
+    @Body() dto: OwnerLoginDto,
+    @Req() request: FastifyRequest,
+  ): Promise<OwnerLoginResponse> {
+    return this.authService.ownerLogin(dto, this.getRequestContext(request));
+  }
+
+  @Post('owner/forgot-password')
+  public ownerForgotPassword(
+    @Body() dto: OwnerForgotPasswordDto,
+    @Req() request: FastifyRequest,
+  ): Promise<OwnerForgotPasswordResponse> {
+    return this.authService.ownerForgotPassword(dto, this.getRequestContext(request));
+  }
+
+  @Post('owner/reset-password')
+  public ownerResetPassword(
+    @Body() dto: OwnerResetPasswordDto,
+  ): Promise<OwnerResetPasswordResponse> {
+    return this.authService.ownerResetPassword(dto);
   }
 
   @Post('refresh-token')

@@ -15,6 +15,7 @@ enum UserRole {
 
 enum AuthProvider {
   GOOGLE
+  PASSWORD
 }
 
 enum OtpPurpose {
@@ -265,6 +266,10 @@ enum ReviewReportStatus {
 model User {
   id                       String                    @id @default(uuid()) @db.Uuid
   phoneNumber              String?                   @unique @map("phone_number")
+  /// Login identifier for password-based auth (currently owner app only).
+  /// Distinct from AuthIdentity.email, which records provider-supplied
+  /// emails (e.g. Google) and can vary per identity.
+  email                    String?                   @unique
   displayName              String?                   @map("display_name")
   roles                    UserRole[]                @default([PILGRIM])
   isActive                 Boolean                   @default(true) @map("is_active")
@@ -304,8 +309,10 @@ model User {
   reviewReports            ReviewReport[]            @relation("ReportedReviews")
   reviewedReviewReports    ReviewReport[]            @relation("ReviewedReviewReports")
   authIdentities           AuthIdentity[]
+  passwordResetTokens      PasswordResetToken[]
 
   @@index([phoneNumber])
+  @@index([email])
   @@index([isActive])
   @@index([deletedAt])
   @@map("users")
@@ -317,6 +324,9 @@ model AuthIdentity {
   provider        AuthProvider
   providerSubject String       @map("provider_subject")
   email           String?
+  /// scrypt hash ("salt:hash" hex, matching AuthService's hashSecret/verifySecret helpers)
+  /// of the account password. Only ever set when provider = PASSWORD.
+  passwordHash    String?      @map("password_hash")
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -325,6 +335,30 @@ model AuthIdentity {
   @@index([userId])
   @@index([email])
   @@map("auth_identities")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  /// The exact (normalized, lowercased) email the reset was requested for.
+  /// Captured at request time rather than re-read from User/AuthIdentity at
+  /// consumption time, so a later profile change can't retarget a live token.
+  email      String
+  /// sha256 hex digest of the raw reset token (same hashing approach as
+  /// RefreshToken.tokenHash), so the raw token is never stored at rest.
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  ipAddress  String?   @map("ip_address")
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([consumedAt])
+  @@map("password_reset_tokens")
 }
 
 model City {
@@ -505,7 +539,7 @@ model LodgeAmenity {
   id        String   @id @default(uuid()) @db.Uuid
   lodgeId   String   @map("lodge_id") @db.Uuid
   amenityId String   @map("amenity_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now())
   lodge     Lodge    @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
   amenity   Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
 

@@ -54,4 +54,25 @@ export const appConfig = registerAs('api', () => ({
     storageBucket: process.env.SUPABASE_STORAGE_BUCKET ?? 'tuljai-stays',
     lodgePhotosBucket: process.env.SUPABASE_LODGE_PHOTOS_BUCKET ?? 'lodge-photos',
   },
+  ownerAuth: {
+    passwordResetTtlSeconds: Number(process.env.OWNER_PASSWORD_RESET_TTL_SECONDS ?? 1800),
+    passwordResetRateLimitWindowSeconds: Number(
+      process.env.OWNER_PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS ?? 900,
+    ),
+    passwordResetRateLimitMaxRequests: Number(
+      process.env.OWNER_PASSWORD_RESET_RATE_LIMIT_MAX_REQUESTS ?? 3,
+    ),
+    // Deep link into the Owner App's reset-password screen (scheme "tuljaistays-owner",
+    // see apps/owner-app/app.json). The raw reset token is appended as ?token=...
+    resetPasswordDeepLink:
+      process.env.OWNER_PASSWORD_RESET_DEEP_LINK ?? 'tuljaistays-owner://reset-password',
+  },
+  smtp: {
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    fromAddress: process.env.SMTP_FROM ?? 'Tuljai Stays <tuljaistays@gmail.com>',
+  },
 }));
