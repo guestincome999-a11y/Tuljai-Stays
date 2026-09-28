@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Snackbar } from 'react-native-paper';
 
 import { useAuth } from '../auth/auth-context';
-import { FeedbackPrompt } from '../pilgrim-ui/components/FeedbackPrompt';
 
 import { createRealtimeSocket, type RealtimeSocket } from './realtime-client';
 import {
@@ -58,7 +57,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [lastBookingEvent, setLastBookingEvent] = useState<PilgrimRealtimeEvent | null>(null);
   const [lastEvent, setLastEvent] = useState<PilgrimRealtimeEvent | null>(null);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
-  const [feedbackBookingId, setFeedbackBookingId] = useState<string | null>(null);
   const accessToken = auth.session.tokens?.accessToken ?? null;
 
   useEffect(() => {
@@ -99,9 +97,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         if (bookingEventNames.has(eventName)) setLastBookingEvent(event);
         const message = getRealtimeMessage(event);
         if (message) setSnackbarMessage(message);
-        if (eventName === 'checkout:completed' && typeof event.payload.bookingId === 'string') {
-          setFeedbackBookingId(event.payload.bookingId);
-        }
       });
     }
 
@@ -122,9 +117,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       <Snackbar onDismiss={() => setSnackbarMessage(null)} visible={Boolean(snackbarMessage)}>
         {snackbarMessage}
       </Snackbar>
-      {feedbackBookingId ? (
-        <FeedbackPrompt bookingId={feedbackBookingId} onClose={() => setFeedbackBookingId(null)} />
-      ) : null}
     </RealtimeContext.Provider>
   );
 }

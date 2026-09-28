@@ -11,6 +11,7 @@ import { PilgrimPushNotifications } from '../src/notifications/PilgrimPushNotifi
 import { PilgrimAppProvider } from '../src/pilgrim-ui/PilgrimAppProvider';
 import { RealtimeProvider } from '../src/realtime/realtime-provider';
 import { pilgrimLightTheme } from '../src/theme/pilgrim-theme';
+import { PilgrimFontSwitcher } from '../src/theme/PilgrimFontSwitcher';
 
 import '../global.css';
 
@@ -26,20 +27,22 @@ export default function RootLayout() {
           <AuthProvider>
             <RealtimeProvider>
               <PilgrimAppProvider>
-                <PilgrimPushNotifications />
-                <StatusBar style="dark" />
-                <OfflineBanner />
-                <Stack
-                  screenOptions={{
-                    contentStyle: { backgroundColor: theme.colors.background },
-                    headerShown: false,
-                  }}
-                >
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(app)" />
-                  <Stack.Screen name="auth/google" />
-                </Stack>
+                <PilgrimFontSwitcher>
+                  <PilgrimPushNotifications />
+                  <StatusBar style="dark" />
+                  <OfflineBanner />
+                  <Stack
+                    screenOptions={{
+                      contentStyle: { backgroundColor: theme.colors.background },
+                      headerShown: false,
+                    }}
+                  >
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(app)" />
+                    <Stack.Screen name="auth/google" />
+                  </Stack>
+                </PilgrimFontSwitcher>
               </PilgrimAppProvider>
             </RealtimeProvider>
           </AuthProvider>

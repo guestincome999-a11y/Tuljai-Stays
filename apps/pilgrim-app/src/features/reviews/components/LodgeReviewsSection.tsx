@@ -109,8 +109,12 @@ export function LodgeReviewsSection({ lodgeId }: { lodgeId: string }) {
       </View>
 
       {reviewableBookingId ? (
-        <SecondaryButton className="mt-4 self-start" onPress={() => setPromptVisible(true)}>
-          {t('Write a review', 'अभिप्राय लिहा')}
+        <SecondaryButton
+          className="mt-4 min-h-16 w-full"
+          icon="star"
+          onPress={() => setPromptVisible(true)}
+        >
+          {t('Rate & review this lodge', 'या लॉजला रेटिंग व अभिप्राय द्या')}
         </SecondaryButton>
       ) : null}
 

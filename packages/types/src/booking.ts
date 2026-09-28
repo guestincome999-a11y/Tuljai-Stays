@@ -148,6 +148,8 @@ export interface AvailabilityResponse {
 }
 
 export interface OwnerBookingSummary extends Booking {
+  /** Unsettled portion of this booking's eligible commission ledger row. */
+  commissionOutstandingAmount?: string;
   lodgeName: string;
   roomNumber: string | null;
   roomTypeName: string;

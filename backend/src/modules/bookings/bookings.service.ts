@@ -616,8 +616,15 @@ export class BookingsService {
       this.prisma.booking.count({ where }),
     ]);
 
+    const outstandingByBookingId = await this.getOutstandingCommissionByBookingId(
+      items.map((booking) => booking.id),
+    );
+
     return {
-      items: items.map((booking) => this.toOwnerBookingSummary(booking)),
+      items: items.map((booking) => ({
+        ...this.toOwnerBookingSummary(booking),
+        commissionOutstandingAmount: outstandingByBookingId.get(booking.id) ?? '0',
+      })),
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalItems,
@@ -1059,5 +1066,29 @@ export class BookingsService {
       roomNumber: booking.room?.roomNumber ?? null,
       roomTypeName: booking.roomType.name,
     };
+  }
+
+  private async getOutstandingCommissionByBookingId(
+    bookingIds: string[],
+  ): Promise<Map<string, string>> {
+    if (bookingIds.length === 0) return new Map();
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{ bookingId: string; outstandingAmount: string }>
+    >(Prisma.sql`
+      SELECT
+        l.booking_id AS "bookingId",
+        GREATEST(l.commission_amount - COALESCE(a.allocated_amount, 0), 0)::text AS "outstandingAmount"
+      FROM lodge_commission_ledger l
+      LEFT JOIN (
+        SELECT ledger_id, SUM(amount) AS allocated_amount
+        FROM lodge_commission_settlement_allocations
+        GROUP BY ledger_id
+      ) a ON a.ledger_id = l.id
+      WHERE l.booking_id IN (${Prisma.join(bookingIds.map((id) => Prisma.sql`${id}::uuid`))})
+        AND l.status <> 'VOIDED'
+    `);
+
+    return new Map(rows.map((row) => [row.bookingId, row.outstandingAmount]));
   }
 }

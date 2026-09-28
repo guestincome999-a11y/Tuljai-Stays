@@ -1,6 +1,8 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { OwnerDashboardSummary } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
+import type { ComponentProps } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
@@ -210,23 +212,28 @@ export function DashboardScreen() {
         </Card.Content>
       </Card>
 
-      <Card
-        accessibilityHint="Opens commission and settlement history for this lodge."
-        accessibilityLabel="Open commission payable and settlement history"
-        mode="contained"
-        onPress={() => router.push('/(app)/reports')}
-        style={styles.card}
-      >
-        <Card.Content style={styles.cardContent}>
-          <Text variant="titleMedium">{tr('Commission Payable')}</Text>
-          <Text style={{ color: theme.colors.primary }} variant="headlineSmall">
-            Rs. {dashboard.data ? formatMoney(dashboard.data.estimatedCommission) : '0'}
-          </Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-            {tr('Commission owed on eligible bookings. Tap to view the ledger and settlement history.')}
-          </Text>
-        </Card.Content>
-      </Card>
+      <View style={styles.financeGrid}>
+        <FinanceCard
+          accessibilityHint="Opens all bookings that make up your income."
+          icon="hand-coin-outline"
+          label="Total Income"
+          onPress={() => router.push('/(app)/bookings')}
+          subtitle="Eligible booking income received by your lodge"
+          value={dashboard.data ? formatMoney(dashboard.data.totalIncome) : '0'}
+          variant="income"
+        />
+        <FinanceCard
+          accessibilityHint="Opens the commission payment history recorded by Tuljai Stays."
+          icon="hand-extended-outline"
+          label={tr('Commission Payable')}
+          onPress={() =>
+            router.push({ pathname: '/(app)/reports', params: { view: 'settlements' } })
+          }
+          subtitle="Outstanding until Tuljai Stays records settlement"
+          value={dashboard.data ? formatMoney(dashboard.data.commissionPayable) : '0'}
+          variant="payable"
+        />
+      </View>
 
       <View style={styles.statGrid}>
         {stats.map((item) => (
@@ -277,6 +284,45 @@ export function DashboardScreen() {
   );
 }
 
+function FinanceCard({
+  accessibilityHint,
+  icon,
+  label,
+  onPress,
+  subtitle,
+  value,
+  variant,
+}: {
+  accessibilityHint: string;
+  icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
+  label: string;
+  onPress: () => void;
+  subtitle: string;
+  value: string;
+  variant: 'income' | 'payable';
+}) {
+  const colors = variant === 'income' ? financeColors.income : financeColors.payable;
+
+  return (
+    <Card
+      accessibilityHint={accessibilityHint}
+      accessibilityLabel={`${label}, Rs. ${value}`}
+      mode="contained"
+      onPress={onPress}
+      style={[styles.financeCard, { backgroundColor: colors.background }]}
+    >
+      <Card.Content style={styles.financeContent}>
+        <View style={[styles.financeIcon, { backgroundColor: colors.iconBackground }]}>
+          <MaterialCommunityIcons color={colors.icon} name={icon} size={27} />
+        </View>
+        <Text style={[styles.financeLabel, { color: colors.label }]}>{label}</Text>
+        <Text style={[styles.financeValue, { color: colors.value }]}>Rs. {value}</Text>
+        <Text style={[styles.financeSubtitle, { color: colors.subtitle }]}>{subtitle}</Text>
+      </Card.Content>
+    </Card>
+  );
+}
+
 function ReceptionRows({
   registers,
   title,
@@ -324,8 +370,6 @@ function getDashboardStats(
       { label: tr('Available Rooms'), value: '0' },
       { label: tr('Occupied Rooms'), value: '0' },
       { label: tr('Maintenance'), value: '0' },
-      { label: tr('Estimated Revenue'), value: 'Rs. 0' },
-      { label: tr('Estimated Commission'), value: 'Rs. 0' },
       { label: tr('Average Rating'), value: '-' },
       { label: tr('Unread Notifications'), value: '0' },
     ];
@@ -339,8 +383,6 @@ function getDashboardStats(
     { label: tr('Available Rooms'), value: String(summary.availableRooms) },
     { label: tr('Occupied Rooms'), value: String(summary.occupiedRooms) },
     { label: tr('Maintenance'), value: String(summary.roomsUnderMaintenance) },
-    { label: tr('Estimated Revenue'), value: `Rs. ${formatMoney(summary.estimatedRevenue)}` },
-    { label: tr('Estimated Commission'), value: `Rs. ${formatMoney(summary.estimatedCommission)}` },
     { label: tr('Average Rating'), value: summary.averageRating?.toFixed(1) ?? '-' },
     { label: tr('Unread Notifications'), value: String(summary.recentNotifications.length) },
   ];
@@ -390,6 +432,42 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     gap: spacing.sm,
+  },
+  financeCard: {
+    borderRadius: radius.lg,
+    flex: 1,
+    minWidth: 156,
+  },
+  financeContent: {
+    gap: spacing.xs,
+    minHeight: 192,
+  },
+  financeGrid: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  financeIcon: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderRadius: radius.full,
+    height: 46,
+    justifyContent: 'center',
+    width: 46,
+  },
+  financeLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: spacing.xs,
+  },
+  financeSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  financeValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    lineHeight: 31,
   },
   center: {
     alignItems: 'center',
@@ -448,3 +526,22 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
 });
+
+const financeColors = {
+  income: {
+    background: '#E3F8FA',
+    icon: '#047C91',
+    iconBackground: '#C4F0F5',
+    label: '#075B6A',
+    subtitle: '#397481',
+    value: '#023E4A',
+  },
+  payable: {
+    background: '#D3F3F7',
+    icon: '#006E83',
+    iconBackground: '#B4EAF1',
+    label: '#075B6A',
+    subtitle: '#397481',
+    value: '#023E4A',
+  },
+} as const;

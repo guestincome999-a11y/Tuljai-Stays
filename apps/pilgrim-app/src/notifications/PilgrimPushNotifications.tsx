@@ -62,6 +62,14 @@ export function PilgrimPushNotifications() {
       return;
     }
 
+    if (type === 'CHECKOUT_COMPLETED' && readString(data.action) === 'RATE_AND_REVIEW' && bookingId) {
+      router.push({
+        pathname: '/(app)/notifications',
+        params: { feedbackBookingId: bookingId },
+      });
+      return;
+    }
+
     if (bookingId) {
       router.push({
         pathname: '/(app)/bookings/[id]',

@@ -64,6 +64,8 @@ export interface OwnerDashboardSummary {
   availableRooms: number;
   averageRating: number | null;
   checkedInGuests: number;
+  /** Commission that remains unallocated in the immutable lodge settlement ledger. */
+  commissionPayable: string;
   estimatedCommission: string;
   estimatedRevenue: string;
   lodgesManaged: number;
@@ -72,6 +74,8 @@ export interface OwnerDashboardSummary {
   pendingPhotoApprovals: number;
   recentNotifications: unknown[];
   roomsUnderMaintenance: number;
+  /** Eligible booking value from the same non-voided ledger rows as commission payable. */
+  totalIncome: string;
   todayBookings: number;
   todayCheckOuts: number;
 }

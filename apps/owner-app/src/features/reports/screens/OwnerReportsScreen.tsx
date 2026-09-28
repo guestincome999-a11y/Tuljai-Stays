@@ -1,5 +1,6 @@
 import type { BookingReportRow, LodgeCommissionTransaction } from '@tuljai/types';
 import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { useLocalSearchParams } from 'expo-router';
 import { memo } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Card, Chip, Divider, Text, useTheme } from 'react-native-paper';
@@ -10,6 +11,8 @@ import { useOwnerReports } from '../hooks/useOwnerReports';
 export function OwnerReportsScreen() {
   const reports = useOwnerReports();
   const theme = useTheme();
+  const { view } = useLocalSearchParams<{ view?: string }>();
+  const settlementsOnly = view === 'settlements';
   const commission = reports.summary.estimatedCommission;
   const finance = reports.commissionFinance;
 
@@ -27,40 +30,49 @@ export function OwnerReportsScreen() {
       }
     >
       <View style={styles.header}>
-        <Text variant="headlineSmall">Owner Reports</Text>
+        <Text variant="headlineSmall">
+          {settlementsOnly ? 'Commission payment history' : 'Owner Reports'}
+        </Text>
         <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
-          {reports.selectedLodge?.name ?? 'Assigned lodges'} - operational and finance reports
+          {settlementsOnly
+            ? 'Payments recorded as settled by Tuljai Stays'
+            : `${reports.selectedLodge?.name ?? 'Assigned lodges'} - operational and finance reports`}
         </Text>
       </View>
 
-      <View style={styles.summaryGrid}>
-        <SummaryCard label="Today's Bookings" value={reports.summary.todayBookings.toString()} />
-        <SummaryCard label="This Week" value={reports.summary.thisWeekBookings.toString()} />
-        <SummaryCard label="Occupancy" value={`${reports.summary.occupancyEstimate}%`} />
-        <SummaryCard
-          label="Estimated Revenue"
-          value={`Rs. ${reports.summary.estimatedRevenue.toLocaleString('en-IN')}`}
-        />
-        <SummaryCard
-          label="Commission Payable"
-          value={`Rs. ${commission.toLocaleString('en-IN')}`}
-        />
-        <SummaryCard label="Completed" value={reports.summary.completedBookings.toString()} />
-        <SummaryCard
-          label="Cancelled/Rejected"
-          value={reports.summary.cancelledOrRejectedBookings.toString()}
-        />
-        <SummaryCard label="Check-ins/outs" value={reports.summary.checkInsCheckouts} />
-      </View>
+      {!settlementsOnly ? (
+        <View style={styles.summaryGrid}>
+          <SummaryCard label="Today's Bookings" value={reports.summary.todayBookings.toString()} />
+          <SummaryCard label="This Week" value={reports.summary.thisWeekBookings.toString()} />
+          <SummaryCard label="Occupancy" value={`${reports.summary.occupancyEstimate}%`} />
+          <SummaryCard
+            label="Estimated Revenue"
+            value={`Rs. ${reports.summary.estimatedRevenue.toLocaleString('en-IN')}`}
+          />
+          <SummaryCard
+            label="Commission Payable"
+            value={`Rs. ${commission.toLocaleString('en-IN')}`}
+          />
+          <SummaryCard label="Completed" value={reports.summary.completedBookings.toString()} />
+          <SummaryCard
+            label="Cancelled/Rejected"
+            value={reports.summary.cancelledOrRejectedBookings.toString()}
+          />
+          <SummaryCard label="Check-ins/outs" value={reports.summary.checkInsCheckouts} />
+        </View>
+      ) : null}
 
       <Card mode="outlined" style={styles.commissionCard}>
         <Card.Content style={styles.commissionContent}>
           <View style={styles.commissionHeader}>
             <View style={styles.titleBlock}>
-              <Text variant="titleLarge">Commission & Settlement</Text>
+              <Text variant="titleLarge">
+                {settlementsOnly ? 'Settled commission payments' : 'Commission & Settlement'}
+              </Text>
               <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                A transparent view of what is payable to Tuljai Stays, what has been settled, and
-                which bookings generated the commission.
+                {settlementsOnly
+                  ? 'This is a read-only record of commission payments marked settled by Tuljai Stays.'
+                  : 'A transparent view of what is payable to Tuljai Stays, what has been settled, and which bookings generated the commission.'}
               </Text>
             </View>
             <Chip icon="cash-check">
@@ -68,40 +80,46 @@ export function OwnerReportsScreen() {
             </Chip>
           </View>
 
-          <View style={styles.commissionGrid}>
-            <CommissionDetail
-              label="Total Commission"
-              value={`Rs. ${formatMoney(finance?.summary.commissionReceivable)}`}
-            />
-            <CommissionDetail
-              label="Outstanding / Payable"
-              value={`Rs. ${formatMoney(finance?.summary.outstanding)}`}
-            />
-            <CommissionDetail
-              label="Settled"
-              value={`Rs. ${formatMoney(finance?.summary.settled)}`}
-            />
-            <CommissionDetail
-              label="Recorded Settlements"
-              value={`Rs. ${formatMoney(finance?.summary.totalSettlements)}`}
-            />
-          </View>
+          {!settlementsOnly ? (
+            <View style={styles.commissionGrid}>
+              <CommissionDetail
+                label="Total Commission"
+                value={`Rs. ${formatMoney(finance?.summary.commissionReceivable)}`}
+              />
+              <CommissionDetail
+                label="Outstanding / Payable"
+                value={`Rs. ${formatMoney(finance?.summary.outstanding)}`}
+              />
+              <CommissionDetail
+                label="Settled"
+                value={`Rs. ${formatMoney(finance?.summary.settled)}`}
+              />
+              <CommissionDetail
+                label="Recorded Settlements"
+                value={`Rs. ${formatMoney(finance?.summary.totalSettlements)}`}
+              />
+            </View>
+          ) : null}
 
           {finance ? (
             <>
-              <Divider />
-              <Text variant="titleMedium">Commission transactions</Text>
-              {finance.transactions.length === 0 ? (
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  No commission transactions have been created yet.
-                </Text>
-              ) : (
-                finance.transactions
-                  .slice(0, 30)
-                  .map((transaction) => (
-                    <CommissionTransactionRow key={transaction.id} transaction={transaction} />
-                  ))
-              )}
+              {!settlementsOnly ? (
+                <>
+                  <Divider />
+                  <Text variant="titleMedium">Commission transactions</Text>
+                  {finance.transactions.length === 0 ? (
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                      No commission transactions have been created yet.
+                    </Text>
+                  ) : (
+                    finance.transactions
+                      .slice(0, 30)
+                      .map((transaction) => (
+                        <CommissionTransactionRow key={transaction.id} transaction={transaction} />
+                      ))
+                  )}
+                </>
+              ) : null}
 
               <Divider />
               <Text variant="titleMedium">Settlement history</Text>
@@ -137,15 +155,19 @@ export function OwnerReportsScreen() {
 
       {reports.isLoading ? <ActivityIndicator animating size="large" /> : null}
 
-      {!reports.isLoading && reports.bookingRows.length === 0 ? (
+      {!settlementsOnly && !reports.isLoading && reports.bookingRows.length === 0 ? (
         <EmptyState
           title="No report rows"
           description="Booking and register report rows will appear here when available."
         />
       ) : null}
 
-      <ReportTable title="Booking Report" rows={reports.bookingRows} />
-      <ReportTable title="Register Report" rows={reports.registerRows} />
+      {!settlementsOnly ? (
+        <>
+          <ReportTable title="Booking Report" rows={reports.bookingRows} />
+          <ReportTable title="Register Report" rows={reports.registerRows} />
+        </>
+      ) : null}
     </ScrollView>
   );
 }

@@ -239,7 +239,9 @@ function mapRoomType(roomType: RoomType, fallback?: PilgrimLodge): PilgrimRoom {
 }
 
 function mapNotification(notification: ApiNotification): PilgrimNotification {
+  const action = notification.data?.action === 'RATE_AND_REVIEW' ? 'RATE_AND_REVIEW' : undefined;
   return {
+    action,
     body: notification.body,
     bookingId: notification.bookingId ?? undefined,
     id: notification.id,

@@ -60,6 +60,7 @@ export interface PilgrimBooking {
 }
 
 export interface PilgrimNotification {
+  action?: 'RATE_AND_REVIEW';
   body: string;
   bookingId?: string;
   id: string;

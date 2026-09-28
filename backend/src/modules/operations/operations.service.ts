@@ -112,12 +112,30 @@ export class OperationsService {
     const lodgeIds = await this.getOwnerLodgeIds(user);
     const today = this.todayRange();
     const where = { deletedAt: null, lodgeId: { in: lodgeIds } } satisfies Prisma.BookingWhereInput;
-    const [revenue, commission, rating, recentNotifications] = await Promise.all([
+    const [revenue, commission, financeRows, rating, recentNotifications] = await Promise.all([
       this.prisma.booking.aggregate({ _sum: { totalAmount: true }, where }),
       this.prisma.booking.aggregate({
         _sum: { commissionAmount: true },
         where: { ...where, AND: [this.commissionEligibleWhere] },
       }),
+      lodgeIds.length === 0
+        ? Promise.resolve([{ commissionPayable: '0', totalIncome: '0' }])
+        : this.prisma.$queryRaw<
+            Array<{ commissionPayable: string; totalIncome: string }>
+          >(Prisma.sql`
+            SELECT
+              COALESCE(SUM(COALESCE(b.total_amount, 0)), 0)::text AS "totalIncome",
+              COALESCE(SUM(GREATEST(l.commission_amount - COALESCE(a.allocated_amount, 0), 0)), 0)::text AS "commissionPayable"
+            FROM lodge_commission_ledger l
+            INNER JOIN bookings b ON b.id = l.booking_id
+            LEFT JOIN (
+              SELECT ledger_id, SUM(amount) AS allocated_amount
+              FROM lodge_commission_settlement_allocations
+              GROUP BY ledger_id
+            ) a ON a.ledger_id = l.id
+            WHERE l.lodge_id IN (${Prisma.join(lodgeIds.map((id) => Prisma.sql`${id}::uuid`))})
+              AND l.status <> 'VOIDED'
+          `),
       this.prisma.review.aggregate({
         _avg: { rating: true },
         where: { deletedAt: null, lodgeId: { in: lodgeIds }, status: 'PUBLISHED' },
@@ -128,6 +146,8 @@ export class OperationsService {
         where: { deletedAt: null, recipientUserId: user.id },
       }),
     ]);
+
+    const finance = financeRows[0] ?? { commissionPayable: '0', totalIncome: '0' };
 
     return {
       acceptedBookings: await this.prisma.booking.count({
@@ -140,6 +160,7 @@ export class OperationsService {
       checkedInGuests: await this.prisma.booking.count({
         where: { ...where, status: 'CHECKED_IN' },
       }),
+      commissionPayable: finance.commissionPayable,
       estimatedCommission: commission._sum.commissionAmount?.toString() ?? '0',
       estimatedRevenue: revenue._sum.totalAmount?.toString() ?? '0',
       lodgesManaged: lodgeIds.length,
@@ -156,6 +177,7 @@ export class OperationsService {
       roomsUnderMaintenance: await this.prisma.room.count({
         where: { deletedAt: null, lodgeId: { in: lodgeIds }, status: 'MAINTENANCE' },
       }),
+      totalIncome: finance.totalIncome,
       todayBookings: await this.prisma.booking.count({ where: { ...where, createdAt: today } }),
       todayCheckOuts: await this.prisma.booking.count({ where: { ...where, checkedOutAt: today } }),
     };

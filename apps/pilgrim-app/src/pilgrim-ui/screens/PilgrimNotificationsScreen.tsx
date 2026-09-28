@@ -1,8 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { AppScreen, EmptyState, TopBar, ui, type PilgrimIconName } from '../components';
+import { FeedbackPrompt } from '../components/FeedbackPrompt';
 import type { PilgrimNotification } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
@@ -15,11 +17,21 @@ const notificationIcon: Record<string, PilgrimIconName> = {
 
 export function PilgrimNotificationsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ feedbackBookingId?: string }>();
   const { markNotificationRead, markNotificationsRead, notifications, t } = usePilgrimApp();
   const hasUnread = notifications.some((item) => !item.read);
+  const [feedbackBookingId, setFeedbackBookingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (params.feedbackBookingId) setFeedbackBookingId(params.feedbackBookingId);
+  }, [params.feedbackBookingId]);
 
   async function openNotification(item: PilgrimNotification) {
     await markNotificationRead(item.id);
+    if (item.action === 'RATE_AND_REVIEW' && item.bookingId) {
+      setFeedbackBookingId(item.bookingId);
+      return;
+    }
     if (item.bookingId) {
       router.push({ pathname: '/(app)/bookings/[id]', params: { id: item.bookingId } });
       return;
@@ -106,6 +118,9 @@ export function PilgrimNotificationsScreen() {
           )}
         </Text>
       </View>
+      {feedbackBookingId ? (
+        <FeedbackPrompt bookingId={feedbackBookingId} onClose={() => setFeedbackBookingId(null)} />
+      ) : null}
     </AppScreen>
   );
 }

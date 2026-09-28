@@ -47,6 +47,11 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
         <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
           Requirement: {getRoomRequirement(booking)}
         </Text>
+        {Number(booking.commissionOutstandingAmount ?? 0) > 0 ? (
+          <Text style={[styles.commission, { color: theme.colors.primary }]} variant="labelMedium">
+            Commission due - Rs. {formatMoney(booking.commissionOutstandingAmount ?? null)}
+          </Text>
+        ) : null}
       </Card.Content>
     </Card>
   );
@@ -59,6 +64,10 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.xs,
   },
+  commission: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.xs,
+  },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -70,3 +79,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
 });
+
+function formatMoney(value: string | null): string {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric)
+    ? numeric.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+    : '0';
+}

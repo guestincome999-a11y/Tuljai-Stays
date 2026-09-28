@@ -1,37 +1,35 @@
 :root {
   color-scheme: light;
-  --color-background: #f7f5f2;
+  --color-background: #f4f7fb;
   --color-surface: #ffffff;
-  --color-surface-muted: #f4eee6;
-  --color-surface-subtle: #faf7f2;
-
-  /* Brand: saffron-orange primary + maroon secondary accent.
-     Values mirror packages/ui/src/theme/tokens.ts (palette.saffron / palette.maroon)
-     so admin-panel stays visually identical to the mobile apps' shared theme. */
-  --color-primary: #e67e22; /* saffron-500 */
-  --color-primary-strong: #853f16; /* saffron-800, for text/backgrounds needing extra contrast */
-  --color-primary-soft: #fff7ed; /* saffron-50, subtle tints/washes */
-  --color-accent: #7a1f2b; /* maroon-700, secondary accent (eyebrows, small highlights) */
+  --color-surface-muted: #edf3fa;
+  --color-surface-subtle: #f8fbff;
+  --color-primary: #123b73;
+  --color-primary-strong: #08264d;
+  --color-primary-soft: #e6effa;
+  --color-accent: #123b73;
+  --color-sidebar: #08264d;
+  --color-sidebar-deep: #061d3a;
 
   /* Success semantics are intentionally kept separate from the brand color above -
      "online"/"healthy"/"confirmed" states should always read as green, regardless
      of what the brand primary color is. */
-  --color-success-strong: #143b34;
+  --color-success-strong: #0d4f46;
 
-  --color-text: #1c1512;
-  --color-muted: #6a5f57;
-  --color-outline: #e4dcd2;
+  --color-text: #10233d;
+  --color-muted: #5d6f85;
+  --color-outline: #dbe5f0;
   --color-danger: #a1332a;
-  --shadow-soft: 0 18px 50px rgba(38, 26, 18, 0.08);
+  --shadow-soft: 0 12px 32px rgba(8, 38, 77, 0.08);
 
   /* Gradient tokens - reserved for primary actions, hero areas, selected states,
      and small accent moments. Do not use for ordinary panels/cards/tables. */
-  --gradient-primary: linear-gradient(135deg, #fb923c 0%, #e67e22 55%, #c96818 100%);
-  --gradient-primary-hover: linear-gradient(135deg, #fdba74 0%, #fb923c 55%, #e67e22 100%);
-  --gradient-hero: linear-gradient(135deg, #c96818 0%, #a64f12 55%, #7a1f2b 100%);
-  --gradient-accent: linear-gradient(135deg, #e67e22 0%, #8e2938 100%);
-  --gradient-selected: linear-gradient(135deg, rgba(230, 126, 34, 0.14) 0%, rgba(230, 126, 34, 0.05) 100%);
-  --shadow-primary-glow: 0 10px 28px rgba(201, 104, 24, 0.32);
+  --gradient-primary: linear-gradient(135deg, #174b8c 0%, #123b73 58%, #08264d 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #2461aa 0%, #174b8c 58%, #123b73 100%);
+  --gradient-hero: linear-gradient(135deg, #123b73 0%, #0c315f 52%, #061d3a 100%);
+  --gradient-accent: linear-gradient(135deg, #174b8c 0%, #08264d 100%);
+  --gradient-selected: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%);
+  --shadow-primary-glow: 0 10px 26px rgba(8, 38, 77, 0.24);
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -47,7 +45,7 @@
 }
 
 *:focus-visible {
-  outline: 3px solid #c96818;
+  outline: 3px solid var(--color-primary);
   outline-offset: 3px;
 }
 
@@ -89,7 +87,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  box-shadow: 0 0 0 4px rgba(230, 126, 34, 0.24);
+  box-shadow: 0 0 0 4px rgba(18, 59, 115, 0.2);
 }
 
 code {
@@ -140,8 +138,8 @@ code {
 }
 
 .admin-sidebar {
-  background: #2b1512;
-  color: #faf7f2;
+  background: var(--gradient-hero);
+  color: #ffffff;
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
@@ -186,7 +184,7 @@ p {
 }
 
 .admin-sidebar .brand-subtitle {
-  color: rgba(250, 247, 242, 0.62);
+  color: rgba(255, 255, 255, 0.64);
 }
 
 .nav-stack,
@@ -206,7 +204,7 @@ p {
 }
 
 .nav-section-title {
-  color: rgba(250, 247, 242, 0.48);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -217,7 +215,7 @@ p {
 .nav-link {
   align-items: center;
   border-radius: var(--radius-sm);
-  color: #f4eee6;
+  color: rgba(255, 255, 255, 0.9);
   display: flex;
   justify-content: space-between;
   min-height: 42px;
@@ -231,7 +229,7 @@ p {
 
 .nav-link-active {
   background: var(--gradient-selected);
-  background-color: rgba(251, 146, 60, 0.16);
+  background-color: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   font-weight: 800;
 }
@@ -263,7 +261,7 @@ p {
 
 .admin-topbar {
   align-items: center;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid var(--color-outline);
   display: flex;
   gap: var(--space-md);
@@ -363,7 +361,7 @@ p {
 }
 
 .hero-panel.command-hero .button-primary:hover:not(:disabled) {
-  background: #fff7ed;
+  background: var(--color-primary-soft);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
@@ -512,10 +510,10 @@ p {
 }
 
 .kpi-card:hover {
-  border-color: rgba(230, 126, 34, 0.35);
+  border-color: rgba(18, 59, 115, 0.35);
   box-shadow:
     var(--shadow-soft),
-    0 0 0 1px rgba(230, 126, 34, 0.12) inset;
+    0 0 0 1px rgba(18, 59, 115, 0.12) inset;
   transform: translateY(-2px);
 }
 
@@ -714,8 +712,8 @@ p {
 
 .map-foundation {
   background:
-    linear-gradient(90deg, rgba(230, 126, 34, 0.07) 1px, transparent 1px),
-    linear-gradient(rgba(230, 126, 34, 0.07) 1px, transparent 1px), #faf7f2;
+    linear-gradient(90deg, rgba(18, 59, 115, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(18, 59, 115, 0.06) 1px, transparent 1px), var(--color-surface-subtle);
   background-size: 36px 36px;
   border: 1px solid var(--color-outline);
   border-radius: var(--radius-md);
@@ -938,8 +936,8 @@ p {
     background:
       linear-gradient(to right, var(--color-surface) 30%, transparent),
       linear-gradient(to right, transparent, var(--color-surface) 70%) right,
-      linear-gradient(to right, rgba(38, 26, 18, 0.12), transparent) left,
-      linear-gradient(to right, transparent, rgba(38, 26, 18, 0.12)) right;
+      linear-gradient(to right, rgba(8, 38, 77, 0.12), transparent) left,
+      linear-gradient(to right, transparent, rgba(8, 38, 77, 0.12)) right;
     background-attachment: local, local, scroll, scroll;
     background-repeat: no-repeat;
     background-size: 40px 100%, 40px 100%, 12px 100%, 12px 100%;
@@ -1355,6 +1353,111 @@ p {
   grid-template-columns: 1fr 1fr 0.8fr;
 }
 
+/* Professional navy-and-white refinement: a quieter content canvas, clearer
+   data grouping, and short entrance/hover motion that never blocks work. */
+.admin-main {
+  background: linear-gradient(135deg, #f8fbff 0%, var(--color-background) 48%, #eef4fb 100%);
+}
+
+.admin-content {
+  padding: 28px;
+}
+
+.page-stack > * {
+  animation: admin-content-in 280ms ease both;
+}
+
+.page-stack > :nth-child(2) { animation-delay: 35ms; }
+.page-stack > :nth-child(3) { animation-delay: 70ms; }
+.page-stack > :nth-child(4) { animation-delay: 105ms; }
+.page-stack > :nth-child(n + 5) { animation-delay: 130ms; }
+
+.panel,
+.table-panel,
+.roadmap-card,
+.settings-card,
+.health-card,
+.alert-card,
+.photo-card,
+.bi-card,
+.kpi-card {
+  border-color: rgba(18, 59, 115, 0.12);
+}
+
+.panel,
+.table-panel,
+.roadmap-card,
+.settings-card,
+.health-card,
+.alert-card,
+.photo-card,
+.bi-card {
+  box-shadow: 0 10px 28px rgba(8, 38, 77, 0.055);
+}
+
+.section-header,
+.panel-heading-row {
+  gap: var(--space-lg);
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus,
+.control-grid input:focus,
+.control-grid select:focus,
+.dashboard-search input:focus,
+.settings-card input:focus,
+.settings-card select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(18, 59, 115, 0.12);
+  outline: none;
+}
+
+.button-secondary,
+.ghost-control,
+.user-menu {
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.button-secondary:hover:not(:disabled),
+.ghost-control:hover:not(:disabled),
+.user-menu:hover {
+  background: var(--color-primary-soft);
+  border-color: rgba(18, 59, 115, 0.28);
+  color: var(--color-primary-strong);
+  transform: translateY(-1px);
+}
+
+.admin-table-row:not(.admin-table-head) {
+  transition: background 150ms ease;
+}
+
+.admin-table-row:not(.admin-table-head):hover {
+  background: rgba(18, 59, 115, 0.035);
+}
+
+@keyframes admin-content-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-stack > *,
+  .button-secondary,
+  .ghost-control,
+  .user-menu,
+  .admin-table-row:not(.admin-table-head) {
+    animation: none;
+    transition: none;
+  }
+
+  .button-secondary:hover:not(:disabled),
+  .ghost-control:hover:not(:disabled),
+  .user-menu:hover {
+    transform: none;
+  }
+}
+
 /* PHASE 9 - RESPONSIVE TIERS
    One coordinated breakpoint system for the shell + shared grids.
    (Previously .admin-shell/.admin-sidebar had conflicting rules here AND in
@@ -1440,6 +1543,10 @@ p {
   .ghost-control,
   .nav-link {
     min-height: 44px;
+  }
+
+  .admin-content {
+    padding: var(--space-md);
   }
 }
 

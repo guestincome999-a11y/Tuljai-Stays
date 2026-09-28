@@ -237,12 +237,37 @@ export class NotificationEventsService {
   }
 
   public async checkoutCompleted(bookingId: string, lodgeId: string): Promise<void> {
-    await this.notifyPilgrimBookingStatus(
-      bookingId,
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) return;
+
+    const reviewPayload = {
+      action: 'RATE_AND_REVIEW',
+      bookingCode: booking.bookingCode,
+      bookingId: booking.id,
+      lodgeId: booking.lodgeId,
+      status: booking.status,
+      updatedAt: booking.updatedAt.toISOString(),
+    };
+    this.realtimeEventsService.publishToUser(
+      booking.pilgrimUserId,
       'checkout:completed',
-      'CHECKOUT_COMPLETED',
-      'Checkout completed',
+      reviewPayload,
     );
+    this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', {
+      bookingId: booking.id,
+      type: 'checkout:completed',
+    });
+    await this.notificationsService.create({
+      body: 'Your stay is complete. Tap to rate and review your lodge.',
+      bookingId: booking.id,
+      data: reviewPayload,
+      lodgeId: booking.lodgeId,
+      priority: 'NORMAL',
+      recipientRole: 'PILGRIM',
+      recipientUserId: booking.pilgrimUserId,
+      title: 'Rate & review your lodge',
+      type: 'CHECKOUT_COMPLETED',
+    });
     const payload = {
       bookingId,
       lodgeId,
