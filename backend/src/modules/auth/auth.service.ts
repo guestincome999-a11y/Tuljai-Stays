@@ -21,17 +21,24 @@ import {
 import type {
   AuthTokens,
   AuthUserProfile,
+  OwnerForgotPasswordResponse,
+  OwnerLoginResponse,
+  OwnerResetPasswordResponse,
   RefreshTokenResponse,
   RequestOtpResponse,
   UserSession,
   VerifyOtpResponse,
 } from '@tuljai/types';
 
+import { EmailService } from '../../shared/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
   GoogleLoginDto,
   LogoutDto,
+  OwnerForgotPasswordDto,
+  OwnerLoginDto,
+  OwnerResetPasswordDto,
   RefreshTokenDto,
   RegisterDeviceTokenDto,
   RequestOtpDto,
@@ -62,6 +69,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly supabaseAuth: SupabaseAuthService,
+    private readonly emailService: EmailService,
   ) {
     this.accessTokenTtl = this.configService.getOrThrow<string>('api.jwt.accessTokenTtl');
     this.refreshTokenTtl = this.configService.getOrThrow<string>('api.jwt.refreshTokenTtl');
@@ -245,6 +253,179 @@ export class AuthService {
       tokens: tokens.response,
       user: this.toUserProfile(user),
     };
+  }
+  public async ownerLogin(
+    dto: OwnerLoginDto,
+    context: RequestContext,
+  ): Promise<OwnerLoginResponse> {
+    const email = this.normalizeEmail(dto.email);
+    const user = await this.prisma.user.findUnique({
+      include: { authIdentities: { where: { provider: AuthProvider.PASSWORD } } },
+      where: { email },
+    });
+    const passwordIdentity = user?.authIdentities[0];
+
+    if (
+      !user ||
+      user.deletedAt ||
+      !user.isActive ||
+      !user.roles.includes('OWNER') ||
+      !passwordIdentity?.passwordHash ||
+      !this.verifySecret(dto.password, passwordIdentity.passwordHash)
+    ) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const now = new Date();
+    const updatedUser = await this.prisma.user.update({
+      data: { lastLoginAt: now },
+      where: { id: user.id },
+    });
+    const tokens = await this.issueTokens(updatedUser, dto.deviceId);
+    const session = await this.prisma.userSession.create({
+      data: {
+        appType: AppType.OWNER_APP,
+        deviceId: dto.deviceId,
+        deviceName: dto.deviceName,
+        ipAddress: context.ipAddress,
+        lastSeenAt: now,
+        platform: dto.platform,
+        refreshTokenId: tokens.refreshTokenRecord.id,
+        userAgent: context.userAgent,
+        userId: updatedUser.id,
+      },
+    });
+    if (dto.fcmToken) {
+      await this.saveDeviceToken(updatedUser.id, {
+        appType: AppType.OWNER_APP,
+        deviceId: dto.deviceId,
+        fcmToken: dto.fcmToken,
+        platform: dto.platform,
+      });
+    }
+    await this.createAuditLog({
+      action: 'OWNER_PASSWORD_LOGIN',
+      actorUserId: updatedUser.id,
+      entityId: updatedUser.id,
+      entityType: 'user',
+      metadata: { appType: AppType.OWNER_APP },
+    });
+    return {
+      session: this.toSession(session),
+      tokens: tokens.response,
+      user: this.toUserProfile(updatedUser),
+    };
+  }
+  public async ownerForgotPassword(
+    dto: OwnerForgotPasswordDto,
+    context: RequestContext,
+  ): Promise<OwnerForgotPasswordResponse> {
+    const email = this.normalizeEmail(dto.email);
+    const genericResponse = { message: 'If an eligible account exists, a reset link has been sent.' };
+    const windowStart = this.addSeconds(
+      new Date(),
+      -this.configService.getOrThrow<number>('api.ownerAuth.passwordResetRateLimitWindowSeconds'),
+    );
+    const requestCount = await this.prisma.passwordResetToken.count({
+      where: { createdAt: { gte: windowStart }, email },
+    });
+    const maxRequests = this.configService.getOrThrow<number>(
+      'api.ownerAuth.passwordResetRateLimitMaxRequests',
+    );
+    if (requestCount >= maxRequests) return genericResponse;
+
+    const user = await this.prisma.user.findUnique({
+      include: { authIdentities: { where: { provider: AuthProvider.PASSWORD } } },
+      where: { email },
+    });
+    const passwordIdentity = user?.authIdentities[0];
+    if (
+      !user ||
+      user.deletedAt ||
+      !user.isActive ||
+      !user.roles.includes('OWNER') ||
+      !passwordIdentity?.passwordHash
+    ) {
+      return genericResponse;
+    }
+
+    const token = this.generateRefreshToken();
+    const expiresAt = this.addSeconds(
+      new Date(),
+      this.configService.getOrThrow<number>('api.ownerAuth.passwordResetTtlSeconds'),
+    );
+    await this.prisma.passwordResetToken.create({
+      data: {
+        email,
+        expiresAt,
+        ipAddress: context.ipAddress,
+        tokenHash: this.hashRefreshToken(token),
+        userAgent: context.userAgent,
+        userId: user.id,
+      },
+    });
+    const resetLink = this.buildOwnerPasswordResetLink(token);
+    await this.emailService.send({
+      html: `<p>Use the link below to reset your Tuljai Stays Owner App password. It expires in ${Math.floor((expiresAt.getTime() - Date.now()) / 60000)} minutes.</p><p><a href="${resetLink}">Reset password</a></p>`,
+      subject: 'Reset your Tuljai Stays owner password',
+      text: `Reset your Tuljai Stays Owner App password: ${resetLink}`,
+      to: email,
+    });
+    await this.createAuditLog({
+      action: 'OWNER_PASSWORD_RESET_REQUESTED',
+      actorUserId: user.id,
+      entityId: user.id,
+      entityType: 'user',
+    });
+    return genericResponse;
+  }
+  public async ownerResetPassword(
+    dto: OwnerResetPasswordDto,
+  ): Promise<OwnerResetPasswordResponse> {
+    const now = new Date();
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      include: { user: { include: { authIdentities: { where: { provider: AuthProvider.PASSWORD } } } } },
+      where: { tokenHash: this.hashRefreshToken(dto.token) },
+    });
+    const passwordIdentity = resetToken?.user.authIdentities[0];
+    if (
+      !resetToken ||
+      resetToken.consumedAt ||
+      resetToken.expiresAt <= now ||
+      resetToken.user.deletedAt ||
+      !resetToken.user.isActive ||
+      !resetToken.user.roles.includes('OWNER') ||
+      !passwordIdentity
+    ) {
+      throw new UnauthorizedException('Invalid or expired password reset link');
+    }
+    const consumed = await this.prisma.passwordResetToken.updateMany({
+      data: { consumedAt: now },
+      where: { consumedAt: null, expiresAt: { gt: now }, id: resetToken.id },
+    });
+    if (consumed.count !== 1) throw new UnauthorizedException('Invalid or expired password reset link');
+
+    await this.prisma.$transaction([
+      this.prisma.authIdentity.update({
+        data: { passwordHash: this.hashSecret(dto.newPassword) },
+        where: { id: passwordIdentity.id },
+      }),
+      this.prisma.refreshToken.updateMany({
+        data: { revokedAt: now },
+        where: { revokedAt: null, userId: resetToken.userId },
+      }),
+      this.prisma.userSession.updateMany({
+        data: { isActive: false, lastSeenAt: now },
+        where: { isActive: true, userId: resetToken.userId },
+      }),
+    ]);
+    await this.createAuditLog({
+      action: 'OWNER_PASSWORD_RESET_COMPLETED',
+      actorUserId: resetToken.userId,
+      entityId: resetToken.userId,
+      entityType: 'user',
+    });
+    return { message: 'Password reset successfully. Please sign in with your new password.' };
   }
   public async refreshToken(dto: RefreshTokenDto): Promise<RefreshTokenResponse> {
     const tokenHash = this.hashRefreshToken(dto.refreshToken);
@@ -455,6 +636,14 @@ export class AuthService {
   private maskPhoneNumber(phoneNumber: string): string {
     if (phoneNumber.length <= 4) return '****';
     return `${'*'.repeat(Math.max(phoneNumber.length - 4, 0))}${phoneNumber.slice(-4)}`;
+  }
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+  private buildOwnerPasswordResetLink(token: string): string {
+    const deepLink = this.configService.getOrThrow<string>('api.ownerAuth.resetPasswordDeepLink');
+    const separator = deepLink.includes('?') ? '&' : '?';
+    return `${deepLink}${separator}token=${encodeURIComponent(token)}`;
   }
   private verifySecret(secret: string, storedHash: string): boolean {
     const [salt, hash] = storedHash.split(':');

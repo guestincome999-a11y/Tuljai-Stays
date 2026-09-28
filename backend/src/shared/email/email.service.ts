@@ -68,7 +68,7 @@ export class EmailService {
 
   private maskEmail(email: string): string {
     const [localPart, domain] = email.split('@');
-    if (!domain || localPart.length === 0) return '***';
+    if (!localPart || !domain) return '***';
     return `${localPart[0]}***@${domain}`;
   }
 }
