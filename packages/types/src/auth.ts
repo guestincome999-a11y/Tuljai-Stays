@@ -66,6 +66,38 @@ export interface GoogleLoginRequest {
   supabaseAccessToken: string;
 }
 
+export interface OwnerLoginRequest {
+  deviceId: string;
+  deviceName?: string;
+  email: string;
+  fcmToken?: string;
+  password: string;
+  platform: DevicePlatform;
+}
+
+export interface OwnerLoginResponse {
+  session: UserSession;
+  tokens: AuthTokens;
+  user: AuthUserProfile;
+}
+
+export interface OwnerForgotPasswordRequest {
+  email: string;
+}
+
+export interface OwnerForgotPasswordResponse {
+  message: string;
+}
+
+export interface OwnerResetPasswordRequest {
+  newPassword: string;
+  token: string;
+}
+
+export interface OwnerResetPasswordResponse {
+  message: string;
+}
+
 export interface RefreshTokenRequest {
   deviceId: string;
   refreshToken: string;
