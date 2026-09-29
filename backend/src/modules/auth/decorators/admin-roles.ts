@@ -9,7 +9,7 @@ export const STAFF_ROLES = [
 ] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
-export type AccessRole = 'PILGRIM' | 'OWNER' | 'ADMIN' | 'SUPER_ADMIN' | StaffRole;
+export type AccessRole = 'PILGRIM' | 'OWNER' | 'STAFF' | 'ADMIN' | 'SUPER_ADMIN' | StaffRole;
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: AccessRole[]) => SetMetadata(ROLES_KEY, roles);

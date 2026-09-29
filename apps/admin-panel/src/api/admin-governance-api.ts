@@ -126,6 +126,39 @@ export interface AssignLodgeOwnerInput {
   userId: string;
 }
 
+export type LodgeTeamMemberType = 'OWNER' | 'STAFF';
+
+export interface LodgeTeamMember {
+  id: string;
+  isActive: boolean;
+  isPrimary: boolean;
+  memberType: LodgeTeamMemberType;
+  roleTitle: string | null;
+  user: {
+    displayName: string | null;
+    email: string | null;
+    id: string;
+    isActive: boolean;
+    phoneNumber: string | null;
+  };
+}
+
+export interface CreateLodgeTeamMemberInput {
+  email: string;
+  isPrimary?: boolean;
+  memberType: LodgeTeamMemberType;
+  name: string;
+  password: string;
+  phoneNumber: string;
+  roleTitle?: string;
+}
+
+export interface UpdateLodgeTeamMemberInput {
+  isActive?: boolean;
+  isPrimary?: boolean;
+  roleTitle?: string;
+}
+
 export interface AssignAmenitiesInput {
   amenityIds: string[];
 }
@@ -236,6 +269,28 @@ export async function assignGovernanceLodgeOwner(
   input: AssignLodgeOwnerInput,
 ): Promise<{ success: true }> {
   return apiClient.post<{ success: true }>(`/admin/lodges/${lodgeId}/owners`, input);
+}
+
+export async function listLodgeTeam(lodgeId: string): Promise<LodgeTeamMember[]> {
+  return apiClient.get<LodgeTeamMember[]>(`/admin/lodges/${lodgeId}/team`);
+}
+
+export async function createLodgeTeamMember(
+  lodgeId: string,
+  input: CreateLodgeTeamMemberInput,
+): Promise<LodgeTeamMember> {
+  return apiClient.post<LodgeTeamMember>(`/admin/lodges/${lodgeId}/team`, input);
+}
+
+export async function updateLodgeTeamMember(
+  lodgeId: string,
+  membershipId: string,
+  input: UpdateLodgeTeamMemberInput,
+): Promise<LodgeTeamMember> {
+  return apiClient.request<LodgeTeamMember>(`/admin/lodges/${lodgeId}/team/${membershipId}`, {
+    body: input,
+    method: 'PATCH',
+  });
 }
 
 export async function listGovernanceRoomTypes(lodgeId: string): Promise<RoomType[]> {

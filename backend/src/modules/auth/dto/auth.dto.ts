@@ -191,3 +191,11 @@ export class OwnerResetPasswordDto {
   @MaxLength(512)
   token!: string;
 }
+
+export class AdminSetPasswordDto {
+  @Matches(passwordPattern, {
+    message:
+      'Password must be 8-72 characters and include at least one letter and one number.',
+  })
+  newPassword!: string;
+}

@@ -130,6 +130,7 @@ const rolePermissionMap: Record<AdminRole, AdminPermission[]> = {
   OWNER: [],
   PHOTO_REVIEWER: ['dashboard.view', 'lodges.view', 'photos.review'],
   PILGRIM: [],
+  STAFF: [],
   SUPER_ADMIN: allAdminPermissions,
   SUPPORT_EXECUTIVE: [
     'dashboard.view',

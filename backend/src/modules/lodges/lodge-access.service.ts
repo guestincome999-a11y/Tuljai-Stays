@@ -16,8 +16,8 @@ export class LodgeAccessService {
       return;
     }
 
-    if (!user.roles.includes('OWNER')) {
-      throw new ForbiddenException('Owner access is required');
+    if (!user.roles.includes('OWNER') && !user.roles.includes('STAFF')) {
+      throw new ForbiddenException('Owner or staff access is required');
     }
 
     const assignment = await this.prisma.lodgeOwner.findFirst({

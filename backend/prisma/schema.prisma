@@ -9,8 +9,14 @@ datasource db {
 enum UserRole {
   PILGRIM
   OWNER
+  STAFF
   ADMIN
   SUPER_ADMIN
+}
+
+enum LodgeMemberType {
+  OWNER
+  STAFF
 }
 
 enum AuthProvider {
@@ -455,23 +461,29 @@ model LodgeAddress {
 }
 
 model LodgeOwner {
-  id         String    @id @default(uuid()) @db.Uuid
-  lodgeId    String    @map("lodge_id") @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  ownerName  String    @map("owner_name")
-  ownerPhone String    @map("owner_phone")
-  ownerEmail String?   @map("owner_email")
-  roleTitle  String?   @map("role_title")
-  isPrimary  Boolean   @default(false) @map("is_primary")
-  isActive   Boolean   @default(true) @map("is_active")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  deletedAt  DateTime? @map("deleted_at")
-  lodge      Lodge     @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String          @id @default(uuid()) @db.Uuid
+  lodgeId    String          @map("lodge_id") @db.Uuid
+  userId     String          @map("user_id") @db.Uuid
+  /// Distinguishes a lodge owner from lodge staff (front-desk/operations
+  /// staff added by an admin). Both are rows in this table so lodge-scoped
+  /// authorization (LodgeAccessService) doesn't need to know which: any
+  /// active row here for (lodgeId, userId) grants management access.
+  memberType LodgeMemberType @default(OWNER) @map("member_type")
+  ownerName  String          @map("owner_name")
+  ownerPhone String          @map("owner_phone")
+  ownerEmail String?         @map("owner_email")
+  roleTitle  String?         @map("role_title")
+  isPrimary  Boolean         @default(false) @map("is_primary")
+  isActive   Boolean         @default(true) @map("is_active")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  deletedAt  DateTime?       @map("deleted_at")
+  lodge      Lodge           @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([lodgeId, userId])
   @@index([lodgeId, isPrimary])
+  @@index([lodgeId, memberType])
   @@index([userId])
   @@index([deletedAt])
   @@map("lodge_owners")

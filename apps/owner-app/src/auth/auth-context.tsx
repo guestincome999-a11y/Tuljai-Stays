@@ -13,7 +13,7 @@ import {
   subscribeAuthSession,
 } from './auth-session-store';
 
-const allowedOwnerRoles: UserRole[] = ['OWNER', 'ADMIN', 'SUPER_ADMIN'];
+const allowedOwnerRoles: UserRole[] = ['OWNER', 'STAFF', 'ADMIN', 'SUPER_ADMIN'];
 
 interface AuthContextValue {
   accessDeniedMessage: string | null;

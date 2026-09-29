@@ -15,6 +15,7 @@ import {
   DevicePlatform,
   OtpPurpose,
   Prisma,
+  UserRole,
   type RefreshToken,
   type User,
 } from '@prisma/client';
@@ -54,6 +55,15 @@ interface AccessTokenResult {
   accessToken: string;
   expiresInSeconds: number;
 }
+// Roles allowed to authenticate into the Owner App, mirrored from
+// apps/owner-app/src/auth/auth-context.tsx's allowedOwnerRoles — keep both in
+// sync if this ever changes.
+const OWNER_APP_ALLOWED_ROLES: UserRole[] = [
+  UserRole.OWNER,
+  UserRole.STAFF,
+  UserRole.ADMIN,
+  UserRole.SUPER_ADMIN,
+];
 @Injectable()
 export class AuthService {
   private readonly accessTokenTtl: string;
@@ -64,12 +74,20 @@ export class AuthService {
   private readonly otpRateLimitMaxRequests: number;
   private readonly allowDevOtpResponse: boolean;
   private readonly nodeEnv: string;
+  private readonly ownerPasswordResetTtlSeconds: number;
+  private readonly ownerPasswordResetRateLimitWindowSeconds: number;
+  private readonly ownerPasswordResetRateLimitMaxRequests: number;
+  private readonly ownerPasswordResetDeepLink: string;
+  // Precomputed once so a "no such account" lookup in ownerLogin still pays
+  // roughly the same scrypt cost as a real password check, instead of
+  // returning noticeably faster and leaking account existence via timing.
+  private readonly dummyPasswordHash: string;
   public constructor(
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly supabaseAuth: SupabaseAuthService,
-    private readonly emailService: EmailService,
   ) {
     this.accessTokenTtl = this.configService.getOrThrow<string>('api.jwt.accessTokenTtl');
     this.refreshTokenTtl = this.configService.getOrThrow<string>('api.jwt.refreshTokenTtl');
@@ -83,6 +101,19 @@ export class AuthService {
     );
     this.allowDevOtpResponse = this.configService.getOrThrow<boolean>('api.otp.allowDevResponse');
     this.nodeEnv = this.configService.getOrThrow<string>('api.nodeEnv');
+    this.ownerPasswordResetTtlSeconds = this.configService.getOrThrow<number>(
+      'api.ownerAuth.passwordResetTtlSeconds',
+    );
+    this.ownerPasswordResetRateLimitWindowSeconds = this.configService.getOrThrow<number>(
+      'api.ownerAuth.passwordResetRateLimitWindowSeconds',
+    );
+    this.ownerPasswordResetRateLimitMaxRequests = this.configService.getOrThrow<number>(
+      'api.ownerAuth.passwordResetRateLimitMaxRequests',
+    );
+    this.ownerPasswordResetDeepLink = this.configService.getOrThrow<string>(
+      'api.ownerAuth.resetPasswordDeepLink',
+    );
+    this.dummyPasswordHash = this.hashSecret(randomBytes(24).toString('hex'));
   }
   public async requestOtp(
     dto: RequestOtpDto,
@@ -259,29 +290,27 @@ export class AuthService {
     context: RequestContext,
   ): Promise<OwnerLoginResponse> {
     const email = this.normalizeEmail(dto.email);
-    const user = await this.prisma.user.findUnique({
-      include: { authIdentities: { where: { provider: AuthProvider.PASSWORD } } },
-      where: { email },
+    const invalidCredentials = (): UnauthorizedException =>
+      new UnauthorizedException('Incorrect email or password.');
+    const identity = await this.prisma.authIdentity.findUnique({
+      include: { user: true },
+      where: {
+        provider_providerSubject: { provider: AuthProvider.PASSWORD, providerSubject: email },
+      },
     });
-    const passwordIdentity = user?.authIdentities[0];
-
-    if (
-      !user ||
-      user.deletedAt ||
-      !user.isActive ||
-      !user.roles.includes('OWNER') ||
-      !passwordIdentity?.passwordHash ||
-      !this.verifySecret(dto.password, passwordIdentity.passwordHash)
-    ) {
-      throw new UnauthorizedException('Invalid email or password');
+    if (!identity?.passwordHash) {
+      this.verifySecret(dto.password, this.dummyPasswordHash);
+      throw invalidCredentials();
     }
-
+    if (identity.user.deletedAt || !identity.user.isActive) throw invalidCredentials();
+    if (!this.hasAllowedOwnerRole(identity.user.roles)) throw invalidCredentials();
+    if (!this.verifySecret(dto.password, identity.passwordHash)) throw invalidCredentials();
     const now = new Date();
-    const updatedUser = await this.prisma.user.update({
-      data: { lastLoginAt: now },
-      where: { id: user.id },
+    const user = await this.prisma.user.update({
+      data: { isActive: true, lastLoginAt: now },
+      where: { id: identity.userId },
     });
-    const tokens = await this.issueTokens(updatedUser, dto.deviceId);
+    const tokens = await this.issueTokens(user, dto.deviceId);
     const session = await this.prisma.userSession.create({
       data: {
         appType: AppType.OWNER_APP,
@@ -292,28 +321,26 @@ export class AuthService {
         platform: dto.platform,
         refreshTokenId: tokens.refreshTokenRecord.id,
         userAgent: context.userAgent,
-        userId: updatedUser.id,
+        userId: user.id,
       },
     });
-    if (dto.fcmToken) {
-      await this.saveDeviceToken(updatedUser.id, {
+    if (dto.fcmToken)
+      await this.saveDeviceToken(user.id, {
         appType: AppType.OWNER_APP,
         deviceId: dto.deviceId,
         fcmToken: dto.fcmToken,
         platform: dto.platform,
       });
-    }
     await this.createAuditLog({
       action: 'OWNER_PASSWORD_LOGIN',
-      actorUserId: updatedUser.id,
-      entityId: updatedUser.id,
+      actorUserId: user.id,
+      entityId: user.id,
       entityType: 'user',
-      metadata: { appType: AppType.OWNER_APP },
     });
     return {
       session: this.toSession(session),
       tokens: tokens.response,
-      user: this.toUserProfile(updatedUser),
+      user: this.toUserProfile(user),
     };
   }
   public async ownerForgotPassword(
@@ -321,54 +348,48 @@ export class AuthService {
     context: RequestContext,
   ): Promise<OwnerForgotPasswordResponse> {
     const email = this.normalizeEmail(dto.email);
-    const genericResponse = { message: 'If an eligible account exists, a reset link has been sent.' };
-    const windowStart = this.addSeconds(
-      new Date(),
-      -this.configService.getOrThrow<number>('api.ownerAuth.passwordResetRateLimitWindowSeconds'),
-    );
-    const requestCount = await this.prisma.passwordResetToken.count({
-      where: { createdAt: { gte: windowStart }, email },
+    // Deliberately identical regardless of whether the email matches an
+    // account, so the response never reveals which owner emails exist.
+    const genericResponse: OwnerForgotPasswordResponse = {
+      message: "If an account exists for that email, we've sent a password reset link to it.",
+    };
+    const identity = await this.prisma.authIdentity.findUnique({
+      include: { user: true },
+      where: {
+        provider_providerSubject: { provider: AuthProvider.PASSWORD, providerSubject: email },
+      },
     });
-    const maxRequests = this.configService.getOrThrow<number>(
-      'api.ownerAuth.passwordResetRateLimitMaxRequests',
-    );
-    if (requestCount >= maxRequests) return genericResponse;
-
-    const user = await this.prisma.user.findUnique({
-      include: { authIdentities: { where: { provider: AuthProvider.PASSWORD } } },
-      where: { email },
-    });
-    const passwordIdentity = user?.authIdentities[0];
-    if (
-      !user ||
-      user.deletedAt ||
-      !user.isActive ||
-      !user.roles.includes('OWNER') ||
-      !passwordIdentity?.passwordHash
-    ) {
+    // An owner who has never set a password yet (e.g. backfilled straight
+    // from their lodge registration email) can still bootstrap one here.
+    const user = identity?.user ?? (await this.prisma.user.findUnique({ where: { email } }));
+    if (!user || user.deletedAt || !user.isActive || !this.hasAllowedOwnerRole(user.roles))
       return genericResponse;
-    }
-
-    const token = this.generateRefreshToken();
-    const expiresAt = this.addSeconds(
-      new Date(),
-      this.configService.getOrThrow<number>('api.ownerAuth.passwordResetTtlSeconds'),
-    );
+    await this.enforcePasswordResetRateLimit(user.id);
+    const rawToken = randomBytes(32).toString('base64url');
     await this.prisma.passwordResetToken.create({
       data: {
         email,
-        expiresAt,
+        expiresAt: this.addSeconds(new Date(), this.ownerPasswordResetTtlSeconds),
         ipAddress: context.ipAddress,
-        tokenHash: this.hashRefreshToken(token),
+        tokenHash: this.hashResetToken(rawToken),
         userAgent: context.userAgent,
         userId: user.id,
       },
     });
-    const resetLink = this.buildOwnerPasswordResetLink(token);
+    const resetLink = `${this.ownerPasswordResetDeepLink}?token=${rawToken}`;
+    const expiresInMinutes = Math.round(this.ownerPasswordResetTtlSeconds / 60);
     await this.emailService.send({
-      html: `<p>Use the link below to reset your Tuljai Stays Owner App password. It expires in ${Math.floor((expiresAt.getTime() - Date.now()) / 60000)} minutes.</p><p><a href="${resetLink}">Reset password</a></p>`,
+      html:
+        `<p>Hello${user.displayName ? ` ${user.displayName}` : ''},</p>` +
+        `<p>Use the link below to reset your Tuljai Stays owner account password. ` +
+        `This link expires in ${expiresInMinutes} minutes.</p>` +
+        `<p><a href="${resetLink}">${resetLink}</a></p>` +
+        `<p>If you did not request this, you can safely ignore this email.</p>`,
       subject: 'Reset your Tuljai Stays owner password',
-      text: `Reset your Tuljai Stays Owner App password: ${resetLink}`,
+      text:
+        `Use this link to reset your Tuljai Stays owner account password ` +
+        `(expires in ${expiresInMinutes} minutes): ${resetLink}\n\n` +
+        `If you did not request this, you can safely ignore this email.`,
       to: email,
     });
     await this.createAuditLog({
@@ -379,44 +400,56 @@ export class AuthService {
     });
     return genericResponse;
   }
-  public async ownerResetPassword(
-    dto: OwnerResetPasswordDto,
-  ): Promise<OwnerResetPasswordResponse> {
-    const now = new Date();
+  public async ownerResetPassword(dto: OwnerResetPasswordDto): Promise<OwnerResetPasswordResponse> {
+    const tokenHash = this.hashResetToken(dto.token);
     const resetToken = await this.prisma.passwordResetToken.findUnique({
-      include: { user: { include: { authIdentities: { where: { provider: AuthProvider.PASSWORD } } } } },
-      where: { tokenHash: this.hashRefreshToken(dto.token) },
+      include: { user: true },
+      where: { tokenHash },
     });
-    const passwordIdentity = resetToken?.user.authIdentities[0];
+    const invalidToken = (): UnauthorizedException =>
+      new UnauthorizedException(
+        'This reset link is invalid or has expired. Please request a new one.',
+      );
     if (
       !resetToken ||
       resetToken.consumedAt ||
-      resetToken.expiresAt <= now ||
+      resetToken.expiresAt <= new Date() ||
       resetToken.user.deletedAt ||
       !resetToken.user.isActive ||
-      !resetToken.user.roles.includes('OWNER') ||
-      !passwordIdentity
-    ) {
-      throw new UnauthorizedException('Invalid or expired password reset link');
-    }
-    const consumed = await this.prisma.passwordResetToken.updateMany({
-      data: { consumedAt: now },
-      where: { consumedAt: null, expiresAt: { gt: now }, id: resetToken.id },
-    });
-    if (consumed.count !== 1) throw new UnauthorizedException('Invalid or expired password reset link');
-
+      !this.hasAllowedOwnerRole(resetToken.user.roles)
+    )
+      throw invalidToken();
+    const passwordHash = this.hashSecret(dto.newPassword);
     await this.prisma.$transaction([
-      this.prisma.authIdentity.update({
-        data: { passwordHash: this.hashSecret(dto.newPassword) },
-        where: { id: passwordIdentity.id },
+      this.prisma.authIdentity.upsert({
+        create: {
+          email: resetToken.email,
+          passwordHash,
+          provider: AuthProvider.PASSWORD,
+          providerSubject: resetToken.email,
+          userId: resetToken.userId,
+        },
+        update: { passwordHash },
+        where: {
+          provider_providerSubject: {
+            provider: AuthProvider.PASSWORD,
+            providerSubject: resetToken.email,
+          },
+        },
       }),
+      this.prisma.passwordResetToken.update({
+        data: { consumedAt: new Date() },
+        where: { id: resetToken.id },
+      }),
+      // A password reset should invalidate every other active session -
+      // the old password may have been compromised.
       this.prisma.refreshToken.updateMany({
-        data: { revokedAt: now },
+        data: { revokedAt: new Date() },
         where: { revokedAt: null, userId: resetToken.userId },
       }),
       this.prisma.userSession.updateMany({
-        data: { isActive: false, lastSeenAt: now },
-        where: { isActive: true, userId: resetToken.userId },
+        data: { isActive: false },
+        where: { userId: resetToken.userId },
       }),
     ]);
     await this.createAuditLog({
@@ -425,7 +458,39 @@ export class AuthService {
       entityId: resetToken.userId,
       entityType: 'user',
     });
-    return { message: 'Password reset successfully. Please sign in with your new password.' };
+    return { message: 'Your password has been reset. Please sign in with your new password.' };
+  }
+  /**
+   * Admin-triggered password set/reset for an owner or staff account,
+   * bypassing the email reset flow entirely (no SMTP dependency). Also used
+   * by OwnersService when an admin creates a new owner/staff account, so the
+   * password-hashing and AuthIdentity upsert logic lives in one place.
+   */
+  public async adminSetPassword(userId: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.email)
+      throw new BadRequestException(
+        'This account has no login email on file yet - set one before assigning a password.',
+      );
+    const email = this.normalizeEmail(user.email);
+    const passwordHash = this.hashSecret(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.authIdentity.upsert({
+        create: { email, passwordHash, provider: AuthProvider.PASSWORD, providerSubject: email, userId },
+        update: { passwordHash },
+        where: {
+          provider_providerSubject: { provider: AuthProvider.PASSWORD, providerSubject: email },
+        },
+      }),
+      this.prisma.refreshToken.updateMany({
+        data: { revokedAt: new Date() },
+        where: { revokedAt: null, userId },
+      }),
+      this.prisma.userSession.updateMany({
+        data: { isActive: false },
+        where: { userId },
+      }),
+    ]);
   }
   public async refreshToken(dto: RefreshTokenDto): Promise<RefreshTokenResponse> {
     const tokenHash = this.hashRefreshToken(dto.refreshToken);
@@ -501,6 +566,29 @@ export class AuthService {
   ): Promise<{ success: true }> {
     await this.saveDeviceToken(userId, dto);
     return { success: true };
+  }
+  private hasAllowedOwnerRole(roles: UserRole[]): boolean {
+    return roles.some((role) => OWNER_APP_ALLOWED_ROLES.includes(role));
+  }
+  private async enforcePasswordResetRateLimit(userId: string): Promise<void> {
+    const rateLimitWindowStart = this.addSeconds(
+      new Date(),
+      -this.ownerPasswordResetRateLimitWindowSeconds,
+    );
+    const requestCount = await this.prisma.passwordResetToken.count({
+      where: { createdAt: { gte: rateLimitWindowStart }, userId },
+    });
+    if (requestCount >= this.ownerPasswordResetRateLimitMaxRequests)
+      throw new HttpException(
+        'Too many password reset requests. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+  }
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+  private hashResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
   private async enforceOtpRateLimit(phoneNumber: string, purpose: OtpPurpose): Promise<void> {
     const rateLimitWindowStart = this.addSeconds(new Date(), -this.otpRateLimitWindowSeconds);
@@ -636,14 +724,6 @@ export class AuthService {
   private maskPhoneNumber(phoneNumber: string): string {
     if (phoneNumber.length <= 4) return '****';
     return `${'*'.repeat(Math.max(phoneNumber.length - 4, 0))}${phoneNumber.slice(-4)}`;
-  }
-  private normalizeEmail(email: string): string {
-    return email.trim().toLowerCase();
-  }
-  private buildOwnerPasswordResetLink(token: string): string {
-    const deepLink = this.configService.getOrThrow<string>('api.ownerAuth.resetPasswordDeepLink');
-    const separator = deepLink.includes('?') ? '&' : '?';
-    return `${deepLink}${separator}token=${encodeURIComponent(token)}`;
   }
   private verifySecret(secret: string, storedHash: string): boolean {
     const [salt, hash] = storedHash.split(':');

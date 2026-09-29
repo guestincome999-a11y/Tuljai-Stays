@@ -2,7 +2,7 @@ import type { PaginatedResponse } from '@tuljai/types';
 
 import { apiClient } from './client';
 
-export type UserDirectoryRole = 'PILGRIM' | 'OWNER' | 'ADMIN' | 'SUPER_ADMIN';
+export type UserDirectoryRole = 'PILGRIM' | 'OWNER' | 'STAFF' | 'ADMIN' | 'SUPER_ADMIN';
 
 export interface UserDirectoryStats {
   totalUsers: number;
@@ -109,4 +109,13 @@ export async function updateUserDirectoryStatus(
     `/admin/user-directory/${userId}/status`,
     { body: input, method: 'PATCH' },
   );
+}
+
+export async function adminSetUserPassword(
+  userId: string,
+  newPassword: string,
+): Promise<{ success: true }> {
+  return apiClient.post<{ success: true }>(`/auth/admin/users/${userId}/set-password`, {
+    newPassword,
+  });
 }

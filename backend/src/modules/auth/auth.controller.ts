@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type {
   AuthUserProfile,
   OwnerForgotPasswordResponse,
@@ -12,7 +12,9 @@ import type { FastifyRequest } from 'fastify';
 
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { Roles } from './decorators/roles.decorator';
 import {
+  AdminSetPasswordDto,
   GoogleLoginDto,
   LogoutDto,
   OwnerForgotPasswordDto,
@@ -26,6 +28,7 @@ import {
 } from './dto/auth.dto';
 import { AdminTotpGuard } from './guards/admin-totp.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -77,6 +80,17 @@ export class AuthController {
     @Body() dto: OwnerResetPasswordDto,
   ): Promise<OwnerResetPasswordResponse> {
     return this.authService.ownerResetPassword(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('admin/users/:userId/set-password')
+  public async adminSetPassword(
+    @Param('userId') userId: string,
+    @Body() dto: AdminSetPasswordDto,
+  ): Promise<{ success: true }> {
+    await this.authService.adminSetPassword(userId, dto.newPassword);
+    return { success: true };
   }
 
   @Post('refresh-token')
