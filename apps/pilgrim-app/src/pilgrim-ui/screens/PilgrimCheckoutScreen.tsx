@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BookingGuestIdProofUpload } from '@tuljai/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
@@ -30,6 +30,15 @@ const allowedIdProofTypes = ['application/pdf', 'image/jpeg', 'image/png'] as co
 const maxIdProofSizeBytes = 5 * 1024 * 1024;
 type PaymentMethod = 'ONLINE' | 'PAY_AT_LODGE';
 type Step = 1 | 2 | 3;
+// The room hold + order live for 15 min on the server once the order is
+// attached; refresh well before that so a slow guest never pays against an
+// order whose hold is about to lapse.
+const PREPAID_REFRESH_MS = 7 * 60 * 1000;
+interface PreparedPrepaid {
+  lockCode: string;
+  order: PrepaidOrder;
+  preparedAt: number;
+}
 
 export function PilgrimCheckoutScreen() {
   const params = useLocalSearchParams<{ lodgeId?: string; roomTypeId?: string }>();
@@ -56,20 +65,19 @@ export function PilgrimCheckoutScreen() {
   // in-progress indicator on the picker.
   const [uploadedIdProof, setUploadedIdProof] = useState<BookingGuestIdProofUpload | null>(null);
   const [idProofUploading, setIdProofUploading] = useState(false);
-  // As soon as the guest reaches the payment step with "Pay online" selected,
-  // we hold the room and create the Razorpay order ahead of time — see the
-  // effect below — so tapping Pay opens the checkout sheet immediately
-  // instead of waiting on that round trip after the tap. The booking itself
-  // is only created after payment is verified (see confirmBooking): if
-  // payment never succeeds, nothing was ever created and there's nothing to
-  // cancel.
-  const [prepaidLockCode, setPrepaidLockCode] = useState<string | null>(null);
-  const [prepaidOrder, setPrepaidOrder] = useState<PrepaidOrder | null>(null);
+  // While the guest is still filling in details (step 2 onward) with "Pay
+  // online" selected, we hold the room and create the Razorpay order in the
+  // background — see the effect below — so tapping Pay opens the checkout
+  // sheet immediately. The in-flight/finished preparation lives in a ref keyed
+  // by stay signature so a tap during preparation awaits the same request
+  // instead of starting a second one. The booking itself is only created after
+  // payment is verified (see confirmBooking).
   const [prepaidPreparing, setPrepaidPreparing] = useState(false);
   const [prepaidError, setPrepaidError] = useState<string | null>(null);
-  const preparedPrepaidSignatureRef = useRef<string | null>(null);
+  const [prepaidRefreshTick, setPrepaidRefreshTick] = useState(0);
+  const prepaidRef = useRef<{ signature: string; promise: Promise<PreparedPrepaid> } | null>(null);
   const [request, setRequest] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PAY_AT_LODGE');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
   const [agree, setAgree] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFailure, setPaymentFailure] = useState<string | null>(null);
@@ -90,46 +98,56 @@ export function PilgrimCheckoutScreen() {
   // here once rather than at each call site that needs to send it on.
   const normalizedGuestPhone = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/gu, '')}`;
 
-  // Pre-create the room hold + Razorpay order as soon as the guest reaches
-  // the payment step with "Pay online" selected, instead of waiting for the
-  // Pay tap. Re-runs whenever the room/dates change (a different order needs
-  // a different amount) or the ID proof finishes uploading. Guarded by a
-  // signature so it doesn't re-fire on every render once an order is ready.
+  // Room hold + Razorpay order preparation. Needs only lodge/room/dates — not
+  // the guest details or ID proof — so it can start the moment the guest
+  // leaves the stay step and run while they type. Idempotent per signature.
   const prepaidSignature = `${lodge?.id ?? ''}|${room?.id ?? ''}|${checkInDate}|${checkOutDate}`;
-  useEffect(() => {
-    if (step !== 3 || paymentMethod !== 'ONLINE' || !lodge || !room) return;
-    if (idProofUploading || !uploadedIdProof) return;
-    if (preparedPrepaidSignatureRef.current === prepaidSignature) return;
-    preparedPrepaidSignatureRef.current = prepaidSignature;
+  const preparePrepaid = useCallback((): Promise<PreparedPrepaid> => {
+    const current = prepaidRef.current;
+    if (current && current.signature === prepaidSignature) return current.promise;
+    if (!lodge || !room) return Promise.reject(new Error('Room unavailable'));
+    const promise = (async (): Promise<PreparedPrepaid> => {
+      const lock = await createBookingLock({
+        checkInDate,
+        checkOutDate,
+        lodgeId: lodge.id,
+        roomTypeId: room.id,
+      });
+      const order = await createPrepaidOrder(lock.lockCode);
+      return { lockCode: lock.lockCode, order, preparedAt: Date.now() };
+    })();
+    prepaidRef.current = { signature: prepaidSignature, promise };
+    promise.catch(() => {
+      if (prepaidRef.current?.promise === promise) prepaidRef.current = null;
+    });
+    return promise;
+  }, [lodge, room, checkInDate, checkOutDate, prepaidSignature]);
 
+  useEffect(() => {
+    if (step < 2 || paymentMethod !== 'ONLINE' || !lodge || !room) return;
     let cancelled = false;
-    setPrepaidLockCode(null);
-    setPrepaidOrder(null);
     setPrepaidError(null);
     setPrepaidPreparing(true);
-    void (async () => {
-      try {
-        const lock = await createBookingLock({
-          checkInDate,
-          checkOutDate,
-          lodgeId: lodge.id,
-          roomTypeId: room.id,
-        });
-        const order = await createPrepaidOrder(lock.lockCode);
-        if (cancelled) return;
-        setPrepaidLockCode(lock.lockCode);
-        setPrepaidOrder(order);
-      } catch (error) {
-        if (cancelled) return;
-        setPrepaidError(error instanceof Error ? error.message : 'Could not prepare payment');
-      } finally {
+    preparePrepaid()
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setPrepaidError(error instanceof Error ? error.message : 'Could not prepare payment');
+        }
+      })
+      .finally(() => {
         if (!cancelled) setPrepaidPreparing(false);
-      }
-    })();
+      });
+    // Keep the prepared order fresh: drop it and prepare a new one before the
+    // server-side hold can lapse.
+    const refreshTimer = setTimeout(() => {
+      prepaidRef.current = null;
+      setPrepaidRefreshTick((tick) => tick + 1);
+    }, PREPAID_REFRESH_MS);
     return () => {
       cancelled = true;
+      clearTimeout(refreshTimer);
     };
-  }, [step, paymentMethod, lodge, room, checkInDate, checkOutDate, idProofUploading, uploadedIdProof, prepaidSignature]);
+  }, [step, paymentMethod, lodge, room, preparePrepaid, prepaidRefreshTick]);
 
   function validateGuestDetails(): boolean {
     if (!name.trim() || phone.replace(/\D/gu, '').length !== 10) {
@@ -260,25 +278,16 @@ export function PilgrimCheckoutScreen() {
       let bookingId: string;
 
       if (paymentMethod === 'ONLINE') {
-        // The order was (ideally) already created in the background the
-        // moment the guest reached this step — see the prefetch effect
-        // above — so this just opens the sheet with no further network
-        // wait. If it isn't ready yet for some reason, fall back to
-        // creating it now rather than blocking the guest entirely.
-        let lockCode = prepaidLockCode;
-        let order = prepaidOrder;
-        if (!lockCode || !order) {
-          const lock = await createBookingLock({
-            checkInDate,
-            checkOutDate,
-            lodgeId: lodge.id,
-            roomTypeId: room.id,
-          });
-          order = await createPrepaidOrder(lock.lockCode);
-          lockCode = lock.lockCode;
-          setPrepaidLockCode(lockCode);
-          setPrepaidOrder(order);
+        // The order is normally already prepared in the background (see the
+        // effect above), so this resolves instantly. If it is still in flight
+        // we await that same request; if it has gone stale we prepare a fresh
+        // one rather than pay against a hold that may lapse mid-payment.
+        let prepared = await preparePrepaid();
+        if (Date.now() - prepared.preparedAt > PREPAID_REFRESH_MS) {
+          prepaidRef.current = null;
+          prepared = await preparePrepaid();
         }
+        const { lockCode, order } = prepared;
 
         const result = await RazorpayCheckout.open({
           key: order.keyId,
@@ -318,8 +327,8 @@ export function PilgrimCheckoutScreen() {
           signature: result.razorpay_signature,
         });
         bookingId = booking.id;
-        setPrepaidLockCode(null);
-        setPrepaidOrder(null);
+        // The lock is consumed by the confirmed booking; never reuse it.
+        prepaidRef.current = null;
       } else {
         const booking = await createBooking({
           checkInDate,
