@@ -8,8 +8,8 @@ import RazorpayCheckout from 'react-native-razorpay';
 import { useAuth } from '../../auth/auth-context';
 import {
   confirmPrepaidBooking,
-  createBookingLock,
-  createPrepaidOrder,
+  holdPrepaidRoom,
+  releasePrepaidHold,
   uploadGuestIdProof,
   type GuestIdProofFile,
   type PrepaidOrder,
@@ -34,10 +34,18 @@ type Step = 1 | 2 | 3;
 // attached; refresh well before that so a slow guest never pays against an
 // order whose hold is about to lapse.
 const PREPAID_REFRESH_MS = 7 * 60 * 1000;
+// Wait for the guest to stop tapping through dates before holding a room.
+const PREPAID_DATE_DEBOUNCE_MS = 800;
 interface PreparedPrepaid {
   lockCode: string;
   order: PrepaidOrder;
   preparedAt: number;
+}
+
+// Best-effort: a failed release just means the hold expires on its own TTL.
+function releaseHeld(held?: Promise<PreparedPrepaid>): Promise<void> {
+  if (!held) return Promise.resolve();
+  return held.then((prepared) => releasePrepaidHold(prepared.lockCode)).catch(() => undefined);
 }
 
 export function PilgrimCheckoutScreen() {
@@ -65,17 +73,24 @@ export function PilgrimCheckoutScreen() {
   // in-progress indicator on the picker.
   const [uploadedIdProof, setUploadedIdProof] = useState<BookingGuestIdProofUpload | null>(null);
   const [idProofUploading, setIdProofUploading] = useState(false);
-  // While the guest is still filling in details (step 2 onward) with "Pay
-  // online" selected, we hold the room and create the Razorpay order in the
+  // As soon as the guest picks dates with "Pay online" selected, the backend
+  // holds the room and creates the Razorpay order in one call, in the
   // background — see the effect below — so tapping Pay opens the checkout
   // sheet immediately. The in-flight/finished preparation lives in a ref keyed
   // by stay signature so a tap during preparation awaits the same request
   // instead of starting a second one. The booking itself is only created after
-  // payment is verified (see confirmBooking).
+  // payment is verified (see confirmBooking). Pay-at-lodge holds nothing: the
+  // hold is released if the guest switches to it.
+  const [datesTouched, setDatesTouched] = useState(false);
   const [prepaidPreparing, setPrepaidPreparing] = useState(false);
   const [prepaidError, setPrepaidError] = useState<string | null>(null);
   const [prepaidRefreshTick, setPrepaidRefreshTick] = useState(0);
   const prepaidRef = useRef<{ signature: string; promise: Promise<PreparedPrepaid> } | null>(null);
+  const refreshDueRef = useRef(false);
+  // Once the Razorpay sheet has opened, the hold must never be released or
+  // swapped out from under an in-flight payment.
+  const paymentStartedRef = useRef(false);
+  const pendingReleaseRef = useRef<Promise<void>>(Promise.resolve());
   const [request, setRequest] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
   const [agree, setAgree] = useState(true);
@@ -99,55 +114,102 @@ export function PilgrimCheckoutScreen() {
   const normalizedGuestPhone = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/gu, '')}`;
 
   // Room hold + Razorpay order preparation. Needs only lodge/room/dates — not
-  // the guest details or ID proof — so it can start the moment the guest
-  // leaves the stay step and run while they type. Idempotent per signature.
+  // the guest details or ID proof — so it starts once the guest has picked
+  // dates and runs while they fill in the rest. Idempotent per signature.
   const prepaidSignature = `${lodge?.id ?? ''}|${room?.id ?? ''}|${checkInDate}|${checkOutDate}`;
-  const preparePrepaid = useCallback((): Promise<PreparedPrepaid> => {
-    const current = prepaidRef.current;
-    if (current && current.signature === prepaidSignature) return current.promise;
-    if (!lodge || !room) return Promise.reject(new Error('Room unavailable'));
-    const promise = (async (): Promise<PreparedPrepaid> => {
-      const lock = await createBookingLock({
-        checkInDate,
-        checkOutDate,
-        lodgeId: lodge.id,
-        roomTypeId: room.id,
+  const preparePrepaid = useCallback(
+    (forceRefresh = false): Promise<PreparedPrepaid> => {
+      const current = prepaidRef.current;
+      if (current && current.signature === prepaidSignature && !forceRefresh) {
+        return current.promise;
+      }
+      if (!lodge || !room) return Promise.reject(new Error('Room unavailable'));
+      // Free the previous hold first: the backend counts a guest's own active
+      // holds when checking availability, so a stale one could make the
+      // replacement fail when it's the last room.
+      const release = current ? releaseHeld(current.promise) : Promise.resolve();
+      pendingReleaseRef.current = release;
+      const promise = (async (): Promise<PreparedPrepaid> => {
+        await release;
+        const order = await holdPrepaidRoom({
+          checkInDate,
+          checkOutDate,
+          lodgeId: lodge.id,
+          roomTypeId: room.id,
+        });
+        return { lockCode: order.lockCode, order, preparedAt: Date.now() };
+      })();
+      prepaidRef.current = { signature: prepaidSignature, promise };
+      promise.catch(() => {
+        if (prepaidRef.current?.promise === promise) prepaidRef.current = null;
       });
-      const order = await createPrepaidOrder(lock.lockCode);
-      return { lockCode: lock.lockCode, order, preparedAt: Date.now() };
-    })();
-    prepaidRef.current = { signature: prepaidSignature, promise };
-    promise.catch(() => {
-      if (prepaidRef.current?.promise === promise) prepaidRef.current = null;
-    });
-    return promise;
-  }, [lodge, room, checkInDate, checkOutDate, prepaidSignature]);
+      return promise;
+    },
+    [lodge, room, checkInDate, checkOutDate, prepaidSignature],
+  );
 
+  const holdEnabled =
+    paymentMethod === 'ONLINE' && (datesTouched || step >= 2) && Boolean(lodge) && Boolean(room);
   useEffect(() => {
-    if (step < 2 || paymentMethod !== 'ONLINE' || !lodge || !room) return;
+    if (!holdEnabled) return;
     let cancelled = false;
-    setPrepaidError(null);
-    setPrepaidPreparing(true);
-    preparePrepaid()
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setPrepaidError(error instanceof Error ? error.message : 'Could not prepare payment');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setPrepaidPreparing(false);
-      });
-    // Keep the prepared order fresh: drop it and prepare a new one before the
-    // server-side hold can lapse.
-    const refreshTimer = setTimeout(() => {
-      prepaidRef.current = null;
-      setPrepaidRefreshTick((tick) => tick + 1);
-    }, PREPAID_REFRESH_MS);
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const force = refreshDueRef.current;
+    refreshDueRef.current = false;
+    const startTimer = setTimeout(
+      () => {
+        setPrepaidError(null);
+        setPrepaidPreparing(true);
+        preparePrepaid(force)
+          .then((prepared) => {
+            if (cancelled) return;
+            // Keep the prepared order fresh: swap in a new hold before the
+            // server-side one can lapse (never once payment has started).
+            refreshTimer = setTimeout(
+              () => {
+                if (paymentStartedRef.current) return;
+                refreshDueRef.current = true;
+                setPrepaidRefreshTick((tick) => tick + 1);
+              },
+              Math.max(prepared.preparedAt + PREPAID_REFRESH_MS - Date.now(), 0),
+            );
+          })
+          .catch((error: unknown) => {
+            if (!cancelled) {
+              setPrepaidError(error instanceof Error ? error.message : 'Could not prepare payment');
+            }
+          })
+          .finally(() => {
+            if (!cancelled) setPrepaidPreparing(false);
+          });
+      },
+      step >= 2 || force ? 0 : PREPAID_DATE_DEBOUNCE_MS,
+    );
     return () => {
       cancelled = true;
-      clearTimeout(refreshTimer);
+      clearTimeout(startTimer);
+      if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [step, paymentMethod, lodge, room, preparePrepaid, prepaidRefreshTick]);
+  }, [holdEnabled, step, preparePrepaid, prepaidRefreshTick]);
+
+  // Pay at lodge holds nothing: drop the hold if the guest switches to it.
+  useEffect(() => {
+    if (paymentMethod !== 'PAY_AT_LODGE') return;
+    const held = prepaidRef.current;
+    prepaidRef.current = null;
+    if (held) pendingReleaseRef.current = releaseHeld(held.promise);
+  }, [paymentMethod]);
+
+  // Leaving checkout without paying frees the room straight away.
+  useEffect(
+    () => () => {
+      if (paymentStartedRef.current) return;
+      const held = prepaidRef.current;
+      prepaidRef.current = null;
+      if (held) void releaseHeld(held.promise);
+    },
+    [],
+  );
 
   function validateGuestDetails(): boolean {
     if (!name.trim() || phone.replace(/\D/gu, '').length !== 10) {
@@ -284,26 +346,33 @@ export function PilgrimCheckoutScreen() {
         // one rather than pay against a hold that may lapse mid-payment.
         let prepared = await preparePrepaid();
         if (Date.now() - prepared.preparedAt > PREPAID_REFRESH_MS) {
-          prepaidRef.current = null;
-          prepared = await preparePrepaid();
+          prepared = await preparePrepaid(true);
         }
         const { lockCode, order } = prepared;
 
-        const result = await RazorpayCheckout.open({
-          key: order.keyId,
-          amount: order.amount,
-          currency: order.currency,
-          order_id: order.orderId,
-          name: 'Tuljai Stays',
-          description: `${lodge.name} · ${room.name}`,
-          prefill: {
-            name: name.trim(),
-            contact: phone.replace(/\D/gu, ''),
-            email: email.trim() || undefined,
-          },
-          notes: { lockCode },
-          theme: { color: '#C2410C' },
-        });
+        paymentStartedRef.current = true;
+        let result: Awaited<ReturnType<typeof RazorpayCheckout.open>>;
+        try {
+          result = await RazorpayCheckout.open({
+            key: order.keyId,
+            amount: order.amount,
+            currency: order.currency,
+            order_id: order.orderId,
+            name: 'Tuljai Stays',
+            description: `${lodge.name} · ${room.name}`,
+            prefill: {
+              name: name.trim(),
+              contact: phone.replace(/\D/gu, ''),
+              email: email.trim() || undefined,
+            },
+            notes: { lockCode },
+            theme: { color: '#C2410C' },
+          });
+        } catch (openError) {
+          // Sheet dismissed or failed: the hold is still good for a retry.
+          paymentStartedRef.current = false;
+          throw openError;
+        }
 
         // Only now — after Razorpay confirms the payment went through — does
         // a booking get created at all, already paid and already accepted.
@@ -330,6 +399,9 @@ export function PilgrimCheckoutScreen() {
         // The lock is consumed by the confirmed booking; never reuse it.
         prepaidRef.current = null;
       } else {
+        // Make sure a hold released by switching to pay-at-lodge has landed,
+        // since the backend counts the guest's own active holds.
+        await pendingReleaseRef.current;
         const booking = await createBooking({
           checkInDate,
           checkOutDate,
@@ -453,6 +525,7 @@ export function PilgrimCheckoutScreen() {
             options={checkInOptions}
             selectedDate={checkInDate}
             onSelect={(value) => {
+              setDatesTouched(true);
               setCheckInDate(value);
               if (checkOutDate <= value)
                 setCheckOutDate(toDateOnly(addDays(parseDateOnly(value), 1)));
@@ -462,7 +535,10 @@ export function PilgrimCheckoutScreen() {
             label={t('Checkout', 'चेक-आउट')}
             options={checkoutOptions}
             selectedDate={checkOutDate}
-            onSelect={setCheckOutDate}
+            onSelect={(value) => {
+              setDatesTouched(true);
+              setCheckOutDate(value);
+            }}
           />
           <GuestCounter
             label={t('Adults', 'प्रौढ')}
