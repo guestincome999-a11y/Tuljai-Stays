@@ -122,6 +122,20 @@ export async function createPrepaidOrder(lockCode: string): Promise<PrepaidOrder
 }
 
 /**
+ * Holds the room and creates its Razorpay order in a single backend call.
+ * Used in the background as soon as the guest picks dates so the checkout
+ * sheet can open instantly when they tap Pay.
+ */
+export async function holdPrepaidRoom(input: BookingLockRequest): Promise<PrepaidOrder> {
+  return apiClient.post<PrepaidOrder>('/payments/prepaid/hold', input);
+}
+
+/** Frees a hold the guest no longer needs. Best-effort; failures are ignorable. */
+export async function releasePrepaidHold(lockCode: string): Promise<void> {
+  await apiClient.post('/payments/prepaid/release', { lockCode });
+}
+
+/**
  * Verifies a completed Razorpay payment and, only once verified, creates the
  * booking already paid and accepted. Nothing is created if verification
  * fails — there is no booking to clean up in that case.
