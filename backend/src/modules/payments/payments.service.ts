@@ -9,7 +9,7 @@ import type { AuthenticatedUser, Booking } from '@tuljai/types';
 
 import { BookingLocksService } from '../bookings/booking-locks.service';
 import { BookingsService } from '../bookings/bookings.service';
-import type { CreateBookingDto } from '../bookings/dto/booking.dto';
+import type { CreateBookingDto, CreateBookingLockDto } from '../bookings/dto/booking.dto';
 import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -142,6 +142,29 @@ export class PaymentsService {
       amount: order.amount,
       currency: order.currency,
     };
+  }
+
+  /**
+   * One-round-trip version of "lock the room, then create its Razorpay order".
+   * The pilgrim app calls this in the background as soon as the guest picks
+   * their dates, so the room is held and the order is ready long before they
+   * tap Pay. Online payments are checked first so no hold is created when
+   * they're disabled, and the hold is released again if order creation fails.
+   */
+  public async createPrepaidHold(dto: CreateBookingLockDto, user: AuthenticatedUser) {
+    await this.assertOnlinePaymentsEnabled();
+
+    const lock = await this.bookingLocksService.createLock(dto, user);
+    try {
+      return await this.createPrepaidOrder(lock.lockCode, user);
+    } catch (error) {
+      await this.bookingLocksService.releaseLock(lock.lockCode, user).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  public async releasePrepaidHold(lockCode: string, user: AuthenticatedUser) {
+    return { released: await this.bookingLocksService.releaseLock(lockCode, user) };
   }
 
   /**
