@@ -100,6 +100,20 @@ export class BookingLocksService {
     });
   }
 
+  /**
+   * Frees a still-active hold the guest no longer needs (dates changed, they
+   * switched to pay-at-lodge, or they left checkout), so it stops blocking the
+   * room immediately instead of lingering until its TTL. Scoped to the
+   * caller's own ACTIVE locks; consumed/expired locks are left untouched.
+   */
+  public async releaseLock(lockCode: string, user: AuthenticatedUser): Promise<boolean> {
+    const result = await this.prisma.bookingLock.updateMany({
+      data: { expiresAt: new Date(), status: 'RELEASED' },
+      where: { lockCode, pilgrimUserId: user.id, status: 'ACTIVE' },
+    });
+    return result.count > 0;
+  }
+
   public async expireLocks(): Promise<number> {
     const result = await this.prisma.bookingLock.updateMany({
       data: { status: 'EXPIRED' },

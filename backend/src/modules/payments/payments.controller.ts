@@ -4,7 +4,7 @@ import { IsString, MaxLength } from 'class-validator';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CreateBookingDto } from '../bookings/dto/booking.dto';
+import { CreateBookingDto, CreateBookingLockDto } from '../bookings/dto/booking.dto';
 
 import { PaymentsService } from './payments.service';
 
@@ -72,6 +72,24 @@ export class PaymentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.paymentsService.createPrepaidOrder(dto.lockCode, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('prepaid/hold')
+  public createPrepaidHold(
+    @Body() dto: CreateBookingLockDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.createPrepaidHold(dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('prepaid/release')
+  public releasePrepaidHold(
+    @Body() dto: CreatePrepaidOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.releasePrepaidHold(dto.lockCode, user);
   }
 
   @UseGuards(JwtAuthGuard)
