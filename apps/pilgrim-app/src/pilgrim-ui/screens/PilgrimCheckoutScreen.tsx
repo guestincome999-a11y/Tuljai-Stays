@@ -106,8 +106,9 @@ export function PilgrimCheckoutScreen() {
   );
   const nights = Math.max(daysBetween(checkInDate, checkOutDate), 1);
   const subtotal = (room?.price ?? 0) * nights;
-  const taxes = Math.round(subtotal * 0.05);
-  const total = subtotal + taxes;
+  // Room rate only — no taxes or extra charges. Matches what the backend
+  // prices the booking and Razorpay order at.
+  const total = subtotal;
   // The backend requires guestPhone in E.164 form (+91XXXXXXXXXX). The field
   // itself only ever collects a 10-digit national number, so normalize it
   // here once rather than at each call site that needs to send it on.
@@ -717,10 +718,6 @@ export function PilgrimCheckoutScreen() {
             <PriceRow
               label={`${formatRupees(room.price)} × ${nights} nights`}
               value={formatRupees(subtotal)}
-            />
-            <PriceRow
-              label={t('Taxes and lodge charges', 'कर आणि लॉज शुल्क')}
-              value={formatRupees(taxes)}
             />
             <View className="mt-4 flex-row items-center justify-between border-t border-warm-100 pt-4">
               <Text className="text-base font-extrabold text-warm-900">{t('Total', 'एकूण')}</Text>
