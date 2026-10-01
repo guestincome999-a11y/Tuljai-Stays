@@ -237,9 +237,6 @@ export function PilgrimLodgesScreen() {
           <Text className="text-base font-extrabold text-warm-900">
             {results.length} {t('verified stays', 'सत्यापित निवास')}
           </Text>
-          <Text className="mt-0.5 text-xs text-warm-500">
-            {t('Prices include taxes shown at checkout', 'चेकआउटवर करांसह किंमत दिसेल')}
-          </Text>
         </View>
         <Pressable
           accessibilityLabel={t('Open filters and sorting', 'फिल्टर आणि क्रमवारी उघडा')}
