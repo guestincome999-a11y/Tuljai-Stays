@@ -254,7 +254,7 @@ export function PilgrimLodgeDetailScreen() {
                           {formatRupees(room.price)}
                         </Text>
                         <Text className="text-xs text-warm-500">
-                          {t('per night · taxes extra', 'प्रति रात्र · कर अतिरिक्त')}
+                          {t('per night', 'प्रति रात्र')}
                         </Text>
                       </View>
                       <SecondaryButton
