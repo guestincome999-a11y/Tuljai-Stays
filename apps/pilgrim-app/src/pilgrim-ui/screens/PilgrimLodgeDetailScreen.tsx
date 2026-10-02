@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,9 +14,18 @@ import {
 } from 'react-native';
 
 import { LodgeReviewsSection } from '../../features/reviews/components/LodgeReviewsSection';
-import { AppScreen, EmptyState, PrimaryButton, Rating, SecondaryButton, ui } from '../components';
+import {
+  AppScreen,
+  EmptyState,
+  PrimaryButton,
+  Rating,
+  RoomsUnavailableNotice,
+  SecondaryButton,
+  ui,
+} from '../components';
 import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
+import { defaultStayWindow, useRoomAvailability } from '../useRoomAvailability';
 
 export function PilgrimLodgeDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -26,6 +35,16 @@ export function PilgrimLodgeDetailScreen() {
   const lodge = lodges.find((item) => item.id === params.id);
   const [photoIndex, setPhotoIndex] = useState(0);
   const favorite = lodge ? favoriteIds.includes(lodge.id) : false;
+  // Live check for the same default stay checkout opens with (tomorrow, one
+  // night). Only a positive "no rooms free" answer marks the lodge as full;
+  // a failed or pending check never blocks booking.
+  const stayWindow = useMemo(() => defaultStayWindow(), []);
+  const availability = useRoomAvailability({
+    ...stayWindow,
+    enabled: lodge?.hydrated !== false,
+    lodgeId: lodge?.id,
+    roomTypeIds: lodge?.rooms.map((room) => room.id) ?? [],
+  });
 
   if (!lodge) {
     return (
@@ -214,6 +233,32 @@ export function PilgrimLodgeDetailScreen() {
               {t('Free cancellation on selected rooms', 'निवडक खोल्यांवर मोफत रद्दीकरण')}
             </Text>
             <View className="mt-4 gap-4">
+              {availability.allFull ? (
+                <RoomsUnavailableNotice
+                  body={t(
+                    'All rooms are full for tomorrow night. Try other dates or choose another stay.',
+                    'उद्याच्या रात्रीसाठी सर्व खोल्या भरलेल्या आहेत. दुसऱ्या तारखा वापरून पहा किंवा दुसरा निवास निवडा.',
+                  )}
+                >
+                  <SecondaryButton
+                    icon="calendar-search"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/bookings/new',
+                        params: { lodgeId: lodge.id },
+                      })
+                    }
+                  >
+                    {t('Try other dates', 'दुसऱ्या तारखा पहा')}
+                  </SecondaryButton>
+                  <SecondaryButton
+                    icon="home-search-outline"
+                    onPress={() => router.replace('/(app)/lodges')}
+                  >
+                    {t('See other stays', 'इतर निवास पहा')}
+                  </SecondaryButton>
+                </RoomsUnavailableNotice>
+              ) : null}
               {lodge.rooms.map((room, index) => (
                 <View
                   className={`overflow-hidden rounded-3xl border bg-white ${index === 0 ? 'border-saffron-500' : 'border-warm-200'}`}
@@ -234,11 +279,19 @@ export function PilgrimLodgeDetailScreen() {
                           {room.bed} · {room.capacity}
                         </Text>
                       </View>
-                      <View className="rounded-xl bg-bell-50 px-2.5 py-1.5">
-                        <Text className="text-xs font-extrabold text-bell-700">
-                          {room.available} left
-                        </Text>
-                      </View>
+                      {availability.counts[room.id] === 0 ? (
+                        <View className="rounded-xl bg-danger-50 px-2.5 py-1.5">
+                          <Text className="text-xs font-extrabold text-danger-700">
+                            {t('Full', 'भरले')}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View className="rounded-xl bg-bell-50 px-2.5 py-1.5">
+                          <Text className="text-xs font-extrabold text-bell-700">
+                            {availability.counts[room.id] ?? room.available} left
+                          </Text>
+                        </View>
+                      )}
                     </View>
                     <View className="gap-2">
                       {room.features.map((feature) => (
