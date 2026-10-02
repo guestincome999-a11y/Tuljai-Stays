@@ -16,10 +16,13 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
+  Extrapolation,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withRepeat,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -559,6 +562,238 @@ export function AnimatedResultBadge({ tone = 'success' }: { tone?: 'danger' | 's
         <MaterialCommunityIcons color="#FFFFFF" name={icon} size={56} />
       </Animated.View>
     </View>
+  );
+}
+
+const SAD_FACE = {
+  brow: '#7A4B1E',
+  face: '#FFD45E',
+  faceEdge: '#F4B23E',
+  feature: '#5A3410',
+  tear: '#5BA8F5',
+} as const;
+
+/**
+ * A gently swaying sad face: it pops in with a spring, sways slowly, and a
+ * tear keeps rolling down its cheek while a soft halo pulses behind it.
+ * Built from plain views so it needs no image or extra native module.
+ */
+export function SadFaceAnimation({ size = 112 }: { size?: number }) {
+  const entrance = useSharedValue(0);
+  const sway = useSharedValue(0);
+  const tear = useSharedValue(0);
+  const halo = useSharedValue(0);
+
+  useEffect(() => {
+    entrance.value = withSpring(1, { damping: 9, mass: 0.7, stiffness: 120 });
+    sway.value = withRepeat(
+      withTiming(1, { duration: 1700, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+    tear.value = withRepeat(
+      withSequence(
+        withDelay(700, withTiming(1, { duration: 1100, easing: Easing.in(Easing.quad) })),
+        withTiming(0, { duration: 0 }),
+      ),
+      -1,
+      false,
+    );
+    halo.value = withRepeat(
+      withTiming(1, { duration: 2200, easing: Easing.out(Easing.ease) }),
+      -1,
+      false,
+    );
+  }, [entrance, halo, sway, tear]);
+
+  const faceStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: entrance.value },
+      { rotate: `${interpolate(sway.value, [0, 1], [-4, 4])}deg` },
+      { translateY: interpolate(sway.value, [0, 1], [0, 3]) },
+    ],
+  }));
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(halo.value, [0, 1], [0.35, 0]),
+    transform: [{ scale: interpolate(halo.value, [0, 1], [0.9, 1.45]) }],
+  }));
+  const tearStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tear.value, [0, 0.15, 0.85, 1], [0, 1, 1, 0]),
+    transform: [
+      { translateY: tear.value * size * 0.3 },
+      { scale: interpolate(tear.value, [0, 0.2], [0.4, 1], Extrapolation.CLAMP) },
+    ],
+  }));
+
+  // Face interior width (the face has a border), used to place the features.
+  const inner = size * 0.92;
+  const eyeWidth = size * 0.1;
+  const eyeHeight = size * 0.13;
+  const eyeTop = inner * 0.38;
+  const browWidth = size * 0.2;
+  const browHeight = size * 0.04;
+  const mouthWidth = size * 0.32;
+
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        alignItems: 'center',
+        height: size * 1.3,
+        justifyContent: 'center',
+        width: size * 1.3,
+      }}
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          {
+            backgroundColor: SAD_FACE.face,
+            borderRadius: size / 2,
+            height: size,
+            position: 'absolute',
+            width: size,
+          },
+          haloStyle,
+        ]}
+      />
+      <Animated.View
+        style={[
+          {
+            backgroundColor: SAD_FACE.face,
+            borderColor: SAD_FACE.faceEdge,
+            borderRadius: size / 2,
+            borderWidth: size * 0.04,
+            height: size,
+            width: size,
+          },
+          faceStyle,
+        ]}
+      >
+        <View
+          style={{
+            backgroundColor: SAD_FACE.brow,
+            borderRadius: browHeight / 2,
+            height: browHeight,
+            left: inner * 0.3 - browWidth / 2,
+            position: 'absolute',
+            top: inner * 0.27,
+            transform: [{ rotate: '-20deg' }],
+            width: browWidth,
+          }}
+        />
+        <View
+          style={{
+            backgroundColor: SAD_FACE.brow,
+            borderRadius: browHeight / 2,
+            height: browHeight,
+            left: inner * 0.7 - browWidth / 2,
+            position: 'absolute',
+            top: inner * 0.27,
+            transform: [{ rotate: '20deg' }],
+            width: browWidth,
+          }}
+        />
+        <View
+          style={{
+            backgroundColor: SAD_FACE.feature,
+            borderRadius: eyeWidth / 2,
+            height: eyeHeight,
+            left: inner * 0.3 - eyeWidth / 2,
+            position: 'absolute',
+            top: eyeTop,
+            width: eyeWidth,
+          }}
+        />
+        <View
+          style={{
+            backgroundColor: SAD_FACE.feature,
+            borderRadius: eyeWidth / 2,
+            height: eyeHeight,
+            left: inner * 0.7 - eyeWidth / 2,
+            position: 'absolute',
+            top: eyeTop,
+            width: eyeWidth,
+          }}
+        />
+        <Animated.View
+          style={[
+            {
+              backgroundColor: SAD_FACE.tear,
+              borderRadius: size * 0.05,
+              height: size * 0.12,
+              left: inner * 0.3 - size * 0.045,
+              position: 'absolute',
+              top: eyeTop + eyeHeight + size * 0.01,
+              width: size * 0.09,
+            },
+            tearStyle,
+          ]}
+        />
+        <View
+          style={{
+            borderBottomWidth: 0,
+            borderColor: SAD_FACE.feature,
+            borderTopLeftRadius: mouthWidth / 2,
+            borderTopRightRadius: mouthWidth / 2,
+            borderWidth: size * 0.045,
+            height: mouthWidth / 2,
+            left: (inner - mouthWidth) / 2,
+            position: 'absolute',
+            top: inner * 0.66,
+            width: mouthWidth,
+          }}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * Shown when a lodge (or the chosen room) is full: the sad face, a clear
+ * "Rooms are not available at the moment" headline, an optional explanation
+ * and optional follow-up actions.
+ */
+export function RoomsUnavailableNotice({
+  body,
+  children,
+  compact = false,
+  title,
+}: {
+  body?: string;
+  children?: ReactNode;
+  compact?: boolean;
+  title?: string;
+}) {
+  const { t } = usePilgrimApp();
+  const reveal = useSharedValue(0);
+
+  useEffect(() => {
+    reveal.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.cubic) });
+  }, [reveal]);
+
+  const revealStyle = useAnimatedStyle(() => ({
+    opacity: reveal.value,
+    transform: [{ translateY: interpolate(reveal.value, [0, 1], [12, 0]) }],
+  }));
+
+  return (
+    <Animated.View
+      accessibilityLiveRegion="polite"
+      accessibilityRole="alert"
+      className="items-center rounded-3xl border border-saffron-100 bg-saffron-50 px-6 py-7"
+      style={revealStyle}
+    >
+      <SadFaceAnimation size={compact ? 84 : 112} />
+      <Text className="mt-2 text-center text-xl font-extrabold text-warm-900">
+        {title ?? t('Rooms are not available at the moment', 'सध्या खोल्या उपलब्ध नाहीत')}
+      </Text>
+      {body ? (
+        <Text className="mt-2 text-center text-sm leading-5 text-warm-600">{body}</Text>
+      ) : null}
+      {children ? <View className="mt-5 w-full gap-3">{children}</View> : null}
+    </Animated.View>
   );
 }
 
