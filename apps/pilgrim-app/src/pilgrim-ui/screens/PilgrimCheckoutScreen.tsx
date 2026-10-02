@@ -20,11 +20,14 @@ import {
   EmptyState,
   Field,
   PrimaryButton,
+  RoomsUnavailableNotice,
+  SecondaryButton,
   TopBar,
   ui,
 } from '../components';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
+import { isRoomFullError, useRoomAvailability } from '../useRoomAvailability';
 
 const allowedIdProofTypes = ['application/pdf', 'image/jpeg', 'image/png'] as const;
 const maxIdProofSizeBytes = 5 * 1024 * 1024;
@@ -85,6 +88,13 @@ export function PilgrimCheckoutScreen() {
   const [prepaidPreparing, setPrepaidPreparing] = useState(false);
   const [prepaidError, setPrepaidError] = useState<string | null>(null);
   const [prepaidRefreshTick, setPrepaidRefreshTick] = useState(0);
+  // Whether the chosen room is full for the chosen stay, keyed by stay
+  // signature so a change of room or dates immediately drops the old answer.
+  // Fed by the live availability check, by the room-hold attempt (409 =
+  // full, success = free) and by a failed pay-at-lodge booking request.
+  const [roomStatus, setRoomStatus] = useState<{ full: boolean; signature: string } | null>(
+    null,
+  );
   const prepaidRef = useRef<{ signature: string; promise: Promise<PreparedPrepaid> } | null>(null);
   const refreshDueRef = useRef(false);
   // Once the Razorpay sheet has opened, the hold must never be released or
@@ -118,6 +128,28 @@ export function PilgrimCheckoutScreen() {
   // the guest details or ID proof — so it starts once the guest has picked
   // dates and runs while they fill in the rest. Idempotent per signature.
   const prepaidSignature = `${lodge?.id ?? ''}|${room?.id ?? ''}|${checkInDate}|${checkOutDate}`;
+
+  // Live availability for the chosen dates, checked as soon as they change.
+  // Thrown away whenever we hold a room ourselves: the endpoint counts our
+  // own hold, which would wrongly report the last room as taken.
+  const availability = useRoomAvailability({
+    checkInDate,
+    checkOutDate,
+    enabled: step === 1,
+    lodgeId: lodge?.id,
+    roomTypeIds: lodge?.rooms.map((item) => item.id) ?? [],
+    shouldDiscard: () => Boolean(prepaidRef.current),
+  });
+  const selectedRoomId = room?.id;
+  const selectedRoomCount = selectedRoomId ? availability.counts[selectedRoomId] : undefined;
+  useEffect(() => {
+    if (selectedRoomCount === undefined) return;
+    setRoomStatus({ full: selectedRoomCount === 0, signature: prepaidSignature });
+  }, [prepaidSignature, selectedRoomCount]);
+  const roomFull = roomStatus?.signature === prepaidSignature && roomStatus.full;
+  const otherRoomsFree = (lodge?.rooms ?? []).some(
+    (item) => item.id !== selectedRoomId && (availability.counts[item.id] ?? 0) > 0,
+  );
   const preparePrepaid = useCallback(
     (forceRefresh = false): Promise<PreparedPrepaid> => {
       const current = prepaidRef.current;
@@ -164,6 +196,7 @@ export function PilgrimCheckoutScreen() {
         preparePrepaid(force)
           .then((prepared) => {
             if (cancelled) return;
+            setRoomStatus({ full: false, signature: prepaidSignature });
             // Keep the prepared order fresh: swap in a new hold before the
             // server-side one can lapse (never once payment has started).
             refreshTimer = setTimeout(
@@ -177,6 +210,9 @@ export function PilgrimCheckoutScreen() {
           })
           .catch((error: unknown) => {
             if (!cancelled) {
+              if (isRoomFullError(error)) {
+                setRoomStatus({ full: true, signature: prepaidSignature });
+              }
               setPrepaidError(error instanceof Error ? error.message : 'Could not prepare payment');
             }
           })
@@ -191,7 +227,7 @@ export function PilgrimCheckoutScreen() {
       clearTimeout(startTimer);
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [holdEnabled, step, preparePrepaid, prepaidRefreshTick]);
+  }, [holdEnabled, step, preparePrepaid, prepaidRefreshTick, prepaidSignature]);
 
   // Pay at lodge holds nothing: drop the hold if the guest switches to it.
   useEffect(() => {
@@ -336,6 +372,9 @@ export function PilgrimCheckoutScreen() {
 
     setSubmitting(true);
     setPaymentFailure(null);
+    // Once Razorpay has taken the payment, a conflict is no longer a simple
+    // "room is full" — that case keeps the regular failure message.
+    let paymentCaptured = false;
 
     try {
       let bookingId: string;
@@ -374,6 +413,8 @@ export function PilgrimCheckoutScreen() {
           paymentStartedRef.current = false;
           throw openError;
         }
+
+        paymentCaptured = true;
 
         // Only now — after Razorpay confirms the payment went through — does
         // a booking get created at all, already paid and already accepted.
@@ -440,6 +481,13 @@ export function PilgrimCheckoutScreen() {
         params: { id: bookingId, justBooked: '1' },
       });
     } catch (error) {
+      if (!paymentCaptured && isRoomFullError(error)) {
+        // The room filled up while the guest was booking: show the sad
+        // "not available" state back on the stay step instead of an alert.
+        setRoomStatus({ full: true, signature: prepaidSignature });
+        setStep(1);
+        return;
+      }
       const message =
         error instanceof Error
           ? error.message
@@ -484,6 +532,34 @@ export function PilgrimCheckoutScreen() {
 
       <CheckoutStepHeader step={step} t={t} onSelect={goToStep} />
 
+      {roomFull ? (
+        <RoomsUnavailableNotice
+          body={
+            otherRoomsFree
+              ? t(
+                  'This room is full for the selected dates. Try another room or different dates.',
+                  'निवडलेल्या तारखांसाठी ही खोली भरली आहे. दुसरी खोली किंवा वेगळ्या तारखा निवडा.',
+                )
+              : t(
+                  'Every room is full for the selected dates. Try different dates or choose another stay.',
+                  'निवडलेल्या तारखांसाठी सर्व खोल्या भरल्या आहेत. वेगळ्या तारखा निवडा किंवा दुसरा निवास निवडा.',
+                )
+          }
+        >
+          {step !== 1 ? (
+            <SecondaryButton icon="calendar-edit" onPress={() => setStep(1)}>
+              {t('Change dates or room', 'तारखा किंवा खोली बदला')}
+            </SecondaryButton>
+          ) : null}
+          <SecondaryButton
+            icon="home-search-outline"
+            onPress={() => router.replace('/(app)/lodges')}
+          >
+            {t('See other stays', 'इतर निवास पहा')}
+          </SecondaryButton>
+        </RoomsUnavailableNotice>
+      ) : null}
+
       {step === 1 ? (
         <View className="gap-5">
           <SectionTitle title={t('Your stay', 'तुमचा निवास')} />
@@ -515,6 +591,11 @@ export function PilgrimCheckoutScreen() {
                     <Text className="mt-2 text-lg font-extrabold text-maroon-700">
                       {formatRupees(item.price)} / night
                     </Text>
+                    {availability.counts[item.id] === 0 ? (
+                      <Text className="mt-1 text-xs font-extrabold text-danger-700">
+                        {t('Full for these dates', 'या तारखांसाठी भरले')}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
               </Pressable>
@@ -744,11 +825,12 @@ export function PilgrimCheckoutScreen() {
       ) : null}
 
       {step < 3 ? (
-        <PrimaryButton icon="arrow-right" onPress={continueFlow}>
+        <PrimaryButton disabled={roomFull} icon="arrow-right" onPress={continueFlow}>
           {t('Continue', 'पुढे चला')}
         </PrimaryButton>
       ) : (
         <PrimaryButton
+          disabled={roomFull}
           icon={paymentMethod === 'ONLINE' ? 'lock-outline' : 'check-circle-outline'}
           loading={submitting}
           onPress={() => void confirmBooking()}
