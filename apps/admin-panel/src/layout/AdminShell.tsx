@@ -6,28 +6,20 @@ import { useMemo, useState, type PropsWithChildren } from 'react';
 
 import { getAdminDisplayName, useAdminAuth } from '../auth/AdminAuthProvider';
 import { AdminProtectedRoute } from '../auth/AdminProtectedRoute';
-import { AdminIcon, type AdminIconName } from '../components/AdminIcon';
+import { AdminIcon } from '../components/AdminIcon';
 import { LiveOnlinePaymentsControl } from '../components/LiveOnlinePaymentsControl';
-import { adminNavigationItems } from '../navigation/admin-navigation';
+import { adminNavigationItems, type AdminNavigationItem } from '../navigation/admin-navigation';
 import { hasPermission } from '../permissions/permissions';
-
-const ICONS: Record<string, AdminIconName> = {
-  Dashboard: 'dashboard', 'Live Operations': 'operations', Bookings: 'bookings', Lodges: 'lodges',
-  'Add Lodge': 'lodges', 'Import Lodges (Excel)': 'lodges', Owners: 'owners', Staff: 'staff', Rooms: 'rooms',
-  'Photo Review': 'reviews', Finance: 'finance', 'Promo Codes': 'marketing', Feedback: 'reviews',
-  'Review Moderation': 'reviews', 'User Support': 'support', Verification: 'verification', Announcements: 'notifications',
-  'Festival Control': 'operations', 'Emergency Control': 'security', Reports: 'reports', 'Executive BI': 'analytics',
-  Analytics: 'analytics', Revenue: 'finance', 'Lodge Commission': 'finance', Performance: 'analytics', Exports: 'reports',
-  'System Health': 'system', 'API Health': 'system', 'Notifications Monitor': 'notifications', 'QR Monitor': 'qr',
-  Security: 'security', Sessions: 'security', Backups: 'backups', 'Audit Logs': 'audit', Settings: 'settings', 'Feature Flags': 'settings',
-};
 
 export function AdminShell({ children }: PropsWithChildren) {
   const auth = useAdminAuth();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const visibleItems = adminNavigationItems.filter((item) => hasPermission(auth.permissions, item.permission));
-  const groupedItems = useMemo(() => groupNavigation(visibleItems), [visibleItems]);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const allowedItems = adminNavigationItems.filter((item) => hasPermission(auth.permissions, item.permission));
+  const sidebarItems = allowedItems.filter((item) => !item.hidden);
+  const groupedItems = useMemo(() => groupNavigation(sidebarItems), [sidebarItems]);
+  const tabItems = getTabItems(pathname, allowedItems);
   const displayName = getAdminDisplayName(auth.session.user);
   const currentTitle = getCurrentTitle(pathname);
 
@@ -44,18 +36,39 @@ export function AdminShell({ children }: PropsWithChildren) {
           </div>
           <div className="sidebar-status"><span className="status-dot" /><span>Operations online</span><span className="status-location">Tuljapur · INR</span></div>
           <nav className="nav-stack">
-            {groupedItems.map(([section, items]) => (
-              <section key={section} className="nav-section">
-                <p className="nav-section-title">{section}</p>
-                {items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  const icon = ICONS[item.label] ?? 'system';
-                  return <Link aria-current={active ? 'page' : undefined} className={active ? 'nav-link nav-link-active' : 'nav-link'} href={item.href} key={item.label} onClick={() => setSidebarOpen(false)}>
-                    <span className="nav-link-leading"><span className="nav-icon-wrap"><AdminIcon name={icon} /></span><span>{item.label}</span></span>
-                  </Link>;
-                })}
-              </section>
-            ))}
+            {groupedItems.map(([section, items]) => {
+              if (items.length === 1) {
+                const only = items[0];
+                if (!only) return null;
+                const active = isItemActive(pathname, only);
+                return (
+                  <Link aria-current={active ? 'page' : undefined} className={active ? 'nav-link nav-link-active' : 'nav-link'} href={only.href} key={section} onClick={() => setSidebarOpen(false)}>
+                    <span className="nav-link-leading"><span className="nav-icon-wrap"><AdminIcon name={only.icon} /></span><span>{section}</span></span>
+                  </Link>
+                );
+              }
+              const groupActive = items.some((item) => isItemActive(pathname, item));
+              const open = openGroups[section] ?? groupActive;
+              const lead = items[0];
+              return (
+                <section key={section} className="nav-section">
+                  <button aria-expanded={open} className={groupActive ? 'nav-group-toggle nav-group-toggle-active' : 'nav-group-toggle'} onClick={() => setOpenGroups((current) => ({ ...current, [section]: !open }))} type="button">
+                    <span className="nav-link-leading"><span className="nav-icon-wrap">{lead ? <AdminIcon name={lead.icon} /> : null}</span><span>{section}</span></span>
+                    <span aria-hidden="true" className={open ? 'nav-chevron nav-chevron-open' : 'nav-chevron'}>›</span>
+                  </button>
+                  {open ? (
+                    <div className="nav-children">
+                      {items.map((item) => {
+                        const active = isItemActive(pathname, item);
+                        return <Link aria-current={active ? 'page' : undefined} className={active ? 'nav-link nav-child-link nav-link-active' : 'nav-link nav-child-link'} href={item.href} key={item.href} onClick={() => setSidebarOpen(false)}>
+                          <span>{item.label}</span>
+                        </Link>;
+                      })}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
           </nav>
           <div className="sidebar-footer-card"><div className="sidebar-footer-icon"><AdminIcon name="security" /></div><div><strong>Protected workspace</strong><span>Role permissions active</span></div></div>
         </aside>
@@ -75,6 +88,14 @@ export function AdminShell({ children }: PropsWithChildren) {
           </header>
           <main className="admin-content" id="admin-main-content" tabIndex={-1}>
             {pathname === '/admin/dashboard' ? <LiveOnlinePaymentsControl /> : null}
+            {tabItems.length > 1 ? (
+              <nav aria-label="Section views" className="section-tabs">
+                {tabItems.map((tab) => {
+                  const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+                  return <Link aria-current={active ? 'page' : undefined} className={active ? 'section-tab section-tab-active' : 'section-tab'} href={tab.href} key={tab.href}>{tab.tabLabel ?? tab.label}</Link>;
+                })}
+              </nav>
+            ) : null}
             {children}
           </main>
         </div>
@@ -90,6 +111,17 @@ export function AdminShell({ children }: PropsWithChildren) {
           .admin-nav-icon { display: block; }
           .nav-link:hover .nav-icon-wrap, .nav-link-active .nav-icon-wrap { background: rgba(255,255,255,.16); transform: scale(1.06); }
           .nav-link { animation: admin-nav-in 360ms ease both; }
+          .nav-group-toggle { align-items: center; background: transparent; border: 0; border-radius: var(--radius-sm); color: rgba(255,255,255,.9); cursor: pointer; display: flex; font: inherit; justify-content: space-between; min-height: 42px; padding: 9px 10px; text-align: left; transition: background 160ms ease; width: 100%; }
+          .nav-group-toggle:hover { background: rgba(255,255,255,.08); }
+          .nav-group-toggle-active { color: #ffffff; font-weight: 800; }
+          .nav-chevron { color: rgba(255,255,255,.55); font-size: 1.1rem; transition: transform 160ms ease; }
+          .nav-chevron-open { transform: rotate(90deg); }
+          .nav-children { border-left: 1px solid rgba(255,255,255,.14); display: flex; flex-direction: column; gap: 2px; margin: 2px 0 4px 24px; padding-left: 8px; }
+          .nav-child-link { font-size: .82rem; min-height: 36px; padding: 7px 10px; }
+          .section-tabs { border-bottom: 1px solid var(--color-outline); display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 var(--space-lg); }
+          .section-tab { border-bottom: 2px solid transparent; color: var(--color-muted); font-size: .82rem; font-weight: 800; margin-bottom: -1px; padding: 10px 14px; transition: color 160ms ease, border-color 160ms ease; }
+          .section-tab:hover { color: var(--color-primary-strong); }
+          .section-tab-active { border-bottom-color: var(--color-primary); color: var(--color-primary-strong); }
           .nav-section:nth-child(2) .nav-link { animation-delay: 25ms; }
           .nav-section:nth-child(3) .nav-link { animation-delay: 50ms; }
           .sidebar-footer-card { align-items: center; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; display: flex; gap: 10px; margin: 14px; padding: 11px; }
@@ -139,6 +171,18 @@ export function AdminShell({ children }: PropsWithChildren) {
       </div>
     </AdminProtectedRoute>
   );
+}
+
+function isItemActive(pathname: string, item: AdminNavigationItem): boolean {
+  if (pathname === item.href || pathname.startsWith(`${item.href}/`)) return true;
+  if (!item.tabGroup) return false;
+  return adminNavigationItems.some((other) => other.tabGroup === item.tabGroup && (pathname === other.href || pathname.startsWith(`${other.href}/`)));
+}
+
+function getTabItems(pathname: string, allowed: AdminNavigationItem[]): AdminNavigationItem[] {
+  const current = adminNavigationItems.filter((item) => item.tabGroup && (pathname === item.href || pathname.startsWith(`${item.href}/`))).sort((a, b) => b.href.length - a.href.length)[0];
+  if (!current?.tabGroup) return [];
+  return allowed.filter((item) => item.tabGroup === current.tabGroup);
 }
 
 function groupNavigation(items: typeof adminNavigationItems): Array<[string, typeof adminNavigationItems]> {
