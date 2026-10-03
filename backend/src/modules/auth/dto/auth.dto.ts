@@ -173,6 +173,32 @@ export class OwnerLoginDto {
   platform!: (typeof platforms)[number];
 }
 
+export class AdminLoginDto {
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  deviceId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deviceName?: string;
+
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  password!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(12)
+  totpCode?: string;
+}
+
 export class OwnerForgotPasswordDto {
   @IsEmail()
   @MaxLength(254)

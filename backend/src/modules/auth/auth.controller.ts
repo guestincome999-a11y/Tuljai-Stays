@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Roles } from './decorators/roles.decorator';
 import {
+  AdminLoginDto,
   AdminSetPasswordDto,
   GoogleLoginDto,
   LogoutDto,
@@ -57,6 +58,14 @@ export class AuthController {
     @Req() request: FastifyRequest,
   ): Promise<VerifyOtpResponse> {
     return this.authService.signInWithGoogle(dto, this.getRequestContext(request));
+  }
+
+  @Post('admin/login')
+  public adminLogin(
+    @Body() dto: AdminLoginDto,
+    @Req() request: FastifyRequest,
+  ): Promise<OwnerLoginResponse> {
+    return this.authService.adminLogin(dto, this.getRequestContext(request));
   }
 
   @Post('owner/login')
