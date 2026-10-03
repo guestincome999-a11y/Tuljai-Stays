@@ -35,6 +35,7 @@ import { EmailService } from '../../shared/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
+  AdminLoginDto,
   GoogleLoginDto,
   LogoutDto,
   OwnerForgotPasswordDto,
@@ -47,6 +48,7 @@ import type {
   VerifyOtpDto,
 } from './dto/auth.dto';
 import { SupabaseAuthService } from './supabase-auth.service';
+import { decryptTotpSecret, verifyTotp } from './totp.util';
 interface RequestContext {
   ipAddress?: string;
   userAgent?: string;
@@ -284,6 +286,120 @@ export class AuthService {
       tokens: tokens.response,
       user: this.toUserProfile(user),
     };
+  }
+  /**
+   * Admin panel sign-in with email + password (replaces phone OTP for the admin
+   * panel). Only ADMIN / SUPER_ADMIN accounts may use it. If the account has
+   * two-factor enabled, a valid authenticator code is also required. Repeated
+   * failures for the same email or IP are throttled.
+   */
+  public async adminLogin(dto: AdminLoginDto, context: RequestContext): Promise<OwnerLoginResponse> {
+    const email = this.normalizeEmail(dto.email);
+    const throttleKeys = [`email:${email}`, `ip:${context.ipAddress ?? 'unknown'}`];
+    this.assertAdminLoginNotThrottled(throttleKeys);
+    const invalidCredentials = (): UnauthorizedException => {
+      this.recordAdminLoginFailure(throttleKeys);
+      return new UnauthorizedException('Incorrect email or password.');
+    };
+    const identity = await this.prisma.authIdentity.findUnique({
+      include: { user: true },
+      where: {
+        provider_providerSubject: { provider: AuthProvider.PASSWORD, providerSubject: email },
+      },
+    });
+    if (!identity?.passwordHash) {
+      this.verifySecret(dto.password, this.dummyPasswordHash);
+      throw invalidCredentials();
+    }
+    if (identity.user.deletedAt || !identity.user.isActive) throw invalidCredentials();
+    const isAdmin = identity.user.roles.some(
+      (role) => role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN,
+    );
+    if (!isAdmin) throw invalidCredentials();
+    if (!this.verifySecret(dto.password, identity.passwordHash)) throw invalidCredentials();
+    await this.assertAdminTotp(identity.userId, dto.totpCode, invalidCredentials);
+    this.clearAdminLoginFailures(throttleKeys);
+    const now = new Date();
+    const user = await this.prisma.user.update({
+      data: { isActive: true, lastLoginAt: now },
+      where: { id: identity.userId },
+    });
+    const tokens = await this.issueTokens(user, dto.deviceId);
+    const session = await this.prisma.userSession.create({
+      data: {
+        appType: AppType.ADMIN_PANEL,
+        deviceId: dto.deviceId,
+        deviceName: dto.deviceName ?? 'Admin Browser',
+        ipAddress: context.ipAddress,
+        lastSeenAt: now,
+        platform: DevicePlatform.WEB,
+        refreshTokenId: tokens.refreshTokenRecord.id,
+        userAgent: context.userAgent,
+        userId: user.id,
+      },
+    });
+    await this.createAuditLog({
+      action: 'ADMIN_PASSWORD_LOGIN',
+      actorUserId: user.id,
+      entityId: user.id,
+      entityType: 'user',
+    });
+    return {
+      session: this.toSession(session),
+      tokens: tokens.response,
+      user: this.toUserProfile(user),
+    };
+  }
+  private readonly adminLoginFailures = new Map<string, { count: number; resetAt: number }>();
+  private assertAdminLoginNotThrottled(keys: string[]): void {
+    const now = Date.now();
+    for (const key of keys) {
+      const entry = this.adminLoginFailures.get(key);
+      if (entry && entry.resetAt > now && entry.count >= 5)
+        throw new HttpException(
+          'Too many failed sign-in attempts. Please wait 15 minutes and try again.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+    }
+  }
+  private recordAdminLoginFailure(keys: string[]): void {
+    const now = Date.now();
+    for (const key of keys) {
+      const entry = this.adminLoginFailures.get(key);
+      if (!entry || entry.resetAt <= now)
+        this.adminLoginFailures.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+      else entry.count += 1;
+    }
+  }
+  private clearAdminLoginFailures(keys: string[]): void {
+    for (const key of keys) this.adminLoginFailures.delete(key);
+  }
+  private async assertAdminTotp(
+    userId: string,
+    code: string | undefined,
+    fail: () => UnauthorizedException,
+  ): Promise<void> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{ secret_encrypted: string; enabled: boolean }>
+    >(Prisma.sql`
+      SELECT "secret_encrypted", "enabled"
+      FROM "admin_totp_credentials"
+      WHERE "user_id" = ${userId}::uuid
+      LIMIT 1
+    `);
+    const credential = rows[0];
+    if (!credential?.enabled) return;
+    if (!code) throw new UnauthorizedException('Two-factor code required');
+    try {
+      const secret = decryptTotpSecret(
+        credential.secret_encrypted,
+        process.env.ADMIN_TOTP_ENCRYPTION_KEY ?? process.env.JWT_ACCESS_SECRET ?? '',
+      );
+      if (!verifyTotp(secret, code)) throw fail();
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException('Two-factor configuration is invalid');
+    }
   }
   public async ownerLogin(
     dto: OwnerLoginDto,
