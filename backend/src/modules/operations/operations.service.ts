@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type {
+  AdminDashboardKpis,
   AdminDashboardSummary,
   AuthenticatedUser,
   BookingReportRow,
@@ -28,6 +29,52 @@ export class OperationsService {
     private readonly prisma: PrismaService,
     private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
+
+  public async adminDashboardKpis(): Promise<AdminDashboardKpis> {
+    const today = this.todayRange();
+    const yesterday = { gte: new Date(today.gte.getTime() - 24 * 60 * 60 * 1000), lt: today.gte };
+    const alive = { deletedAt: null } as const;
+    const collected = { AND: [this.commissionEligibleWhere], ...alive };
+    const [
+      totalBookings,
+      bookingsToday,
+      bookingsYesterday,
+      totalRevenue,
+      revenueToday,
+      revenueYesterday,
+      pendingBookings,
+      pendingLodges,
+      pendingPhotos,
+      activeStays,
+    ] = await Promise.all([
+      this.prisma.booking.count({ where: alive }),
+      this.prisma.booking.count({ where: { ...alive, createdAt: today } }),
+      this.prisma.booking.count({ where: { ...alive, createdAt: yesterday } }),
+      this.prisma.booking.aggregate({ _sum: { totalAmount: true }, where: collected }),
+      this.prisma.booking.aggregate({
+        _sum: { totalAmount: true },
+        where: { ...collected, createdAt: today },
+      }),
+      this.prisma.booking.aggregate({
+        _sum: { totalAmount: true },
+        where: { ...collected, createdAt: yesterday },
+      }),
+      this.prisma.booking.count({ where: { ...alive, status: 'PENDING_OWNER_APPROVAL' } }),
+      this.prisma.lodge.count({ where: { ...alive, verificationStatus: 'PENDING' } }),
+      this.prisma.lodgePhoto.count({ where: { ...alive, approvalStatus: 'PENDING' } }),
+      this.prisma.booking.count({ where: { ...alive, status: 'CHECKED_IN' } }),
+    ]);
+    return {
+      activeStays,
+      bookingsToday,
+      bookingsYesterday,
+      pendingOwnerActions: pendingBookings + pendingLodges + pendingPhotos,
+      revenueToday: revenueToday._sum.totalAmount?.toString() ?? '0',
+      revenueYesterday: revenueYesterday._sum.totalAmount?.toString() ?? '0',
+      totalBookings,
+      totalRevenue: totalRevenue._sum.totalAmount?.toString() ?? '0',
+    };
+  }
 
   public async adminDashboardSummary(): Promise<AdminDashboardSummary> {
     const today = this.todayRange();

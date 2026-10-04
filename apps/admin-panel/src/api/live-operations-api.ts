@@ -1,5 +1,6 @@
 import type {
   AdminBookingSummary,
+  AdminDashboardKpis,
   AdminDashboardSummary,
   Announcement,
   FeatureFlag,
@@ -13,6 +14,10 @@ import type {
 } from '@tuljai/types';
 
 import { apiClient } from './client';
+
+export async function getAdminDashboardKpis(): Promise<AdminDashboardKpis> {
+  return apiClient.get<AdminDashboardKpis>('/admin/dashboard/kpis');
+}
 
 export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
   return apiClient.get<AdminDashboardSummary>('/admin/dashboard/summary');

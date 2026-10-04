@@ -33,6 +33,23 @@ export interface ReviewReport {
   status: ReviewReportStatus;
 }
 
+/**
+ * Headline KPIs for the admin dashboard. Revenue counts only money actually
+ * collected (same rule as commission: fully paid, or pay-at-lodge once the guest
+ * has checked in). Day-over-day figures compare bookings created today vs yesterday.
+ */
+export interface AdminDashboardKpis {
+  activeStays: number;
+  bookingsToday: number;
+  bookingsYesterday: number;
+  /** Pending bookings + lodges awaiting verification + photos awaiting approval. */
+  pendingOwnerActions: number;
+  revenueToday: string;
+  revenueYesterday: string;
+  totalBookings: number;
+  totalRevenue: string;
+}
+
 export interface AdminDashboardSummary {
   acceptedBookings: number;
   availableRooms: number;

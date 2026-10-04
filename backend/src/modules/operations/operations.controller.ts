@@ -21,6 +21,13 @@ export class OperationsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/dashboard/kpis')
+  public adminKpis() {
+    return this.operationsService.adminDashboardKpis();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'ADMIN')
   @Get('owner/dashboard/summary')
   public ownerSummary(@CurrentUser() user: AuthenticatedUser) {
