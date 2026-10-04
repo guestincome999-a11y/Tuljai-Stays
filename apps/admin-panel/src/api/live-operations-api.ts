@@ -1,5 +1,6 @@
 import type {
   AdminBookingSummary,
+  AdminBookingTrendPoint,
   AdminDashboardKpis,
   AdminDashboardSummary,
   Announcement,
@@ -17,6 +18,12 @@ import { apiClient } from './client';
 
 export async function getAdminDashboardKpis(): Promise<AdminDashboardKpis> {
   return apiClient.get<AdminDashboardKpis>('/admin/dashboard/kpis');
+}
+
+export async function getAdminBookingTrend(days = 7): Promise<AdminBookingTrendPoint[]> {
+  return apiClient.get<AdminBookingTrendPoint[]>('/admin/dashboard/booking-trend', {
+    params: { days },
+  });
 }
 
 export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {

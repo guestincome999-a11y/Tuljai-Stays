@@ -50,6 +50,15 @@ export interface AdminDashboardKpis {
   totalRevenue: string;
 }
 
+/** One day of the dashboard Booking Overview chart (days are Asia/Kolkata calendar days). */
+export interface AdminBookingTrendPoint {
+  bookings: number;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Money actually collected on bookings created that day (same rule as KPI revenue). */
+  revenue: string;
+}
+
 export interface AdminDashboardSummary {
   acceptedBookings: number;
   availableRooms: number;

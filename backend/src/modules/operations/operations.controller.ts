@@ -28,6 +28,13 @@ export class OperationsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/dashboard/booking-trend')
+  public adminBookingTrend(@Query('days') days?: string) {
+    return this.operationsService.adminBookingTrend(days ? Number(days) : 7);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'ADMIN')
   @Get('owner/dashboard/summary')
   public ownerSummary(@CurrentUser() user: AuthenticatedUser) {
