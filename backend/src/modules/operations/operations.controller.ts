@@ -6,12 +6,16 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
+import { DashboardOperationsService } from './dashboard-operations.service';
 import { ReportQueryDto } from './dto/operations.dto';
 import { OperationsService } from './operations.service';
 
 @Controller()
 export class OperationsController {
-  public constructor(private readonly operationsService: OperationsService) {}
+  public constructor(
+    private readonly dashboardOperationsService: DashboardOperationsService,
+    private readonly operationsService: OperationsService,
+  ) {}
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
@@ -41,6 +45,13 @@ export class OperationsController {
     const allowed: AdminDashboardPeriod[] = ['today', 'week', 'month'];
     const selected = allowed.find((value) => value === period) ?? 'month';
     return this.operationsService.adminDashboardInsights(selected);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/dashboard/operations')
+  public adminOperations() {
+    return this.dashboardOperationsService.adminDashboardOperations();
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

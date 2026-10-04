@@ -3,6 +3,7 @@ import type {
   AdminBookingTrendPoint,
   AdminDashboardInsights,
   AdminDashboardKpis,
+  AdminDashboardOperations,
   AdminDashboardPeriod,
   AdminDashboardSummary,
   Announcement,
@@ -34,6 +35,10 @@ export async function getAdminDashboardInsights(
   return apiClient.get<AdminDashboardInsights>('/admin/dashboard/insights', {
     params: { period },
   });
+}
+
+export async function getAdminDashboardOperations(): Promise<AdminDashboardOperations> {
+  return apiClient.get<AdminDashboardOperations>('/admin/dashboard/operations');
 }
 
 export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {

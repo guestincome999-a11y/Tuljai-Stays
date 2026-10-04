@@ -3,6 +3,7 @@ import type { PropsWithChildren } from 'react';
 import { DashboardBookingOverview } from '../../../src/components/DashboardBookingOverview';
 import { DashboardInsights } from '../../../src/components/DashboardInsights';
 import { DashboardKpiCards } from '../../../src/components/DashboardKpiCards';
+import { DashboardOperations } from '../../../src/components/DashboardOperations';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 
 export default function AdminDashboardLayout({ children }: PropsWithChildren) {
@@ -12,6 +13,7 @@ export default function AdminDashboardLayout({ children }: PropsWithChildren) {
         <DashboardKpiCards />
         <DashboardBookingOverview />
         <DashboardInsights />
+        <DashboardOperations />
       </PermissionGate>
       {children}
     </div>

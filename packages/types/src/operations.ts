@@ -110,6 +110,60 @@ export interface AdminDashboardInsights {
   topLodges: AdminTopLodge[];
 }
 
+export interface AdminSettlementRecent {
+  amount: string;
+  id: string;
+  lodgeName: string;
+  paymentMethod: string;
+  reference: string | null;
+  settledAt: ISODateTime;
+}
+
+/**
+ * Commission settlement position from the existing lodge commission ledger
+ * (commission lodges owe the platform). There is no payout schedule in the system,
+ * so no "next settlement date" is reported.
+ */
+export interface AdminSettlementSummary {
+  lastSettledAt: ISODateTime | null;
+  lodgesAwaiting: number;
+  outstandingTotal: string;
+  recent: AdminSettlementRecent[];
+  settledTotal: string;
+  topOutstanding: Array<{ lodgeId: UUID; lodgeName: string; outstanding: string }>;
+}
+
+export interface AdminLodgeAvailabilityRow {
+  lodgeId: UUID;
+  name: string;
+  /** Rooms not occupied or unavailable (available, reserved, awaiting approval, confirmed, cleaning). */
+  remaining: number;
+  occupied: number;
+  total: number;
+  /** Rooms under maintenance or blocked. */
+  unavailable: number;
+}
+
+export interface AdminLodgeAvailability {
+  lodgeCount: number;
+  rows: AdminLodgeAvailabilityRow[];
+  totals: { occupied: number; remaining: number; total: number; unavailable: number };
+}
+
+export interface AdminActivityItem {
+  actorName: string | null;
+  createdAt: ISODateTime;
+  entityType: string;
+  id: string;
+  label: string;
+}
+
+export interface AdminDashboardOperations {
+  activity: AdminActivityItem[];
+  availability: AdminLodgeAvailability;
+  settlements: AdminSettlementSummary;
+}
+
 export interface AdminDashboardSummary {
   acceptedBookings: number;
   availableRooms: number;
