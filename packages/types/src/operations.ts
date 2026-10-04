@@ -59,6 +59,57 @@ export interface AdminBookingTrendPoint {
   revenue: string;
 }
 
+export type AdminDashboardPeriod = 'today' | 'week' | 'month';
+
+/** Collected-money split for the selected period (Asia/Kolkata calendar days). */
+export interface AdminRevenueSummary {
+  bookingCount: number;
+  /** Platform commission on the collected bookings. */
+  commission: string;
+  /** Collected through verified online (Razorpay) payments. */
+  online: string;
+  /** Collected at the lodge (pay-at-lodge bookings after check-in). */
+  payAtLodge: string;
+  period: AdminDashboardPeriod;
+  total: string;
+}
+
+export type AdminPendingActionKind = 'BOOKING_APPROVAL' | 'LODGE_VERIFICATION' | 'PHOTO_APPROVAL';
+
+export interface AdminPendingAction {
+  createdAt: ISODateTime;
+  href: string;
+  id: string;
+  kind: AdminPendingActionKind;
+  subtitle: string;
+  title: string;
+}
+
+export type AdminDashboardAlertSeverity = 'critical' | 'warning' | 'info';
+
+export interface AdminDashboardAlert {
+  detail: string;
+  href: string;
+  id: string;
+  severity: AdminDashboardAlertSeverity;
+  title: string;
+}
+
+export interface AdminTopLodge {
+  bookings: number;
+  lodgeId: UUID;
+  name: string;
+  revenue: string;
+}
+
+export interface AdminDashboardInsights {
+  alerts: AdminDashboardAlert[];
+  pendingActionTotal: number;
+  pendingActions: AdminPendingAction[];
+  revenueSummary: AdminRevenueSummary;
+  topLodges: AdminTopLodge[];
+}
+
 export interface AdminDashboardSummary {
   acceptedBookings: number;
   availableRooms: number;

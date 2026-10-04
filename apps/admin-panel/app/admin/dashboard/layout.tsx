@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
 
 import { DashboardBookingOverview } from '../../../src/components/DashboardBookingOverview';
+import { DashboardInsights } from '../../../src/components/DashboardInsights';
 import { DashboardKpiCards } from '../../../src/components/DashboardKpiCards';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 
@@ -10,6 +11,7 @@ export default function AdminDashboardLayout({ children }: PropsWithChildren) {
       <PermissionGate permission="dashboard.view">
         <DashboardKpiCards />
         <DashboardBookingOverview />
+        <DashboardInsights />
       </PermissionGate>
       {children}
     </div>

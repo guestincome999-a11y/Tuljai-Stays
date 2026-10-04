@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import type { AuthenticatedUser } from '@tuljai/types';
+import type { AdminDashboardPeriod, AuthenticatedUser } from '@tuljai/types';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -32,6 +32,15 @@ export class OperationsController {
   @Get('admin/dashboard/booking-trend')
   public adminBookingTrend(@Query('days') days?: string) {
     return this.operationsService.adminBookingTrend(days ? Number(days) : 7);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/dashboard/insights')
+  public adminInsights(@Query('period') period?: string) {
+    const allowed: AdminDashboardPeriod[] = ['today', 'week', 'month'];
+    const selected = allowed.find((value) => value === period) ?? 'month';
+    return this.operationsService.adminDashboardInsights(selected);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

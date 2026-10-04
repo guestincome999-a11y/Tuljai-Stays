@@ -1,7 +1,9 @@
 import type {
   AdminBookingSummary,
   AdminBookingTrendPoint,
+  AdminDashboardInsights,
   AdminDashboardKpis,
+  AdminDashboardPeriod,
   AdminDashboardSummary,
   Announcement,
   FeatureFlag,
@@ -23,6 +25,14 @@ export async function getAdminDashboardKpis(): Promise<AdminDashboardKpis> {
 export async function getAdminBookingTrend(days = 7): Promise<AdminBookingTrendPoint[]> {
   return apiClient.get<AdminBookingTrendPoint[]>('/admin/dashboard/booking-trend', {
     params: { days },
+  });
+}
+
+export async function getAdminDashboardInsights(
+  period: AdminDashboardPeriod,
+): Promise<AdminDashboardInsights> {
+  return apiClient.get<AdminDashboardInsights>('/admin/dashboard/insights', {
+    params: { period },
   });
 }
 
