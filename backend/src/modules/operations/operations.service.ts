@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type {
+  AdminBookingTrendPoint,
   AdminDashboardKpis,
   AdminDashboardSummary,
   AuthenticatedUser,
@@ -74,6 +75,40 @@ export class OperationsService {
       totalBookings,
       totalRevenue: totalRevenue._sum.totalAmount?.toString() ?? '0',
     };
+  }
+
+  public async adminBookingTrend(days = 7): Promise<AdminBookingTrendPoint[]> {
+    const span = Math.min(Math.max(Math.trunc(days) || 7, 1), 90);
+    const dayKey = (date: Date): string =>
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(date);
+    const points = new Map<string, { bookings: number; revenue: number }>();
+    for (let offset = span - 1; offset >= 0; offset -= 1) {
+      points.set(dayKey(new Date(Date.now() - offset * 24 * 60 * 60 * 1000)), {
+        bookings: 0,
+        revenue: 0,
+      });
+    }
+    // Pull one extra day so IST day boundaries are fully covered, then bucket in IST.
+    const since = new Date(Date.now() - (span + 1) * 24 * 60 * 60 * 1000);
+    const rows = await this.prisma.booking.findMany({
+      select: { createdAt: true, paymentStatus: true, status: true, totalAmount: true },
+      where: { createdAt: { gte: since }, deletedAt: null },
+    });
+    const collected = (row: (typeof rows)[number]): boolean =>
+      row.paymentStatus === 'FULLY_PAID' ||
+      (row.paymentStatus === 'PAY_AT_LODGE' &&
+        ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(row.status));
+    for (const row of rows) {
+      const bucket = points.get(dayKey(row.createdAt));
+      if (!bucket) continue;
+      bucket.bookings += 1;
+      if (collected(row)) bucket.revenue += Number(row.totalAmount ?? 0);
+    }
+    return [...points.entries()].map(([date, value]) => ({
+      bookings: value.bookings,
+      date,
+      revenue: value.revenue.toFixed(2),
+    }));
   }
 
   public async adminDashboardSummary(): Promise<AdminDashboardSummary> {
