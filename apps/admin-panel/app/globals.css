@@ -1,38 +1,37 @@
 :root {
   color-scheme: light;
-  --color-background: #f4f7fb;
+  --color-background: #f5f7fb;
   --color-surface: #ffffff;
-  --color-surface-muted: #edf3fa;
-  --color-surface-subtle: #f8fbff;
-  --color-primary: #123b73;
-  --color-primary-strong: #08264d;
-  --color-primary-soft: #e6effa;
-  --color-accent: #123b73;
-  --color-sidebar: #08264d;
-  --color-sidebar-deep: #061d3a;
+  --color-surface-muted: #eef2f8;
+  --color-surface-subtle: #f8faff;
+  --color-primary: #2563eb;
+  --color-primary-strong: #0f1f3d;
+  --color-primary-soft: #eaf1ff;
+  --color-accent: #f26b1d;
+  --color-accent-soft: #fff1e6;
+  --color-navy: #0b2a5b;
+  --color-sidebar: #ffffff;
+  --color-sidebar-deep: #ffffff;
 
-  /* Success semantics are intentionally kept separate from the brand color above -
-     "online"/"healthy"/"confirmed" states should always read as green, regardless
-     of what the brand primary color is. */
-  --color-success-strong: #0d4f46;
+  /* Success semantics stay green regardless of the brand colour. */
+  --color-success-strong: #0d7a54;
 
-  --color-text: #10233d;
-  --color-muted: #5d6f85;
-  --color-outline: #dbe5f0;
-  --color-danger: #a1332a;
-  --shadow-soft: 0 12px 32px rgba(8, 38, 77, 0.08);
+  --color-text: #0f1f3d;
+  --color-muted: #6b7a90;
+  --color-outline: #e6ebf3;
+  --color-danger: #d92d20;
+  --shadow-soft: 0 4px 18px rgba(15, 31, 61, 0.06);
 
-  /* Gradient tokens - reserved for primary actions, hero areas, selected states,
-     and small accent moments. Do not use for ordinary panels/cards/tables. */
-  --gradient-primary: linear-gradient(135deg, #174b8c 0%, #123b73 58%, #08264d 100%);
-  --gradient-primary-hover: linear-gradient(135deg, #2461aa 0%, #174b8c 58%, #123b73 100%);
-  --gradient-hero: linear-gradient(135deg, #123b73 0%, #0c315f 52%, #061d3a 100%);
-  --gradient-accent: linear-gradient(135deg, #174b8c 0%, #08264d 100%);
-  --gradient-selected: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%);
-  --shadow-primary-glow: 0 10px 26px rgba(8, 38, 77, 0.24);
+  /* Flat tokens: the new design uses solid navy for primary actions, no gradients. */
+  --gradient-primary: #0b2a5b;
+  --gradient-primary-hover: #13397a;
+  --gradient-hero: #0b2a5b;
+  --gradient-accent: #0b2a5b;
+  --gradient-selected: var(--color-accent-soft);
+  --shadow-primary-glow: 0 6px 16px rgba(11, 42, 91, 0.2);
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
   --space-xs: 6px;
   --space-sm: 10px;
   --space-md: 16px;
@@ -58,6 +57,7 @@ body {
   background: var(--color-background);
   color: var(--color-text);
   font-family:
+    'Plus Jakarta Sans',
     Inter,
     ui-sans-serif,
     system-ui,
@@ -87,7 +87,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  box-shadow: 0 0 0 4px rgba(18, 59, 115, 0.2);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.22);
 }
 
 code {
@@ -138,8 +138,9 @@ code {
 }
 
 .admin-sidebar {
-  background: var(--gradient-hero);
-  color: #ffffff;
+  background: var(--color-sidebar);
+  border-right: 1px solid var(--color-outline);
+  color: var(--color-text);
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
@@ -184,7 +185,7 @@ p {
 }
 
 .admin-sidebar .brand-subtitle {
-  color: rgba(255, 255, 255, 0.64);
+  color: var(--color-muted);
 }
 
 .nav-stack,
@@ -215,7 +216,7 @@ p {
 .nav-link {
   align-items: center;
   border-radius: var(--radius-sm);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--color-text);
   display: flex;
   justify-content: space-between;
   min-height: 42px;
@@ -224,13 +225,13 @@ p {
 }
 
 .nav-link:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-surface-muted);
 }
 
-.nav-link-active {
-  background: var(--gradient-selected);
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+.nav-link-active,
+.nav-link-active:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
   font-weight: 800;
 }
 
@@ -261,7 +262,7 @@ p {
 
 .admin-topbar {
   align-items: center;
-  background: rgba(255, 255, 255, 0.96);
+  background: #ffffff;
   border-bottom: 1px solid var(--color-outline);
   display: flex;
   gap: var(--space-md);
@@ -335,8 +336,8 @@ p {
    Every other .hero-panel keeps a plain surface with just the accent bar above -
    most pages don't need a bold gradient, only the true "hero" ones do. */
 .hero-panel.command-hero {
-  background: var(--gradient-hero);
-  border-color: transparent;
+  background: linear-gradient(135deg, #eef4ff 0%, #f6f1ff 100%);
+  border-color: var(--color-outline);
 }
 
 .hero-panel.command-hero::before {
@@ -344,31 +345,31 @@ p {
 }
 
 .hero-panel.command-hero .eyebrow {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--color-primary);
 }
 
 .hero-panel.command-hero h2 {
-  color: #ffffff;
-}
-
-.hero-panel.command-hero p:not(.eyebrow) {
-  color: rgba(255, 255, 255, 0.88);
-}
-
-.hero-panel.command-hero .button-primary {
-  background: #ffffff;
   color: var(--color-primary-strong);
 }
 
+.hero-panel.command-hero p:not(.eyebrow) {
+  color: var(--color-muted);
+}
+
+.hero-panel.command-hero .button-primary {
+  background: var(--color-navy);
+  color: #ffffff;
+}
+
 .hero-panel.command-hero .button-primary:hover:not(:disabled) {
-  background: var(--color-primary-soft);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  background: var(--gradient-primary-hover);
+  box-shadow: var(--shadow-primary-glow);
 }
 
 .hero-panel.command-hero .live-pill:not(.live-pill-on) {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+  background: #ffffff;
+  border-color: var(--color-outline);
+  color: var(--color-primary-strong);
 }
 
 .panel,
@@ -510,10 +511,10 @@ p {
 }
 
 .kpi-card:hover {
-  border-color: rgba(18, 59, 115, 0.35);
+  border-color: rgba(37, 99, 235, 0.4);
   box-shadow:
     var(--shadow-soft),
-    0 0 0 1px rgba(18, 59, 115, 0.12) inset;
+    0 0 0 1px rgba(37, 99, 235, 0.14) inset;
   transform: translateY(-2px);
 }
 
@@ -712,8 +713,8 @@ p {
 
 .map-foundation {
   background:
-    linear-gradient(90deg, rgba(18, 59, 115, 0.06) 1px, transparent 1px),
-    linear-gradient(rgba(18, 59, 115, 0.06) 1px, transparent 1px), var(--color-surface-subtle);
+    linear-gradient(90deg, rgba(37, 99, 235, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(37, 99, 235, 0.06) 1px, transparent 1px), var(--color-surface-subtle);
   background-size: 36px 36px;
   border: 1px solid var(--color-outline);
   border-radius: var(--radius-md);
@@ -936,8 +937,8 @@ p {
     background:
       linear-gradient(to right, var(--color-surface) 30%, transparent),
       linear-gradient(to right, transparent, var(--color-surface) 70%) right,
-      linear-gradient(to right, rgba(8, 38, 77, 0.12), transparent) left,
-      linear-gradient(to right, transparent, rgba(8, 38, 77, 0.12)) right;
+      linear-gradient(to right, rgba(15, 31, 61, 0.12), transparent) left,
+      linear-gradient(to right, transparent, rgba(15, 31, 61, 0.12)) right;
     background-attachment: local, local, scroll, scroll;
     background-repeat: no-repeat;
     background-size: 40px 100%, 40px 100%, 12px 100%, 12px 100%;
@@ -1356,7 +1357,7 @@ p {
 /* Professional navy-and-white refinement: a quieter content canvas, clearer
    data grouping, and short entrance/hover motion that never blocks work. */
 .admin-main {
-  background: linear-gradient(135deg, #f8fbff 0%, var(--color-background) 48%, #eef4fb 100%);
+  background: var(--color-background);
 }
 
 .admin-content {
@@ -1381,7 +1382,7 @@ p {
 .photo-card,
 .bi-card,
 .kpi-card {
-  border-color: rgba(18, 59, 115, 0.12);
+  border-color: rgba(37, 99, 235, 0.14);
 }
 
 .panel,
@@ -1392,7 +1393,7 @@ p {
 .alert-card,
 .photo-card,
 .bi-card {
-  box-shadow: 0 10px 28px rgba(8, 38, 77, 0.055);
+  box-shadow: 0 10px 28px rgba(15, 31, 61, 0.05);
 }
 
 .section-header,
@@ -1409,7 +1410,7 @@ p {
 .settings-card input:focus,
 .settings-card select:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(18, 59, 115, 0.12);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
   outline: none;
 }
 
@@ -1423,7 +1424,7 @@ p {
 .ghost-control:hover:not(:disabled),
 .user-menu:hover {
   background: var(--color-primary-soft);
-  border-color: rgba(18, 59, 115, 0.28);
+  border-color: rgba(37, 99, 235, 0.3);
   color: var(--color-primary-strong);
   transform: translateY(-1px);
 }
@@ -1433,7 +1434,7 @@ p {
 }
 
 .admin-table-row:not(.admin-table-head):hover {
-  background: rgba(18, 59, 115, 0.035);
+  background: rgba(37, 99, 235, 0.04);
 }
 
 @keyframes admin-content-in {
