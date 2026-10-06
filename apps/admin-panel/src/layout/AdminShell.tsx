@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useMemo, useState, type PropsWithChildren } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PropsWithChildren } from 'react';
 
 import { getAdminDisplayName, useAdminAuth } from '../auth/AdminAuthProvider';
 import { AdminProtectedRoute } from '../auth/AdminProtectedRoute';
@@ -14,80 +14,179 @@ import { hasPermission } from '../permissions/permissions';
 export function AdminShell({ children }: PropsWithChildren) {
   const auth = useAdminAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
   const allowedItems = adminNavigationItems.filter((item) => hasPermission(auth.permissions, item.permission));
   const sidebarItems = allowedItems.filter((item) => !item.hidden);
   const groupedItems = useMemo(() => groupNavigation(sidebarItems), [sidebarItems]);
   const tabItems = getTabItems(pathname, allowedItems);
   const displayName = getAdminDisplayName(auth.session.user);
-  const currentTitle = getCurrentTitle(pathname);
+  const roleLabel = auth.session.user?.roles.includes('SUPER_ADMIN') ? 'Super Admin' : 'Admin';
+  const currentItem = getCurrentNavigationItem(pathname);
+  const isDashboard = pathname === '/admin/dashboard';
+
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    return allowedItems
+      .filter((item) => `${item.label} ${item.section} ${item.tabLabel ?? ''}`.toLowerCase().includes(needle))
+      .slice(0, 7);
+  }, [allowedItems, query]);
+
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchRef.current?.focus();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  function go(item: AdminNavigationItem) {
+    setQuery('');
+    setSearchOpen(false);
+    setSidebarOpen(false);
+    router.push(item.href);
+  }
+
+  function onSearchKey(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlight((current) => Math.min(current + 1, Math.max(matches.length - 1, 0)));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlight((current) => Math.max(current - 1, 0));
+    } else if (event.key === 'Enter') {
+      const target = matches[highlight];
+      if (target) go(target);
+    } else if (event.key === 'Escape') {
+      setSearchOpen(false);
+      searchRef.current?.blur();
+    }
+  }
 
   return (
     <AdminProtectedRoute>
-      <div className="admin-shell admin-command-shell">
+      <div className="admin-frame">
         <a className="skip-link" href="#admin-main-content">Skip to main content</a>
-        {sidebarOpen ? <button aria-label="Close navigation" className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} type="button" /> : null}
-        <aside className={sidebarOpen ? 'admin-sidebar admin-sidebar-open' : 'admin-sidebar'} aria-label="Admin navigation">
-          <div className="brand-block">
+
+        <header className="app-header">
+          <div className="app-brand">
             <span className="brand-mark">TS</span>
-            <div className="brand-copy"><p className="brand-title">Tuljai Stays</p><p className="brand-subtitle">Admin Command Center</p></div>
-            <button aria-label="Close navigation" className="sidebar-close" onClick={() => setSidebarOpen(false)} type="button">×</button>
+            <div className="brand-copy">
+              <p className="brand-title">Tuljai Stays</p>
+              <p className="brand-subtitle">Stay Near, Stay Blessed</p>
+            </div>
           </div>
-          <div className="sidebar-status"><span className="status-dot" /><span>Operations online</span><span className="status-location">Tuljapur · INR</span></div>
-          <nav className="nav-stack">
-            {groupedItems.map(([section, items]) => {
-              if (items.length === 1) {
-                const only = items[0];
-                if (!only) return null;
-                const active = isItemActive(pathname, only);
+          <button aria-label={sidebarOpen ? 'Close navigation' : 'Open navigation'} className="header-toggle" onClick={() => setSidebarOpen((current) => !current)} type="button">
+            <span /><span /><span />
+          </button>
+
+          <div className="header-search" role="search">
+            <svg aria-hidden="true" className="search-glyph" fill="none" height="16" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 24 24" width="16"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <input
+              aria-controls="admin-search-results"
+              aria-expanded={searchOpen && matches.length > 0}
+              aria-label="Jump to an admin page"
+              autoComplete="off"
+              onBlur={() => window.setTimeout(() => setSearchOpen(false), 120)}
+              onChange={(event) => { setQuery(event.target.value); setHighlight(0); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={onSearchKey}
+              placeholder="Jump to bookings, lodges, users, finance…"
+              ref={searchRef}
+              role="combobox"
+              type="search"
+              value={query}
+            />
+            <kbd className="search-hint">Ctrl + K</kbd>
+            {searchOpen && query.trim() ? (
+              <ul className="search-results" id="admin-search-results" role="listbox">
+                {matches.length === 0 ? <li className="search-empty">No matching page</li> : matches.map((item, index) => (
+                  <li aria-selected={index === highlight} className={index === highlight ? 'search-result search-result-active' : 'search-result'} key={item.href} onMouseDown={(event) => { event.preventDefault(); go(item); }} role="option">
+                    <span className="search-result-icon"><AdminIcon name={item.icon} /></span>
+                    <span><b>{item.tabLabel && item.hidden ? item.tabLabel : item.label}</b><small>{item.section}</small></span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
+          <div className="header-actions">
+            <Link aria-label="Notifications" className="header-icon" href="/admin/notifications-monitor"><AdminIcon name="notifications" /></Link>
+            <Link className="header-user" href="/admin/account">
+              <span className="user-avatar">{displayName.slice(0, 1).toUpperCase()}</span>
+              <span className="user-meta"><b>{displayName}</b><small>{roleLabel}</small></span>
+            </Link>
+            <button className="header-logout" type="button" onClick={() => void auth.signOut()}>Logout</button>
+          </div>
+        </header>
+
+        <div className="app-body">
+          {sidebarOpen ? <button aria-label="Close navigation" className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} type="button" /> : null}
+          <aside aria-label="Admin navigation" className={sidebarOpen ? 'app-sidebar app-sidebar-open' : 'app-sidebar'}>
+            <nav className="side-nav">
+              {groupedItems.map(([section, items]) => {
+                if (items.length === 1) {
+                  const only = items[0];
+                  if (!only) return null;
+                  const active = isItemActive(pathname, only);
+                  return (
+                    <Link aria-current={active ? 'page' : undefined} className={active ? 'side-link side-link-active' : 'side-link'} href={only.href} key={section} onClick={() => setSidebarOpen(false)}>
+                      <span className="side-icon"><AdminIcon name={only.icon} /></span><span>{section}</span>
+                    </Link>
+                  );
+                }
+                const groupActive = items.some((item) => isItemActive(pathname, item));
+                const open = openGroups[section] ?? groupActive;
+                const lead = items[0];
                 return (
-                  <Link aria-current={active ? 'page' : undefined} className={active ? 'nav-link nav-link-active' : 'nav-link'} href={only.href} key={section} onClick={() => setSidebarOpen(false)}>
-                    <span className="nav-link-leading"><span className="nav-icon-wrap"><AdminIcon name={only.icon} /></span><span>{section}</span></span>
-                  </Link>
+                  <section className="side-group" key={section}>
+                    <button aria-expanded={open} className={groupActive ? 'side-group-toggle side-group-active' : 'side-group-toggle'} onClick={() => setOpenGroups((current) => ({ ...current, [section]: !open }))} type="button">
+                      <span className="side-icon">{lead ? <AdminIcon name={lead.icon} /> : null}</span>
+                      <span className="side-group-label">{section}</span>
+                      <span aria-hidden="true" className={open ? 'side-chevron side-chevron-open' : 'side-chevron'}>›</span>
+                    </button>
+                    {open ? (
+                      <div className="side-children">
+                        {items.map((item) => {
+                          const active = isItemActive(pathname, item);
+                          return <Link aria-current={active ? 'page' : undefined} className={active ? 'side-child side-child-active' : 'side-child'} href={item.href} key={item.href} onClick={() => setSidebarOpen(false)}>{item.label}</Link>;
+                        })}
+                      </div>
+                    ) : null}
+                  </section>
                 );
-              }
-              const groupActive = items.some((item) => isItemActive(pathname, item));
-              const open = openGroups[section] ?? groupActive;
-              const lead = items[0];
-              return (
-                <section key={section} className="nav-section">
-                  <button aria-expanded={open} className={groupActive ? 'nav-group-toggle nav-group-toggle-active' : 'nav-group-toggle'} onClick={() => setOpenGroups((current) => ({ ...current, [section]: !open }))} type="button">
-                    <span className="nav-link-leading"><span className="nav-icon-wrap">{lead ? <AdminIcon name={lead.icon} /> : null}</span><span>{section}</span></span>
-                    <span aria-hidden="true" className={open ? 'nav-chevron nav-chevron-open' : 'nav-chevron'}>›</span>
-                  </button>
-                  {open ? (
-                    <div className="nav-children">
-                      {items.map((item) => {
-                        const active = isItemActive(pathname, item);
-                        return <Link aria-current={active ? 'page' : undefined} className={active ? 'nav-link nav-child-link nav-link-active' : 'nav-link nav-child-link'} href={item.href} key={item.href} onClick={() => setSidebarOpen(false)}>
-                          <span>{item.label}</span>
-                        </Link>;
-                      })}
-                    </div>
-                  ) : null}
-                </section>
-              );
-            })}
-          </nav>
-          <div className="sidebar-footer-card"><div className="sidebar-footer-icon"><AdminIcon name="security" /></div><div><strong>Protected workspace</strong><span>Role permissions active</span></div></div>
-        </aside>
-        <div className="admin-main">
-          <header className="admin-topbar admin-topbar-premium">
-            <div className="topbar-title-group">
-              <button aria-label="Open navigation" className="mobile-menu-button" onClick={() => setSidebarOpen(true)} type="button"><span /><span /><span /></button>
-              <div><p className="breadcrumb"><span>Admin</span><b>/</b> {getCurrentSection(pathname)}</p><h1>{currentTitle}</h1></div>
-            </div>
-            <div className="topbar-actions">
-              <span className="environment-badge"><span className="status-dot" />{process.env.NODE_ENV}</span>
-              <Link aria-label="Account" className="icon-control" href="/admin/account"><AdminIcon name="owners" /></Link>
-              <Link aria-label="Notifications" className="icon-control notification-control" href="/admin/notifications-monitor"><AdminIcon name="notifications" /><span className="notification-dot" /></Link>
-              <Link className="user-menu" href="/admin/account"><span className="user-avatar">{displayName.slice(0, 1).toUpperCase()}</span><span className="user-menu-name">{displayName}</span></Link>
-              <button className="button button-secondary topbar-logout" type="button" onClick={() => void auth.signOut()}>Logout</button>
-            </div>
-          </header>
-          <main className="admin-content" id="admin-main-content" tabIndex={-1}>
-            {pathname === '/admin/dashboard' ? <LiveOnlinePaymentsControl /> : null}
+              })}
+            </nav>
+          </aside>
+
+          <main className="app-main" id="admin-main-content" tabIndex={-1}>
+            {isDashboard ? (
+              <div className="page-heading">
+                <div>
+                  <h1>{greeting()}, {displayName}!</h1>
+                  <p>Here&apos;s what&apos;s happening with your Tuljai Stays today.</p>
+                </div>
+                <time className="page-date" dateTime={new Date().toISOString()}>{formatToday()}</time>
+              </div>
+            ) : (
+              <div className="page-heading">
+                <div>
+                  <p className="page-crumb">Admin <b>/</b> {currentItem?.section ?? 'Dashboard'}</p>
+                  <h1>{getCurrentTitle(pathname)}</h1>
+                </div>
+              </div>
+            )}
+            {isDashboard ? <LiveOnlinePaymentsControl /> : null}
             {tabItems.length > 1 ? (
               <nav aria-label="Section views" className="section-tabs">
                 {tabItems.map((tab) => {
@@ -99,73 +198,87 @@ export function AdminShell({ children }: PropsWithChildren) {
             {children}
           </main>
         </div>
+
         <style jsx global>{`
-          .admin-command-shell { min-height: 100vh; }
-          .admin-command-shell .admin-sidebar { overflow-y: auto; scrollbar-width: thin; }
-          .brand-copy { min-width: 0; }
-          .sidebar-status { align-items: center; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; color: rgba(255,255,255,.9); display: flex; font-size: .68rem; font-weight: 800; gap: 8px; margin: 2px 14px 12px; padding: 9px 10px; }
-          .status-dot { background: #43c795; border-radius: 50%; box-shadow: 0 0 0 4px rgba(67,199,149,.12); display: inline-block; height: 7px; width: 7px; }
-          .status-location { color: rgba(255,255,255,.58); margin-left: auto; }
-          .nav-link-leading { align-items: center; display: flex; gap: 10px; min-width: 0; }
-          .nav-icon-wrap { align-items: center; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.07); border-radius: 9px; display: inline-flex; flex: 0 0 30px; height: 30px; justify-content: center; transition: transform 180ms ease, background 180ms ease; }
-          .admin-nav-icon { display: block; }
-          .nav-link:hover .nav-icon-wrap, .nav-link-active .nav-icon-wrap { background: rgba(255,255,255,.16); transform: scale(1.06); }
-          .nav-link { animation: admin-nav-in 360ms ease both; }
-          .nav-group-toggle { align-items: center; background: transparent; border: 0; border-radius: var(--radius-sm); color: rgba(255,255,255,.9); cursor: pointer; display: flex; font: inherit; justify-content: space-between; min-height: 42px; padding: 9px 10px; text-align: left; transition: background 160ms ease; width: 100%; }
-          .nav-group-toggle:hover { background: rgba(255,255,255,.08); }
-          .nav-group-toggle-active { color: #ffffff; font-weight: 800; }
-          .nav-chevron { color: rgba(255,255,255,.55); font-size: 1.1rem; transition: transform 160ms ease; }
-          .nav-chevron-open { transform: rotate(90deg); }
-          .nav-children { border-left: 1px solid rgba(255,255,255,.14); display: flex; flex-direction: column; gap: 2px; margin: 2px 0 4px 24px; padding-left: 8px; }
-          .nav-child-link { font-size: .82rem; min-height: 36px; padding: 7px 10px; }
+          .admin-frame { background: var(--color-background); min-height: 100vh; }
+          .app-header { align-items: center; background: #fff; border-bottom: 1px solid var(--color-outline); display: flex; gap: 18px; height: 68px; padding: 0 22px; position: sticky; top: 0; z-index: 30; }
+          .app-brand { align-items: center; display: flex; flex: 0 0 218px; gap: 11px; }
+          .app-brand .brand-mark { background: var(--color-navy); border-radius: 12px; height: 40px; width: 40px; }
+          .app-brand .brand-title { color: var(--color-primary-strong); font-size: 1.05rem; font-weight: 800; line-height: 1.15; }
+          .app-brand .brand-subtitle { font-size: 0.64rem; font-weight: 700; }
+          .header-toggle { align-items: center; background: transparent; border: 0; border-radius: 10px; cursor: pointer; display: inline-flex; flex-direction: column; gap: 4px; height: 38px; justify-content: center; width: 38px; }
+          .header-toggle:hover { background: var(--color-surface-muted); }
+          .header-toggle span { background: var(--color-primary-strong); border-radius: 2px; height: 2px; width: 16px; }
+          .header-toggle span:nth-child(2) { width: 11px; }
+          .header-search { align-items: center; background: var(--color-surface-subtle); border: 1px solid var(--color-outline); border-radius: 12px; display: flex; flex: 1 1 420px; gap: 9px; margin: 0 auto; max-width: 560px; min-width: 0; padding: 0 12px; position: relative; }
+          .header-search:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12); }
+          .search-glyph { color: var(--color-muted); flex: 0 0 auto; }
+          .header-search input { background: transparent; border: 0; color: var(--color-text); flex: 1; font-size: 0.82rem; height: 40px; min-width: 0; outline: none; }
+          .header-search input::placeholder { color: var(--color-muted); }
+          .header-search input::-webkit-search-cancel-button { display: none; }
+          .search-hint { background: #fff; border: 1px solid var(--color-outline); border-radius: 7px; color: var(--color-muted); font: inherit; font-size: 0.66rem; font-weight: 700; padding: 2px 7px; }
+          .search-results { background: #fff; border: 1px solid var(--color-outline); border-radius: 14px; box-shadow: 0 18px 40px rgba(15, 31, 61, 0.14); left: 0; list-style: none; margin: 0; padding: 6px; position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; }
+          .search-result { align-items: center; border-radius: 10px; cursor: pointer; display: flex; gap: 10px; padding: 8px 10px; }
+          .search-result b { display: block; font-size: 0.82rem; }
+          .search-result small { color: var(--color-muted); font-size: 0.7rem; font-weight: 600; }
+          .search-result-active, .search-result:hover { background: var(--color-primary-soft); }
+          .search-result-icon { align-items: center; background: var(--color-surface-muted); border-radius: 9px; display: inline-flex; height: 30px; justify-content: center; width: 30px; }
+          .search-empty { color: var(--color-muted); font-size: 0.8rem; padding: 10px; }
+          .header-actions { align-items: center; display: flex; gap: 12px; margin-left: auto; }
+          .header-icon { align-items: center; background: #fff; border: 1px solid var(--color-outline); border-radius: 50%; color: var(--color-primary-strong); display: inline-flex; height: 40px; justify-content: center; transition: background 160ms ease; width: 40px; }
+          .header-icon:hover { background: var(--color-primary-soft); }
+          .header-user { align-items: center; display: flex; gap: 10px; }
+          .user-avatar { align-items: center; background: var(--color-navy); border-radius: 50%; color: #fff; display: inline-flex; font-size: 0.8rem; font-weight: 800; height: 38px; justify-content: center; width: 38px; }
+          .user-meta b, .user-meta small { display: block; line-height: 1.2; }
+          .user-meta b { font-size: 0.82rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .user-meta small { color: var(--color-muted); font-size: 0.7rem; font-weight: 600; }
+          .header-logout { background: transparent; border: 1px solid var(--color-outline); border-radius: 10px; color: var(--color-primary-strong); cursor: pointer; font-size: 0.76rem; font-weight: 800; padding: 8px 12px; }
+          .header-logout:hover { background: var(--color-surface-muted); }
+          .app-body { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: calc(100vh - 68px); }
+          .app-sidebar { align-self: start; background: #fff; border-right: 1px solid var(--color-outline); height: calc(100vh - 68px); overflow-y: auto; padding: 14px 12px 24px; position: sticky; scrollbar-width: thin; top: 68px; }
+          .side-nav { display: flex; flex-direction: column; gap: 4px; }
+          .side-link, .side-group-toggle { align-items: center; background: transparent; border: 0; border-radius: 12px; color: var(--color-primary-strong); cursor: pointer; display: flex; font: inherit; font-size: 0.86rem; font-weight: 700; gap: 11px; min-height: 42px; padding: 8px 12px; text-align: left; transition: background 160ms ease, color 160ms ease; width: 100%; }
+          .side-link:hover, .side-group-toggle:hover { background: var(--color-surface-muted); }
+          .side-link-active, .side-link-active:hover { background: var(--color-accent-soft); color: var(--color-accent); }
+          .side-group-active { color: var(--color-primary-strong); font-weight: 800; }
+          .side-icon { align-items: center; color: currentColor; display: inline-flex; flex: 0 0 20px; justify-content: center; opacity: 0.85; }
+          .side-group-label { flex: 1; }
+          .side-chevron { color: var(--color-muted); font-size: 1.05rem; transition: transform 160ms ease; }
+          .side-chevron-open { transform: rotate(-90deg); }
+          .side-children { border-left: 1px solid var(--color-outline); display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px 21px; padding-left: 10px; }
+          .side-child { border-radius: 10px; color: var(--color-muted); font-size: 0.82rem; font-weight: 600; padding: 8px 12px; transition: background 160ms ease, color 160ms ease; }
+          .side-child:hover { background: var(--color-surface-muted); color: var(--color-primary-strong); }
+          .side-child-active, .side-child-active:hover { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 800; }
+          .app-main { min-width: 0; padding: 26px 28px 40px; }
+          .page-heading { align-items: flex-end; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 20px; }
+          .page-heading h1 { color: var(--color-primary-strong); font-size: 1.55rem; letter-spacing: -0.01em; margin: 0; }
+          .page-heading p { color: var(--color-muted); font-size: 0.86rem; font-weight: 500; margin: 4px 0 0; }
+          .page-heading .page-crumb { color: var(--color-muted); font-size: 0.74rem; font-weight: 700; margin: 0 0 4px; }
+          .page-crumb b { margin: 0 5px; opacity: 0.5; }
+          .page-date { background: #fff; border: 1px solid var(--color-outline); border-radius: 10px; color: var(--color-primary-strong); font-size: 0.78rem; font-weight: 700; padding: 8px 12px; white-space: nowrap; }
           .section-tabs { border-bottom: 1px solid var(--color-outline); display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 var(--space-lg); }
-          .section-tab { border-bottom: 2px solid transparent; color: var(--color-muted); font-size: .82rem; font-weight: 800; margin-bottom: -1px; padding: 10px 14px; transition: color 160ms ease, border-color 160ms ease; }
+          .section-tab { border-bottom: 2px solid transparent; color: var(--color-muted); font-size: 0.82rem; font-weight: 800; margin-bottom: -1px; padding: 10px 14px; transition: color 160ms ease, border-color 160ms ease; }
           .section-tab:hover { color: var(--color-primary-strong); }
-          .section-tab-active { border-bottom-color: var(--color-primary); color: var(--color-primary-strong); }
-          .nav-section:nth-child(2) .nav-link { animation-delay: 25ms; }
-          .nav-section:nth-child(3) .nav-link { animation-delay: 50ms; }
-          .sidebar-footer-card { align-items: center; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; display: flex; gap: 10px; margin: 14px; padding: 11px; }
-          .sidebar-footer-icon { align-items: center; background: rgba(255,255,255,.12); border-radius: 9px; color: #ffffff; display: flex; height: 32px; justify-content: center; width: 32px; }
-          .sidebar-footer-card strong, .sidebar-footer-card span { display: block; }
-          .sidebar-footer-card strong { color: #ffffff; font-size: .73rem; }
-          .sidebar-footer-card span { color: rgba(255,255,255,.62); font-size: .62rem; margin-top: 2px; }
-          .admin-topbar-premium { align-items: center; }
-          .topbar-title-group { align-items: center; display: flex; gap: 12px; min-width: 0; }
-          .topbar-title-group h1 { animation: admin-title-in 320ms ease both; }
-          .breadcrumb b { color: #9aabba; margin: 0 5px; }
-          .icon-control { align-items: center; background: var(--color-surface); border: 1px solid var(--color-outline); border-radius: 11px; color: var(--color-primary-strong); display: inline-flex; height: 40px; justify-content: center; position: relative; transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease; width: 40px; }
-          .icon-control:hover { background: var(--color-primary-soft); box-shadow: 0 10px 25px rgba(8,38,77,.1); transform: translateY(-2px); }
-          .notification-dot { background: var(--color-primary); border: 2px solid #fff; border-radius: 50%; height: 8px; position: absolute; right: 8px; top: 7px; width: 8px; }
-          .user-menu { align-items: center; display: flex; gap: 8px; }
-          .user-avatar { align-items: center; background: var(--gradient-primary); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 7px 18px rgba(8,38,77,.22); color: #fff; display: inline-flex; font-size: .72rem; font-weight: 900; height: 35px; justify-content: center; width: 35px; }
-          .user-menu-name { color: var(--color-text); font-size: .76rem; font-weight: 850; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .mobile-menu-button, .sidebar-close { display: none; }
-          .sidebar-backdrop { background: rgba(6,29,58,.48); border: 0; inset: 0; position: fixed; z-index: 4; }
-          @keyframes admin-nav-in { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
-          @keyframes admin-title-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-          @media (max-width: 900px) {
-            .admin-sidebar { box-shadow: 20px 0 60px rgba(6,29,58,.26); left: 0; position: fixed; transform: translateX(-102%); transition: transform 220ms ease; width: min(280px, 84vw); z-index: 6; }
-            .admin-sidebar.admin-sidebar-open { transform: translateX(0); }
-            .sidebar-close, .mobile-menu-button { align-items: center; background: transparent; border: 0; display: inline-flex; justify-content: center; }
-            .sidebar-close { color: #ffffff; font-size: 1.5rem; height: 44px; margin-left: auto; width: 44px; }
-            .mobile-menu-button { flex-direction: column; gap: 4px; height: 44px; width: 44px; }
-            .mobile-menu-button span { background: var(--color-primary-strong); border-radius: 2px; height: 2px; width: 18px; }
-            .icon-control { height: 44px; width: 44px; }
-            .user-avatar { height: 44px; width: 44px; }
-            .user-menu-name, .topbar-logout { display: none; }
-            .admin-topbar { gap: 8px; padding-left: 12px; padding-right: 12px; }
+          .section-tab-active { border-bottom-color: var(--color-accent); color: var(--color-accent); }
+          .sidebar-backdrop { background: rgba(15, 31, 61, 0.4); border: 0; inset: 68px 0 0 0; position: fixed; z-index: 24; }
+          @media (min-width: 1025px) { .header-toggle { display: none; } }
+          @media (max-width: 1024px) {
+            .app-body { grid-template-columns: minmax(0, 1fr); }
+            .app-sidebar { box-shadow: none; left: 0; position: fixed; top: 68px; transform: translateX(-102%); transition: transform 220ms ease; width: min(290px, 86vw); z-index: 26; }
+            .app-sidebar-open { box-shadow: 14px 0 40px rgba(15, 31, 61, 0.16); transform: translateX(0); }
+            .app-brand { flex: 0 0 auto; }
+            .brand-copy { display: none; }
+            .user-meta, .header-logout, .search-hint { display: none; }
+            .app-main { padding: 20px 16px 32px; }
+            .app-header { gap: 8px; padding: 0 12px; }
+            .header-actions { gap: 8px; }
           }
           @media (max-width: 620px) {
-            .environment-badge { display: none; }
-            .topbar-actions { gap: 5px; }
-            .admin-topbar h1 { font-size: 1.05rem; }
-            .breadcrumb { font-size: .65rem; }
-            .admin-content { padding-left: 12px; padding-right: 12px; }
-            .status-location { display: none; }
+            .page-heading { align-items: flex-start; flex-direction: column; }
+            .page-heading h1 { font-size: 1.25rem; }
           }
           @media (prefers-reduced-motion: reduce) {
-            .nav-link, .topbar-title-group h1 { animation: none; }
-            .nav-icon-wrap, .icon-control { transition: none; }
+            .app-sidebar, .side-chevron { transition: none; }
           }
         `}</style>
       </div>
@@ -191,24 +304,24 @@ function groupNavigation(items: typeof adminNavigationItems): Array<[string, typ
   return [...sections.entries()];
 }
 
-function getCurrentSection(pathname: string): string {
-  const currentItem = getCurrentNavigationItem(pathname);
-  if (currentItem) return currentItem.section;
-  if (pathname.includes('/audit')) return 'Audit Logs';
-  if (pathname.includes('/bookings')) return 'Bookings';
-  if (pathname.includes('/operations/intervention')) return 'Intervention Queue';
-  if (pathname.includes('/account')) return 'Account';
-  return 'Dashboard';
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 17) return 'Good Afternoon';
+  return 'Good Evening';
+}
+
+function formatToday(): string {
+  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', weekday: 'short', year: 'numeric' }).format(new Date());
 }
 
 function getCurrentTitle(pathname: string): string {
   const currentItem = getCurrentNavigationItem(pathname);
   if (currentItem) return currentItem.label;
-  if (pathname.includes('/audit')) return 'Audit Log Foundation';
-  if (pathname.includes('/bookings')) return 'Booking Control Center';
-  if (pathname.includes('/operations/intervention')) return 'Manual Intervention Queue';
+  if (pathname.includes('/audit')) return 'Audit Log';
+  if (pathname.includes('/bookings')) return 'Bookings';
   if (pathname.includes('/account')) return 'Account & Session';
-  return 'Live Operations Center';
+  return 'Dashboard';
 }
 
 function getCurrentNavigationItem(pathname: string) {
