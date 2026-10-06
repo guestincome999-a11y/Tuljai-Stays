@@ -210,41 +210,19 @@ export default function AdminLoginPage() {
 
       <style jsx global>{`
         .auth-shell-premium {
-          background:
-            radial-gradient(circle at 12% 18%, rgba(36, 97, 170, 0.3), transparent 32%),
-            radial-gradient(circle at 88% 82%, rgba(18, 59, 115, 0.28), transparent 30%),
-            linear-gradient(135deg, #061d3a 0%, #08264d 48%, #123b73 100%);
+          background: linear-gradient(135deg, #eef4ff 0%, #f5f7fb 45%, #fff1e6 100%);
           overflow: hidden;
           position: relative;
         }
         .auth-orb {
-          border-radius: 999px;
-          filter: blur(2px);
-          opacity: 0.55;
-          pointer-events: none;
-          position: absolute;
-        }
-        .auth-orb-one {
-          background: var(--gradient-primary);
-          height: 260px;
-          right: -90px;
-          top: -90px;
-          width: 260px;
-        }
-        .auth-orb-two {
-          background: linear-gradient(135deg, #08264d, #174b8c);
-          bottom: -120px;
-          height: 300px;
-          left: -110px;
-          width: 300px;
+          display: none;
         }
         .auth-card-premium {
-          backdrop-filter: blur(18px);
-          background: rgba(255, 255, 255, 0.96);
-          border: 1px solid rgba(255, 255, 255, 0.72);
-          border-radius: 28px;
-          box-shadow: 0 30px 90px rgba(0, 0, 0, 0.3);
-          max-width: 560px;
+          background: #ffffff;
+          border: 1px solid var(--color-outline);
+          border-radius: 20px;
+          box-shadow: 0 18px 50px rgba(15, 31, 61, 0.1);
+          max-width: 520px;
           padding: 34px;
           position: relative;
           z-index: 1;
@@ -256,9 +234,8 @@ export default function AdminLoginPage() {
         }
         .auth-brand-mark {
           align-items: center;
-          background: var(--gradient-primary);
-          border-radius: 14px;
-          box-shadow: 0 10px 25px rgba(8, 38, 77, 0.28);
+          background: var(--color-navy);
+          border-radius: 12px;
           color: #fff;
           display: flex;
           font-size: 0.85rem;
@@ -285,8 +262,8 @@ export default function AdminLoginPage() {
         }
         .auth-security-strip {
           align-items: center;
-          background: linear-gradient(90deg, rgba(18, 59, 115, 0.1), rgba(18, 59, 115, 0.04));
-          border: 1px solid rgba(18, 59, 115, 0.16);
+          background: var(--color-primary-soft);
+          border: 1px solid #d3e1ff;
           border-radius: 14px;
           color: var(--color-primary-strong);
           display: flex;
@@ -331,15 +308,14 @@ export default function AdminLoginPage() {
         }
         .auth-field input:focus {
           border-color: var(--color-primary);
-          box-shadow: 0 0 0 4px rgba(18, 59, 115, 0.15);
+          box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
           transform: translateY(-1px);
         }
         .dev-otp-card {
-          background: linear-gradient(135deg, #08264d 0%, #123b73 100%);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 18px;
-          box-shadow: 0 16px 35px rgba(6, 29, 58, 0.26);
-          color: #ffffff;
+          background: var(--color-primary-soft);
+          border: 1px solid #d3e1ff;
+          border-radius: 16px;
+          color: var(--color-primary-strong);
           padding: 16px;
         }
         .dev-otp-header,
@@ -364,43 +340,43 @@ export default function AdminLoginPage() {
           padding: 5px 8px;
         }
         .dev-otp-badge {
-          background: rgba(255, 255, 255, 0.16);
-          color: #ffffff;
+          background: #dbe7ff;
+          color: #1d4fd1;
         }
         .dev-otp-live {
-          background: rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.78);
+          background: #e3f6ec;
+          color: #0d7a54;
         }
         .dev-otp-code-row {
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: #ffffff;
+          border: 1px solid #d3e1ff;
           border-radius: 13px;
           margin-top: 13px;
           padding: 9px;
         }
         .dev-otp-code-row code {
           background: transparent;
-          color: #fff;
+          color: var(--color-primary-strong);
           font-size: 1.55rem;
           font-weight: 900;
           letter-spacing: 0.22em;
           padding: 6px 4px 6px 8px;
         }
         .dev-otp-action {
-          background: rgba(255, 255, 255, 0.12);
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          background: #ffffff;
+          border: 1px solid #d3e1ff;
           border-radius: 9px;
-          color: #fff;
+          color: var(--color-primary-strong);
           cursor: pointer;
           font-size: 0.72rem;
           font-weight: 850;
           padding: 8px 10px;
         }
         .dev-otp-action:hover {
-          background: rgba(255, 255, 255, 0.2);
+          background: var(--color-primary-soft);
         }
         .dev-otp-card p {
-          color: rgba(255, 255, 255, 0.78);
+          color: var(--color-muted);
           font-size: 0.72rem;
           line-height: 1.45;
           margin-top: 10px;
@@ -409,12 +385,12 @@ export default function AdminLoginPage() {
           background: var(--gradient-primary) !important;
           border: 0 !important;
           border-radius: 13px !important;
-          box-shadow: 0 12px 25px rgba(8, 38, 77, 0.28);
+          box-shadow: 0 10px 22px rgba(11, 42, 91, 0.22);
           min-height: 52px;
           transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
         }
         .auth-submit:hover:not(:disabled) {
-          box-shadow: 0 16px 30px rgba(8, 38, 77, 0.34);
+          box-shadow: 0 14px 28px rgba(11, 42, 91, 0.28);
           transform: translateY(-1px);
         }
         .auth-submit:disabled {
