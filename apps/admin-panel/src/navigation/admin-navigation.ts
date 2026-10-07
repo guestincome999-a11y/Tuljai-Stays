@@ -46,6 +46,11 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { href: '/admin/support', label: 'User Support', permission: 'support.view', section: 'Users', icon: 'support', status: 'ready' },
 
   { href: '/admin/finance', label: 'Finance Overview', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready' },
+  { href: '/admin/payments', label: 'Payments', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready', tabGroup: 'payments', tabLabel: 'All Payments' },
+  { href: '/admin/payments/razorpay', label: 'Razorpay Transactions', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready', hidden: true, tabGroup: 'payments', tabLabel: 'Razorpay Transactions' },
+  { href: '/admin/payments/pay-at-lodge', label: 'Pay at Lodge', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready', hidden: true, tabGroup: 'payments', tabLabel: 'Pay at Lodge' },
+  { href: '/admin/payments/refunds', label: 'Refunds', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready', hidden: true, tabGroup: 'payments', tabLabel: 'Refunds' },
+  { href: '/admin/settlements', label: 'Owner Settlements', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready' },
   { href: '/admin/revenue', label: 'Revenue', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready' },
   { href: '/admin/commission', label: 'Fees & Commission', permission: 'finance.view', section: 'Finance', icon: 'finance', status: 'ready' },
 
