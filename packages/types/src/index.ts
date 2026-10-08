@@ -1,6 +1,7 @@
 export * from './api';
 export * from './auth';
 export * from './booking';
+export * from './booking-views';
 export * from './common';
 export * from './finance-admin';
 export * from './lodging';

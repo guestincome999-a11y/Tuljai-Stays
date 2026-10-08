@@ -8,6 +8,8 @@ import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingHistoryService } from './booking-history.service';
 import { BookingLocksService } from './booking-locks.service';
 import { BookingSchedulerService } from './booking-scheduler.service';
+import { BookingViewsController } from './booking-views.controller';
+import { BookingViewsService } from './booking-views.service';
 import { BookingsController } from './bookings.controller';
 import { BookingsService } from './bookings.service';
 import { GuestIdProofService } from './guest-id-proof.service';
@@ -18,12 +20,13 @@ import { QrCheckinService } from './qr-checkin.service';
 
 @Module({
   imports: [LodgesModule, NotificationsModule, StorageModule],
-  controllers: [BookingsController, PrepaidBookingsController],
+  controllers: [BookingViewsController, BookingsController, PrepaidBookingsController],
   providers: [
     BookingAvailabilityService,
     BookingHistoryService,
     BookingLocksService,
     BookingSchedulerService,
+    BookingViewsService,
     BookingsService,
     GuestIdProofService,
     GuestRegisterService,
