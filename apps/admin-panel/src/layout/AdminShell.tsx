@@ -287,9 +287,12 @@ export function AdminShell({ children }: PropsWithChildren) {
 }
 
 function isItemActive(pathname: string, item: AdminNavigationItem): boolean {
-  if (pathname === item.href || pathname.startsWith(`${item.href}/`)) return true;
-  if (!item.tabGroup) return false;
-  return adminNavigationItems.some((other) => other.tabGroup === item.tabGroup && (pathname === other.href || pathname.startsWith(`${other.href}/`)));
+  // Only the most specific matching entry is active, so /admin/bookings/upcoming does not also
+  // highlight its parent route /admin/bookings.
+  const best = getCurrentNavigationItem(pathname);
+  if (!best) return false;
+  if (best.href === item.href) return true;
+  return Boolean(item.tabGroup && item.tabGroup === best.tabGroup);
 }
 
 function getTabItems(pathname: string, allowed: AdminNavigationItem[]): AdminNavigationItem[] {

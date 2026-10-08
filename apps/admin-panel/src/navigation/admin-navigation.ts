@@ -40,7 +40,12 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { href: '/admin/photos', label: 'Photo Review', permission: 'photos.review', section: 'Lodges & Owners', icon: 'reviews', status: 'ready', hidden: true, tabGroup: 'verification', tabLabel: 'Photo Review' },
 
   { href: '/admin/bookings', label: 'All Bookings', permission: 'bookings.view', section: 'Bookings', icon: 'bookings', status: 'ready' },
-  { href: '/admin/operations/intervention', label: 'Manual Intervention', permission: 'operations.view', section: 'Bookings', icon: 'operations', status: 'ready' },
+  { href: '/admin/bookings/upcoming', label: 'Upcoming', permission: 'bookings.view', section: 'Bookings', icon: 'bookings', status: 'ready' },
+  { href: '/admin/bookings/active', label: 'Active Stays', permission: 'bookings.view', section: 'Bookings', icon: 'bookings', status: 'ready' },
+  { href: '/admin/bookings/completed', label: 'Completed', permission: 'bookings.view', section: 'Bookings', icon: 'bookings', status: 'ready' },
+  { href: '/admin/bookings/cancelled', label: 'Cancelled / Rejected', permission: 'bookings.view', section: 'Bookings', icon: 'bookings', status: 'ready' },
+  { href: '/admin/operations/intervention', label: 'Manual Intervention', permission: 'operations.view', section: 'Bookings', icon: 'operations', status: 'ready', tabGroup: 'intervention', tabLabel: 'Intervention Queue' },
+  { href: '/admin/bookings/conflicts', label: 'Booking Conflicts', permission: 'operations.view', section: 'Bookings', icon: 'operations', status: 'ready', hidden: true, tabGroup: 'intervention', tabLabel: 'Booking Conflicts' },
 
   { href: '/admin/users', label: 'All Pilgrims', permission: 'users.view', section: 'Users', icon: 'owners', status: 'ready' },
   { href: '/admin/support', label: 'User Support', permission: 'support.view', section: 'Users', icon: 'support', status: 'ready' },
