@@ -5,11 +5,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { listLodgeCommissionOverview } from '../../../src/api/admin-bi-api';
+import { FinanceStyles } from '../../../src/components/finance/FinanceStyles';
+import { FinBanners, FinHeader, FinKpi, FinPanel, FinPill, formatMoney } from '../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../src/components/PermissionGate';
-
-function money(value: string | number) {
-  return `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export default function AdminCommissionPage() {
   const [rows, setRows] = useState<LodgeCommissionOverviewRow[]>([]);
@@ -47,100 +45,76 @@ export default function AdminCommissionPage() {
 
   return (
     <PermissionGate permission="finance.view">
-      <div className="page-stack">
-        <section className="hero-panel">
-          <div>
-            <p className="eyebrow">Finance · Lodge Commission</p>
-            <h2>Lodge commission accounts</h2>
-            <p className="muted-copy">
-              Every lodge&apos;s commission status, receivable and outstanding balance. Open a
-              lodge to edit its commission rule, record settlements, and review the full ledger
-              and settlement history.
-            </p>
-          </div>
-          <button className="button button-secondary" type="button" onClick={() => void load()}>
-            Refresh
-          </button>
+      <div className="fin-stack">
+        <FinanceStyles />
+        <FinHeader
+          actions={<button className="fin-btn fin-btn-outline" onClick={() => void load()} type="button">Refresh</button>}
+          description="Every lodge's commission status, receivable and outstanding balance. Open a lodge to edit its commission rule, record settlements, and review the full ledger and settlement history."
+          eyebrow="Finance · Lodge Commission"
+          title="Lodge commission accounts"
+        />
+        <FinBanners error={error} />
+
+        <section aria-label="Commission totals" className="fin-kpis">
+          <FinKpi icon="lodge" label="Lodges" meta="Matching the search" tone="blue" value={String(filteredRows.length)} />
+          <FinKpi icon="money" label="Total receivable" meta="Commission earned" tone="green" value={formatMoney(totals.receivable)} />
+          <FinKpi icon="clock" label="Total outstanding" meta="Awaiting settlement" tone="orange" value={formatMoney(totals.outstanding)} />
+          <FinKpi icon="check" label="Total settled" meta="Recorded payments" tone="purple" value={formatMoney(totals.settled)} />
         </section>
 
-        {error ? <section className="error-banner">{error}</section> : null}
-
-        <section className="grid grid-4">
-          <Metric label="Lodges" value={String(filteredRows.length)} />
-          <Metric label="Total receivable" value={money(totals.receivable)} />
-          <Metric label="Total outstanding" value={money(totals.outstanding)} />
-          <Metric label="Total settled" value={money(totals.settled)} />
-        </section>
-
-        <section className="panel">
-          <label className="form-field">
-            <span>Search lodge</span>
+        <FinPanel sub={`${filteredRows.length} ${filteredRows.length === 1 ? 'lodge' : 'lodges'}`} title="Commission accounts">
+          <div className="fin-toolbar">
             <input
-              placeholder="Search by lodge name…"
-              type="text"
-              value={search}
+              aria-label="Search lodge"
+              className="fin-search"
               onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by lodge name…"
+              type="search"
+              value={search}
             />
-          </label>
-        </section>
-
-        <section className="table-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">All lodges</p>
-              <h3>Commission accounts</h3>
-            </div>
           </div>
-          <div className="admin-table">
-            <div className="admin-table-row admin-table-head">
-              <span>Lodge</span>
-              <span>Status</span>
-              <span>Rule</span>
-              <span>Receivable</span>
-              <span>Outstanding</span>
-              <span>Settled</span>
-              <span>Action</span>
+          {loading ? (
+            <div aria-label="Loading" className="fin-skeleton" />
+          ) : !filteredRows.length ? (
+            <p className="fin-empty">No lodges match this search.</p>
+          ) : (
+            <div className="fin-scroll">
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>Lodge</th>
+                    <th>Status</th>
+                    <th>Rule</th>
+                    <th className="fin-num">Receivable</th>
+                    <th className="fin-num">Outstanding</th>
+                    <th className="fin-num">Settled</th>
+                    <th className="fin-num">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row) => (
+                    <tr key={row.lodgeId}>
+                      <td><b>{row.lodgeName}</b></td>
+                      <td><FinPill tone={row.commissionEnabled ? 'green' : 'gray'}>{row.commissionEnabled ? 'ON' : 'OFF'}</FinPill></td>
+                      <td>
+                        {row.commissionType === 'FIXED_PER_BOOKING'
+                          ? `Fixed ${formatMoney(row.commissionFixedAmount)}`
+                          : `${row.commissionRatePercent}%`}
+                      </td>
+                      <td className="fin-num">{formatMoney(row.receivable)}</td>
+                      <td className="fin-num">{formatMoney(row.outstanding)}</td>
+                      <td className="fin-num">{formatMoney(row.settled)}</td>
+                      <td className="fin-num">
+                        <Link className="fin-btn fin-btn-sm fin-btn-soft" href={`/admin/commission/${row.lodgeId}`}>Open ledger</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            {loading ? <p className="muted-copy">Loading lodges…</p> : null}
-            {!loading && !filteredRows.length ? (
-              <p className="muted-copy">No lodges match this search.</p>
-            ) : null}
-            {filteredRows.map((row) => (
-              <div className="admin-table-row" key={row.lodgeId}>
-                <span>
-                  <strong>{row.lodgeName}</strong>
-                </span>
-                <span>{row.commissionEnabled ? 'ON' : 'OFF'}</span>
-                <span>
-                  {row.commissionType === 'FIXED_PER_BOOKING'
-                    ? `Fixed ${money(row.commissionFixedAmount)}`
-                    : `${row.commissionRatePercent}%`}
-                </span>
-                <span>{money(row.receivable)}</span>
-                <span>{money(row.outstanding)}</span>
-                <span>{money(row.settled)}</span>
-                <span>
-                  <Link className="button button-primary" href={`/admin/commission/${row.lodgeId}`}>
-                    Open ledger
-                  </Link>
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
+          )}
+        </FinPanel>
       </div>
     </PermissionGate>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="kpi-card">
-      <span className="kpi-icon">INR</span>
-      <div>
-        <span className="kpi-label">{label}</span>
-        <strong>{value}</strong>
-      </div>
-    </div>
   );
 }

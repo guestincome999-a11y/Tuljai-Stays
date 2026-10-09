@@ -13,6 +13,8 @@ import { listAdminPayments } from '../../api/finance-admin-api';
 import { formatDate, formatInr } from '../dashboard/format';
 
 import { FinanceStyles } from './FinanceStyles';
+import { FinKpi, FinPanel, FinPill } from './FinanceUi';
+import type { FinTone } from './FinanceUi';
 
 export interface PaymentsPreset {
   /** Fixed payment method for this view (Razorpay = ONLINE, Pay at lodge = PAY_AT_LODGE). */
@@ -30,7 +32,7 @@ const STATUS_LABEL: Record<PaymentCollectionStatus, string> = {
   REFUNDED: 'Refunded',
 };
 
-const STATUS_TONE: Record<PaymentCollectionStatus, string> = {
+const STATUS_TONE: Record<PaymentCollectionStatus, FinTone> = {
   CANCELLED: 'gray',
   FAILED: 'red',
   PAID: 'green',
@@ -85,36 +87,21 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
 
   const counts = new Map((data?.statusCounts ?? []).map((item) => [item.status, item]));
   const total = (data?.statusCounts ?? []).reduce((sum, item) => sum + item.count, 0);
+  const notCollected = Number(counts.get('FAILED')?.amount ?? 0) + Number(counts.get('CANCELLED')?.amount ?? 0);
 
   return (
     <div className="fin-stack">
       <FinanceStyles />
       <p className="fin-note">{preset.note}</p>
 
-      <section aria-label="Payment totals" className="fin-cards">
-        <article className="fin-card fin-card-green">
-          <span>Successful</span>
-          <strong>{formatInr(Number(counts.get('PAID')?.amount ?? 0))}</strong>
-          <small>{plural(counts.get('PAID')?.count ?? 0)}</small>
-        </article>
-        <article className="fin-card fin-card-orange">
-          <span>Pending</span>
-          <strong>{formatInr(Number(counts.get('PENDING')?.amount ?? 0))}</strong>
-          <small>{plural(counts.get('PENDING')?.count ?? 0)}</small>
-        </article>
-        <article className="fin-card fin-card-red">
-          <span>Failed or cancelled</span>
-          <strong>{(counts.get('FAILED')?.count ?? 0) + (counts.get('CANCELLED')?.count ?? 0)}</strong>
-          <small>{formatInr(Number(counts.get('FAILED')?.amount ?? 0) + Number(counts.get('CANCELLED')?.amount ?? 0))} not collected</small>
-        </article>
-        <article className="fin-card fin-card-purple">
-          <span>Refunded</span>
-          <strong>{formatInr(Number(counts.get('REFUNDED')?.amount ?? 0))}</strong>
-          <small>{plural(counts.get('REFUNDED')?.count ?? 0)}</small>
-        </article>
+      <section aria-label="Payment totals" className="fin-kpis">
+        <FinKpi icon="check" label="Successful" meta={plural(counts.get('PAID')?.count ?? 0)} tone="green" value={formatInr(Number(counts.get('PAID')?.amount ?? 0))} />
+        <FinKpi icon="clock" label="Pending" meta={plural(counts.get('PENDING')?.count ?? 0)} tone="orange" value={formatInr(Number(counts.get('PENDING')?.amount ?? 0))} />
+        <FinKpi icon="card" label="Failed or cancelled" meta={`${formatInr(notCollected)} not collected`} tone="red" value={(counts.get('FAILED')?.count ?? 0) + (counts.get('CANCELLED')?.count ?? 0)} />
+        <FinKpi icon="receipt" label="Refunded" meta={plural(counts.get('REFUNDED')?.count ?? 0)} tone="purple" value={formatInr(Number(counts.get('REFUNDED')?.amount ?? 0))} />
       </section>
 
-      <section className="fin-panel">
+      <FinPanel sub={data ? plural(data.totalItems) : undefined} title="Payment records">
         <div className="fin-toolbar">
           {preset.status ? null : (
             <div aria-label="Filter by status" className="fin-chip-row" role="group">
@@ -152,7 +139,16 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
           <div className="fin-scroll">
             <table className="fin-table">
               <thead>
-                <tr><th>Booking</th><th>Guest</th><th>Lodge</th><th>Method</th><th>Status</th><th>Reference</th><th>Date</th><th className="fin-num">Amount</th></tr>
+                <tr>
+                  <th>Booking</th>
+                  <th>Guest</th>
+                  <th>Lodge</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Reference</th>
+                  <th>Date</th>
+                  <th className="fin-num">Amount</th>
+                </tr>
               </thead>
               <tbody>
                 {data.items.map((row: AdminPaymentRow) => (
@@ -161,7 +157,7 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
                     <td>{row.guestName}</td>
                     <td>{row.lodgeName}</td>
                     <td>{row.method === 'ONLINE' ? (row.provider ? `Online · ${row.provider}` : 'Online') : 'Pay at lodge'}</td>
-                    <td><span className={`fin-pill fin-pill-${STATUS_TONE[row.status]}`}>{STATUS_LABEL[row.status]}</span></td>
+                    <td><FinPill tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</FinPill></td>
                     <td className="fin-mono">{row.providerPaymentId ?? row.providerOrderId ?? '—'}</td>
                     <td>{formatDate(row.paidAt ?? row.createdAt)}</td>
                     <td className="fin-num">{formatInr(Number(row.amount))}</td>
@@ -175,11 +171,11 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
         {data ? (
           <div className="fin-pager">
             <span>Page {data.page} of {data.totalPages} · {plural(data.totalItems)}</span>
-            <button className="fin-btn fin-btn-soft" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
-            <button className="fin-btn fin-btn-soft" disabled={page >= data.totalPages || loading} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
+            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page >= data.totalPages || loading} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
           </div>
         ) : null}
-      </section>
+      </FinPanel>
     </div>
   );
 }

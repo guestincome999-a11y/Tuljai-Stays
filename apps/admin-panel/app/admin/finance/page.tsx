@@ -6,11 +6,29 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { listAdminSettings, updateAdminSetting } from '../../../src/api/admin-platform-control-api';
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
+import { FinanceStyles } from '../../../src/components/finance/FinanceStyles';
+import { FinBanners, FinHeader, FinIcon, FinKv, FinPanel, FinPill } from '../../../src/components/finance/FinanceUi';
+import type { FinIconName, FinTone } from '../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import { hasPermission } from '../../../src/permissions/permissions';
 import { stringifySettingValue } from '../../../src/platform-control/platform-control-config';
 
 const ONLINE_PAYMENTS_KEY = 'enable_online_payments';
+
+const SHORTCUTS: Array<{ action: string; buttonClass: string; description: string; href: string; icon: FinIconName; title: string; tone: FinTone }> = [
+  { action: 'Open Commission', buttonClass: 'fin-btn-soft', description: 'Configure commission rates and enable or disable commission for each lodge.', href: '/admin/commission', icon: 'percent', title: 'Lodge Commission', tone: 'blue' },
+  { action: 'Open Revenue', buttonClass: 'fin-btn-soft', description: 'Review booking revenue, commission earned, outstanding lodge receivables, and financial history.', href: '/admin/revenue', icon: 'chart', title: 'Revenue', tone: 'green' },
+  { action: 'Open Settlements', buttonClass: 'fin-btn-violet', description: 'See which lodges owe commission and record settlements against their ledger.', href: '/admin/settlements', icon: 'bank', title: 'Owner Settlements', tone: 'purple' },
+  { action: 'Open Payments', buttonClass: 'fin-btn-soft', description: 'Every payment collected for a booking, online or at the lodge.', href: '/admin/payments', icon: 'card', title: 'Payments', tone: 'orange' },
+];
+
+const FOUNDATION: Array<{ label: string; tone: FinTone; value: string }> = [
+  { label: 'Payment collection ledger', tone: 'green', value: 'Database foundation ready' },
+  { label: 'Commission ledger', tone: 'green', value: 'Database foundation ready' },
+  { label: 'Lodge settlement ledger', tone: 'green', value: 'Database foundation ready' },
+  { label: 'Online collection reconciliation', tone: 'blue', value: 'Backend-controlled' },
+  { label: 'Lodge settlement actions', tone: 'blue', value: 'Backend-controlled' },
+];
 
 export default function AdminFinancePage() {
   const auth = useAdminAuth();
@@ -63,137 +81,73 @@ export default function AdminFinancePage() {
     }
   }
 
+  const paymentsOn = onlinePayments ? stringifySettingValue(onlinePayments.value) === 'true' : false;
+  const statusPill = loadingPayments ? (
+    <FinPill tone="gray">Loading…</FinPill>
+  ) : onlinePayments ? (
+    <FinPill tone={paymentsOn ? 'green' : 'red'}>{paymentsOn ? 'ENABLED' : 'DISABLED'}</FinPill>
+  ) : (
+    <FinPill tone="orange">SETTING NOT FOUND</FinPill>
+  );
+  const controlsDisabled = !canManageSettings || !onlinePayments || savingPayments || loadingPayments;
+
   return (
     <PermissionGate permission="finance.view">
-      <div className="page-stack">
-        <section className="hero-panel">
-          <div>
-            <p className="eyebrow">Finance & Settlements</p>
-            <h2>Finance</h2>
-            <p className="muted-copy">
-              Manage lodge commissions, online collections, cash commission receivables, and lodge
-              settlements from one place.
-            </p>
-          </div>
+      <div className="fin-stack">
+        <FinanceStyles />
+        <FinHeader
+          description="Manage lodge commissions, online collections, cash commission receivables, and lodge settlements from one place."
+          eyebrow="Finance & Settlements"
+          title="Finance"
+        />
+
+        <section aria-label="Finance sections" className="fin-links">
+          {SHORTCUTS.map((item) => (
+            <article className="fin-linkcard" key={item.href}>
+              <FinIcon name={item.icon} tone={item.tone} />
+              <h3>{item.title}</h3>
+              <p>{item.description}</p>
+              <Link className={`fin-btn ${item.buttonClass}`} href={item.href}>{item.action}</Link>
+            </article>
+          ))}
         </section>
 
-        <section className="grid grid-2">
-          <FinanceCard
-            title="Lodge Commission"
-            description="Configure commission rates and enable or disable commission for each lodge."
-            href="/admin/commission"
-            action="Open Commission"
-          />
-          <FinanceCard
-            title="Revenue"
-            description="Review booking revenue, commission earned, outstanding lodge receivables, and financial history."
-            href="/admin/revenue"
-            action="Open Revenue"
-          />
-        </section>
-
-        <section className="panel">
-          <p className="eyebrow">Online Collection</p>
-          <h3>Razorpay online payments</h3>
-          <p className="muted-copy">
+        <FinPanel sub="Online collection" title="Razorpay online payments">
+          <p className="fin-text">
             This is the live admin control for online payment entry points. It is OFF by default and
             must be explicitly enabled before pilgrims can use online collection.
           </p>
-          {paymentError ? <p className="error-banner">{paymentError}</p> : null}
-          {paymentMessage ? <p className="success-banner">{paymentMessage}</p> : null}
-          <div className="feed-list">
-            <article className="feed-item">
-              <span>Online payments</span>
-              <strong>
-                {loadingPayments
-                  ? 'Loading…'
-                  : onlinePayments
-                    ? stringifySettingValue(onlinePayments.value) === 'true'
-                      ? 'ENABLED'
-                      : 'DISABLED'
-                    : 'SETTING NOT FOUND'}
-              </strong>
-            </article>
-            <article className="feed-item">
-              <span>Control permission</span>
-              <strong>
-                {canManageSettings ? 'Admin can change setting' : 'Read-only for this role'}
-              </strong>
-            </article>
-          </div>
-          <div className="row-actions">
-            <button
-              className="button button-primary"
-              disabled={!canManageSettings || !onlinePayments || savingPayments || loadingPayments}
-              type="button"
-              onClick={() => void setOnlinePaymentState(true)}
-            >
+          <FinBanners error={paymentError} message={paymentMessage} />
+          <FinKv
+            rows={[
+              { label: 'Online payments', value: statusPill },
+              { label: 'Control permission', value: canManageSettings ? 'Admin can change setting' : 'Read-only for this role' },
+            ]}
+          />
+          <div className="fin-actions">
+            <button className="fin-btn" disabled={controlsDisabled} onClick={() => void setOnlinePaymentState(true)} type="button">
               {savingPayments ? 'Saving…' : 'Enable Online Payments'}
             </button>
-            <button
-              className="button button-secondary"
-              disabled={!canManageSettings || !onlinePayments || savingPayments || loadingPayments}
-              type="button"
-              onClick={() => void setOnlinePaymentState(false)}
-            >
+            <button className="fin-btn fin-btn-outline" disabled={controlsDisabled} onClick={() => void setOnlinePaymentState(false)} type="button">
               Disable Online Payments
             </button>
-            <Link className="button button-secondary" href="/admin/settings">
-              Open System Settings
-            </Link>
+            <Link className="fin-btn fin-btn-soft" href="/admin/settings">Open System Settings</Link>
           </div>
-        </section>
+        </FinPanel>
 
-        <section className="panel">
-          <p className="eyebrow">Accounting Foundation</p>
-          <h3>Collection & settlement accounting</h3>
-          <p className="muted-copy">
+        <FinPanel sub="Accounting foundation" title="Collection & settlement accounting">
+          <p className="fin-text">
             Payment and commission ledger tables are available in the database. Revenue and
             commission screens remain the source of truth for booking-level accounting; settlement
             actions must not be presented as completed until reconciliation is recorded by the
             backend.
           </p>
-          <div className="feed-list">
-            <Insight label="Payment collection ledger" value="Database foundation ready" />
-            <Insight label="Commission ledger" value="Database foundation ready" />
-            <Insight label="Lodge settlement ledger" value="Database foundation ready" />
-            <Insight label="Online collection reconciliation" value="Backend-controlled" />
-            <Insight label="Lodge settlement actions" value="Backend-controlled" />
-          </div>
-        </section>
+          <FinKv
+            rows={FOUNDATION.map((item) => ({ label: item.label, value: <FinPill tone={item.tone}>{item.value}</FinPill> }))}
+            twoColumns
+          />
+        </FinPanel>
       </div>
     </PermissionGate>
-  );
-}
-
-function FinanceCard({
-  title,
-  description,
-  href,
-  action,
-}: {
-  title: string;
-  description: string;
-  href: string;
-  action: string;
-}) {
-  return (
-    <section className="panel">
-      <p className="eyebrow">Finance</p>
-      <h3>{title}</h3>
-      <p className="muted-copy">{description}</p>
-      <Link className="button button-primary" href={href}>
-        {action}
-      </Link>
-    </section>
-  );
-}
-
-function Insight({ label, value }: { label: string; value: string }) {
-  return (
-    <article className="feed-item">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
   );
 }

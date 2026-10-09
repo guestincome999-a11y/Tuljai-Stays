@@ -9,6 +9,7 @@ import { listSettlementHistory } from '../../api/finance-admin-api';
 import { formatDate, formatInr } from '../dashboard/format';
 
 import { FinanceStyles } from './FinanceStyles';
+import { FinBanners, FinHeader, FinKpi, FinPanel, FinPill, formatLabel } from './FinanceUi';
 
 export function SettlementsView() {
   const [lodges, setLodges] = useState<LodgeCommissionOverviewRow[] | null>(null);
@@ -48,59 +49,89 @@ export function SettlementsView() {
   const settled = (lodges ?? []).reduce((sum, row) => sum + Number(row.settled), 0);
   const outstanding = (lodges ?? []).reduce((sum, row) => sum + Number(row.outstanding), 0);
   const owing = (lodges ?? []).filter((row) => Number(row.outstanding) > 0).sort((a, b) => Number(b.outstanding) - Number(a.outstanding));
+  const last = history?.items[0];
 
   return (
     <div className="fin-stack">
       <FinanceStyles />
-      <p className="fin-note">
-        Booking payment → platform commission → settlement. Balances are commission that lodges owe the platform, from the commission ledger. Record a settlement from a lodge&apos;s ledger. There is no automatic settlement schedule.
-      </p>
-      {error ? <p className="error-banner" role="alert">{error}</p> : null}
+      <FinHeader
+        actions={<Link className="fin-btn fin-btn-outline" href="/admin/commission">Fees &amp; commission</Link>}
+        description="Booking payment → platform commission → settlement. Balances are commission that lodges owe the platform, from the commission ledger. Record a settlement from a lodge's ledger. There is no automatic settlement schedule."
+        eyebrow="Finance"
+        title="Owner settlements"
+      />
+      <FinBanners error={error} />
 
-      <section aria-label="Settlement totals" className="fin-cards">
-        <article className="fin-card fin-card-orange"><span>Pending commission</span><strong>{lodges ? formatInr(outstanding) : '—'}</strong><small>{lodges ? `${owing.length} lodges awaiting settlement` : 'Loading'}</small></article>
-        <article className="fin-card fin-card-green"><span>Settled so far</span><strong>{lodges ? formatInr(settled) : '—'}</strong><small>{history ? `${history.totalItems} settlements recorded` : 'Loading'}</small></article>
-        <article className="fin-card"><span>Total commission earned</span><strong>{lodges ? formatInr(receivable) : '—'}</strong><small>Across all lodges</small></article>
-        <article className="fin-card fin-card-purple"><span>Last settlement</span><strong>{history?.items[0] ? formatDate(history.items[0].settledAt) : 'None yet'}</strong><small>{history?.items[0]?.lodgeName ?? ' '}</small></article>
+      <section aria-label="Settlement totals" className="fin-kpis">
+        <FinKpi icon="clock" label="Pending commission" meta={lodges ? `${owing.length} lodges awaiting settlement` : 'Loading'} tone="orange" value={lodges ? formatInr(outstanding) : '—'} />
+        <FinKpi icon="check" label="Settled so far" meta={history ? `${history.totalItems} settlements recorded` : 'Loading'} tone="green" value={lodges ? formatInr(settled) : '—'} />
+        <FinKpi icon="money" label="Total commission earned" meta="Across all lodges" tone="blue" value={lodges ? formatInr(receivable) : '—'} />
+        <FinKpi icon="calendar" label="Last settlement" meta={last?.lodgeName ?? 'No settlements yet'} tone="purple" value={last ? formatDate(last.settledAt) : 'None yet'} />
       </section>
 
-      <section className="fin-panel">
-        <div className="fin-panel-head"><h2>Lodges awaiting settlement</h2><Link className="fin-link" href="/admin/commission">Fees &amp; commission</Link></div>
-        {!lodges ? <div aria-label="Loading" className="fin-skeleton" /> : owing.length === 0 ? <p className="fin-empty">No commission is outstanding.</p> : (
+      <FinPanel sub={lodges ? `${owing.length} with a balance to settle` : undefined} title="Lodges awaiting settlement">
+        {!lodges ? (
+          <div aria-label="Loading" className="fin-skeleton" />
+        ) : owing.length === 0 ? (
+          <p className="fin-empty">No commission is outstanding.</p>
+        ) : (
           <div className="fin-scroll">
             <table className="fin-table">
-              <thead><tr><th>Lodge</th><th className="fin-num">Commission earned</th><th className="fin-num">Settled</th><th className="fin-num">Net payable</th><th /></tr></thead>
+              <thead>
+                <tr>
+                  <th>Lodge</th>
+                  <th className="fin-num">Commission earned</th>
+                  <th className="fin-num">Settled</th>
+                  <th className="fin-num">Net payable</th>
+                  <th className="fin-num">Action</th>
+                </tr>
+              </thead>
               <tbody>
                 {owing.map((row) => (
                   <tr key={row.lodgeId}>
                     <td><b>{row.lodgeName}</b></td>
                     <td className="fin-num">{formatInr(Number(row.receivable))}</td>
                     <td className="fin-num">{formatInr(Number(row.settled))}</td>
-                    <td className="fin-num"><span className="fin-pill fin-pill-orange">{formatInr(Number(row.outstanding))}</span></td>
-                    <td className="fin-num"><Link className="fin-btn" href={`/admin/commission/${row.lodgeId}`}>Record settlement</Link></td>
+                    <td className="fin-num"><FinPill tone="orange">{formatInr(Number(row.outstanding))}</FinPill></td>
+                    <td className="fin-num">
+                      <Link className="fin-btn fin-btn-sm fin-btn-violet" href={`/admin/commission/${row.lodgeId}`}>Record settlement</Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </section>
+      </FinPanel>
 
-      <section className="fin-panel">
-        <div className="fin-panel-head"><h2>Settlement history</h2>{history ? <span className="fin-mono">{formatInr(Number(history.settledTotal))} total</span> : null}</div>
-        {!history ? <div aria-label="Loading" className="fin-skeleton" /> : history.items.length === 0 ? <p className="fin-empty">No settlements have been recorded yet.</p> : (
+      <FinPanel sub={history ? `${formatInr(Number(history.settledTotal))} settled in total` : undefined} title="Settlement history">
+        {!history ? (
+          <div aria-label="Loading" className="fin-skeleton" />
+        ) : history.items.length === 0 ? (
+          <p className="fin-empty">No settlements have been recorded yet.</p>
+        ) : (
           <div className="fin-scroll">
             <table className="fin-table">
-              <thead><tr><th>Date</th><th>Lodge</th><th>Method</th><th>Reference</th><th>Recorded by</th><th>Status</th><th className="fin-num">Amount</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Lodge</th>
+                  <th>Method</th>
+                  <th>Reference</th>
+                  <th>Recorded by</th>
+                  <th>Status</th>
+                  <th className="fin-num">Amount</th>
+                </tr>
+              </thead>
               <tbody>
                 {history.items.map((item) => (
                   <tr key={item.id}>
                     <td>{formatDate(item.settledAt)}</td>
                     <td><Link className="fin-link" href={`/admin/commission/${item.lodgeId}`}>{item.lodgeName}</Link></td>
-                    <td>{item.paymentMethod}</td>
+                    <td>{formatLabel(item.paymentMethod)}</td>
                     <td className="fin-mono">{item.reference ?? '—'}</td>
                     <td>{item.settledByName ?? '—'}</td>
-                    <td><span className="fin-pill fin-pill-green">Settled</span></td>
+                    <td><FinPill tone="green">Settled</FinPill></td>
                     <td className="fin-num">{formatInr(Number(item.amount))}</td>
                   </tr>
                 ))}
@@ -111,11 +142,11 @@ export function SettlementsView() {
         {history ? (
           <div className="fin-pager">
             <span>Page {history.page} of {history.totalPages}</span>
-            <button className="fin-btn fin-btn-soft" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
-            <button className="fin-btn fin-btn-soft" disabled={page >= history.totalPages} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
+            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page >= history.totalPages} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
           </div>
         ) : null}
-      </section>
+      </FinPanel>
     </div>
   );
 }
