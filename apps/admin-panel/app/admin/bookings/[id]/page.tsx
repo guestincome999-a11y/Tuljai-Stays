@@ -16,6 +16,14 @@ import {
   maskPhone,
   noteCategories,
 } from '../../../../src/bookings/booking-operations';
+import {
+  bookingPriorityTone,
+  bookingStatusTone,
+  paymentStatusTone,
+} from '../../../../src/components/bookings/booking-tone';
+import { BookingViewsStyles } from '../../../../src/components/bookings/BookingViewsStyles';
+import { FinanceStyles } from '../../../../src/components/finance/FinanceStyles';
+import { FinHeader, FinKv, FinPanel, FinPill } from '../../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../../src/components/PermissionGate';
 import { useAdminBookingDetail } from '../../../../src/hooks/useAdminBookingDetail';
 import { hasPermission } from '../../../../src/permissions/permissions';
@@ -56,10 +64,11 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
   if (bookingDetail.isLoading) {
     return (
       <PermissionGate permission="bookings.view">
-        <section className="panel">
-          <p className="eyebrow">Loading</p>
-          <h2>Loading booking detail</h2>
-        </section>
+        <div className="fin-stack">
+          <FinanceStyles />
+          <FinHeader description="Fetching the latest booking record." eyebrow="Loading" title="Loading booking detail" />
+          <div aria-label="Loading" className="fin-skeleton" />
+        </div>
       </PermissionGate>
     );
   }
@@ -67,18 +76,19 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
   if (!booking) {
     return (
       <PermissionGate permission="bookings.view">
-        <section className="panel">
-          <p className="eyebrow">Unavailable</p>
-          <h2>Booking could not be opened</h2>
-          <p>{bookingDetail.errorMessage ?? 'Please retry.'}</p>
-          <button
-            className="button button-primary"
-            type="button"
-            onClick={() => void bookingDetail.refresh()}
-          >
-            Retry
-          </button>
-        </section>
+        <div className="fin-stack">
+          <FinanceStyles />
+          <FinHeader
+            actions={
+              <button className="fin-btn" onClick={() => void bookingDetail.refresh()} type="button">
+                Retry
+              </button>
+            }
+            description={bookingDetail.errorMessage ?? 'Please retry.'}
+            eyebrow="Unavailable"
+            title="Booking could not be opened"
+          />
+        </div>
       </PermissionGate>
     );
   }
@@ -123,156 +133,132 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
     }
   }
 
+  const snapshotRows: Array<{ label: string; value: React.ReactNode }> = [
+    { label: 'Payment', value: <FinPill tone={paymentStatusTone(booking.paymentStatus)}>{formatStatus(booking.paymentStatus)}</FinPill> },
+    { label: 'Lodge', value: booking.lodgeId },
+    { label: 'Room Type', value: booking.roomTypeId },
+    { label: 'Room Number', value: booking.roomId ?? 'Not assigned' },
+    { label: 'Guests', value: `${booking.totalGuests} total` },
+    { label: 'Adults / Children', value: `${booking.numberOfAdults} / ${booking.numberOfChildren}` },
+    { label: 'Special Request', value: booking.specialRequest ?? 'No special request' },
+    { label: 'Created', value: new Date(booking.createdAt).toLocaleString('en-IN') },
+    { label: 'Updated', value: new Date(booking.updatedAt).toLocaleString('en-IN') },
+  ];
+
+  const guestRows: Array<{ label: string; value: React.ReactNode }> = [
+    { label: 'Guest', value: booking.guestName },
+    {
+      label: 'Phone',
+      value: canSeeContact ? (booking.guestPhone ?? 'Not provided') : maskPhone(booking.guestPhone),
+    },
+    {
+      label: 'Alternate',
+      value: canSeeContact ? (booking.alternatePhone ?? 'Not provided') : maskPhone(booking.alternatePhone),
+    },
+    {
+      label: 'Address',
+      value: canSeeContact ? (booking.guestAddress ?? 'Not provided') : 'Hidden for read-only role',
+    },
+    {
+      label: 'ID Proof',
+      value: canSeeContact ? formatGuestIdProof(primaryGuest) : 'Hidden for read-only role',
+    },
+  ];
+  if (canOpenProof) {
+    guestRows.push({
+      label: 'ID Proof File',
+      value: (
+        <button
+          className="fin-btn fin-btn-sm fin-btn-soft"
+          disabled={isOpeningProof}
+          onClick={() => void openIdProof()}
+          type="button"
+        >
+          {isOpeningProof ? 'Opening...' : 'Open uploaded proof'}
+        </button>
+      ),
+    });
+  }
+  guestRows.push(
+    { label: 'QR Status', value: booking.status === 'QR_GENERATED' ? 'Generated' : 'Not active' },
+    {
+      label: 'Check-in',
+      value: booking.checkedInAt ? new Date(booking.checkedInAt).toLocaleString('en-IN') : 'Not checked in',
+    },
+    {
+      label: 'Checkout',
+      value: booking.checkedOutAt ? new Date(booking.checkedOutAt).toLocaleString('en-IN') : 'Not checked out',
+    },
+  );
+
   return (
     <PermissionGate permission="bookings.view">
-      <div className="page-stack">
-        <section className="hero-panel">
-          <div>
-            <p className="eyebrow">Booking Detail</p>
-            <h2>{booking.bookingCode}</h2>
-            <p>
-              {booking.guestName} / {booking.checkInDate} to{' '}
-              {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
-            </p>
-          </div>
-          <div className="hero-actions">
-            <span className={`priority priority-${priority.toLowerCase()}`}>{priority}</span>
-            <span className="status-card">{formatStatus(booking.status)}</span>
-            <Link className="button button-secondary" href="/admin/bookings">
-              Back to bookings
-            </Link>
-          </div>
-        </section>
+      <div className="fin-stack">
+        <FinanceStyles />
+        <BookingViewsStyles />
+        <FinHeader
+          actions={
+            <>
+              <FinPill tone={bookingPriorityTone(priority)}>{priority}</FinPill>
+              <FinPill tone={bookingStatusTone(booking.status)}>{formatStatus(booking.status)}</FinPill>
+              <Link className="fin-btn fin-btn-outline" href="/admin/bookings">
+                Back to bookings
+              </Link>
+            </>
+          }
+          description={`${booking.guestName} / ${booking.checkInDate} to ${booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}`}
+          eyebrow="Booking Detail"
+          title={booking.bookingCode}
+        />
 
         {bookingDetail.errorMessage ? (
-          <section className="error-banner">{bookingDetail.errorMessage}</section>
+          <p className="error-banner" role="alert">{bookingDetail.errorMessage}</p>
         ) : null}
         {bookingDetail.successMessage ? (
-          <section className="success-banner">
-            {bookingDetail.successMessage}
+          <p className="success-banner bk-banner-row" role="status">
+            <span>{bookingDetail.successMessage}</span>
             <button
-              className="ghost-control"
-              type="button"
+              className="fin-btn fin-btn-sm fin-btn-outline"
               onClick={() => bookingDetail.setSuccessMessage(null)}
+              type="button"
             >
               Dismiss
             </button>
-          </section>
+          </p>
         ) : null}
 
-        <section className="grid grid-2">
-          <div className="panel">
-            <p className="eyebrow">Booking Snapshot</p>
-            <dl className="detail-list detail-list-wide">
-              <Field label="Payment" value={formatStatus(booking.paymentStatus)} />
-              <Field label="Lodge" value={booking.lodgeId} />
-              <Field label="Room Type" value={booking.roomTypeId} />
-              <Field label="Room Number" value={booking.roomId ?? 'Not assigned'} />
-              <Field label="Guests" value={`${booking.totalGuests} total`} />
-              <Field
-                label="Adults / Children"
-                value={`${booking.numberOfAdults} / ${booking.numberOfChildren}`}
-              />
-              <Field
-                label="Special Request"
-                value={booking.specialRequest ?? 'No special request'}
-              />
-              <Field label="Created" value={new Date(booking.createdAt).toLocaleString('en-IN')} />
-              <Field label="Updated" value={new Date(booking.updatedAt).toLocaleString('en-IN')} />
-            </dl>
-          </div>
-
-          <div className="panel">
-            <p className="eyebrow">Guest Privacy</p>
-            <dl className="detail-list detail-list-wide">
-              <Field label="Guest" value={booking.guestName} />
-              <Field
-                label="Phone"
-                value={
-                  canSeeContact
-                    ? (booking.guestPhone ?? 'Not provided')
-                    : maskPhone(booking.guestPhone)
-                }
-              />
-              <Field
-                label="Alternate"
-                value={
-                  canSeeContact
-                    ? (booking.alternatePhone ?? 'Not provided')
-                    : maskPhone(booking.alternatePhone)
-                }
-              />
-              <Field
-                label="Address"
-                value={
-                  canSeeContact
-                    ? (booking.guestAddress ?? 'Not provided')
-                    : 'Hidden for read-only role'
-                }
-              />
-              <Field
-                label="ID Proof"
-                value={
-                  canSeeContact ? formatGuestIdProof(primaryGuest) : 'Hidden for read-only role'
-                }
-              />
-              {canOpenProof ? (
-                <div>
-                  <dt>ID Proof File</dt>
-                  <dd>
-                    <button
-                      className="ghost-control"
-                      disabled={isOpeningProof}
-                      type="button"
-                      onClick={() => void openIdProof()}
-                    >
-                      {isOpeningProof ? 'Opening...' : 'Open uploaded proof'}
-                    </button>
-                  </dd>
-                </div>
-              ) : null}
-              <Field
-                label="QR Status"
-                value={booking.status === 'QR_GENERATED' ? 'Generated' : 'Not active'}
-              />
-              <Field
-                label="Check-in"
-                value={
-                  booking.checkedInAt
-                    ? new Date(booking.checkedInAt).toLocaleString('en-IN')
-                    : 'Not checked in'
-                }
-              />
-              <Field
-                label="Checkout"
-                value={
-                  booking.checkedOutAt
-                    ? new Date(booking.checkedOutAt).toLocaleString('en-IN')
-                    : 'Not checked out'
-                }
-              />
-            </dl>
-          </div>
+        <section className="fin-split">
+          <FinPanel sub="Stay and payment" title="Booking snapshot">
+            <FinKv rows={snapshotRows} />
+          </FinPanel>
+          <FinPanel sub="Contact details follow your role" title="Guest privacy">
+            <FinKv rows={guestRows} />
+          </FinPanel>
         </section>
 
-        <section className={ownerState.overdue ? 'panel warning-panel' : 'panel'}>
-          <p className="eyebrow">Owner Response Timer</p>
-          <h3>{ownerState.message}</h3>
-          <p>
-            Deadline:{' '}
-            {booking.ownerResponseDeadline
-              ? new Date(booking.ownerResponseDeadline).toLocaleString('en-IN')
-              : 'No deadline recorded'}
-          </p>
-          {ownerState.overdue ? (
-            <p className="text-danger">Owner response overdue. Admin action recommended.</p>
-          ) : null}
-        </section>
+        <div className={ownerState.overdue ? 'bk-warn' : undefined}>
+          <FinPanel sub="Owner response timer" title="Owner response">
+            <p className="bk-lead">{ownerState.message}</p>
+            <FinKv
+              rows={[
+                {
+                  label: 'Deadline',
+                  value: booking.ownerResponseDeadline
+                    ? new Date(booking.ownerResponseDeadline).toLocaleString('en-IN')
+                    : 'No deadline recorded',
+                },
+              ]}
+            />
+            {ownerState.overdue ? (
+              <p className="fin-field-error bk-foot">Owner response overdue. Admin action recommended.</p>
+            ) : null}
+          </FinPanel>
+        </div>
 
-        <section className="grid grid-2">
+        <section className="fin-split">
           <CallCenterPanel
-            canSupport={canSupport}
             callOutcome={callOutcome}
+            canSupport={canSupport}
             guestPhone={booking.guestPhone}
             onOutcomeChange={setCallOutcome}
             ownerPhone={booking.alternatePhone ?? booking.guestPhone}
@@ -281,18 +267,18 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
             canManage={canManage}
             canOverride={canOverride}
             isSubmitting={bookingDetail.isSubmitting}
-            reason={reason}
-            selectedStatus={selectedStatus}
             onReasonChange={setReason}
             onSelectedStatusChange={setSelectedStatus}
             onSubmit={() => {
               const finalReason = reason || getDefaultReason(selectedStatus);
               void bookingDetail.updateStatus(selectedStatus, finalReason);
             }}
+            reason={reason}
+            selectedStatus={selectedStatus}
           />
         </section>
 
-        <section className="grid grid-2">
+        <section className="fin-split">
           <NotesFoundation
             canSupport={canSupport}
             note={note}
@@ -312,13 +298,11 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
         <TransferFoundation />
         <OverrideControls canOverride={canOverride} />
 
-        <section className="panel">
-          <p className="eyebrow">Activity Timeline</p>
-          <h3>Booking lifecycle</h3>
-          <div className="timeline">
+        <FinPanel sub="Booking lifecycle" title="Activity timeline">
+          <div className="bk-timeline">
             {timeline.map((item) => (
-              <article className="timeline-item" key={`${item.title}-${item.timestamp}`}>
-                <span className="timeline-dot" />
+              <article className="bk-tl-item" key={`${item.title}-${item.timestamp}`}>
+                <span className="bk-tl-dot" />
                 <div>
                   <strong>{item.title}</strong>
                   <p>{item.description}</p>
@@ -327,22 +311,13 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
               </article>
             ))}
           </div>
-          <p className="muted-copy">
+          <p className="fin-text bk-foot">
             Full audit feed, admin notes, call outcomes, notification events, and transfer history
             require future admin audit/note endpoints.
           </p>
-        </section>
+        </FinPanel>
       </div>
     </PermissionGate>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
   );
 }
 
@@ -360,39 +335,39 @@ function CallCenterPanel({
   ownerPhone: string | null;
 }) {
   return (
-    <section className="panel">
-      <p className="eyebrow">Call Center Foundation</p>
-      <h3>Coordinate by phone</h3>
-      <div className="quick-actions">
-        <a className="button button-secondary" href={ownerPhone ? `tel:${ownerPhone}` : '#'}>
+    <FinPanel sub="Call Center Foundation" title="Coordinate by phone">
+      <div className="fin-actions" style={{ marginTop: 0 }}>
+        <a className="fin-btn fin-btn-soft" href={ownerPhone ? `tel:${ownerPhone}` : '#'}>
           Call Owner
         </a>
-        <a className="button button-secondary" href={guestPhone ? `tel:${guestPhone}` : '#'}>
+        <a className="fin-btn fin-btn-soft" href={guestPhone ? `tel:${guestPhone}` : '#'}>
           Call Pilgrim
         </a>
-        <button className="button button-secondary" disabled={!canSupport} type="button">
+        <button className="fin-btn fin-btn-outline" disabled={!canSupport} type="button">
           Copy Owner Number
         </button>
-        <button className="button button-secondary" disabled={!canSupport} type="button">
+        <button className="fin-btn fin-btn-outline" disabled={!canSupport} type="button">
           Copy Pilgrim Number
         </button>
       </div>
-      <label className="form-field">
-        <span>Record call outcome</span>
-        <select
-          disabled={!canSupport}
-          value={callOutcome}
-          onChange={(event) => onOutcomeChange(event.target.value)}
-        >
-          {callOutcomes.map((outcome) => (
-            <option key={outcome}>{outcome}</option>
-          ))}
-        </select>
-      </label>
-      <p className="muted-copy">
+      <div className="fin-form" style={{ marginTop: 16 }}>
+        <label className="fin-field fin-field-wide">
+          <span>Record call outcome</span>
+          <select
+            disabled={!canSupport}
+            onChange={(event) => onOutcomeChange(event.target.value)}
+            value={callOutcome}
+          >
+            {callOutcomes.map((outcome) => (
+              <option key={outcome}>{outcome}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="fin-text bk-foot">
         Call outcome persistence requires `POST /api/admin/bookings/:id/notes`.
       </p>
-    </section>
+    </FinPanel>
   );
 }
 
@@ -416,57 +391,60 @@ function ManualStatusPanel({
   selectedStatus: BookingStatus;
 }) {
   return (
-    <section className="panel">
-      <p className="eyebrow">Manual Accept / Reject</p>
-      <h3>Audit-safe status update</h3>
-      <label className="form-field">
-        <span>Status</span>
-        <select
-          disabled={!canManage}
-          value={selectedStatus}
-          onChange={(event) => onSelectedStatusChange(event.target.value as BookingStatus)}
+    <FinPanel sub="Manual Accept / Reject" title="Audit-safe status update">
+      <div className="fin-form">
+        <label className="fin-field fin-field-wide">
+          <span>Status</span>
+          <select
+            disabled={!canManage}
+            onChange={(event) => onSelectedStatusChange(event.target.value as BookingStatus)}
+            value={selectedStatus}
+          >
+            <option value="ACCEPTED">Accept booking manually</option>
+            <option value="REJECTED">Reject booking manually</option>
+            <option disabled={!canOverride} value="EXPIRED">
+              Mark expired
+            </option>
+            <option disabled={!canOverride} value="CANCELLED">
+              Mark cancelled
+            </option>
+            <option disabled={!canOverride} value="NO_SHOW">
+              Mark no-show
+            </option>
+          </select>
+        </label>
+        <label className="fin-field fin-field-wide">
+          <span>Reason required</span>
+          <textarea
+            disabled={!canManage}
+            onChange={(event) => onReasonChange(event.target.value)}
+            placeholder={
+              selectedStatus === 'ACCEPTED' ? acceptReasons.join(', ') : rejectReasons.join(', ')
+            }
+            rows={3}
+            value={reason}
+          />
+        </label>
+      </div>
+      <div className="fin-actions fin-actions-end">
+        <button
+          className="fin-btn"
+          disabled={!canManage || !reason.trim() || isSubmitting}
+          onClick={() => {
+            if (window.confirm('Confirm manual booking status update?')) {
+              onSubmit();
+            }
+          }}
+          type="button"
         >
-          <option value="ACCEPTED">Accept booking manually</option>
-          <option value="REJECTED">Reject booking manually</option>
-          <option value="EXPIRED" disabled={!canOverride}>
-            Mark expired
-          </option>
-          <option value="CANCELLED" disabled={!canOverride}>
-            Mark cancelled
-          </option>
-          <option value="NO_SHOW" disabled={!canOverride}>
-            Mark no-show
-          </option>
-        </select>
-      </label>
-      <label className="form-field">
-        <span>Reason required</span>
-        <textarea
-          disabled={!canManage}
-          placeholder={
-            selectedStatus === 'ACCEPTED' ? acceptReasons.join(', ') : rejectReasons.join(', ')
-          }
-          value={reason}
-          onChange={(event) => onReasonChange(event.target.value)}
-        />
-      </label>
-      <button
-        className="button button-primary"
-        disabled={!canManage || !reason.trim() || isSubmitting}
-        type="button"
-        onClick={() => {
-          if (window.confirm('Confirm manual booking status update?')) {
-            onSubmit();
-          }
-        }}
-      >
-        Confirm Manual Update
-      </button>
-      <p className="muted-copy">
+          {isSubmitting ? 'Updating…' : 'Confirm Manual Update'}
+        </button>
+      </div>
+      <p className="fin-text bk-foot">
         Backend validation is not bypassed. Every accepted update creates booking history and audit
         logs.
       </p>
-    </section>
+    </FinPanel>
   );
 }
 
@@ -484,44 +462,47 @@ function NotesFoundation({
   onNoteChange: (value: string) => void;
 }) {
   return (
-    <section className="panel" id="notes">
-      <p className="eyebrow">Internal Notes</p>
-      <h3>Private admin-only note foundation</h3>
-      <div className="control-grid">
-        <label>
-          <span>Category</span>
-          <select
-            disabled={!canSupport}
-            value={noteCategory}
-            onChange={(event) => onNoteCategoryChange(event.target.value)}
-          >
-            {noteCategories.map((category) => (
-              <option key={category}>{category}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Visibility</span>
-          <select disabled={!canSupport}>
-            <option>Admin only</option>
-            <option>Support only</option>
-            <option>Operations only</option>
-          </select>
-        </label>
-      </div>
-      <label className="form-field">
-        <span>Note</span>
-        <textarea
-          disabled={!canSupport}
-          value={note}
-          onChange={(event) => onNoteChange(event.target.value)}
-        />
-      </label>
-      <button className="button button-secondary" disabled type="button">
-        Save Note - Backend support required
-      </button>
-      <p className="muted-copy">Required API: `POST /api/admin/bookings/:id/notes`.</p>
-    </section>
+    <div className="bk-anchor" id="notes">
+      <FinPanel sub="Internal Notes" title="Private admin-only notes">
+        <div className="fin-form">
+          <label className="fin-field">
+            <span>Category</span>
+            <select
+              disabled={!canSupport}
+              onChange={(event) => onNoteCategoryChange(event.target.value)}
+              value={noteCategory}
+            >
+              {noteCategories.map((category) => (
+                <option key={category}>{category}</option>
+              ))}
+            </select>
+          </label>
+          <label className="fin-field">
+            <span>Visibility</span>
+            <select disabled={!canSupport}>
+              <option>Admin only</option>
+              <option>Support only</option>
+              <option>Operations only</option>
+            </select>
+          </label>
+          <label className="fin-field fin-field-wide">
+            <span>Note</span>
+            <textarea
+              disabled={!canSupport}
+              onChange={(event) => onNoteChange(event.target.value)}
+              rows={3}
+              value={note}
+            />
+          </label>
+        </div>
+        <div className="fin-actions fin-actions-end">
+          <button className="fin-btn fin-btn-outline" disabled type="button">
+            Save Note - Backend support required
+          </button>
+        </div>
+        <p className="fin-text bk-foot">Required API: `POST /api/admin/bookings/:id/notes`.</p>
+      </FinPanel>
+    </div>
   );
 }
 
@@ -539,54 +520,54 @@ function EscalationFoundation({
   onEscalationReasonChange: (value: string) => void;
 }) {
   return (
-    <section className="panel" id="escalation">
-      <p className="eyebrow">Escalation Workflow</p>
-      <h3>Assign and escalate foundation</h3>
-      <div className="control-grid">
-        <label>
-          <span>Reason</span>
-          <select
-            disabled={!canManage}
-            value={escalationReason}
-            onChange={(event) => onEscalationReasonChange(event.target.value)}
-          >
-            {escalationReasons.map((reason) => (
-              <option key={reason}>{reason}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Level</span>
-          <select
-            disabled={!canManage}
-            value={escalationLevel}
-            onChange={(event) =>
-              onEscalationLevelChange(event.target.value as 'NORMAL' | 'HIGH' | 'CRITICAL')
-            }
-          >
-            <option>NORMAL</option>
-            <option>HIGH</option>
-            <option>CRITICAL</option>
-          </select>
-        </label>
-      </div>
-      <button className="button button-secondary" disabled type="button">
-        Mark Escalated - Backend support required
-      </button>
-      <p className="muted-copy">
-        Required APIs: `POST /api/admin/bookings/:id/escalate` and `PATCH
-        /api/admin/bookings/:id/escalation`.
-      </p>
-    </section>
+    <div className="bk-anchor" id="escalation">
+      <FinPanel sub="Escalation Workflow" title="Assign and escalate">
+        <div className="fin-form">
+          <label className="fin-field">
+            <span>Reason</span>
+            <select
+              disabled={!canManage}
+              onChange={(event) => onEscalationReasonChange(event.target.value)}
+              value={escalationReason}
+            >
+              {escalationReasons.map((reason) => (
+                <option key={reason}>{reason}</option>
+              ))}
+            </select>
+          </label>
+          <label className="fin-field">
+            <span>Level</span>
+            <select
+              disabled={!canManage}
+              onChange={(event) =>
+                onEscalationLevelChange(event.target.value as 'NORMAL' | 'HIGH' | 'CRITICAL')
+              }
+              value={escalationLevel}
+            >
+              <option>NORMAL</option>
+              <option>HIGH</option>
+              <option>CRITICAL</option>
+            </select>
+          </label>
+        </div>
+        <div className="fin-actions fin-actions-end">
+          <button className="fin-btn fin-btn-violet" disabled type="button">
+            Mark Escalated - Backend support required
+          </button>
+        </div>
+        <p className="fin-text bk-foot">
+          Required APIs: `POST /api/admin/bookings/:id/escalate` and `PATCH
+          /api/admin/bookings/:id/escalation`.
+        </p>
+      </FinPanel>
+    </div>
   );
 }
 
 function TransferFoundation() {
   return (
-    <section className="panel">
-      <p className="eyebrow">Transfer / Reassignment Foundation</p>
-      <h3>Recommended alternatives</h3>
-      <div className="roadmap-grid">
+    <FinPanel sub="Transfer / Reassignment Foundation" title="Recommended alternatives">
+      <div className="bk-cards">
         {[
           'Nearest lodge',
           'Lowest price',
@@ -595,17 +576,17 @@ function TransferFoundation() {
           'Budget option',
           'Same capacity',
         ].map((item) => (
-          <article className="roadmap-card" key={item}>
+          <article className="bk-card" key={item}>
             <h4>{item}</h4>
             <p>Transfer recommendation requires availability and transfer-options backend APIs.</p>
           </article>
         ))}
       </div>
-      <p className="muted-copy">
+      <p className="fin-text bk-foot">
         Required APIs: `GET /api/admin/bookings/:id/transfer-options` and `POST
         /api/admin/bookings/:id/transfer`.
       </p>
-    </section>
+    </FinPanel>
   );
 }
 
@@ -622,27 +603,27 @@ function OverrideControls({ canOverride }: { canOverride: boolean }) {
   ];
 
   return (
-    <section className="panel warning-panel">
-      <p className="eyebrow">Admin Override Controls</p>
-      <h3>Restricted controls</h3>
-      <div className="quick-actions">
-        {controls.map((control) => (
-          <button
-            className="button button-secondary"
-            disabled={!canOverride}
-            key={control}
-            type="button"
-          >
-            {canOverride
-              ? `${control} - Backend support required`
-              : `${control} - Permission required`}
-          </button>
-        ))}
-      </div>
-      <p className="muted-copy">
-        Every future override must require reason, confirmation, and audit log.
-      </p>
-    </section>
+    <div className="bk-warn">
+      <FinPanel sub="Admin Override Controls" title="Restricted controls">
+        <div className="fin-actions" style={{ marginTop: 0 }}>
+          {controls.map((control) => (
+            <button
+              className="fin-btn fin-btn-outline"
+              disabled={!canOverride}
+              key={control}
+              type="button"
+            >
+              {canOverride
+                ? `${control} - Backend support required`
+                : `${control} - Permission required`}
+            </button>
+          ))}
+        </div>
+        <p className="fin-text bk-foot">
+          Every future override must require reason, confirmation, and audit log.
+        </p>
+      </FinPanel>
+    </div>
   );
 }
 

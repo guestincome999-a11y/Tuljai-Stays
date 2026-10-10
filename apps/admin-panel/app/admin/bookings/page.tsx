@@ -13,6 +13,10 @@ import {
   getWaitingTime,
   maskPhone,
 } from '../../../src/bookings/booking-operations';
+import { bookingPriorityTone, bookingStatusTone } from '../../../src/components/bookings/booking-tone';
+import { BookingViewsStyles } from '../../../src/components/bookings/BookingViewsStyles';
+import { FinanceStyles } from '../../../src/components/finance/FinanceStyles';
+import { FinBanners, FinHeader, FinPanel, FinPill } from '../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import { useAdminBookings, type AdminBookingFilters } from '../../../src/hooks/useAdminBookings';
 import { hasPermission } from '../../../src/permissions/permissions';
@@ -34,41 +38,33 @@ export default function AdminBookingsPage() {
 
   return (
     <PermissionGate permission="bookings.view">
-      <div className="page-stack">
-        <section className="panel">
-          <div className="section-header">
-            <div>
-              <p className="eyebrow">Booking Control Center</p>
-              <h2>All bookings</h2>
-              <p className="muted-copy">
-                Search, filter, call, escalate, and open booking detail without loading every
-                record.
-              </p>
-            </div>
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => void bookings.refresh()}
-            >
-              Refresh
+      <div className="fin-stack">
+        <FinanceStyles />
+        <BookingViewsStyles />
+        <FinHeader
+          actions={
+            <button className="fin-btn" disabled={bookings.isRefreshing} onClick={() => void bookings.refresh()} type="button">
+              {bookings.isRefreshing ? 'Refreshing…' : 'Refresh'}
             </button>
-          </div>
+          }
+          description="Search, filter, call, escalate, and open booking detail without loading every record."
+          eyebrow="Booking Control Center"
+          title="All bookings"
+        />
 
-          <div className="control-grid">
-            <label>
+        <FinPanel sub="Narrow the list" title="Filters">
+          <div className="bk-filters">
+            <label className="fin-field">
               <span>Search</span>
               <input
+                onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
                 placeholder="Booking code, guest, phone, lodge, room"
                 value={filters.query}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, query: event.target.value }))
-                }
               />
             </label>
-            <label>
+            <label className="fin-field">
               <span>Status</span>
               <select
-                value={filters.status}
                 onChange={(event) => {
                   setPage(1);
                   setFilters((current) => ({
@@ -76,6 +72,7 @@ export default function AdminBookingsPage() {
                     status: event.target.value as AdminBookingFilters['status'],
                   }));
                 }}
+                value={filters.status}
               >
                 <option value="">All statuses</option>
                 {bookingStatuses.map((status) => (
@@ -85,77 +82,81 @@ export default function AdminBookingsPage() {
                 ))}
               </select>
             </label>
-            <label>
+            <label className="fin-field">
               <span>From</span>
               <input
+                onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value }))}
                 type="date"
                 value={filters.fromDate}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, fromDate: event.target.value }))
-                }
               />
             </label>
-            <label>
+            <label className="fin-field">
               <span>To</span>
               <input
+                onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value }))}
                 type="date"
                 value={filters.toDate}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, toDate: event.target.value }))
-                }
               />
             </label>
           </div>
-        </section>
+        </FinPanel>
 
-        {bookings.errorMessage ? (
-          <section className="error-banner">{bookings.errorMessage}</section>
-        ) : null}
+        <FinBanners error={bookings.errorMessage} />
 
-        <section className="table-panel">
-          <div className="admin-table booking-table">
-            <div className="admin-table-row admin-table-head">
-              <span>Booking Code</span>
-              <span>Guest</span>
-              <span>Lodge</span>
-              <span>Stay</span>
-              <span>Status</span>
-              <span>Owner Response</span>
-              <span>Priority</span>
-              <span>Actions</span>
+        <FinPanel sub={`Page ${bookings.data?.page ?? page} of ${bookings.data?.totalPages ?? 1}`} title="Bookings">
+          {bookings.isLoading && !bookings.data ? <div aria-label="Loading" className="fin-skeleton" /> : null}
+          {!bookings.isLoading && bookings.filteredItems.length === 0 ? (
+            <p className="fin-empty">No bookings match these filters.</p>
+          ) : null}
+          {bookings.filteredItems.length > 0 ? (
+            <div className="fin-scroll">
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>Booking</th>
+                    <th>Guest</th>
+                    <th>Lodge</th>
+                    <th>Stay</th>
+                    <th>Status</th>
+                    <th>Owner response</th>
+                    <th>Priority</th>
+                    <th className="fin-num">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookings.filteredItems.map((booking) => (
+                    <BookingRow
+                      booking={booking}
+                      canManage={canManage}
+                      canSeeContact={canSeeContact}
+                      key={booking.id}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
-            {bookings.filteredItems.map((booking) => (
-              <BookingRow
-                booking={booking}
-                canManage={canManage}
-                canSeeContact={canSeeContact}
-                key={booking.id}
-              />
-            ))}
-          </div>
+          ) : null}
 
-          <div className="pagination-row">
+          <div className="fin-pager">
+            <span>Page {bookings.data?.page ?? page} of {bookings.data?.totalPages ?? 1}</span>
             <button
-              className="button button-secondary"
+              className="fin-btn fin-btn-sm fin-btn-soft"
               disabled={page <= 1}
-              type="button"
               onClick={() => setPage((current) => Math.max(1, current - 1))}
+              type="button"
             >
               Previous
             </button>
-            <span>
-              Page {bookings.data?.page ?? page} of {bookings.data?.totalPages ?? 1}
-            </span>
             <button
-              className="button button-secondary"
+              className="fin-btn fin-btn-sm fin-btn-soft"
               disabled={!bookings.data || page >= bookings.data.totalPages}
-              type="button"
               onClick={() => setPage((current) => current + 1)}
+              type="button"
             >
               Next
             </button>
           </div>
-        </section>
+        </FinPanel>
       </div>
     </PermissionGate>
   );
@@ -174,57 +175,68 @@ function BookingRow({
   const priority = getBookingPriority(booking);
 
   return (
-    <div className="admin-table-row">
-      <span>
-        <strong>{booking.bookingCode}</strong>
-        <small>{new Date(booking.createdAt).toLocaleString('en-IN')}</small>
-      </span>
-      <span>
+    <tr>
+      <td>
+        <Link className="fin-link" href={`/admin/bookings/${booking.id}`}>{booking.bookingCode}</Link>
+        <span className="fin-cell-sub">{new Date(booking.createdAt).toLocaleString('en-IN')}</span>
+      </td>
+      <td>
         {booking.guestName}
-        <small>
+        <span className="fin-cell-sub">
           {canSeeContact ? (booking.guestPhone ?? 'No phone') : maskPhone(booking.guestPhone)}
-        </small>
-      </span>
-      <span>
+        </span>
+      </td>
+      <td>
         {booking.lodgeName}
-        <small>{booking.roomTypeName}</small>
-      </span>
-      <span>
+        <span className="fin-cell-sub">{booking.roomTypeName}</span>
+      </td>
+      <td>
         {booking.checkInDate}
-        <small>
+        <span className="fin-cell-sub">
           to {booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}
-        </small>
-      </span>
-      <span className="status-card">{formatStatus(booking.status)}</span>
-      <span className={ownerState.overdue ? 'text-danger' : undefined}>
-        {ownerState.message}
-        <small>Waiting {getWaitingTime(booking.createdAt)}</small>
-      </span>
-      <span className={`priority priority-${priority.toLowerCase()}`}>{priority}</span>
-      <span className="row-actions">
-        <Link className="ghost-control" href={`/admin/bookings/${booking.id}`}>
-          View
-        </Link>
-        {canManage ? (
-          <>
-            <button className="ghost-control" type="button">
-              Call Owner - Owner endpoint required
-            </button>
-            <a
-              className="ghost-control"
-              href={booking.guestPhone ? `tel:${booking.guestPhone}` : '#'}
-            >
-              Call Pilgrim
-            </a>
-            <Link className="ghost-control" href={`/admin/bookings/${booking.id}#notes`}>
-              Add Note
-            </Link>
-            <Link className="ghost-control" href={`/admin/bookings/${booking.id}#escalation`}>
-              Escalate
-            </Link>
-          </>
-        ) : null}
-      </span>
-    </div>
+        </span>
+      </td>
+      <td>
+        <FinPill tone={bookingStatusTone(booking.status)}>{formatStatus(booking.status)}</FinPill>
+      </td>
+      <td className="bk-wrap">
+        <span className={ownerState.overdue ? 'bk-danger' : undefined}>{ownerState.message}</span>
+        <span className="fin-cell-sub">Waiting {getWaitingTime(booking.createdAt)}</span>
+      </td>
+      <td>
+        <FinPill tone={bookingPriorityTone(priority)}>{priority}</FinPill>
+      </td>
+      <td className="bk-actions-cell">
+        <div className="bk-actions">
+          <Link className="fin-btn fin-btn-sm fin-btn-soft" href={`/admin/bookings/${booking.id}`}>
+            View
+          </Link>
+          {canManage ? (
+            <>
+              <button
+                className="fin-btn fin-btn-sm fin-btn-outline"
+                disabled
+                title="Owner endpoint required"
+                type="button"
+              >
+                Call Owner
+              </button>
+              <a
+                className="fin-btn fin-btn-sm fin-btn-outline"
+                href={booking.guestPhone ? `tel:${booking.guestPhone}` : '#'}
+              >
+                Call Pilgrim
+              </a>
+              <Link className="fin-btn fin-btn-sm fin-btn-outline" href={`/admin/bookings/${booking.id}#notes`}>
+                Add Note
+              </Link>
+              <Link className="fin-btn fin-btn-sm fin-btn-violet" href={`/admin/bookings/${booking.id}#escalation`}>
+                Escalate
+              </Link>
+            </>
+          ) : null}
+        </div>
+      </td>
+    </tr>
   );
 }
