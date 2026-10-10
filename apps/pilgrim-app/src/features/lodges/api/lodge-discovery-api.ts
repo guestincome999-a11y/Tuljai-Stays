@@ -23,30 +23,78 @@ interface PublicLodgeQuery {
 
 const TULJAPUR_CITY_SLUG = 'tuljapur';
 
-const lodgeDetailsCache = new Map<string, LodgeDetails>();
-const lodgePhotosCache = new Map<string, LodgePhoto[]>();
-const lodgeRoomTypesCache = new Map<string, RoomType[]>();
-let amenitiesCache: Amenity[] | null = null;
-let citiesCache: City[] | null = null;
+// Lodge details, photos and room types (prices!) are edited from the admin
+// panel at any time, so cached copies expire quickly instead of living for the
+// whole app session. invalidateLodgeCatalogCache() clears them immediately
+// when the backend announces a catalog change.
+const CATALOG_CACHE_TTL_MS = 45_000;
 
-export async function listCities(): Promise<City[]> {
-  if (citiesCache) {
-    return citiesCache;
+interface CacheEntry<TValue> {
+  expiresAt: number;
+  value: TValue;
+}
+
+// Bumped on every invalidation so a request that was already in flight when
+// the catalog changed can't write its (now stale) response back into the cache.
+let cacheGeneration = 0;
+
+const lodgeDetailsCache = new Map<string, CacheEntry<LodgeDetails>>();
+const lodgePhotosCache = new Map<string, CacheEntry<LodgePhoto[]>>();
+const lodgeRoomTypesCache = new Map<string, CacheEntry<RoomType[]>>();
+let amenitiesCache: CacheEntry<Amenity[]> | null = null;
+let citiesCache: CacheEntry<City[]> | null = null;
+
+function readCache<TValue>(entry: CacheEntry<TValue> | null | undefined): TValue | null {
+  if (!entry || entry.expiresAt <= Date.now()) {
+    return null;
   }
 
+  return entry.value;
+}
+
+function writeCache<TValue>(value: TValue): CacheEntry<TValue> {
+  return { expiresAt: Date.now() + CATALOG_CACHE_TTL_MS, value };
+}
+
+export function invalidateLodgeCatalogCache(): void {
+  cacheGeneration += 1;
+  lodgeDetailsCache.clear();
+  lodgePhotosCache.clear();
+  lodgeRoomTypesCache.clear();
+  amenitiesCache = null;
+  citiesCache = null;
+}
+
+export async function listCities(): Promise<City[]> {
+  const cached = readCache(citiesCache);
+
+  if (cached) {
+    return cached;
+  }
+
+  const generation = cacheGeneration;
   const cities = await apiClient.get<City[]>('/cities');
-  citiesCache = cities;
+
+  if (generation === cacheGeneration) {
+    citiesCache = writeCache(cities);
+  }
 
   return cities;
 }
 
 export async function listAmenities(): Promise<Amenity[]> {
-  if (amenitiesCache) {
-    return amenitiesCache;
+  const cached = readCache(amenitiesCache);
+
+  if (cached) {
+    return cached;
   }
 
+  const generation = cacheGeneration;
   const amenities = await apiClient.get<Amenity[]>('/amenities');
-  amenitiesCache = amenities;
+
+  if (generation === cacheGeneration) {
+    amenitiesCache = writeCache(amenities);
+  }
 
   return amenities;
 }
@@ -64,25 +112,30 @@ export async function listPublicLodges(query: PublicLodgeQuery): Promise<Paginat
 }
 
 export async function getLodgeDetails(lodgeId: string): Promise<LodgeDetails> {
-  const cached = lodgeDetailsCache.get(lodgeId);
+  const cached = readCache(lodgeDetailsCache.get(lodgeId));
 
   if (cached) {
     return cached;
   }
 
+  const generation = cacheGeneration;
   const details = await apiClient.get<LodgeDetails>(`/lodges/${lodgeId}`);
-  lodgeDetailsCache.set(lodgeId, details);
+
+  if (generation === cacheGeneration) {
+    lodgeDetailsCache.set(lodgeId, writeCache(details));
+  }
 
   return details;
 }
 
 export async function listLodgePhotos(lodgeId: string): Promise<LodgePhoto[]> {
-  const cached = lodgePhotosCache.get(lodgeId);
+  const cached = readCache(lodgePhotosCache.get(lodgeId));
 
   if (cached) {
     return cached;
   }
 
+  const generation = cacheGeneration;
   const photos = await apiClient.get<LodgePhoto[]>(`/lodges/${lodgeId}/photos`);
   const approvedPhotos = photos
     .filter((photo) => photo.approvalStatus === 'APPROVED')
@@ -90,23 +143,30 @@ export async function listLodgePhotos(lodgeId: string): Promise<LodgePhoto[]> {
       (left, right) =>
         Number(right.isCover) - Number(left.isCover) || left.sortOrder - right.sortOrder,
     );
-  lodgePhotosCache.set(lodgeId, approvedPhotos);
+
+  if (generation === cacheGeneration) {
+    lodgePhotosCache.set(lodgeId, writeCache(approvedPhotos));
+  }
 
   return approvedPhotos;
 }
 
 export async function listLodgeRoomTypes(lodgeId: string): Promise<RoomType[]> {
-  const cached = lodgeRoomTypesCache.get(lodgeId);
+  const cached = readCache(lodgeRoomTypesCache.get(lodgeId));
 
   if (cached) {
     return cached;
   }
 
+  const generation = cacheGeneration;
   const roomTypes = await apiClient.get<RoomType[]>(`/lodges/${lodgeId}/room-types`);
   const activeRoomTypes = roomTypes
     .filter((roomType) => roomType.isActive)
     .sort((left, right) => Number(left.basePrice) - Number(right.basePrice));
-  lodgeRoomTypesCache.set(lodgeId, activeRoomTypes);
+
+  if (generation === cacheGeneration) {
+    lodgeRoomTypesCache.set(lodgeId, writeCache(activeRoomTypes));
+  }
 
   return activeRoomTypes;
 }
