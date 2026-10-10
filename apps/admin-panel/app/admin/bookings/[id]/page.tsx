@@ -1,6 +1,6 @@
 'use client';
 
-import type { BookingStatus } from '@tuljai/types';
+import type { AdminBookingSummary, BookingGuest, BookingStatus } from '@tuljai/types';
 import Link from 'next/link';
 import { use, useState, type ReactNode } from 'react';
 
@@ -8,13 +8,10 @@ import { apiClient } from '../../../../src/api/client';
 import { useAdminAuth } from '../../../../src/auth/AdminAuthProvider';
 import {
   buildBookingTimeline,
-  callOutcomes,
-  escalationReasons,
   formatStatus,
   getBookingPriority,
   getOwnerResponseState,
   maskPhone,
-  noteCategories,
 } from '../../../../src/bookings/booking-operations';
 import {
   bookingPriorityTone,
@@ -22,8 +19,16 @@ import {
   paymentStatusTone,
 } from '../../../../src/components/bookings/booking-tone';
 import { BookingViewsStyles } from '../../../../src/components/bookings/BookingViewsStyles';
+import { formatDate } from '../../../../src/components/dashboard/format';
 import { FinanceStyles } from '../../../../src/components/finance/FinanceStyles';
-import { FinHeader, FinKv, FinPanel, FinPill } from '../../../../src/components/finance/FinanceUi';
+import {
+  FinHeader,
+  FinKpi,
+  FinKv,
+  FinPanel,
+  FinPill,
+  formatMoney,
+} from '../../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../../src/components/PermissionGate';
 import { useAdminBookingDetail } from '../../../../src/hooks/useAdminBookingDetail';
 import { hasPermission } from '../../../../src/permissions/permissions';
@@ -43,30 +48,40 @@ const rejectReasons = [
   'Pilgrim cancelled by phone',
 ];
 
+const statusChoices: Array<{ label: string; needsOverride: boolean; value: BookingStatus }> = [
+  { label: 'Accept', needsOverride: false, value: 'ACCEPTED' },
+  { label: 'Reject', needsOverride: false, value: 'REJECTED' },
+  { label: 'Mark expired', needsOverride: true, value: 'EXPIRED' },
+  { label: 'Mark cancelled', needsOverride: true, value: 'CANCELLED' },
+  { label: 'Mark no-show', needsOverride: true, value: 'NO_SHOW' },
+];
+
+const upcomingTools = [
+  { id: 'notes', text: 'Private admin-only notes and call outcomes for this booking.', title: 'Internal notes' },
+  { id: 'escalation', text: 'Assign this booking to operations and track its escalation level.', title: 'Escalation' },
+  { id: 'transfer', text: 'Move the guest to another lodge or room type with suggested alternatives.', title: 'Transfer booking' },
+  { id: 'override', text: 'Force accept or reject, reassign the lodge, change the room, regenerate the QR.', title: 'Admin overrides' },
+];
+
 export default function AdminBookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: bookingId } = use(params);
   const auth = useAdminAuth();
-  const bookingDetail = useAdminBookingDetail(bookingId);
-  const booking = bookingDetail.data;
+  const detail = useAdminBookingDetail(bookingId);
+  const booking = detail.data;
   const [selectedStatus, setSelectedStatus] = useState<BookingStatus>('ACCEPTED');
   const [reason, setReason] = useState('');
-  const [callOutcome, setCallOutcome] = useState(callOutcomes[0] ?? 'Other');
-  const [note, setNote] = useState('');
-  const [noteCategory, setNoteCategory] = useState(noteCategories[0] ?? 'General');
-  const [escalationReason, setEscalationReason] = useState(escalationReasons[0] ?? 'Other');
-  const [escalationLevel, setEscalationLevel] = useState<'NORMAL' | 'HIGH' | 'CRITICAL'>('HIGH');
   const [isOpeningProof, setIsOpeningProof] = useState(false);
   const canManage = hasPermission(auth.permissions, 'bookings.manage');
   const canOverride = hasPermission(auth.permissions, 'bookings.override');
   const canSupport = hasPermission(auth.permissions, 'support.manage');
   const canSeeContact = canManage || canSupport || canOverride;
 
-  if (bookingDetail.isLoading) {
+  if (detail.isLoading) {
     return (
       <PermissionGate permission="bookings.view">
         <div className="fin-stack">
           <FinanceStyles />
-          <FinHeader description="Fetching the latest booking record." eyebrow="Loading" title="Loading booking detail" />
+          <FinHeader description="Fetching the latest booking record." eyebrow="Booking Detail" title="Loading booking" />
           <div aria-label="Loading" className="fin-skeleton" />
         </div>
       </PermissionGate>
@@ -80,12 +95,17 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
           <FinanceStyles />
           <FinHeader
             actions={
-              <button className="fin-btn" onClick={() => void bookingDetail.refresh()} type="button">
-                Retry
-              </button>
+              <>
+                <button className="fin-btn" onClick={() => void detail.refresh()} type="button">
+                  Retry
+                </button>
+                <Link className="fin-btn fin-btn-outline" href="/admin/bookings">
+                  Back to bookings
+                </Link>
+              </>
             }
-            description={bookingDetail.errorMessage ?? 'Please retry.'}
-            eyebrow="Unavailable"
+            description={detail.errorMessage ?? 'Please try again.'}
+            eyebrow="Booking Detail"
             title="Booking could not be opened"
           />
         </div>
@@ -93,12 +113,10 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
     );
   }
 
-  const priority = getBookingPriority(booking);
-  const ownerState = getOwnerResponseState(booking);
-  const timeline = buildBookingTimeline(booking);
   const primaryGuest = booking.guests.find((guest) => guest.isPrimaryGuest) ?? booking.guests[0];
+  const priority = getBookingPriority(booking);
   const canOpenProof = canSeeContact && Boolean(primaryGuest?.idProofOriginalName);
-  const currentBookingId = booking.id;
+  const bookingIdForProof = booking.id;
 
   async function openIdProof() {
     const proofWindow = window.open('about:blank', '_blank');
@@ -111,13 +129,10 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
     proofWindow.document.title = 'Opening ID proof...';
     setIsOpeningProof(true);
     try {
-      const blob = await apiClient.request<Blob>(
-        `/admin/bookings/${currentBookingId}/guest-id-proof`,
-        {
-          method: 'GET',
-          responseType: 'blob',
-        },
-      );
+      const blob = await apiClient.request<Blob>(`/admin/bookings/${bookingIdForProof}/guest-id-proof`, {
+        method: 'GET',
+        responseType: 'blob',
+      });
       if (!(blob instanceof Blob) || blob.size === 0) {
         throw new Error('The ID proof is empty');
       }
@@ -133,93 +148,38 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
     }
   }
 
-  const snapshotRows: Array<{ label: string; value: ReactNode }> = [
-    { label: 'Payment', value: <FinPill tone={paymentStatusTone(booking.paymentStatus)}>{formatStatus(booking.paymentStatus)}</FinPill> },
-    { label: 'Lodge', value: booking.lodgeName },
-    { label: 'Room Type', value: booking.roomTypeName },
-    { label: 'Room Number', value: booking.roomNumber ?? 'Not assigned' },
-    { label: 'Guests', value: `${booking.totalGuests} total` },
-    { label: 'Adults / Children', value: `${booking.numberOfAdults} / ${booking.numberOfChildren}` },
-    { label: 'Special Request', value: booking.specialRequest ?? 'No special request' },
-    { label: 'Created', value: new Date(booking.createdAt).toLocaleString('en-IN') },
-    { label: 'Updated', value: new Date(booking.updatedAt).toLocaleString('en-IN') },
-  ];
-
-  const guestRows: Array<{ label: string; value: ReactNode }> = [
-    { label: 'Guest', value: booking.guestName },
-    {
-      label: 'Phone',
-      value: canSeeContact ? (booking.guestPhone ?? 'Not provided') : maskPhone(booking.guestPhone),
-    },
-    {
-      label: 'Alternate',
-      value: canSeeContact ? (booking.alternatePhone ?? 'Not provided') : maskPhone(booking.alternatePhone),
-    },
-    {
-      label: 'Address',
-      value: canSeeContact ? (booking.guestAddress ?? 'Not provided') : 'Hidden for read-only role',
-    },
-    {
-      label: 'ID Proof',
-      value: canSeeContact ? formatGuestIdProof(primaryGuest) : 'Hidden for read-only role',
-    },
-  ];
-  if (canOpenProof) {
-    guestRows.push({
-      label: 'ID Proof File',
-      value: (
-        <button
-          className="fin-btn fin-btn-sm fin-btn-soft"
-          disabled={isOpeningProof}
-          onClick={() => void openIdProof()}
-          type="button"
-        >
-          {isOpeningProof ? 'Opening...' : 'Open uploaded proof'}
-        </button>
-      ),
-    });
-  }
-  guestRows.push(
-    { label: 'QR Status', value: booking.status === 'QR_GENERATED' ? 'Generated' : 'Not active' },
-    {
-      label: 'Check-in',
-      value: booking.checkedInAt ? new Date(booking.checkedInAt).toLocaleString('en-IN') : 'Not checked in',
-    },
-    {
-      label: 'Checkout',
-      value: booking.checkedOutAt ? new Date(booking.checkedOutAt).toLocaleString('en-IN') : 'Not checked out',
-    },
-  );
-
   return (
     <PermissionGate permission="bookings.view">
       <div className="fin-stack">
         <FinanceStyles />
         <BookingViewsStyles />
+
         <FinHeader
           actions={
             <>
-              <FinPill tone={bookingPriorityTone(priority)}>{priority}</FinPill>
               <FinPill tone={bookingStatusTone(booking.status)}>{formatStatus(booking.status)}</FinPill>
+              <FinPill tone={bookingPriorityTone(priority)}>{formatStatus(priority)} priority</FinPill>
               <Link className="fin-btn fin-btn-outline" href="/admin/bookings">
                 Back to bookings
               </Link>
             </>
           }
-          description={`${booking.guestName} / ${booking.checkInDate} to ${booking.checkoutDateFlexible ? 'checkout not fixed' : booking.checkOutDate}`}
+          description={`${booking.guestName} · ${booking.lodgeName} · ${booking.roomTypeName}`}
           eyebrow="Booking Detail"
           title={booking.bookingCode}
         />
 
-        {bookingDetail.errorMessage ? (
-          <p className="error-banner" role="alert">{bookingDetail.errorMessage}</p>
+        {detail.errorMessage ? (
+          <p className="error-banner" role="alert">
+            {detail.errorMessage}
+          </p>
         ) : null}
-        {bookingDetail.successMessage ? (
+        {detail.successMessage ? (
           <p className="success-banner bk-banner-row" role="status">
-            <span>{bookingDetail.successMessage}</span>
+            <span>{detail.successMessage}</span>
             <button
               className="fin-btn fin-btn-sm fin-btn-outline"
-              onClick={() => bookingDetail.setSuccessMessage(null)}
+              onClick={() => detail.setSuccessMessage(null)}
               type="button"
             >
               Dismiss
@@ -227,156 +187,261 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
           </p>
         ) : null}
 
-        <section className="fin-split">
-          <FinPanel sub="Stay and payment" title="Booking snapshot">
-            <FinKv rows={snapshotRows} />
-          </FinPanel>
-          <FinPanel sub="Contact details follow your role" title="Guest privacy">
-            <FinKv rows={guestRows} />
-          </FinPanel>
-        </section>
+        <SummaryCards booking={booking} />
 
-        <div className={ownerState.overdue ? 'bk-warn' : undefined}>
-          <FinPanel sub="Owner response timer" title="Owner response">
-            <p className="bk-lead">{ownerState.message}</p>
-            <FinKv
-              rows={[
-                {
-                  label: 'Deadline',
-                  value: booking.ownerResponseDeadline
-                    ? new Date(booking.ownerResponseDeadline).toLocaleString('en-IN')
-                    : 'No deadline recorded',
-                },
-              ]}
+        <div className="bk-layout">
+          <div className="bk-col">
+            <StayPanel booking={booking} />
+            <GuestsPanel
+              booking={booking}
+              canOpenProof={canOpenProof}
+              canSeeContact={canSeeContact}
+              isOpeningProof={isOpeningProof}
+              onOpenProof={() => void openIdProof()}
+              primaryGuest={primaryGuest}
             />
-            {ownerState.overdue ? (
-              <p className="fin-field-error bk-foot">Owner response overdue. Admin action recommended.</p>
-            ) : null}
-          </FinPanel>
-        </div>
-
-        <section className="fin-split">
-          <CallCenterPanel
-            callOutcome={callOutcome}
-            canSupport={canSupport}
-            guestPhone={booking.guestPhone}
-            onOutcomeChange={setCallOutcome}
-            ownerPhone={booking.alternatePhone ?? booking.guestPhone}
-          />
-          <ManualStatusPanel
-            canManage={canManage}
-            canOverride={canOverride}
-            isSubmitting={bookingDetail.isSubmitting}
-            onReasonChange={setReason}
-            onSelectedStatusChange={setSelectedStatus}
-            onSubmit={() => {
-              const finalReason = reason || getDefaultReason(selectedStatus);
-              void bookingDetail.updateStatus(selectedStatus, finalReason);
-            }}
-            reason={reason}
-            selectedStatus={selectedStatus}
-          />
-        </section>
-
-        <section className="fin-split">
-          <NotesFoundation
-            canSupport={canSupport}
-            note={note}
-            noteCategory={noteCategory}
-            onNoteCategoryChange={setNoteCategory}
-            onNoteChange={setNote}
-          />
-          <EscalationFoundation
-            canManage={canManage}
-            escalationLevel={escalationLevel}
-            escalationReason={escalationReason}
-            onEscalationLevelChange={setEscalationLevel}
-            onEscalationReasonChange={setEscalationReason}
-          />
-        </section>
-
-        <TransferFoundation />
-        <OverrideControls canOverride={canOverride} />
-
-        <FinPanel sub="Booking lifecycle" title="Activity timeline">
-          <div className="bk-timeline">
-            {timeline.map((item) => (
-              <article className="bk-tl-item" key={`${item.title}-${item.timestamp}`}>
-                <span className="bk-tl-dot" />
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.description}</p>
-                  <small>{new Date(item.timestamp).toLocaleString('en-IN')}</small>
-                </div>
-              </article>
-            ))}
+            <PaymentPanel booking={booking} />
+            <TimelinePanel booking={booking} />
           </div>
-          <p className="fin-text bk-foot">
-            Full audit feed, admin notes, call outcomes, notification events, and transfer history
-            require future admin audit/note endpoints.
-          </p>
-        </FinPanel>
+
+          <div className="bk-col">
+            <OwnerResponsePanel booking={booking} />
+            <StatusPanel
+              canManage={canManage}
+              canOverride={canOverride}
+              isSubmitting={detail.isSubmitting}
+              onReasonChange={setReason}
+              onStatusChange={(status) => {
+                setSelectedStatus(status);
+                setReason('');
+              }}
+              onSubmit={() => void detail.updateStatus(selectedStatus, reason.trim())}
+              reason={reason}
+              selectedStatus={selectedStatus}
+            />
+            <ContactPanel booking={booking} canSeeContact={canSeeContact} />
+            <ToolsPanel />
+          </div>
+        </div>
       </div>
     </PermissionGate>
   );
 }
 
-function CallCenterPanel({
-  callOutcome,
-  canSupport,
-  guestPhone,
-  onOutcomeChange,
-  ownerPhone,
-}: {
-  callOutcome: string;
-  canSupport: boolean;
-  guestPhone: string | null;
-  onOutcomeChange: (value: string) => void;
-  ownerPhone: string | null;
-}) {
+/* ------------------------------------------------------------- summary */
+
+function SummaryCards({ booking }: { booking: AdminBookingSummary }) {
+  const nights = countNights(booking);
   return (
-    <FinPanel sub="Call Center Foundation" title="Coordinate by phone">
-      <div className="fin-actions" style={{ marginTop: 0 }}>
-        <a className="fin-btn fin-btn-soft" href={ownerPhone ? `tel:${ownerPhone}` : '#'}>
-          Call Owner
-        </a>
-        <a className="fin-btn fin-btn-soft" href={guestPhone ? `tel:${guestPhone}` : '#'}>
-          Call Pilgrim
-        </a>
-        <button className="fin-btn fin-btn-outline" disabled={!canSupport} type="button">
-          Copy Owner Number
-        </button>
-        <button className="fin-btn fin-btn-outline" disabled={!canSupport} type="button">
-          Copy Pilgrim Number
-        </button>
-      </div>
-      <div className="fin-form" style={{ marginTop: 16 }}>
-        <label className="fin-field fin-field-wide">
-          <span>Record call outcome</span>
-          <select
-            disabled={!canSupport}
-            onChange={(event) => onOutcomeChange(event.target.value)}
-            value={callOutcome}
-          >
-            {callOutcomes.map((outcome) => (
-              <option key={outcome}>{outcome}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="fin-text bk-foot">
-        Call outcome persistence requires `POST /api/admin/bookings/:id/notes`.
-      </p>
+    <section className="fin-kpis">
+      <FinKpi
+        icon="money"
+        label="Total amount"
+        meta={<>Payment {formatStatus(booking.paymentStatus).toLowerCase()}</>}
+        tone="blue"
+        value={formatAmount(booking.totalAmount)}
+      />
+      <FinKpi
+        icon="receipt"
+        label="Balance at lodge"
+        meta={booking.advanceAmount ? <>Advance {formatAmount(booking.advanceAmount)}</> : <>No advance recorded</>}
+        tone="orange"
+        value={formatAmount(booking.balanceAmount)}
+      />
+      <FinKpi
+        icon="calendar"
+        label="Stay"
+        meta={
+          booking.checkoutDateFlexible
+            ? <>{formatDate(booking.checkInDate)} · checkout not fixed</>
+            : <>{formatDate(booking.checkInDate)} to {formatDate(booking.checkOutDate)}</>
+        }
+        tone="purple"
+        value={nights}
+      />
+      <FinKpi
+        icon="lodge"
+        label="Guests"
+        meta={<>{booking.numberOfAdults} adults · {booking.numberOfChildren} children</>}
+        tone="green"
+        value={booking.totalGuests}
+      />
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------- main */
+
+function StayPanel({ booking }: { booking: AdminBookingSummary }) {
+  return (
+    <FinPanel sub="Where and when" title="Stay details">
+      <FinKv
+        rows={[
+          { label: 'Lodge', value: booking.lodgeName },
+          { label: 'City', value: booking.cityName },
+          { label: 'Room type', value: booking.roomTypeName },
+          { label: 'Room number', value: booking.roomNumber ?? 'Not assigned yet' },
+          { label: 'Check-in', value: withTime(formatDate(booking.checkInDate), booking.expectedCheckInTime) },
+          {
+            label: 'Check-out',
+            value: booking.checkoutDateFlexible
+              ? 'Not fixed'
+              : withTime(formatDate(booking.checkOutDate), booking.expectedCheckOutTime),
+          },
+          { label: 'Checked in at', value: formatDateTime(booking.checkedInAt) },
+          { label: 'Checked out at', value: formatDateTime(booking.checkedOutAt) },
+          { label: 'QR code', value: booking.status === 'QR_GENERATED' ? 'Generated' : 'Not active' },
+          { label: 'Special request', value: booking.specialRequest ?? 'None' },
+        ]}
+        twoColumns
+      />
     </FinPanel>
   );
 }
 
-function ManualStatusPanel({
+function GuestsPanel({
+  booking,
+  canOpenProof,
+  canSeeContact,
+  isOpeningProof,
+  onOpenProof,
+  primaryGuest,
+}: {
+  booking: AdminBookingSummary;
+  canOpenProof: boolean;
+  canSeeContact: boolean;
+  isOpeningProof: boolean;
+  onOpenProof: () => void;
+  primaryGuest: BookingGuest | undefined;
+}) {
+  return (
+    <FinPanel
+      action={
+        canOpenProof ? (
+          <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={isOpeningProof} onClick={onOpenProof} type="button">
+            {isOpeningProof ? 'Opening…' : 'View ID proof'}
+          </button>
+        ) : undefined
+      }
+      sub={`${booking.guests.length} ${booking.guests.length === 1 ? 'guest' : 'guests'} registered`}
+      title="Guests"
+    >
+      <FinKv
+        rows={[
+          { label: 'Lead guest', value: booking.guestName },
+          { label: 'Email', value: canSeeContact ? (booking.guestEmail ?? 'Not provided') : 'Hidden for your role' },
+          { label: 'Address', value: canSeeContact ? (booking.guestAddress ?? 'Not provided') : 'Hidden for your role' },
+          { label: 'ID proof file', value: canSeeContact ? describeIdProof(primaryGuest) : 'Hidden for your role' },
+        ]}
+      />
+      {booking.guests.length > 0 ? (
+        <div className="fin-scroll bk-label-gap">
+          <table className="fin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Age / Gender</th>
+                <th>ID</th>
+                <th>Phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {booking.guests.map((guest) => (
+                <tr key={guest.id}>
+                  <td>
+                    {guest.fullName}
+                    {guest.isPrimaryGuest ? (
+                      <span className="fin-cell-sub">Lead guest</span>
+                    ) : null}
+                  </td>
+                  <td>{[guest.age, guest.gender ? formatStatus(guest.gender) : null].filter(Boolean).join(' · ') || '—'}</td>
+                  <td>
+                    {guest.idType ? formatStatus(guest.idType) : '—'}
+                    <span className="fin-cell-sub">{canSeeContact ? (guest.idNumber ?? '—') : 'Hidden'}</span>
+                  </td>
+                  <td>{canSeeContact ? (guest.phone ?? '—') : maskPhone(guest.phone)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </FinPanel>
+  );
+}
+
+function PaymentPanel({ booking }: { booking: AdminBookingSummary }) {
+  return (
+    <FinPanel sub="Amounts for this booking" title="Payment">
+      <FinKv
+        rows={[
+          {
+            label: 'Payment status',
+            value: (
+              <FinPill tone={paymentStatusTone(booking.paymentStatus)}>{formatStatus(booking.paymentStatus)}</FinPill>
+            ),
+          },
+          { label: 'Total amount', value: formatAmount(booking.totalAmount) },
+          { label: 'Advance paid', value: formatAmount(booking.advanceAmount) },
+          { label: 'Balance at lodge', value: formatAmount(booking.balanceAmount) },
+        ]}
+      />
+    </FinPanel>
+  );
+}
+
+function TimelinePanel({ booking }: { booking: AdminBookingSummary }) {
+  const timeline = buildBookingTimeline(booking);
+  return (
+    <FinPanel sub="Booking lifecycle" title="Activity timeline">
+      <div className="bk-timeline">
+        {timeline.map((item) => (
+          <article className="bk-tl-item" key={`${item.title}-${item.timestamp}`}>
+            <span className="bk-tl-dot" />
+            <div>
+              <strong>{item.title}</strong>
+              <p>{item.description}</p>
+              <small>{new Date(item.timestamp).toLocaleString('en-IN')}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+    </FinPanel>
+  );
+}
+
+/* ------------------------------------------------------------- sidebar */
+
+function OwnerResponsePanel({ booking }: { booking: AdminBookingSummary }) {
+  const state = getOwnerResponseState(booking);
+  const pending = booking.status === 'PENDING_OWNER_APPROVAL';
+  let stateValue: ReactNode = <FinPill tone="green">Responded</FinPill>;
+  if (pending) {
+    stateValue = <FinPill tone={state.overdue ? 'red' : 'orange'}>{state.overdue ? 'Overdue' : 'Awaiting owner'}</FinPill>;
+  } else if (booking.status === 'EXPIRED') {
+    stateValue = <FinPill tone="red">No response</FinPill>;
+  }
+
+  return (
+    <FinPanel sub="Owner approval timer" title="Owner response">
+      <FinKv
+        rows={[
+          { label: 'State', value: stateValue },
+          ...(pending ? [{ label: 'Timer', value: state.message }] : []),
+          { label: 'Deadline', value: formatDateTime(booking.ownerResponseDeadline, 'No deadline recorded') },
+          { label: 'Booked on', value: formatDateTime(booking.createdAt) },
+        ]}
+      />
+    </FinPanel>
+  );
+}
+
+function StatusPanel({
   canManage,
   canOverride,
   isSubmitting,
   onReasonChange,
-  onSelectedStatusChange,
+  onStatusChange,
   onSubmit,
   reason,
   selectedStatus,
@@ -385,42 +450,60 @@ function ManualStatusPanel({
   canOverride: boolean;
   isSubmitting: boolean;
   onReasonChange: (value: string) => void;
-  onSelectedStatusChange: (value: BookingStatus) => void;
+  onStatusChange: (value: BookingStatus) => void;
   onSubmit: () => void;
   reason: string;
   selectedStatus: BookingStatus;
 }) {
+  const choice = statusChoices.find((item) => item.value === selectedStatus);
+  const quickReasons =
+    selectedStatus === 'ACCEPTED' ? acceptReasons : selectedStatus === 'REJECTED' ? rejectReasons : [];
+  const allowed = canManage && (!choice?.needsOverride || canOverride);
+  const destructive = selectedStatus !== 'ACCEPTED';
+
   return (
-    <FinPanel sub="Manual Accept / Reject" title="Audit-safe status update">
-      <div className="fin-form">
-        <label className="fin-field fin-field-wide">
-          <span>Status</span>
-          <select
-            disabled={!canManage}
-            onChange={(event) => onSelectedStatusChange(event.target.value as BookingStatus)}
-            value={selectedStatus}
+    <FinPanel sub="Recorded in the audit trail" title="Update status">
+      <div aria-label="New status" className="fin-chip-row" role="group">
+        {statusChoices.map((item) => (
+          <button
+            aria-pressed={selectedStatus === item.value}
+            className={selectedStatus === item.value ? 'fin-filter fin-filter-active' : 'fin-filter'}
+            disabled={!canManage || (item.needsOverride && !canOverride)}
+            key={item.value}
+            onClick={() => onStatusChange(item.value)}
+            type="button"
           >
-            <option value="ACCEPTED">Accept booking manually</option>
-            <option value="REJECTED">Reject booking manually</option>
-            <option disabled={!canOverride} value="EXPIRED">
-              Mark expired
-            </option>
-            <option disabled={!canOverride} value="CANCELLED">
-              Mark cancelled
-            </option>
-            <option disabled={!canOverride} value="NO_SHOW">
-              Mark no-show
-            </option>
-          </select>
-        </label>
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {quickReasons.length > 0 ? (
+        <>
+          <span className="bk-label">Quick reasons</span>
+          <div className="fin-chip-row">
+            {quickReasons.map((item) => (
+              <button
+                className={reason === item ? 'fin-filter fin-filter-active' : 'fin-filter'}
+                disabled={!canManage}
+                key={item}
+                onClick={() => onReasonChange(item)}
+                type="button"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      <div className="fin-form bk-label-gap">
         <label className="fin-field fin-field-wide">
-          <span>Reason required</span>
+          <span>Reason (required)</span>
           <textarea
             disabled={!canManage}
             onChange={(event) => onReasonChange(event.target.value)}
-            placeholder={
-              selectedStatus === 'ACCEPTED' ? acceptReasons.join(', ') : rejectReasons.join(', ')
-            }
+            placeholder="Why is this status being changed?"
             rows={3}
             value={reason}
           />
@@ -428,225 +511,125 @@ function ManualStatusPanel({
       </div>
       <div className="fin-actions fin-actions-end">
         <button
-          className="fin-btn"
-          disabled={!canManage || !reason.trim() || isSubmitting}
+          className={destructive ? 'fin-btn fin-btn-danger' : 'fin-btn'}
+          disabled={!allowed || !reason.trim() || isSubmitting}
           onClick={() => {
-            if (window.confirm('Confirm manual booking status update?')) {
+            if (window.confirm(`Confirm: ${choice?.label.toLowerCase() ?? 'update status'}?`)) {
               onSubmit();
             }
           }}
           type="button"
         >
-          {isSubmitting ? 'Updating…' : 'Confirm Manual Update'}
+          {isSubmitting ? 'Updating…' : `Confirm · ${choice?.label ?? 'Update'}`}
         </button>
       </div>
       <p className="fin-text bk-foot">
-        Backend validation is not bypassed. Every accepted update creates booking history and audit
-        logs.
+        {canManage
+          ? 'Backend validation still applies. Every update creates booking history and an audit log entry.'
+          : 'You have view-only access to this booking.'}
       </p>
     </FinPanel>
   );
 }
 
-function NotesFoundation({
-  canSupport,
-  note,
-  noteCategory,
-  onNoteCategoryChange,
-  onNoteChange,
-}: {
-  canSupport: boolean;
-  note: string;
-  noteCategory: string;
-  onNoteCategoryChange: (value: string) => void;
-  onNoteChange: (value: string) => void;
-}) {
-  return (
-    <div className="bk-anchor" id="notes">
-      <FinPanel sub="Internal Notes" title="Private admin-only notes">
-        <div className="fin-form">
-          <label className="fin-field">
-            <span>Category</span>
-            <select
-              disabled={!canSupport}
-              onChange={(event) => onNoteCategoryChange(event.target.value)}
-              value={noteCategory}
-            >
-              {noteCategories.map((category) => (
-                <option key={category}>{category}</option>
-              ))}
-            </select>
-          </label>
-          <label className="fin-field">
-            <span>Visibility</span>
-            <select disabled={!canSupport}>
-              <option>Admin only</option>
-              <option>Support only</option>
-              <option>Operations only</option>
-            </select>
-          </label>
-          <label className="fin-field fin-field-wide">
-            <span>Note</span>
-            <textarea
-              disabled={!canSupport}
-              onChange={(event) => onNoteChange(event.target.value)}
-              rows={3}
-              value={note}
-            />
-          </label>
-        </div>
-        <div className="fin-actions fin-actions-end">
-          <button className="fin-btn fin-btn-outline" disabled type="button">
-            Save Note - Backend support required
-          </button>
-        </div>
-        <p className="fin-text bk-foot">Required API: `POST /api/admin/bookings/:id/notes`.</p>
-      </FinPanel>
-    </div>
-  );
-}
+function ContactPanel({ booking, canSeeContact }: { booking: AdminBookingSummary; canSeeContact: boolean }) {
+  const [copied, setCopied] = useState<string | null>(null);
 
-function EscalationFoundation({
-  canManage,
-  escalationLevel,
-  escalationReason,
-  onEscalationLevelChange,
-  onEscalationReasonChange,
-}: {
-  canManage: boolean;
-  escalationLevel: 'NORMAL' | 'HIGH' | 'CRITICAL';
-  escalationReason: string;
-  onEscalationLevelChange: (value: 'NORMAL' | 'HIGH' | 'CRITICAL') => void;
-  onEscalationReasonChange: (value: string) => void;
-}) {
-  return (
-    <div className="bk-anchor" id="escalation">
-      <FinPanel sub="Escalation Workflow" title="Assign and escalate">
-        <div className="fin-form">
-          <label className="fin-field">
-            <span>Reason</span>
-            <select
-              disabled={!canManage}
-              onChange={(event) => onEscalationReasonChange(event.target.value)}
-              value={escalationReason}
-            >
-              {escalationReasons.map((reason) => (
-                <option key={reason}>{reason}</option>
-              ))}
-            </select>
-          </label>
-          <label className="fin-field">
-            <span>Level</span>
-            <select
-              disabled={!canManage}
-              onChange={(event) =>
-                onEscalationLevelChange(event.target.value as 'NORMAL' | 'HIGH' | 'CRITICAL')
-              }
-              value={escalationLevel}
-            >
-              <option>NORMAL</option>
-              <option>HIGH</option>
-              <option>CRITICAL</option>
-            </select>
-          </label>
-        </div>
-        <div className="fin-actions fin-actions-end">
-          <button className="fin-btn fin-btn-violet" disabled type="button">
-            Mark Escalated - Backend support required
-          </button>
-        </div>
-        <p className="fin-text bk-foot">
-          Required APIs: `POST /api/admin/bookings/:id/escalate` and `PATCH
-          /api/admin/bookings/:id/escalation`.
-        </p>
-      </FinPanel>
-    </div>
-  );
-}
+  async function copy(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+      window.setTimeout(() => setCopied(null), 1600);
+    } catch {
+      setCopied(null);
+    }
+  }
 
-function TransferFoundation() {
+  const contacts = [
+    { label: 'Guest phone', value: booking.guestPhone },
+    { label: 'Alternate phone', value: booking.alternatePhone },
+  ].filter((item) => item.value);
+
   return (
-    <FinPanel sub="Transfer / Reassignment Foundation" title="Recommended alternatives">
-      <div className="bk-cards">
-        {[
-          'Nearest lodge',
-          'Lowest price',
-          'Highest rating',
-          'Bhakt Niwas',
-          'Budget option',
-          'Same capacity',
-        ].map((item) => (
-          <article className="bk-card" key={item}>
-            <h4>{item}</h4>
-            <p>Transfer recommendation requires availability and transfer-options backend APIs.</p>
-          </article>
-        ))}
-      </div>
-      <p className="fin-text bk-foot">
-        Required APIs: `GET /api/admin/bookings/:id/transfer-options` and `POST
-        /api/admin/bookings/:id/transfer`.
-      </p>
+    <FinPanel sub={booking.guestName} title="Contact guest">
+      {contacts.length === 0 ? <p className="fin-empty">No phone number on file.</p> : null}
+      {contacts.map((item) => {
+        const value = item.value ?? '';
+        return (
+          <div className="bk-contact-row" key={item.label}>
+            <div>
+              <span>{item.label}</span>
+              <strong>{canSeeContact ? value : maskPhone(value)}</strong>
+            </div>
+            {canSeeContact ? (
+              <div className="bk-contact-actions">
+                <a className="fin-btn fin-btn-sm fin-btn-soft" href={`tel:${value}`}>
+                  Call
+                </a>
+                <button className="fin-btn fin-btn-sm fin-btn-outline" onClick={() => void copy(item.label, value)} type="button">
+                  {copied === item.label ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </FinPanel>
   );
 }
 
-function OverrideControls({ canOverride }: { canOverride: boolean }) {
-  const controls = [
-    'Force accept',
-    'Force reject',
-    'Mark expired',
-    'Mark cancelled',
-    'Reassign lodge',
-    'Change room',
-    'Regenerate QR',
-    'Mark no-show',
-  ];
-
+function ToolsPanel() {
   return (
-    <div className="bk-warn">
-      <FinPanel sub="Admin Override Controls" title="Restricted controls">
-        <div className="fin-actions" style={{ marginTop: 0 }}>
-          {controls.map((control) => (
-            <button
-              className="fin-btn fin-btn-outline"
-              disabled={!canOverride}
-              key={control}
-              type="button"
-            >
-              {canOverride
-                ? `${control} - Backend support required`
-                : `${control} - Permission required`}
-            </button>
-          ))}
+    <FinPanel sub="Planned for this page" title="Operations tools">
+      {upcomingTools.map((tool) => (
+        <div className="bk-tool" id={tool.id} key={tool.id}>
+          <div>
+            <strong>{tool.title}</strong>
+            <p>{tool.text}</p>
+          </div>
+          <FinPill tone="gray">Coming soon</FinPill>
         </div>
-        <p className="fin-text bk-foot">
-          Every future override must require reason, confirmation, and audit log.
-        </p>
-      </FinPanel>
-    </div>
+      ))}
+    </FinPanel>
   );
 }
 
-function formatGuestIdProof(
-  guest:
-    | {
-        idProofMimeType: string | null;
-        idProofOriginalName: string | null;
-        idProofSizeBytes: number | null;
-      }
-    | undefined,
-): string {
+/* ------------------------------------------------------------- helpers */
+
+function formatAmount(value: string | null): string {
+  return value === null || value === '' ? '—' : formatMoney(value);
+}
+
+function formatDateTime(value: string | null, fallback = '—'): string {
+  return value ? new Date(value).toLocaleString('en-IN') : fallback;
+}
+
+function withTime(date: string, time: string | null): string {
+  return time ? `${date} · ${time}` : date;
+}
+
+function countNights(booking: AdminBookingSummary): string {
+  if (booking.checkoutDateFlexible) {
+    return 'Flexible';
+  }
+
+  const nights = Math.round(
+    (new Date(booking.checkOutDate).getTime() - new Date(booking.checkInDate).getTime()) / 86_400_000,
+  );
+  if (!Number.isFinite(nights) || nights < 0) {
+    return '—';
+  }
+
+  return `${nights} ${nights === 1 ? 'night' : 'nights'}`;
+}
+
+function describeIdProof(guest: BookingGuest | undefined): string {
   if (!guest?.idProofOriginalName) {
     return 'Not uploaded';
   }
 
-  const parts = [
-    guest.idProofOriginalName,
-    guest.idProofMimeType,
-    guest.idProofSizeBytes ? formatFileSize(guest.idProofSizeBytes) : null,
-  ].filter(Boolean);
-
-  return parts.join(' / ');
+  const size = guest.idProofSizeBytes ? formatFileSize(guest.idProofSizeBytes) : null;
+  return [guest.idProofOriginalName, size].filter(Boolean).join(' · ');
 }
 
 function formatFileSize(sizeBytes: number): string {
@@ -659,16 +642,4 @@ function formatFileSize(sizeBytes: number): string {
   }
 
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getDefaultReason(status: BookingStatus): string {
-  if (status === 'ACCEPTED') {
-    return acceptReasons[0] ?? 'Admin verified availability';
-  }
-
-  if (status === 'REJECTED') {
-    return rejectReasons[0] ?? 'Admin rejected booking manually';
-  }
-
-  return 'Admin manual status update';
 }

@@ -3,7 +3,8 @@
 /**
  * Booking-only additions on top of the shared finance look (FinanceStyles).
  * Pages, tables, pills, buttons and forms all use the `fin-*` classes; this file only adds
- * what bookings need on top: the filter grid, row actions, conflict cards, timeline and cards.
+ * what bookings need on top: the filter grid, row actions, conflict cards, and the booking
+ * detail layout (two-column grid, contact rows, tool rows, activity timeline).
  */
 export function BookingViewsStyles() {
   return (
@@ -19,16 +20,10 @@ export function BookingViewsStyles() {
       .fin-table td.bk-actions-cell { min-width: 240px; white-space: normal; }
       .bk-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
       .bk-danger { color: var(--color-danger); font-weight: 700; }
+      .fin-filter:disabled { cursor: not-allowed; opacity: 0.45; }
 
       /* Banner with a dismiss button */
       .bk-banner-row { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
-
-      /* Anchored / highlighted panels on the detail page */
-      .bk-anchor { display: flex; flex-direction: column; min-width: 0; }
-      .bk-anchor > .fin-panel { flex: 1 1 auto; }
-      .bk-warn .fin-panel { background: #fff8f8; border-color: #f6d3d3; }
-      .bk-lead { color: var(--color-primary-strong); font-size: 1.05rem; font-weight: 800; margin: 0 0 6px; }
-      .bk-foot { margin: 14px 0 0; }
 
       /* Conflict cards */
       .bk-conflicts { display: grid; gap: 12px; }
@@ -40,11 +35,25 @@ export function BookingViewsStyles() {
       .bk-conflict ul { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
       .bk-conflict li { align-items: center; color: var(--color-primary-strong); display: flex; flex-wrap: wrap; font-size: 0.78rem; gap: 10px; }
 
-      /* Transfer suggestion cards */
-      .bk-cards { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .bk-card { background: var(--color-surface-subtle); border: 1px solid var(--color-outline); border-radius: 14px; padding: 14px 16px; }
-      .bk-card h4 { color: var(--color-primary-strong); font-size: 0.86rem; font-weight: 800; margin: 0 0 4px; }
-      .bk-card p { color: var(--color-muted); font-size: 0.76rem; font-weight: 500; line-height: 1.5; margin: 0; }
+      /* Booking detail: main column + sidebar */
+      .bk-layout { align-items: start; display: grid; gap: 16px; grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); }
+      .bk-col { display: grid; gap: 16px; min-width: 0; }
+      .bk-foot { margin: 14px 0 0; }
+      .bk-label-gap { margin-top: 16px; }
+      .bk-label { color: var(--color-primary-strong); display: block; font-size: 0.74rem; font-weight: 700; margin: 16px 0 8px; }
+
+      /* Contact rows */
+      .bk-contact-row { align-items: center; border-top: 1px solid var(--color-outline); display: flex; gap: 12px; justify-content: space-between; padding: 12px 0; }
+      .bk-contact-row:first-of-type { border-top: 0; padding-top: 0; }
+      .bk-contact-row span { color: var(--color-muted); display: block; font-size: 0.72rem; font-weight: 600; }
+      .bk-contact-row strong { color: var(--color-primary-strong); display: block; font-size: 0.86rem; font-weight: 800; margin-top: 2px; }
+      .bk-contact-actions { display: flex; flex: none; gap: 6px; }
+
+      /* Operations tool rows */
+      .bk-tool { align-items: center; border-top: 1px solid var(--color-outline); display: flex; gap: 12px; justify-content: space-between; padding: 12px 0; scroll-margin-top: 90px; }
+      .bk-tool:first-child { border-top: 0; padding-top: 0; }
+      .bk-tool strong { color: var(--color-primary-strong); display: block; font-size: 0.84rem; font-weight: 800; }
+      .bk-tool p { color: var(--color-muted); font-size: 0.76rem; font-weight: 500; line-height: 1.45; margin: 2px 0 0; }
 
       /* Activity timeline */
       .bk-timeline { display: grid; }
@@ -59,10 +68,10 @@ export function BookingViewsStyles() {
 
       @media (max-width: 1100px) {
         .bk-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .bk-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .bk-layout { grid-template-columns: minmax(0, 1fr); }
       }
       @media (max-width: 640px) {
-        .bk-filters, .bk-cards { grid-template-columns: minmax(0, 1fr); }
+        .bk-filters { grid-template-columns: minmax(0, 1fr); }
       }
     `}</style>
   );
