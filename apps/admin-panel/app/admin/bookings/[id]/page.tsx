@@ -2,7 +2,7 @@
 
 import type { BookingStatus } from '@tuljai/types';
 import Link from 'next/link';
-import { use, useState } from 'react';
+import { use, useState, type ReactNode } from 'react';
 
 import { apiClient } from '../../../../src/api/client';
 import { useAdminAuth } from '../../../../src/auth/AdminAuthProvider';
@@ -133,11 +133,11 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
     }
   }
 
-  const snapshotRows: Array<{ label: string; value: React.ReactNode }> = [
+  const snapshotRows: Array<{ label: string; value: ReactNode }> = [
     { label: 'Payment', value: <FinPill tone={paymentStatusTone(booking.paymentStatus)}>{formatStatus(booking.paymentStatus)}</FinPill> },
-    { label: 'Lodge', value: booking.lodgeId },
-    { label: 'Room Type', value: booking.roomTypeId },
-    { label: 'Room Number', value: booking.roomId ?? 'Not assigned' },
+    { label: 'Lodge', value: booking.lodgeName },
+    { label: 'Room Type', value: booking.roomTypeName },
+    { label: 'Room Number', value: booking.roomNumber ?? 'Not assigned' },
     { label: 'Guests', value: `${booking.totalGuests} total` },
     { label: 'Adults / Children', value: `${booking.numberOfAdults} / ${booking.numberOfChildren}` },
     { label: 'Special Request', value: booking.specialRequest ?? 'No special request' },
@@ -145,7 +145,7 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
     { label: 'Updated', value: new Date(booking.updatedAt).toLocaleString('en-IN') },
   ];
 
-  const guestRows: Array<{ label: string; value: React.ReactNode }> = [
+  const guestRows: Array<{ label: string; value: ReactNode }> = [
     { label: 'Guest', value: booking.guestName },
     {
       label: 'Phone',

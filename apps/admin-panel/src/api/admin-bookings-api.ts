@@ -24,8 +24,8 @@ export async function listAdminBookings(
   });
 }
 
-export async function getAdminBooking(bookingId: string): Promise<Booking> {
-  return apiClient.get<Booking>(`/bookings/${bookingId}`);
+export async function getAdminBooking(bookingId: string): Promise<AdminBookingSummary> {
+  return apiClient.get<AdminBookingSummary>(`/admin/bookings/${bookingId}`);
 }
 
 export async function updateAdminBookingStatus(

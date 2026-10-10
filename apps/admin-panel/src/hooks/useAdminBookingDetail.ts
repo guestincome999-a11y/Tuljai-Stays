@@ -1,12 +1,12 @@
 'use client';
 
-import type { Booking, BookingStatus } from '@tuljai/types';
+import type { AdminBookingSummary, BookingStatus } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
 import { getAdminBooking, updateAdminBookingStatus } from '../api/admin-bookings-api';
 
 interface AdminBookingDetailState {
-  data: Booking | null;
+  data: AdminBookingSummary | null;
   errorMessage: string | null;
   isLoading: boolean;
   isRefreshing: boolean;
@@ -57,7 +57,8 @@ export function useAdminBookingDetail(bookingId: string) {
       setState((current) => ({ ...current, errorMessage: null }));
 
       try {
-        const booking = await updateAdminBookingStatus(bookingId, { notes, status });
+        await updateAdminBookingStatus(bookingId, { notes, status });
+        const booking = await getAdminBooking(bookingId);
         setState({ data: booking, errorMessage: null, isLoading: false, isRefreshing: false });
         setSuccessMessage('Booking status updated and audit trail created.');
         return true;

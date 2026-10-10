@@ -4,6 +4,8 @@ import { LodgesModule } from '../lodges/lodges.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
 
+import { AdminBookingDetailController } from './admin-booking-detail.controller';
+import { AdminBookingDetailService } from './admin-booking-detail.service';
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingHistoryService } from './booking-history.service';
 import { BookingLocksService } from './booking-locks.service';
@@ -20,8 +22,14 @@ import { QrCheckinService } from './qr-checkin.service';
 
 @Module({
   imports: [LodgesModule, NotificationsModule, StorageModule],
-  controllers: [BookingViewsController, BookingsController, PrepaidBookingsController],
+  controllers: [
+    AdminBookingDetailController,
+    BookingViewsController,
+    BookingsController,
+    PrepaidBookingsController,
+  ],
   providers: [
+    AdminBookingDetailService,
     BookingAvailabilityService,
     BookingHistoryService,
     BookingLocksService,
