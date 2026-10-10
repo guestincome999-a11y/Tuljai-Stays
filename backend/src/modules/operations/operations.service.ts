@@ -497,13 +497,17 @@ export class OperationsService {
    *   (a no-show / cancelled cash booking never collected anything).
    * - Online bookings: as soon as the Razorpay payment is verified successful —
    *   the platform already holds the money, so it shouldn't wait for check-in.
+   *   A cancelled, rejected or expired online booking is refunded, so it owes nothing.
    * Anything else (pending approval, rejected, cancelled, unpaid online) must be
    * excluded or owners see commission on money that was never actually collected.
+   *
+   * This MUST stay identical to the database function `tuljai_commission_is_eligible`,
+   * which decides when a lodge_commission_ledger entry is created.
    */
   private readonly commissionEligibleWhere: Prisma.BookingWhereInput = {
     OR: [
       { paymentStatus: 'PAY_AT_LODGE', status: { in: ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'] } },
-      { paymentStatus: 'FULLY_PAID' },
+      { paymentStatus: 'FULLY_PAID', status: { notIn: ['CANCELLED', 'REJECTED', 'EXPIRED'] } },
     ],
   };
 
