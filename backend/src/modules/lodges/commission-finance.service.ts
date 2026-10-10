@@ -18,6 +18,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCommissionSettlementDto } from './dto/commission-settlement.dto';
 import { LodgeAccessService } from './lodge-access.service';
 
+/** Money is kept to 2 decimals so repeated float arithmetic can never leave sub-paisa residue. */
+const toMoney = (value: number): number => Math.round(value * 100) / 100;
+
 @Injectable()
 export class LodgeCommissionFinanceService {
   public constructor(
@@ -237,9 +240,11 @@ export class LodgeCommissionFinanceService {
         FOR UPDATE
       `);
 
-      const totalOutstanding = outstanding.reduce(
-        (sum, row) => sum + Math.max(Number(row.commissionAmount) - Number(row.allocated), 0),
-        0,
+      const totalOutstanding = toMoney(
+        outstanding.reduce(
+          (sum, row) => sum + Math.max(Number(row.commissionAmount) - Number(row.allocated), 0),
+          0,
+        ),
       );
       if (dto.amount > totalOutstanding + 0.005) {
         throw new BadRequestException(
@@ -258,19 +263,19 @@ export class LodgeCommissionFinanceService {
         throw new InternalServerErrorException('Commission settlement could not be created.');
       }
 
-      let remaining = dto.amount;
+      let remaining = toMoney(dto.amount);
       for (const row of outstanding) {
         if (remaining <= 0.005) break;
-        const due = Math.max(Number(row.commissionAmount) - Number(row.allocated), 0);
+        const due = toMoney(Math.max(Number(row.commissionAmount) - Number(row.allocated), 0));
         if (due <= 0) continue;
-        const allocation = Math.min(remaining, due);
+        const allocation = toMoney(Math.min(remaining, due));
 
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO lodge_commission_settlement_allocations (settlement_id, ledger_id, amount)
           VALUES (${settlementId}::uuid, ${row.id}::uuid, ${allocation})
         `);
 
-        const newAllocated = Number(row.allocated) + allocation;
+        const newAllocated = toMoney(Number(row.allocated) + allocation);
         if (newAllocated + 0.005 >= Number(row.commissionAmount)) {
           await tx.$executeRaw(Prisma.sql`
             UPDATE lodge_commission_ledger
@@ -278,7 +283,7 @@ export class LodgeCommissionFinanceService {
             WHERE id = ${row.id}::uuid
           `);
         }
-        remaining -= allocation;
+        remaining = toMoney(remaining - allocation);
       }
     });
 
@@ -298,13 +303,27 @@ export class LodgeCommissionFinanceService {
   }
 
   public async voidTransaction(ledgerId: string, actorUserId: string): Promise<void> {
-    const rows = await this.prisma.$queryRaw<Array<{ lodgeId: string; status: string }>>(Prisma.sql`
-      SELECT lodge_id AS "lodgeId", status FROM lodge_commission_ledger WHERE id = ${ledgerId}::uuid LIMIT 1
+    const rows = await this.prisma.$queryRaw<
+      Array<{ allocated: string; lodgeId: string; status: string }>
+    >(Prisma.sql`
+      SELECT
+        l.lodge_id AS "lodgeId",
+        l.status,
+        COALESCE((SELECT SUM(a.amount) FROM lodge_commission_settlement_allocations a WHERE a.ledger_id = l.id), 0)::text AS allocated
+      FROM lodge_commission_ledger l
+      WHERE l.id = ${ledgerId}::uuid
+      LIMIT 1
     `);
     const row = rows[0];
     if (!row) throw new NotFoundException('Commission transaction not found.');
+    if (row.status === 'VOIDED')
+      throw new BadRequestException('This commission transaction is already voided.');
     if (row.status === 'SETTLED')
       throw new BadRequestException('A settled commission cannot be voided.');
+    if (Number(row.allocated) > 0)
+      throw new BadRequestException(
+        'Settlement payments are already applied to this commission, so it cannot be voided.',
+      );
 
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE lodge_commission_ledger
