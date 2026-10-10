@@ -18,6 +18,7 @@ import {
   createBookingLock,
   getBookingRecord,
 } from '../features/bookings/api/bookings-api';
+import { invalidateLodgeCatalogCache } from '../features/lodges/api/lodge-discovery-api';
 import {
   markAllNotificationsRead,
   markNotificationRead as markBackendNotificationRead,
@@ -56,6 +57,11 @@ import {
 } from './pilgrim-preferences-store';
 
 export type PilgrimLanguage = 'en' | 'mr';
+
+// When the app returns to the foreground, lodge prices and content are
+// re-fetched if the last load is older than this, so edits made in the admin
+// panel while the app was in the background show up without a restart.
+const LODGE_FOREGROUND_REFRESH_MS = 30_000;
 
 interface CreateBookingInput {
   checkInDate: string;
@@ -141,6 +147,18 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   // detail requests for the same lodge.
   const hydratingIdsRef = useRef<Set<string>>(new Set());
 
+  // Latest lodges list for async code (catalog reloads) that must read what is
+  // currently on screen without re-creating its callback on every change.
+  const lodgesRef = useRef<PilgrimLodge[]>(lodges);
+  useEffect(() => {
+    lodgesRef.current = lodges;
+  }, [lodges]);
+
+  // Bumped on every catalog reload so only the newest reload may write its
+  // refreshed lodge details back into state (a slow older one is discarded).
+  const lodgeLoadVersionRef = useRef(0);
+  const lastLodgeLoadAtRef = useRef(0);
+
   const ensureLodgesHydrated = useCallback((lodgeIds: string[]) => {
     if (lodgeIds.length === 0) return;
     setLodges((current) => {
@@ -172,8 +190,31 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   }, []);
 
   const loadLodges = useCallback(async (): Promise<PilgrimLodge[]> => {
+    // Drop every cached lodge/photo/room-type response first, so prices and
+    // content edited in the admin panel are fetched fresh from the backend
+    // instead of being served from the in-memory cache.
+    invalidateLodgeCatalogCache();
+    const loadVersion = ++lodgeLoadVersionRef.current;
     const summaries = await loadLodgeSummaries();
-    setLodges(summaries);
+    if (loadVersion !== lodgeLoadVersionRef.current) return summaries;
+
+    // Lodges whose full details are already on screen keep them while fresh
+    // details load below, so a catalog refresh never flashes back to empty
+    // skeleton cards (and ensureLodgesHydrated, which only re-runs when the
+    // visible ids change, never has to rescue them).
+    const previousById = new Map(lodgesRef.current.map((lodge) => [lodge.id, lodge]));
+    const toRefresh: PilgrimLodge[] = [];
+    const merged = summaries.map((summary) => {
+      const previous = previousById.get(summary.id);
+      if (previous?.hydrated && summary.hydrated === false) {
+        toRefresh.push(previous);
+        return previous;
+      }
+      return summary;
+    });
+
+    lastLodgeLoadAtRef.current = Date.now();
+    setLodges(merged);
     hydratingIdsRef.current.clear();
     setFavoriteIds((current) =>
       current.map((favoriteId) => {
@@ -183,6 +224,20 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         return matchingLodge?.id ?? favoriteId;
       }),
     );
+
+    // Re-fetch full details (price, rooms, photos, content) for every lodge
+    // that was already hydrated and swap the fresh copy in place. If a
+    // request fails, hydrateBackendLodge hands back the previous copy
+    // unchanged.
+    toRefresh.forEach((previous) => {
+      void hydrateBackendLodge(previous)
+        .then((fresh) => {
+          if (loadVersion !== lodgeLoadVersionRef.current) return;
+          setLodges((current) => current.map((item) => (item.id === fresh.id ? fresh : item)));
+        })
+        .catch(() => undefined);
+    });
+
     return summaries;
   }, []);
 
@@ -328,6 +383,15 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     if (realtime.lastEvent?.name !== 'lodge:catalog-updated') return;
     void loadLodges().catch(() => undefined);
   }, [loadLodges, realtime.lastEvent]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      if (Date.now() - lastLodgeLoadAtRef.current < LODGE_FOREGROUND_REFRESH_MS) return;
+      void loadLodges().catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, [loadLodges]);
 
   useEffect(() => {
     if (!auth.isAuthenticated || realtime.connectionRevision === 0) return;
