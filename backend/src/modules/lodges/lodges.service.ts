@@ -535,6 +535,7 @@ export class LodgesService {
       entityId: id,
       entityType: 'lodge',
     });
+    this.publishCatalogUpdated(id);
 
     return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
@@ -556,6 +557,7 @@ export class LodgesService {
       entityType: 'lodge',
       metadata: { status: dto.status },
     });
+    this.publishCatalogUpdated(id);
 
     return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
@@ -583,6 +585,7 @@ export class LodgesService {
       entityType: 'lodge',
       metadata: { verificationStatus: dto.verificationStatus },
     });
+    this.publishCatalogUpdated(id);
 
     return this.toLodgeDetails(lodge, await this.getReviewAggregate(id));
   }
@@ -619,6 +622,18 @@ export class LodgesService {
 
   private isAdmin(user: AuthenticatedUser): boolean {
     return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
+  }
+
+  /**
+   * Tells every connected pilgrim app that a lodge's public content changed
+   * (name, description, rules, address, amenities, status or verification) so
+   * it drops its cached copy and re-fetches instead of showing stale content.
+   */
+  private publishCatalogUpdated(lodgeId: string): void {
+    this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', {
+      lodgeId,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   /**
