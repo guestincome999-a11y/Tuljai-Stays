@@ -69,6 +69,7 @@ export class RoomsService {
       entityId: roomType.id,
       entityType: 'room_type',
     });
+    this.publishCatalogUpdated(lodgeId, roomType.id);
 
     return this.toRoomType(roomType);
   }
@@ -95,6 +96,10 @@ export class RoomsService {
       entityId: id,
       entityType: 'room_type',
     });
+    // Price, capacity, description or active-state changed: tell pilgrim apps
+    // to drop their cached copy and re-fetch, so the new price shows without
+    // an app restart.
+    this.publishCatalogUpdated(existing.lodgeId, id);
 
     return this.toRoomType(roomType);
   }
@@ -153,6 +158,7 @@ export class RoomsService {
       entityId: room.id,
       entityType: 'room',
     });
+    this.publishCatalogUpdated(roomType.lodgeId, roomTypeId);
 
     return this.toRoom(room);
   }
@@ -166,6 +172,7 @@ export class RoomsService {
 
     await this.lodgeAccessService.assertCanManageLodge(user, existing.lodgeId);
     const room = await this.prisma.room.update({ data: dto, where: { id } });
+    this.publishCatalogUpdated(existing.lodgeId, existing.roomTypeId);
 
     return this.toRoom(room);
   }
@@ -209,6 +216,7 @@ export class RoomsService {
       status: room.status,
       updatedAt: new Date().toISOString(),
     });
+    this.publishCatalogUpdated(room.lodgeId, room.roomTypeId);
     if (isOperationalRoomStatusTransition(existing.status, room.status)) {
       const ownerUserIds = (
         await this.prisma.lodgeOwner.findMany({
@@ -450,6 +458,19 @@ export class RoomsService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Tells every connected pilgrim app that lodge/room-type data changed
+   * (price, capacity, description, rooms added or taken out of service) so it
+   * drops its cached copy and re-fetches instead of showing stale prices.
+   */
+  private publishCatalogUpdated(lodgeId: string, roomTypeId?: string): void {
+    this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', {
+      lodgeId,
+      ...(roomTypeId ? { roomTypeId } : {}),
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   private publishManualAvailability(
