@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { palette } from '@tuljai/ui';
 import type { ComponentProps, ReactNode } from 'react';
-import { useEffect } from 'react';
+import { memo, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,6 +17,7 @@ import {
 import Animated, {
   Easing,
   Extrapolation,
+  FadeInDown,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
@@ -85,6 +86,32 @@ export function AppScreen({
   );
 }
 
+/**
+ * Entrance animation wrapper: content fades in and rises slightly. Stagger a
+ * list of blocks by passing each one its `index`. Runs on the UI thread.
+ */
+export function Reveal({
+  children,
+  index = 0,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+  index?: number;
+}) {
+  return (
+    <Animated.View
+      className={className}
+      entering={FadeInDown.duration(320)
+        .delay(Math.min(index, 8) * 45)
+        .springify()
+        .damping(18)}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 export function BrandMark({
   compact = false,
   inverse = false,
@@ -95,12 +122,12 @@ export function BrandMark({
   return (
     <View className="flex-row items-center gap-3">
       <View
-        className={`${compact ? 'h-10 w-10 rounded-2xl' : 'h-14 w-14 rounded-3xl'} items-center justify-center ${inverse ? 'bg-white/15' : 'bg-saffron-100'}`}
+        className={`${compact ? 'h-10 w-10 rounded-full' : 'h-14 w-14 rounded-full'} items-center justify-center ${inverse ? 'bg-white/15' : 'bg-saffron-500'}`}
       >
         <MaterialCommunityIcons
-          color={inverse ? '#FFF6E8' : ui.saffronDeep}
+          color={inverse ? '#FFF6E8' : '#FFFFFF'}
           name="temple-hindu"
-          size={compact ? 24 : 32}
+          size={compact ? 22 : 30}
         />
       </View>
       <View>
@@ -124,19 +151,23 @@ export function BrandMark({
 export function LanguageToggle({ inverse = false }: { inverse?: boolean }) {
   const { language, setLanguage } = usePilgrimApp();
   return (
-    <View className={`flex-row rounded-full p-1 ${inverse ? 'bg-white/15' : 'bg-warm-100'}`}>
+    <View
+      className={`flex-row rounded-full p-1 ${inverse ? 'bg-white/15' : 'border border-warm-200 bg-white'}`}
+    >
       {(['en', 'mr'] as const).map((item) => {
         const active = language === item;
         return (
           <Pressable
             accessibilityLabel={item === 'en' ? 'Use English' : 'मराठी वापरा'}
             accessibilityRole="button"
-            className={`min-h-9 min-w-10 items-center justify-center rounded-full px-2 ${active ? 'bg-white' : ''}`}
+            accessibilityState={{ selected: active }}
+            className={`h-10 min-w-11 items-center justify-center rounded-full px-3 ${active ? (inverse ? 'bg-white' : 'bg-saffron-500') : ''}`}
+            hitSlop={4}
             key={item}
             onPress={() => setLanguage(item)}
           >
             <Text
-              className={`text-xs font-bold ${active ? 'text-maroon-700' : inverse ? 'text-white' : 'text-warm-600'}`}
+              className={`text-xs font-extrabold ${active ? (inverse ? 'text-maroon-700' : 'text-white') : inverse ? 'text-white' : 'text-warm-600'}`}
             >
               {item === 'en' ? 'EN' : 'मरा'}
             </Text>
@@ -159,7 +190,7 @@ export function TopBar({
   title: string;
 }) {
   return (
-    <View className="mb-5 mt-2 flex-row items-center gap-3">
+    <View className="mb-6 mt-3 flex-row items-center gap-3">
       {onBack ? (
         <IconButton accessibilityLabel="Go back" icon="chevron-left" onPress={onBack} />
       ) : null}
@@ -167,7 +198,11 @@ export function TopBar({
         <Text className="text-2xl font-extrabold tracking-tight text-warm-900" numberOfLines={1}>
           {title}
         </Text>
-        {subtitle ? <Text className="mt-0.5 text-sm text-warm-500">{subtitle}</Text> : null}
+        {subtitle ? (
+          <Text className="mt-0.5 text-sm text-warm-500" numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {right}
     </View>
@@ -182,16 +217,21 @@ export function IconButton({
   icon: PilgrimIconName;
   tone?: 'light' | 'saffron' | 'white';
 }) {
-  const background =
-    tone === 'saffron' ? 'bg-saffron-500' : tone === 'white' ? 'bg-white' : 'bg-warm-100';
+  const shell =
+    tone === 'saffron'
+      ? 'bg-saffron-500 shadow-md shadow-saffron-500/30'
+      : tone === 'white'
+        ? 'bg-white shadow-md shadow-warm-900/15'
+        : 'border border-warm-200 bg-white shadow-sm shadow-warm-900/5';
   const color = tone === 'saffron' ? '#FFFFFF' : ui.ink;
   return (
     <Pressable
       accessibilityRole="button"
-      className={`h-12 w-12 items-center justify-center rounded-2xl ${background} active:opacity-75`}
+      className={`h-12 w-12 items-center justify-center rounded-full ${shell} transition-transform duration-150 active:scale-90`}
+      hitSlop={6}
       {...props}
     >
-      <MaterialCommunityIcons color={color} name={icon} size={23} />
+      <MaterialCommunityIcons color={color} name={icon} size={24} />
     </Pressable>
   );
 }
@@ -209,19 +249,23 @@ export function PrimaryButton({
   icon?: PilgrimIconName;
   loading?: boolean;
 }) {
+  const inactive = disabled || loading;
   return (
     <Pressable
       accessibilityRole="button"
-      className={`min-h-14 flex-row items-center justify-center gap-2 rounded-2xl px-5 ${disabled ? 'bg-warm-300' : 'bg-saffron-500 active:bg-saffron-600'} ${className}`}
-      disabled={disabled || loading}
+      accessibilityState={{ busy: loading, disabled: inactive }}
+      className={`min-h-14 flex-row items-center justify-center gap-2.5 rounded-full px-6 transition-transform duration-150 ${disabled ? 'bg-warm-200' : 'bg-saffron-500 shadow-md shadow-saffron-500/30 active:scale-95 active:bg-saffron-600'} ${className}`}
+      disabled={inactive}
       {...props}
     >
       {loading ? (
         <ActivityIndicator color="#FFFFFF" />
       ) : icon ? (
-        <MaterialCommunityIcons color="#FFFFFF" name={icon} size={21} />
+        <MaterialCommunityIcons color={disabled ? ui.muted : '#FFFFFF'} name={icon} size={22} />
       ) : null}
-      <Text className="text-base font-extrabold text-white">{children}</Text>
+      <Text className={`text-base font-extrabold ${disabled ? 'text-warm-500' : 'text-white'}`}>
+        {children}
+      </Text>
     </Pressable>
   );
 }
@@ -241,14 +285,14 @@ export function SecondaryButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`min-h-13 flex-row items-center justify-center gap-2 rounded-2xl border px-5 active:bg-warm-100 ${destructive ? 'border-danger-100 bg-danger-50' : 'border-warm-200 bg-white'} ${className}`}
+      className={`min-h-14 flex-row items-center justify-center gap-2.5 rounded-full border-[1.5px] px-6 transition-transform duration-150 active:scale-95 ${destructive ? 'border-danger-100 bg-danger-50' : 'border-warm-200 bg-white active:bg-warm-100'} ${className}`}
       {...props}
     >
       {icon ? (
-        <MaterialCommunityIcons color={destructive ? ui.danger : ui.maroon} name={icon} size={20} />
+        <MaterialCommunityIcons color={destructive ? ui.danger : ui.maroon} name={icon} size={21} />
       ) : null}
       <Text
-        className={`text-sm font-extrabold ${destructive ? 'text-danger-500' : 'text-maroon-700'}`}
+        className={`text-base font-extrabold ${destructive ? 'text-danger-500' : 'text-maroon-700'}`}
       >
         {children}
       </Text>
@@ -260,16 +304,35 @@ export function Field({
   label,
   icon,
   className = '',
+  onFocus,
+  onBlur,
   ...props
 }: TextInputProps & { className?: string; icon?: PilgrimIconName; label: string }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View className={className}>
-      <Text className="mb-2 text-sm font-bold text-warm-700">{label}</Text>
-      <View className="min-h-14 flex-row items-center gap-3 rounded-2xl border border-warm-200 bg-white px-4 focus:border-saffron-500">
-        {icon ? <MaterialCommunityIcons color={ui.muted} name={icon} size={21} /> : null}
+      <Text className="mb-2 ml-1 text-sm font-bold text-warm-700">{label}</Text>
+      <View
+        className={`min-h-14 flex-row items-center gap-3 rounded-2xl border-[1.5px] bg-white px-4 ${focused ? 'border-saffron-500' : 'border-warm-200'}`}
+      >
+        {icon ? (
+          <MaterialCommunityIcons
+            color={focused ? ui.saffronDeep : ui.muted}
+            name={icon}
+            size={22}
+          />
+        ) : null}
         <TextInput
           className="min-h-14 flex-1 text-base font-medium text-warm-900"
           placeholderTextColor={ui.muted}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
           {...props}
         />
       </View>
@@ -289,26 +352,32 @@ export function SearchBox({
   value?: string;
 }) {
   const shell = (
-    <View className="min-h-14 flex-row items-center gap-3 rounded-2xl border border-warm-200 bg-white px-4 shadow-sm shadow-warm-900/5">
-      <MaterialCommunityIcons color={ui.saffronDeep} name="magnify" size={23} />
+    <View className="min-h-14 flex-row items-center gap-3 rounded-full border border-warm-200 bg-white py-1.5 pl-5 pr-1.5 shadow-md shadow-warm-900/10">
+      <MaterialCommunityIcons color={ui.saffronDeep} name="magnify" size={24} />
       {onPress ? (
-        <Text className="flex-1 text-base font-medium text-warm-500">{placeholder}</Text>
+        <Text className="flex-1 text-base font-medium text-warm-500" numberOfLines={1}>
+          {placeholder}
+        </Text>
       ) : (
         <TextInput
-          className="min-h-14 flex-1 text-base font-medium text-warm-900"
+          className="min-h-11 flex-1 text-base font-medium text-warm-900"
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={ui.muted}
           value={value}
         />
       )}
-      <View className="h-9 w-9 items-center justify-center rounded-xl bg-saffron-50">
-        <MaterialCommunityIcons color={ui.saffronDeep} name="tune-variant" size={19} />
+      <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-500">
+        <MaterialCommunityIcons color="#FFFFFF" name="tune-variant" size={20} />
       </View>
     </View>
   );
   return onPress ? (
-    <Pressable accessibilityRole="button" onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      className="transition-transform duration-150 active:scale-[0.98]"
+      onPress={onPress}
+    >
       {shell}
     </Pressable>
   ) : (
@@ -336,55 +405,70 @@ export function SectionTitle({
       {action && onAction ? (
         <Pressable
           accessibilityRole="button"
-          className="min-h-11 justify-center"
+          className="min-h-11 flex-row items-center justify-center gap-0.5 rounded-full bg-saffron-50 pl-4 pr-3 active:opacity-70"
+          hitSlop={6}
           onPress={onAction}
         >
           <Text className="text-sm font-extrabold text-saffron-700">{action}</Text>
+          <MaterialCommunityIcons color={ui.saffronDeep} name="chevron-right" size={18} />
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-export function LodgeCard({
-  lodge,
-  favorite,
-  horizontal = false,
-  onPress,
-  onFavorite,
-}: {
+type LodgeCardProps = {
   favorite: boolean;
   horizontal?: boolean;
   lodge: PilgrimLodge;
   onFavorite: () => void;
   onPress: () => void;
-}) {
+};
+
+function LodgeCardBase({ lodge, favorite, horizontal = false, onPress, onFavorite }: LodgeCardProps) {
   const { t } = usePilgrimApp();
+
+  const price = (
+    <View className="absolute bottom-3 right-3 flex-row items-end rounded-full bg-maroon-700 px-3.5 py-2">
+      <Text className="text-base font-extrabold text-white">{formatRupees(lodge.price)}</Text>
+      <Text className="mb-0.5 text-xs font-semibold text-white/80">{t(' / night', ' / रात्र')}</Text>
+    </View>
+  );
+
   if (horizontal) {
     return (
-      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
-        <Pressable accessibilityRole="button" onPress={onPress}>
-          <View className="relative h-44">
-            <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
+      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
+        <Pressable
+          accessibilityRole="button"
+          className="transition-transform duration-150 active:scale-[0.98]"
+          onPress={onPress}
+        >
+          <View className="relative h-44 bg-warm-100">
+            <Image
+              className="h-full w-full"
+              fadeDuration={150}
+              resizeMode="cover"
+              source={{ uri: lodge.hero }}
+            />
             {lodge.badge ? (
-              <Text className="absolute bottom-3 left-3 rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
+              <Text className="absolute left-3 top-3 overflow-hidden rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
                 {lodge.badge}
               </Text>
             ) : null}
+            {price}
           </View>
-          <View className="gap-2 p-4">
-            <View className="flex-row items-start justify-between gap-2">
+          <View className="gap-1.5 px-4 pb-4 pt-3.5">
+            <View className="flex-row items-center justify-between gap-2">
               <Text className="flex-1 text-base font-extrabold text-warm-900" numberOfLines={1}>
                 {lodge.name}
               </Text>
               <Rating rating={lodge.rating} />
             </View>
-            <Text className="text-sm text-warm-500">{lodge.distance}</Text>
-            <View className="flex-row items-end">
-              <Text className="text-lg font-extrabold text-maroon-700">
-                {formatRupees(lodge.price)}
+            <View className="flex-row items-center gap-1.5">
+              <MaterialCommunityIcons color={ui.saffronDeep} name="map-marker" size={16} />
+              <Text className="flex-1 text-sm text-warm-500" numberOfLines={1}>
+                {lodge.distance}
               </Text>
-              <Text className="mb-0.5 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
             </View>
           </View>
         </Pressable>
@@ -394,44 +478,44 @@ export function LodgeCard({
   }
 
   return (
-    <View className="relative overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
-      <Pressable accessibilityRole="button" onPress={onPress}>
-        <View className="relative h-48">
-          <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
-          <View className="absolute bottom-3 left-3 flex-row gap-2">
-            <Text className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-extrabold text-templeGreen-700">
+    <View className="relative overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
+      <Pressable
+        accessibilityRole="button"
+        className="transition-transform duration-150 active:scale-[0.985]"
+        onPress={onPress}
+      >
+        <View className="relative h-52 bg-warm-100">
+          <Image
+            className="h-full w-full"
+            fadeDuration={150}
+            resizeMode="cover"
+            source={{ uri: lodge.hero }}
+          />
+          <View className="absolute left-3 top-3 flex-row gap-2">
+            <Text className="overflow-hidden rounded-full bg-white/95 px-3 py-1.5 text-xs font-extrabold text-templeGreen-700">
               ✓ {t('Verified stay', 'सत्यापित निवास')}
             </Text>
             {lodge.badge ? (
-              <Text className="rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
+              <Text className="overflow-hidden rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
                 {lodge.badge}
               </Text>
             ) : null}
           </View>
+          {price}
         </View>
-        <View className="gap-2 p-4">
-          <View className="flex-row items-start justify-between gap-3">
-            <View className="min-w-0 flex-1">
-              <Text className="text-lg font-extrabold text-warm-900" numberOfLines={1}>
-                {lodge.name}
-              </Text>
-              <Text className="mt-1 text-sm text-warm-500">
-                {lodge.type} · {lodge.location}
-              </Text>
-            </View>
+        <View className="gap-1.5 px-4 pb-4 pt-3.5">
+          <View className="flex-row items-center justify-between gap-3">
+            <Text className="flex-1 text-lg font-extrabold text-warm-900" numberOfLines={1}>
+              {lodge.name}
+            </Text>
             <Rating rating={lodge.rating} />
           </View>
-          <View className="flex-row items-center justify-between gap-3 border-t border-warm-100 pt-3">
-            <View className="flex-row items-center gap-1.5">
-              <MaterialCommunityIcons color={ui.saffronDeep} name="temple-hindu" size={17} />
-              <Text className="text-sm font-semibold text-warm-600">{lodge.distance}</Text>
-            </View>
-            <View className="flex-row items-end">
-              <Text className="text-xl font-extrabold text-maroon-700">
-                {formatRupees(lodge.price)}
-              </Text>
-              <Text className="mb-1 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
-            </View>
+          <Text className="text-sm text-warm-500" numberOfLines={1}>
+            {lodge.type} · {lodge.location}
+          </Text>
+          <View className="mt-1 flex-row items-center gap-1.5">
+            <MaterialCommunityIcons color={ui.saffronDeep} name="temple-hindu" size={17} />
+            <Text className="text-sm font-semibold text-warm-600">{lodge.distance}</Text>
           </View>
         </View>
       </Pressable>
@@ -440,12 +524,15 @@ export function LodgeCard({
   );
 }
 
+export const LodgeCard = memo(LodgeCardBase);
+
 function FavoriteButton({ favorite, onPress }: { favorite: boolean; onPress: () => void }) {
   return (
     <Pressable
       accessibilityLabel={favorite ? 'Remove from saved stays' : 'Save this stay'}
       accessibilityRole="button"
-      className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-full bg-white/95"
+      accessibilityState={{ selected: favorite }}
+      className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-sm shadow-black/20 transition-transform duration-150 active:scale-90"
       hitSlop={8}
       onPress={(event) => {
         event.stopPropagation();
@@ -822,27 +909,23 @@ function ShimmerBlock({ className }: { className: string }) {
 export function LodgeCardSkeleton({ horizontal = false }: { horizontal?: boolean }) {
   if (horizontal) {
     return (
-      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
         <ShimmerBlock className="h-44 rounded-none" />
-        <View className="gap-3 p-4">
+        <View className="gap-3 px-4 pb-4 pt-3.5">
           <ShimmerBlock className="h-4 w-3/4 rounded-full" />
           <ShimmerBlock className="h-3 w-1/2 rounded-full" />
-          <ShimmerBlock className="h-5 w-1/3 rounded-full" />
         </View>
       </View>
     );
   }
 
   return (
-    <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
-      <ShimmerBlock className="h-48 rounded-none" />
-      <View className="gap-3 p-4">
+    <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
+      <ShimmerBlock className="h-52 rounded-none" />
+      <View className="gap-3 px-4 pb-4 pt-3.5">
         <ShimmerBlock className="h-5 w-2/3 rounded-full" />
         <ShimmerBlock className="h-4 w-1/2 rounded-full" />
-        <View className="flex-row items-center justify-between border-t border-warm-100 pt-3">
-          <ShimmerBlock className="h-4 w-24 rounded-full" />
-          <ShimmerBlock className="h-6 w-20 rounded-full" />
-        </View>
+        <ShimmerBlock className="h-4 w-24 rounded-full" />
       </View>
     </View>
   );
@@ -861,12 +944,12 @@ export function InfoRow({
 }) {
   return (
     <View
-      className={`flex-row items-center gap-3 py-3.5 ${last ? '' : 'border-b border-warm-100'}`}
+      className={`flex-row items-center gap-3.5 py-3.5 ${last ? '' : 'border-b border-warm-100'}`}
     >
-      <View className="h-10 w-10 items-center justify-center rounded-xl bg-saffron-50">
-        <MaterialCommunityIcons color={ui.saffronDeep} name={icon} size={20} />
+      <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-50">
+        <MaterialCommunityIcons color={ui.saffronDeep} name={icon} size={21} />
       </View>
-      <View className="flex-1">
+      <View className="min-w-0 flex-1">
         <Text className="text-xs font-semibold text-warm-500">{label}</Text>
         <Text className="mt-0.5 text-sm font-bold text-warm-900">{value}</Text>
       </View>
@@ -892,7 +975,7 @@ export function SettingRow({
   const content = (
     <>
       <View
-        className={`h-11 w-11 items-center justify-center rounded-2xl ${destructive ? 'bg-danger-50' : 'bg-saffron-50'}`}
+        className={`h-11 w-11 items-center justify-center rounded-full ${destructive ? 'bg-danger-50' : 'bg-saffron-50'}`}
       >
         <MaterialCommunityIcons
           color={destructive ? ui.danger : ui.saffronDeep}
@@ -918,13 +1001,13 @@ export function SettingRow({
   return onPress ? (
     <Pressable
       accessibilityRole="button"
-      className="min-h-16 flex-row items-center gap-3 border-b border-warm-100 py-3 active:bg-warm-50"
+      className="min-h-16 flex-row items-center gap-3.5 border-b border-warm-100 py-3 active:bg-warm-50"
       onPress={onPress}
     >
       {content}
     </Pressable>
   ) : (
-    <View className="min-h-16 flex-row items-center gap-3 border-b border-warm-100 py-3">
+    <View className="min-h-16 flex-row items-center gap-3.5 border-b border-warm-100 py-3">
       {content}
     </View>
   );
@@ -951,7 +1034,7 @@ export function EmptyState({
       <Text className="mt-5 text-center text-xl font-extrabold text-warm-900">{title}</Text>
       <Text className="mt-2 text-center text-sm leading-5 text-warm-500">{body}</Text>
       {action && onAction ? (
-        <PrimaryButton className="mt-6" onPress={onAction}>
+        <PrimaryButton className="mt-6 self-stretch" onPress={onAction}>
           {action}
         </PrimaryButton>
       ) : null}
@@ -963,14 +1046,7 @@ export function LoadingList({ label }: { label: string }) {
   return (
     <View accessibilityLabel={label} className="gap-4">
       {[0, 1].map((item) => (
-        <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white" key={item}>
-          <View className="h-36 bg-warm-200" />
-          <View className="gap-3 p-4">
-            <View className="h-5 w-2/3 rounded-full bg-warm-200" />
-            <View className="h-4 w-1/2 rounded-full bg-warm-100" />
-            <View className="h-12 rounded-2xl bg-warm-100" />
-          </View>
-        </View>
+        <LodgeCardSkeleton key={item} />
       ))}
     </View>
   );
