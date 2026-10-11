@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { AppScreen, EmptyState, TopBar, ui, type PilgrimIconName } from '../components';
+import { AppScreen, EmptyState, Reveal, TopBar, ui, type PilgrimIconName } from '../components';
 import { FeedbackPrompt } from '../components/FeedbackPrompt';
 import type { PilgrimNotification } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
@@ -54,7 +54,7 @@ export function PilgrimNotificationsScreen() {
         right={
           hasUnread ? (
             <Pressable
-              className="min-h-11 justify-center"
+              className="min-h-11 justify-center rounded-full bg-saffron-50 px-4 active:opacity-70"
               onPress={() => void markNotificationsRead()}
             >
               <Text className="text-sm font-extrabold text-saffron-700">
@@ -67,38 +67,40 @@ export function PilgrimNotificationsScreen() {
         title={t('Notifications', 'सूचना')}
       />
       {notifications.length ? (
-        <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4">
-          {notifications.map((item, index) => (
-            <Pressable
-              accessibilityRole="button"
-              className={`min-h-24 flex-row items-start gap-3 py-4 ${index < notifications.length - 1 ? 'border-b border-warm-100' : ''}`}
-              key={item.id}
-              onPress={() => void openNotification(item)}
-            >
-              <View
-                className={`h-12 w-12 items-center justify-center rounded-2xl ${item.read ? 'bg-warm-100' : 'bg-saffron-50'}`}
+        <Reveal index={0}>
+          <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4 shadow-sm shadow-warm-900/5">
+            {notifications.map((item, index) => (
+              <Pressable
+                accessibilityRole="button"
+                className={`min-h-24 flex-row items-start gap-3 py-4 active:bg-warm-50 ${index < notifications.length - 1 ? 'border-b border-warm-100' : ''}`}
+                key={item.id}
+                onPress={() => void openNotification(item)}
               >
-                <MaterialCommunityIcons
-                  color={item.read ? ui.muted : ui.saffronDeep}
-                  name={notificationIcon[item.type]}
-                  size={24}
-                />
-              </View>
-              <View className="min-w-0 flex-1">
-                <View className="flex-row items-start gap-2">
-                  <Text className="flex-1 text-base font-extrabold text-warm-900">
-                    {item.title}
-                  </Text>
-                  {!item.read ? (
-                    <View className="mt-1 h-2.5 w-2.5 rounded-full bg-saffron-500" />
-                  ) : null}
+                <View
+                  className={`h-12 w-12 items-center justify-center rounded-full ${item.read ? 'bg-warm-100' : 'bg-saffron-50'}`}
+                >
+                  <MaterialCommunityIcons
+                    color={item.read ? ui.muted : ui.saffronDeep}
+                    name={notificationIcon[item.type]}
+                    size={24}
+                  />
                 </View>
-                <Text className="mt-1 text-sm leading-5 text-warm-500">{item.body}</Text>
-                <Text className="mt-2 text-xs font-semibold text-warm-500">{item.time}</Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
+                <View className="min-w-0 flex-1">
+                  <View className="flex-row items-start gap-2">
+                    <Text className="flex-1 text-base font-extrabold text-warm-900">
+                      {item.title}
+                    </Text>
+                    {!item.read ? (
+                      <View className="mt-1 h-2.5 w-2.5 rounded-full bg-saffron-500" />
+                    ) : null}
+                  </View>
+                  <Text className="mt-1 text-sm leading-5 text-warm-500">{item.body}</Text>
+                  <Text className="mt-2 text-xs font-semibold text-warm-500">{item.time}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </Reveal>
       ) : (
         <EmptyState
           body={t(
@@ -109,7 +111,7 @@ export function PilgrimNotificationsScreen() {
           title={t('All quiet for now', 'सध्या कोणतीही सूचना नाही')}
         />
       )}
-      <View className="flex-row items-start gap-3 rounded-2xl bg-warm-100 p-4">
+      <View className="flex-row items-start gap-3 rounded-3xl bg-warm-100 p-4">
         <MaterialCommunityIcons color={ui.maroon} name="shield-check-outline" size={22} />
         <Text className="flex-1 text-sm leading-5 text-warm-600">
           {t(

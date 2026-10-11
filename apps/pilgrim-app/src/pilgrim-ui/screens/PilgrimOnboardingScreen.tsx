@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { useAuth } from '../../auth/auth-context';
-import { AppScreen, Field, PrimaryButton, ui } from '../components';
+import { AppScreen, Field, PrimaryButton, Reveal, ui } from '../components';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 export function PilgrimOnboardingScreen() {
@@ -38,10 +38,12 @@ export function PilgrimOnboardingScreen() {
   }
   return (
     <AppScreen className="gap-7 pt-3">
-      <View className="h-16 w-16 items-center justify-center rounded-3xl bg-saffron-100">
-        <MaterialCommunityIcons color={ui.saffronDeep} name="account-check-outline" size={34} />
-      </View>
-      <View>
+      <Reveal index={0}>
+        <View className="h-16 w-16 items-center justify-center rounded-full bg-saffron-100">
+          <MaterialCommunityIcons color={ui.saffronDeep} name="account-check-outline" size={34} />
+        </View>
+      </Reveal>
+      <Reveal index={1}>
         <Text className="text-3xl font-extrabold tracking-tight text-warm-900">
           {t('Welcome to Tuljai Stays', 'तुळजाई स्टेजमध्ये स्वागत')}
         </Text>
@@ -51,7 +53,7 @@ export function PilgrimOnboardingScreen() {
             'तुमच्या बुकिंग आणि निवास माहितीसाठी तुमचे नाव सांगा.',
           )}
         </Text>
-      </View>
+      </Reveal>
       <Field
         autoCapitalize="words"
         icon="account-outline"
@@ -64,11 +66,11 @@ export function PilgrimOnboardingScreen() {
         value={name}
       />
       {error ? (
-        <View className="rounded-2xl bg-danger-50 p-3">
+        <View className="rounded-3xl bg-danger-50 p-4">
           <Text className="text-sm font-semibold text-danger-700">{error}</Text>
         </View>
       ) : null}
-      <View className="flex-row items-start gap-3 rounded-2xl bg-saffron-50 p-4">
+      <View className="flex-row items-start gap-3 rounded-3xl bg-saffron-50 p-4">
         <MaterialCommunityIcons color={ui.saffronDeep} name="shield-check-outline" size={22} />
         <Text className="flex-1 text-sm leading-5 text-warm-600">
           {t(

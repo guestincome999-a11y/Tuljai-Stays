@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { useAnnouncements } from '../../features/announcements/hooks/useAnnouncements';
-import { AppScreen, EmptyState, TopBar, ui } from '../components';
+import { AppScreen, EmptyState, Reveal, TopBar, ui } from '../components';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 export function PilgrimAnnouncementsScreen() {
@@ -68,20 +68,21 @@ export function PilgrimAnnouncementsScreen() {
           title={t('Updates unavailable', 'अपडेट उपलब्ध नाहीत')}
         />
       ) : displayedAnnouncements.length > 0 ? (
-        displayedAnnouncements.map((announcement) => (
-          <Notice
-            body={announcement.body}
-            color={announcement.priority === 'CRITICAL' ? 'maroon' : 'gold'}
-            date={new Date(announcement.createdAt).toLocaleDateString('en-IN', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-            })}
-            focused={announcement.id === focusedAnnouncementId}
-            icon={announcement.category === 'TEMPLE_NOTICE' ? 'temple-hindu' : 'bus'}
-            key={announcement.id}
-            title={announcement.title}
-          />
+        displayedAnnouncements.map((announcement, index) => (
+          <Reveal index={index} key={announcement.id}>
+            <Notice
+              body={announcement.body}
+              color={announcement.priority === 'CRITICAL' ? 'maroon' : 'gold'}
+              date={new Date(announcement.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
+              focused={announcement.id === focusedAnnouncementId}
+              icon={announcement.category === 'TEMPLE_NOTICE' ? 'temple-hindu' : 'bus'}
+              title={announcement.title}
+            />
+          </Reveal>
         ))
       ) : (
         <EmptyState
@@ -134,12 +135,12 @@ function Notice({
         : { bg: 'bg-bell-50', icon: ui.bell };
   return (
     <View
-      className={`rounded-3xl border bg-white p-5 ${
-        focused ? 'border-2 border-saffron-500' : 'border-warm-100'
+      className={`rounded-3xl border-[1.5px] bg-white p-5 shadow-sm shadow-warm-900/5 ${
+        focused ? 'border-saffron-500' : 'border-warm-100'
       }`}
     >
       <View className="flex-row items-start gap-3">
-        <View className={`h-12 w-12 items-center justify-center rounded-2xl ${colors.bg}`}>
+        <View className={`h-12 w-12 items-center justify-center rounded-full ${colors.bg}`}>
           <MaterialCommunityIcons color={colors.icon} name={icon} size={25} />
         </View>
         <View className="flex-1">
