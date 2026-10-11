@@ -12,6 +12,7 @@ import {
   Field,
   LanguageToggle,
   PrimaryButton,
+  Reveal,
   SecondaryButton,
   SettingRow,
   ui,
@@ -115,9 +116,9 @@ export function PilgrimProfileScreen() {
 
   return (
     <AppScreen className="gap-6 pt-2">
-      <View className="flex-row items-center justify-between">
+      <Reveal className="flex-row items-center justify-between" index={0}>
         <View>
-          <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
+          <Text className="text-[28px] font-extrabold tracking-tight text-warm-900">
             {t('Profile', 'प्रोफाइल')}
           </Text>
           <Text className="mt-1 text-sm text-warm-500">
@@ -125,52 +126,56 @@ export function PilgrimProfileScreen() {
           </Text>
         </View>
         <LanguageToggle />
-      </View>
-      <View className="overflow-hidden rounded-3xl bg-maroon-700 p-5">
-        <View className="absolute -right-9 -top-10 h-32 w-32 rounded-full bg-saffron-500/20" />
-        <View className="flex-row items-center gap-4">
-          <View className="h-16 w-16 items-center justify-center rounded-full bg-white/15">
-            <Text className="text-xl font-extrabold text-white">{initials}</Text>
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="text-xl font-extrabold text-white">{displayName}</Text>
-            <Text className="mt-1 text-sm text-orange-100">
-              {auth.user?.phoneNumber ?? t('Google account', 'Google खाते')}
-            </Text>
-            <View className="mt-2 self-start rounded-full bg-white/10 px-3 py-1">
-              <Text className="text-xs font-bold text-white">
-                ✓{' '}
-                {auth.user?.phoneNumber
-                  ? t('Mobile verified', 'मोबाइल सत्यापित')
-                  : t('Google verified', 'Google सत्यापित')}
+      </Reveal>
+      <Reveal index={1}>
+        <View className="overflow-hidden rounded-3xl bg-maroon-700 p-5 shadow-lg shadow-maroon-800/30">
+          <View className="absolute -right-9 -top-10 h-32 w-32 rounded-full bg-saffron-500/20" />
+          <View className="flex-row items-center gap-4">
+            <View className="h-16 w-16 items-center justify-center rounded-full bg-white/15">
+              <Text className="text-xl font-extrabold text-white">{initials}</Text>
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="text-xl font-extrabold text-white">{displayName}</Text>
+              <Text className="mt-1 text-sm text-orange-100">
+                {auth.user?.phoneNumber ?? t('Google account', 'Google खाते')}
               </Text>
+              <View className="mt-2 self-start rounded-full bg-white/10 px-3 py-1">
+                <Text className="text-xs font-bold text-white">
+                  ✓{' '}
+                  {auth.user?.phoneNumber
+                    ? t('Mobile verified', 'मोबाइल सत्यापित')
+                    : t('Google verified', 'Google सत्यापित')}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityLabel={t('Edit traveller name', 'प्रवासी नाव संपादित करा')}
+              accessibilityRole="button"
+              className="h-12 w-12 items-center justify-center rounded-full bg-white/10 transition-transform duration-150 active:scale-90 active:bg-white/20"
+              hitSlop={4}
+              onPress={openProfileEditor}
+            >
+              <MaterialCommunityIcons color="#FFFFFF" name="pencil-outline" size={20} />
+            </Pressable>
+          </View>
+          <View className="mt-5 flex-row rounded-3xl bg-white/10 py-3.5">
+            <View className="flex-1 items-center">
+              <Text className="text-xl font-extrabold text-white">{bookings.length}</Text>
+              <Text className="mt-1 text-xs text-orange-100">{t('Bookings', 'बुकिंग')}</Text>
+            </View>
+            <View className="w-px bg-white/15" />
+            <View className="flex-1 items-center">
+              <Text className="text-xl font-extrabold text-white">{confirmed}</Text>
+              <Text className="mt-1 text-xs text-orange-100">{t('Upcoming', 'आगामी')}</Text>
+            </View>
+            <View className="w-px bg-white/15" />
+            <View className="flex-1 items-center">
+              <Text className="text-xl font-extrabold text-white">{favoriteIds.length}</Text>
+              <Text className="mt-1 text-xs text-orange-100">{t('Saved', 'जतन')}</Text>
             </View>
           </View>
-          <Pressable
-            accessibilityLabel={t('Edit traveller name', 'प्रवासी नाव संपादित करा')}
-            className="h-11 w-11 items-center justify-center rounded-full bg-white/10"
-            onPress={openProfileEditor}
-          >
-            <MaterialCommunityIcons color="#FFFFFF" name="pencil-outline" size={20} />
-          </Pressable>
         </View>
-        <View className="mt-5 flex-row rounded-2xl bg-white/10 py-3">
-          <View className="flex-1 items-center">
-            <Text className="text-xl font-extrabold text-white">{bookings.length}</Text>
-            <Text className="mt-1 text-xs text-orange-100">{t('Bookings', 'बुकिंग')}</Text>
-          </View>
-          <View className="w-px bg-white/15" />
-          <View className="flex-1 items-center">
-            <Text className="text-xl font-extrabold text-white">{confirmed}</Text>
-            <Text className="mt-1 text-xs text-orange-100">{t('Upcoming', 'आगामी')}</Text>
-          </View>
-          <View className="w-px bg-white/15" />
-          <View className="flex-1 items-center">
-            <Text className="text-xl font-extrabold text-white">{favoriteIds.length}</Text>
-            <Text className="mt-1 text-xs text-orange-100">{t('Saved', 'जतन')}</Text>
-          </View>
-        </View>
-      </View>
+      </Reveal>
       <ProfileSection title={t('Your yatra', 'तुमची यात्रा')}>
         <SettingRow
           icon="heart-outline"
@@ -198,16 +203,28 @@ export function PilgrimProfileScreen() {
           right={
             <View className="flex-row gap-1 rounded-full bg-warm-100 p-1">
               <Pressable
-                className={`rounded-full px-3 py-2 ${language === 'en' ? 'bg-white' : ''}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: language === 'en' }}
+                className={`min-h-10 justify-center rounded-full px-4 ${language === 'en' ? 'bg-white shadow-sm shadow-warm-900/10' : ''}`}
                 onPress={() => setLanguage('en')}
               >
-                <Text className="text-xs font-extrabold text-warm-700">English</Text>
+                <Text
+                  className={`text-xs font-extrabold ${language === 'en' ? 'text-maroon-700' : 'text-warm-500'}`}
+                >
+                  English
+                </Text>
               </Pressable>
               <Pressable
-                className={`rounded-full px-3 py-2 ${language === 'mr' ? 'bg-white' : ''}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: language === 'mr' }}
+                className={`min-h-10 justify-center rounded-full px-4 ${language === 'mr' ? 'bg-white shadow-sm shadow-warm-900/10' : ''}`}
                 onPress={() => setLanguage('mr')}
               >
-                <Text className="text-xs font-extrabold text-warm-700">मराठी</Text>
+                <Text
+                  className={`text-xs font-extrabold ${language === 'mr' ? 'text-maroon-700' : 'text-warm-500'}`}
+                >
+                  मराठी
+                </Text>
               </Pressable>
             </View>
           }
@@ -275,7 +292,7 @@ export function PilgrimProfileScreen() {
           }
         />
       </ProfileSection>
-      <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4">
+      <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4 shadow-sm shadow-warm-900/5">
         <SettingRow
           destructive
           icon="logout"
@@ -362,7 +379,8 @@ export function PilgrimProfileScreen() {
             </View>
             <Pressable
               accessibilityLabel={t('Close legal document', 'कायदेशीर दस्तऐवज बंद करा')}
-              className="h-10 w-10 items-center justify-center rounded-full bg-warm-100"
+              accessibilityRole="button"
+              className="h-12 w-12 items-center justify-center rounded-full bg-warm-100 transition-transform duration-150 active:scale-90"
               hitSlop={8}
               onPress={() => setLegalOpen(false)}
             >
@@ -399,7 +417,7 @@ function ProfileSection({ children, title }: { children: React.ReactNode; title:
   return (
     <View>
       <Text className="mb-3 text-lg font-extrabold text-warm-900">{title}</Text>
-      <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4">
+      <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4 shadow-sm shadow-warm-900/5">
         {children}
       </View>
     </View>
