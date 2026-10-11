@@ -20,6 +20,7 @@ import {
   IconButton,
   LodgeCard,
   LodgeCardSkeleton,
+  Reveal,
   SearchBox,
   SectionTitle,
   StatusBadge,
@@ -104,7 +105,7 @@ export function PilgrimHomeScreen() {
         </View>
       </View>
 
-      <View>
+      <Reveal index={0}>
         <Text className="text-sm font-bold text-maroon-700">
           {t('Namaskar', 'नमस्कार')}
           {firstName ? ` ${firstName}` : ''} 🙏
@@ -115,12 +116,14 @@ export function PilgrimHomeScreen() {
         <Text className="mt-1 text-sm leading-5 text-warm-500">
           {t('Verified stays around Tulja Bhavani Temple', 'तुळजाभवानी मंदिराजवळील सत्यापित निवास')}
         </Text>
-      </View>
+      </Reveal>
 
-      <SearchBox
-        onPress={() => router.push('/(app)/lodges')}
-        placeholder={t('Search lodges, Bhakt Niwas or area', 'लॉज, भक्त निवास किंवा परिसर शोधा')}
-      />
+      <Reveal index={1}>
+        <SearchBox
+          onPress={() => router.push('/(app)/lodges')}
+          placeholder={t('Search lodges, Bhakt Niwas or area', 'लॉज, भक्त निवास किंवा परिसर शोधा')}
+        />
+      </Reveal>
 
       {syncError ? (
         <View className="flex-row items-center gap-3 rounded-2xl bg-danger-50 p-4">
@@ -133,7 +136,10 @@ export function PilgrimHomeScreen() {
               {t('Saved lodge details are still available.', 'जतन केलेली लॉज माहिती उपलब्ध आहे.')}
             </Text>
           </View>
-          <Pressable className="min-h-11 justify-center" onPress={() => void refresh()}>
+          <Pressable
+            className="min-h-11 justify-center rounded-full bg-white px-4 active:opacity-70"
+            onPress={() => void refresh()}
+          >
             <Text className="text-sm font-extrabold text-danger-700">{t('Retry', 'पुन्हा')}</Text>
           </Pressable>
         </View>
@@ -169,7 +175,7 @@ export function PilgrimHomeScreen() {
                 )}
               </Text>
               <Pressable
-                className="mt-4 min-h-11 self-start justify-center rounded-xl bg-white px-4"
+                className="mt-4 min-h-12 self-start justify-center rounded-full bg-white px-5 transition-transform duration-150 active:scale-95"
                 onPress={() =>
                   router.push({ pathname: '/(app)/lodges', params: { quick: 'family' } })
                 }
@@ -191,14 +197,14 @@ export function PilgrimHomeScreen() {
         <View className="flex-row justify-between gap-2">
           {categories.map((category) => (
             <Pressable
-              className="min-h-24 flex-1 items-center justify-center gap-2 rounded-2xl border border-warm-100 bg-white px-1 active:bg-saffron-50"
+              className="min-h-28 flex-1 items-center justify-center gap-2.5 rounded-3xl border border-warm-100 bg-white px-1 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-95 active:bg-saffron-50"
               key={category.quick}
               onPress={() =>
                 router.push({ pathname: '/(app)/lodges', params: { quick: category.quick } })
               }
             >
-              <View className="h-11 w-11 items-center justify-center rounded-2xl bg-saffron-50">
-                <MaterialCommunityIcons color={ui.saffronDeep} name={category.icon} size={23} />
+              <View className="h-12 w-12 items-center justify-center rounded-full bg-saffron-50">
+                <MaterialCommunityIcons color={ui.saffronDeep} name={category.icon} size={24} />
               </View>
               <Text className="text-center text-[11px] font-bold text-warm-700" numberOfLines={2}>
                 {t(category.label, category.labelMr)}
@@ -218,7 +224,7 @@ export function PilgrimHomeScreen() {
             title={t('Your upcoming yatra', 'तुमची आगामी यात्रा')}
           />
           <Pressable
-            className="overflow-hidden rounded-3xl border border-warm-100 bg-white"
+            className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10 transition-transform duration-150 active:scale-[0.985]"
             onPress={() =>
               router.push({ pathname: '/(app)/bookings/[id]', params: { id: upcoming.id } })
             }
@@ -232,7 +238,7 @@ export function PilgrimHomeScreen() {
                 <Text className="mt-1 text-sm text-warm-500">{upcoming.roomName}</Text>
               </View>
               <View className="flex-row items-center gap-4 rounded-2xl bg-warm-50 p-3.5">
-                <View className="h-12 w-12 items-center justify-center rounded-2xl bg-white">
+                <View className="h-12 w-12 items-center justify-center rounded-full bg-white">
                   <MaterialCommunityIcons color={ui.maroon} name="calendar-check" size={25} />
                 </View>
                 <View className="flex-1">
@@ -258,8 +264,12 @@ export function PilgrimHomeScreen() {
           title={t('Loved by pilgrims', 'भाविकांची आवड')}
         />
         <ScrollView
+          decelerationRate="fast"
+          disableIntervalMomentum
           horizontal
           showsHorizontalScrollIndicator={false}
+          snapToAlignment="start"
+          snapToInterval={304}
           style={{ marginHorizontal: -20, paddingLeft: 20 }}
         >
           {featuredLodges.map((lodge) =>
@@ -290,7 +300,7 @@ export function PilgrimHomeScreen() {
             { icon: 'headset' as const, label: t('Local support', 'स्थानिक मदत') },
           ].map((item) => (
             <View
-              className="flex-1 items-center gap-2 rounded-2xl bg-saffron-50 px-2 py-4"
+              className="flex-1 items-center gap-2.5 rounded-3xl bg-saffron-50 px-2 py-5"
               key={item.label}
             >
               <MaterialCommunityIcons color={ui.saffronDeep} name={item.icon} size={25} />
@@ -301,7 +311,7 @@ export function PilgrimHomeScreen() {
         <Text className="text-center text-xs text-warm-500">
           {t(
             `Rooms from ${formatRupees(699)} per night · No hidden platform fees`,
-            `${formatRupees(699)} प्रति रात्र पासून · कोणतेही लपलेले शुल्क नाही`,
+            `${formatRupees(699)} प्रति रात्र पासून · कोणतेही लपलेले शुल्क नाही.`,
           )}
         </Text>
       </View>
