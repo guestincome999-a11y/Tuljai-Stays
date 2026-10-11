@@ -51,7 +51,11 @@ export function PilgrimLodgeDetailScreen() {
   if (!lodge) {
     return (
       <AppScreen className="gap-6 pt-1">
-        <IconButton accessibilityLabel="Go back" icon="chevron-left" onPress={() => router.back()} />
+        <IconButton
+          accessibilityLabel="Go back"
+          icon="chevron-left"
+          onPress={() => router.back()}
+        />
         {isSyncing ? (
           <View className="items-center rounded-3xl border border-warm-100 bg-white py-16">
             <ActivityIndicator color={ui.saffronDeep} size="large" />
@@ -239,7 +243,7 @@ export function PilgrimLodgeDetailScreen() {
                 <RoomsUnavailableNotice
                   body={t(
                     'All rooms are full for tomorrow night. Try other dates or choose another stay.',
-                    'उद्याच्या रात्रीसाठी सर्व खोल्या भरलेल्या आहेत. दुसर्या तारखा वापरून पहा किंवा दुसरा निवास निवडा.',
+                    'उद्याच्या रात्रीसाठी सर्व खोल्या भरलेल्या आहेत. दुसऱ्या तारखा वापरून पहा किंवा दुसरा निवास निवडा.',
                   )}
                 >
                   <SecondaryButton
@@ -251,7 +255,7 @@ export function PilgrimLodgeDetailScreen() {
                       })
                     }
                   >
-                    {t('Try other dates', 'दुसर्या तारखा पहा')}
+                    {t('Try other dates', 'दुसऱ्या तारखा पहा')}
                   </SecondaryButton>
                   <SecondaryButton
                     icon="home-search-outline"
