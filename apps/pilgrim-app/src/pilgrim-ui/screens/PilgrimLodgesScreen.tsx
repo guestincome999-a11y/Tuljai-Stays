@@ -5,7 +5,16 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppScreen, LodgeCard, LodgeCardSkeleton, PrimaryButton, SearchBox, ui } from '../components';
+import {
+  AppScreen,
+  LodgeCard,
+  LodgeCardSkeleton,
+  PrimaryButton,
+  Reveal,
+  SearchBox,
+  SecondaryButton,
+  ui,
+} from '../components';
 import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 import { PriceRangeSlider } from '../PriceRangeSlider';
@@ -109,8 +118,7 @@ export function PilgrimLodgesScreen() {
       return matchesSearch && matchesFilter && matchesPrice;
     });
     if (sort === 'price') items = [...items].sort((a, b) => sortablePrice(a) - sortablePrice(b));
-    if (sort === 'rating')
-      items = [...items].sort((a, b) => sortableRating(b) - sortableRating(a));
+    if (sort === 'rating') items = [...items].sort((a, b) => sortableRating(b) - sortableRating(a));
     if (sort === 'distance')
       items = [...items].sort(
         (a, b) => distanceInMeters(a.distance) - distanceInMeters(b.distance),
@@ -144,8 +152,7 @@ export function PilgrimLodgesScreen() {
   function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (!hasMoreToShow) return;
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const distanceFromBottom =
-      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     if (distanceFromBottom < SCROLL_LOAD_MORE_THRESHOLD_PX) {
       setVisibleCount((current) => Math.min(current + RESULTS_PAGE_SIZE, results.length));
     }
@@ -176,8 +183,8 @@ export function PilgrimLodgesScreen() {
 
   return (
     <AppScreen className="gap-5 pt-2" scrollEventThrottle={150} onScroll={handleScroll}>
-      <View>
-        <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
+      <Reveal index={0}>
+        <Text className="text-[28px] font-extrabold tracking-tight text-warm-900">
           {t('Find your stay', 'तुमचा निवास शोधा')}
         </Text>
         <Text className="mt-1 text-sm text-warm-500">
@@ -186,13 +193,15 @@ export function PilgrimLodgesScreen() {
             'तुळजाभवानी मंदिराजवळील सत्यापित निवास',
           )}
         </Text>
-      </View>
+      </Reveal>
 
-      <SearchBox
-        onChangeText={setSearch}
-        placeholder={t('Search lodge or locality', 'लॉज किंवा परिसर शोधा')}
-        value={search}
-      />
+      <Reveal index={1}>
+        <SearchBox
+          onChangeText={setSearch}
+          placeholder={t('Search lodge or locality', 'लॉज किंवा परिसर शोधा')}
+          value={search}
+        />
+      </Reveal>
 
       {syncError ? (
         <View className="flex-row items-center gap-3 rounded-2xl bg-danger-50 p-4">
@@ -203,7 +212,10 @@ export function PilgrimLodgesScreen() {
               'जतन केलेली माहिती दाखवत आहोत. लाइव्ह उपलब्धता बदलली असू शकते.',
             )}
           </Text>
-          <Pressable className="min-h-11 justify-center" onPress={() => void refresh()}>
+          <Pressable
+            className="min-h-11 justify-center rounded-full bg-white px-4 active:opacity-70"
+            onPress={() => void refresh()}
+          >
             <Text className="text-sm font-extrabold text-danger-700">{t('Retry', 'पुन्हा')}</Text>
           </Pressable>
         </View>
@@ -214,12 +226,14 @@ export function PilgrimLodgesScreen() {
         showsHorizontalScrollIndicator={false}
         style={{ marginHorizontal: -20, paddingLeft: 20 }}
       >
-        <View className="flex-row gap-2 pr-5">
+        <View className="flex-row gap-2.5 pr-5">
           {filterChips.map((chip) => {
             const active = activeFilter === chip.key;
             return (
               <Pressable
-                className={`min-h-11 justify-center rounded-full border px-4 ${active ? 'border-saffron-500 bg-saffron-500' : 'border-warm-200 bg-white'}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                className={`min-h-12 justify-center rounded-full border-[1.5px] px-5 transition-transform duration-150 active:scale-95 ${active ? 'border-saffron-500 bg-saffron-500 shadow-sm shadow-saffron-500/30' : 'border-warm-200 bg-white'}`}
                 key={chip.key}
                 onPress={() => setActiveFilter(chip.key)}
               >
@@ -241,7 +255,7 @@ export function PilgrimLodgesScreen() {
         <Pressable
           accessibilityLabel={t('Open filters and sorting', 'फिल्टर आणि क्रमवारी उघडा')}
           accessibilityRole="button"
-          className="min-h-11 flex-row items-center gap-2 rounded-xl bg-warm-100 px-3"
+          className="min-h-12 flex-row items-center gap-2 rounded-full border border-warm-200 bg-white px-4 transition-transform duration-150 active:scale-95"
           onPress={openFilters}
         >
           <MaterialCommunityIcons color={ui.maroon} name="tune-variant" size={20} />
@@ -264,7 +278,7 @@ export function PilgrimLodgesScreen() {
           </View>
           <Pressable
             accessibilityLabel={t('Remove price filter', 'किंमत फिल्टर काढा')}
-            className="min-h-10 justify-center"
+            className="min-h-11 justify-center rounded-full px-3 active:bg-saffron-100"
             onPress={() => setPriceRange(null)}
           >
             <Text className="text-sm font-extrabold text-maroon-700">{t('Clear', 'काढा')}</Text>
@@ -273,19 +287,20 @@ export function PilgrimLodgesScreen() {
       ) : null}
 
       <View className="gap-5">
-        {visibleResults.map((lodge) =>
+        {visibleResults.map((lodge, index) =>
           lodge.hydrated === false ? (
             <LodgeCardSkeleton key={lodge.id} />
           ) : (
-            <LodgeCard
-              favorite={favoriteIds.includes(lodge.id)}
-              key={lodge.id}
-              lodge={lodge}
-              onFavorite={() => toggleFavorite(lodge.id)}
-              onPress={() =>
-                router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
-              }
-            />
+            <Reveal index={index % RESULTS_PAGE_SIZE} key={lodge.id}>
+              <LodgeCard
+                favorite={favoriteIds.includes(lodge.id)}
+                lodge={lodge}
+                onFavorite={() => toggleFavorite(lodge.id)}
+                onPress={() =>
+                  router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
+                }
+              />
+            </Reveal>
           ),
         )}
         {hasMoreToShow ? (
@@ -304,11 +319,9 @@ export function PilgrimLodgesScreen() {
             <Text className="mt-2 text-center text-sm text-warm-500">
               {t('Try another search or remove a filter.', 'दुसरा शोध वापरा किंवा फिल्टर काढा.')}
             </Text>
-            <Pressable className="mt-5 min-h-11 justify-center" onPress={clearAllFilters}>
-              <Text className="font-extrabold text-saffron-700">
-                {t('Clear all filters', 'सर्व फिल्टर काढा')}
-              </Text>
-            </Pressable>
+            <SecondaryButton className="mt-5 self-stretch" onPress={clearAllFilters}>
+              {t('Clear all filters', 'सर्व फिल्टर काढा')}
+            </SecondaryButton>
           </View>
         ) : null}
       </View>
@@ -337,7 +350,9 @@ export function PilgrimLodgesScreen() {
                   </Text>
                 </View>
                 <Pressable
-                  className="h-11 w-11 items-center justify-center rounded-full bg-warm-100"
+                  accessibilityLabel={t('Close filters', 'फिल्टर बंद करा')}
+                  accessibilityRole="button"
+                  className="h-12 w-12 items-center justify-center rounded-full bg-warm-100 transition-transform duration-150 active:scale-90"
                   onPress={() => setFilterOpen(false)}
                 >
                   <MaterialCommunityIcons color={ui.ink} name="close" size={22} />
@@ -399,7 +414,9 @@ export function PilgrimLodgesScreen() {
                     },
                   ].map((item, index, array) => (
                     <Pressable
-                      className={`min-h-16 flex-row items-center gap-3 ${index < array.length - 1 ? 'border-b border-warm-100' : ''}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: draftSort === item.key }}
+                      className={`min-h-16 flex-row items-center gap-3 active:bg-warm-50 ${index < array.length - 1 ? 'border-b border-warm-100' : ''}`}
                       key={item.key}
                       onPress={() => setDraftSort(item.key)}
                     >
@@ -421,7 +438,7 @@ export function PilgrimLodgesScreen() {
 
               <View className="mt-4 flex-row items-center gap-4">
                 <Pressable
-                  className="min-h-14 justify-center px-2"
+                  className="min-h-14 justify-center rounded-full px-5 active:bg-warm-100"
                   onPress={() => {
                     setDraftPriceRange(priceBounds);
                     setDraftSort('recommended');
