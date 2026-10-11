@@ -17,8 +17,10 @@ import { LodgeReviewsSection } from '../../features/reviews/components/LodgeRevi
 import {
   AppScreen,
   EmptyState,
+  IconButton,
   PrimaryButton,
   Rating,
+  Reveal,
   RoomsUnavailableNotice,
   SecondaryButton,
   ui,
@@ -49,12 +51,7 @@ export function PilgrimLodgeDetailScreen() {
   if (!lodge) {
     return (
       <AppScreen className="gap-6 pt-1">
-        <Pressable
-          className="h-12 w-12 items-center justify-center rounded-full bg-white"
-          onPress={() => router.back()}
-        >
-          <MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} />
-        </Pressable>
+        <IconButton accessibilityLabel="Go back" icon="chevron-left" onPress={() => router.back()} />
         {isSyncing ? (
           <View className="items-center rounded-3xl border border-warm-100 bg-white py-16">
             <ActivityIndicator color={ui.saffronDeep} size="large" />
@@ -96,7 +93,8 @@ export function PilgrimLodgeDetailScreen() {
           >
             {lodge.photos.map((photo) => (
               <Image
-                className="h-80"
+                className="h-80 bg-warm-100"
+                fadeDuration={150}
                 key={photo}
                 resizeMode="cover"
                 source={{ uri: photo }}
@@ -105,26 +103,29 @@ export function PilgrimLodgeDetailScreen() {
             ))}
           </ScrollView>
           <View className="absolute left-5 right-5 top-3 flex-row justify-between">
-            <Pressable
-              className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
+            <IconButton
+              accessibilityLabel={t('Go back', 'मागे')}
+              icon="chevron-left"
+              tone="white"
               onPress={() => router.back()}
-            >
-              <MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} />
-            </Pressable>
+            />
             <View className="flex-row gap-2">
-              <Pressable
-                className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
+              <IconButton
+                accessibilityLabel={t('Share this stay', 'हा निवास शेअर करा')}
+                icon="share-variant-outline"
+                tone="white"
                 onPress={() =>
                   void openExternalLink(
                     `https://wa.me/?text=${encodeURIComponent(`Take a look at ${lodge.name} on Tuljai Stays`)}`,
                     t,
                   )
                 }
-              >
-                <MaterialCommunityIcons color={ui.ink} name="share-variant-outline" size={22} />
-              </Pressable>
+              />
               <Pressable
-                className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
+                accessibilityLabel={favorite ? 'Remove from saved stays' : 'Save this stay'}
+                accessibilityRole="button"
+                accessibilityState={{ selected: favorite }}
+                className="h-12 w-12 items-center justify-center rounded-full bg-white shadow-md shadow-warm-900/15 transition-transform duration-150 active:scale-90"
                 onPress={() => toggleFavorite(lodge.id)}
               >
                 <MaterialCommunityIcons
@@ -135,15 +136,15 @@ export function PilgrimLodgeDetailScreen() {
               </Pressable>
             </View>
           </View>
-          <View className="absolute bottom-4 right-5 rounded-full bg-black/60 px-3 py-1.5">
+          <View className="absolute bottom-10 right-5 rounded-full bg-black/60 px-3 py-1.5">
             <Text className="text-xs font-bold text-white">
               {photoIndex + 1} / {lodge.photos.length}
             </Text>
           </View>
         </View>
 
-        <View className="gap-7 px-5 py-6">
-          <View>
+        <View className="-mt-6 gap-7 rounded-t-3xl bg-warm-50 px-5 pb-6 pt-7">
+          <Reveal index={0}>
             <View className="mb-3 flex-row flex-wrap gap-2">
               <View className="rounded-full bg-templeGreen-50 px-3 py-1.5">
                 <Text className="text-xs font-extrabold text-templeGreen-700">
@@ -170,11 +171,12 @@ export function PilgrimLodgeDetailScreen() {
               <Text className="text-warm-300">•</Text>
               <Text className="text-sm font-semibold text-saffron-700">{lodge.distance}</Text>
             </View>
-          </View>
+          </Reveal>
 
-          <View className="flex-row gap-3">
+          <Reveal className="flex-row gap-3" index={1}>
             <Pressable
-              className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2"
+              accessibilityRole="button"
+              className="min-h-24 flex-1 items-center justify-center rounded-3xl bg-saffron-50 px-2 transition-transform duration-150 active:scale-95 active:bg-saffron-100"
               onPress={() => void openDirections(lodge, t)}
             >
               <MaterialCommunityIcons color={ui.saffronDeep} name="map-marker-radius" size={24} />
@@ -182,19 +184,19 @@ export function PilgrimLodgeDetailScreen() {
                 {t('Open directions', 'दिशा पहा')}
               </Text>
             </Pressable>
-            <View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2">
+            <View className="min-h-24 flex-1 items-center justify-center rounded-3xl bg-saffron-50 px-2">
               <MaterialCommunityIcons color={ui.saffronDeep} name="clock-fast" size={24} />
               <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
                 {t('12 PM check-in', '१२ वा. चेक-इन')}
               </Text>
             </View>
-            <View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2">
+            <View className="min-h-24 flex-1 items-center justify-center rounded-3xl bg-saffron-50 px-2">
               <MaterialCommunityIcons color={ui.saffronDeep} name="shield-check" size={24} />
               <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
                 {t('Safe & trusted', 'सुरक्षित निवास')}
               </Text>
             </View>
-          </View>
+          </Reveal>
 
           <View className="border-t border-warm-100 pt-6">
             <Text className="text-xl font-extrabold text-warm-900">
@@ -210,9 +212,9 @@ export function PilgrimLodgeDetailScreen() {
             <View className="mt-4 flex-row flex-wrap">
               {lodge.amenities.map((amenity) => (
                 <View className="mb-4 w-1/2 flex-row items-center gap-3 pr-2" key={amenity.label}>
-                  <View className="h-10 w-10 items-center justify-center rounded-xl bg-warm-100">
+                  <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-50">
                     <MaterialCommunityIcons
-                      color={ui.maroon}
+                      color={ui.saffronDeep}
                       name={amenity.icon as never}
                       size={20}
                     />
@@ -237,7 +239,7 @@ export function PilgrimLodgeDetailScreen() {
                 <RoomsUnavailableNotice
                   body={t(
                     'All rooms are full for tomorrow night. Try other dates or choose another stay.',
-                    'उद्याच्या रात्रीसाठी सर्व खोल्या भरलेल्या आहेत. दुसऱ्या तारखा वापरून पहा किंवा दुसरा निवास निवडा.',
+                    'उद्याच्या रात्रीसाठी सर्व खोल्या भरलेल्या आहेत. दुसर्या तारखा वापरून पहा किंवा दुसरा निवास निवडा.',
                   )}
                 >
                   <SecondaryButton
@@ -249,7 +251,7 @@ export function PilgrimLodgeDetailScreen() {
                       })
                     }
                   >
-                    {t('Try other dates', 'दुसऱ्या तारखा पहा')}
+                    {t('Try other dates', 'दुसर्या तारखा पहा')}
                   </SecondaryButton>
                   <SecondaryButton
                     icon="home-search-outline"
@@ -261,7 +263,7 @@ export function PilgrimLodgeDetailScreen() {
               ) : null}
               {lodge.rooms.map((room, index) => (
                 <View
-                  className={`overflow-hidden rounded-3xl border bg-white ${index === 0 ? 'border-saffron-500' : 'border-warm-200'}`}
+                  className={`overflow-hidden rounded-3xl border-[1.5px] bg-white shadow-sm shadow-warm-900/5 ${index === 0 ? 'border-saffron-500' : 'border-warm-200'}`}
                   key={room.id}
                 >
                   {index === 0 ? (
@@ -280,13 +282,13 @@ export function PilgrimLodgeDetailScreen() {
                         </Text>
                       </View>
                       {availability.counts[room.id] === 0 ? (
-                        <View className="rounded-xl bg-danger-50 px-2.5 py-1.5">
+                        <View className="rounded-full bg-danger-50 px-3 py-1.5">
                           <Text className="text-xs font-extrabold text-danger-700">
                             {t('Full', 'भरले')}
                           </Text>
                         </View>
                       ) : (
-                        <View className="rounded-xl bg-bell-50 px-2.5 py-1.5">
+                        <View className="rounded-full bg-bell-50 px-3 py-1.5">
                           <Text className="text-xs font-extrabold text-bell-700">
                             {availability.counts[room.id] ?? room.available} left
                           </Text>
@@ -310,7 +312,7 @@ export function PilgrimLodgeDetailScreen() {
                           {t('per night', 'प्रति रात्र')}
                         </Text>
                       </View>
-                      <SecondaryButton
+                      <PrimaryButton
                         onPress={() =>
                           router.push({
                             pathname: '/(app)/bookings/new',
@@ -319,7 +321,7 @@ export function PilgrimLodgeDetailScreen() {
                         }
                       >
                         {t('Select room', 'खोली निवडा')}
-                      </SecondaryButton>
+                      </PrimaryButton>
                     </View>
                   </View>
                 </View>
@@ -345,7 +347,7 @@ export function PilgrimLodgeDetailScreen() {
             <Text className="text-xl font-extrabold text-warm-900">
               {t('Good to know', 'महत्त्वाची माहिती')}
             </Text>
-            <View className="mt-3 rounded-2xl bg-white px-4">
+            <View className="mt-3 rounded-3xl border border-warm-100 bg-white px-4">
               {lodge.rules.map((rule, index) => (
                 <View
                   className={`flex-row items-center gap-3 py-3.5 ${index < lodge.rules.length - 1 ? 'border-b border-warm-100' : ''}`}
@@ -375,7 +377,7 @@ export function PilgrimLodgeDetailScreen() {
         </View>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 flex-row items-center gap-4 border-t border-warm-200 bg-white px-5 pb-7 pt-3">
+      <View className="absolute bottom-0 left-0 right-0 flex-row items-center gap-4 rounded-t-3xl bg-white px-5 pb-7 pt-4 shadow-2xl shadow-warm-900/20">
         <View className="flex-1">
           <Text className="text-xs font-semibold text-warm-500">
             {t('Rooms from', 'खोली सुरू')}
