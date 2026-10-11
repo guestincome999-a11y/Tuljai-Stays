@@ -92,9 +92,7 @@ export function PilgrimCheckoutScreen() {
   // signature so a change of room or dates immediately drops the old answer.
   // Fed by the live availability check, by the room-hold attempt (409 =
   // full, success = free) and by a failed pay-at-lodge booking request.
-  const [roomStatus, setRoomStatus] = useState<{ full: boolean; signature: string } | null>(
-    null,
-  );
+  const [roomStatus, setRoomStatus] = useState<{ full: boolean; signature: string } | null>(null);
   const prepaidRef = useRef<{ signature: string; promise: Promise<PreparedPrepaid> } | null>(null);
   const refreshDueRef = useRef(false);
   // Once the Razorpay sheet has opened, the hold must never be released or
@@ -269,7 +267,10 @@ export function PilgrimCheckoutScreen() {
     if (idProofUploading) {
       Alert.alert(
         t('ID proof uploading', 'ओळखपत्र अपलोड होत आहे'),
-        t('Please wait a moment for the ID proof to finish uploading.', 'ओळखपत्र अपलोड होईपर्यंत थोडा वेळ थांबा.'),
+        t(
+          'Please wait a moment for the ID proof to finish uploading.',
+          'ओळखपत्र अपलोड होईपर्यंत थोडा वेळ थांबा.',
+        ),
       );
       return false;
     }
@@ -336,7 +337,10 @@ export function PilgrimCheckoutScreen() {
           t('ID proof', 'ओळखपत्र'),
           uploadError instanceof Error
             ? uploadError.message
-            : t('Could not upload ID proof. Please try again.', 'ओळखपत्र अपलोड करता आले नाही. पुन्हा प्रयत्न करा.'),
+            : t(
+                'Could not upload ID proof. Please try again.',
+                'ओळखपत्र अपलोड करता आले नाही. पुन्हा प्रयत्न करा.',
+              ),
         );
       } finally {
         setIdProofUploading(false);
@@ -464,7 +468,7 @@ export function PilgrimCheckoutScreen() {
 
       Alert.alert(
         paymentMethod === 'ONLINE'
-          ? t('Payment successful', 'पेमेंट यशस्वी')
+          ? t('Payment successful', 'पेमंट यशस्वी')
           : t('Booking request sent', 'बुकिंग विनंती पाठवली'),
         paymentMethod === 'ONLINE'
           ? t(
@@ -563,7 +567,7 @@ export function PilgrimCheckoutScreen() {
       {step === 1 ? (
         <View className="gap-5">
           <SectionTitle title={t('Your stay', 'तुमचा निवास')} />
-          <View className="rounded-3xl border border-warm-200 bg-white p-4">
+          <View className="rounded-3xl border border-warm-100 bg-white p-4 shadow-sm shadow-warm-900/5">
             <Text className="text-lg font-extrabold text-warm-900">{lodge.name}</Text>
             <Text className="mt-1 text-sm text-warm-500">
               {room.name} · {room.bed} · {room.capacity}
@@ -575,7 +579,7 @@ export function PilgrimCheckoutScreen() {
               <Pressable
                 key={item.id}
                 onPress={() => setRoomId(item.id)}
-                className={`rounded-3xl border bg-white p-4 ${roomId === item.id ? 'border-2 border-saffron-500' : 'border-warm-200'}`}
+                className={`rounded-3xl border-[1.5px] bg-white p-4 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-[0.985] ${roomId === item.id ? 'border-saffron-500' : 'border-warm-200'}`}
               >
                 <View className="flex-row items-center gap-3">
                   <MaterialCommunityIcons
@@ -680,7 +684,7 @@ export function PilgrimCheckoutScreen() {
             </Text>
             <Pressable
               onPress={() => void pickGuestIdProof()}
-              className="min-h-28 items-center justify-center rounded-2xl border-2 border-dashed border-saffron-300 bg-saffron-50 px-5"
+              className="min-h-28 items-center justify-center rounded-3xl border-2 border-dashed border-saffron-300 bg-saffron-50 px-5 transition-transform duration-150 active:scale-[0.985]"
             >
               <MaterialCommunityIcons
                 color={ui.saffronDeep}
@@ -721,7 +725,7 @@ export function PilgrimCheckoutScreen() {
             <View className="items-center rounded-3xl bg-danger-50 px-5 py-6">
               <AnimatedResultBadge tone="danger" />
               <Text className="mt-4 text-center text-lg font-extrabold text-danger-700">
-                {t('Payment failed', 'पेमेंट अयशस्वी')}
+                {t('Payment failed', 'पेमंट अयशस्वी')}
               </Text>
               <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
                 {paymentFailure}
@@ -731,7 +735,7 @@ export function PilgrimCheckoutScreen() {
           <SectionTitle title={t('Review guest details', 'पाहुण्यांची माहिती तपासा')} />
           <Pressable
             onPress={() => setStep(2)}
-            className="rounded-3xl border border-warm-200 bg-white p-5"
+            className="rounded-3xl border border-warm-100 bg-white p-5 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-[0.985]"
           >
             <View className="flex-row items-center gap-3">
               <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-50">
@@ -765,11 +769,11 @@ export function PilgrimCheckoutScreen() {
             </View>
           </Pressable>
 
-          <SectionTitle title={t('Choose payment', 'पेमेंट निवडा')} />
+          <SectionTitle title={t('Choose payment', 'पेमंट निवडा')} />
           <PaymentOption
             active={paymentMethod === 'ONLINE'}
             icon="qrcode-scan"
-            label={t('Pay online', 'ऑनलाइन पेमेंट')}
+            label={t('Pay online', 'ऑनलाइन पेमंट')}
             description={t(
               'UPI, cards and Razorpay · instant prepaid confirmation',
               'UPI, कार्ड आणि Razorpay · त्वरित प्रीपेड पुष्टीकरण',
@@ -807,7 +811,7 @@ export function PilgrimCheckoutScreen() {
           </View>
           <Pressable
             onPress={() => setAgree((value) => !value)}
-            className="flex-row items-start gap-3"
+            className="min-h-12 flex-row items-start gap-3 py-1"
           >
             <MaterialCommunityIcons
               color={agree ? ui.saffronDeep : ui.muted}
@@ -844,7 +848,7 @@ export function PilgrimCheckoutScreen() {
         {paymentMethod === 'ONLINE'
           ? t(
               'Secure Razorpay checkout · prepaid bookings do not require owner approval',
-              'सुरक्षित Razorpay पेमेंट · प्रीपेड बुकिंगला मालकाची मंजुरी आवश्यक नाही',
+              'सुरक्षित Razorpay पेमंट · प्रीपेड बुकिंगला मालकाची मंजुरी आवश्यक नाही',
             )
           : t(
               'Your request will be sent to the lodge owner',
@@ -854,10 +858,10 @@ export function PilgrimCheckoutScreen() {
       {step === 3 && paymentMethod === 'ONLINE' && (prepaidPreparing || prepaidError) ? (
         <Text className="text-center text-xs text-warm-400">
           {prepaidPreparing
-            ? t('Setting up secure payment…', 'सुरक्षित पेमेंट तयार होत आहे…')
+            ? t('Setting up secure payment…', 'सुरक्षित पेमंट तयार होत आहे…')
             : t(
-                "Payment will be set up when you tap Pay — it may take a moment longer.",
-                'पेमेंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
+                'Payment will be set up when you tap Pay — it may take a moment longer.',
+                'पेमंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
               )}
         </Text>
       ) : null}
@@ -882,7 +886,7 @@ function CheckoutStepHeader({
   }> = [
     { step: 1, label: 'Stay', marathi: 'निवास', icon: 'bed-outline' },
     { step: 2, label: 'Guest', marathi: 'पाहुणे', icon: 'account-outline' },
-    { step: 3, label: 'Payment', marathi: 'पेमेंट', icon: 'credit-card-outline' },
+    { step: 3, label: 'Payment', marathi: 'पेमंट', icon: 'credit-card-outline' },
   ];
   return (
     <View className="flex-row rounded-3xl border border-warm-200 bg-white p-2">
@@ -895,7 +899,7 @@ function CheckoutStepHeader({
             accessibilityLabel={t(item.label, item.marathi)}
             key={item.step}
             onPress={() => onSelect(item.step)}
-            className={`flex-1 items-center rounded-2xl px-2 py-3 ${active ? 'bg-saffron-50' : ''}`}
+            className={`flex-1 items-center rounded-3xl px-2 py-3 transition-transform duration-150 active:scale-95 ${active ? 'bg-saffron-50' : ''}`}
           >
             <MaterialCommunityIcons
               color={active || completed ? ui.saffronDeep : ui.muted}
@@ -944,7 +948,7 @@ function PaymentOption({
   return (
     <Pressable
       onPress={onPress}
-      className={`min-h-20 flex-row items-center gap-3 rounded-2xl border bg-white p-4 ${active ? 'border-2 border-saffron-500' : 'border-warm-200'}`}
+      className={`min-h-20 flex-row items-center gap-3 rounded-3xl border-[1.5px] bg-white p-4 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-[0.985] ${active ? 'border-saffron-500' : 'border-warm-200'}`}
     >
       <MaterialCommunityIcons color={active ? ui.saffronDeep : ui.muted} name={icon} size={25} />
       <View className="flex-1">
@@ -973,19 +977,23 @@ function GuestCounter({
   onChange: (value: number) => void;
 }) {
   return (
-    <View className="flex-row items-center rounded-2xl border border-warm-200 bg-white p-4">
+    <View className="flex-row items-center rounded-3xl border border-warm-200 bg-white px-4 py-3">
       <Text className="flex-1 text-base font-extrabold text-warm-900">{label}</Text>
       <View className="flex-row items-center gap-3">
         <Pressable
           onPress={() => onChange(Math.max(min, value - 1))}
-          className="h-10 w-10 items-center justify-center rounded-full border border-warm-200"
+          accessibilityRole="button"
+          className="h-12 w-12 items-center justify-center rounded-full border-[1.5px] border-warm-200 transition-transform duration-150 active:scale-90 active:bg-warm-100"
+          hitSlop={4}
         >
           <MaterialCommunityIcons name="minus" color={ui.maroon} size={18} />
         </Pressable>
-        <Text className="w-5 text-center font-extrabold text-warm-900">{value}</Text>
+        <Text className="w-7 text-center text-lg font-extrabold text-warm-900">{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
-          className="h-10 w-10 items-center justify-center rounded-full border border-warm-200"
+          accessibilityRole="button"
+          className="h-12 w-12 items-center justify-center rounded-full border-[1.5px] border-warm-200 transition-transform duration-150 active:scale-90 active:bg-warm-100"
+          hitSlop={4}
         >
           <MaterialCommunityIcons name="plus" color={ui.maroon} size={18} />
         </Pressable>
@@ -1024,7 +1032,7 @@ function DateSelector({
             <Pressable
               key={option.date}
               onPress={() => onSelect(option.date)}
-              className={`min-h-20 min-w-20 items-center justify-center rounded-2xl border px-3 ${selected ? 'border-saffron-500 bg-saffron-50' : 'border-warm-200 bg-white'}`}
+              className={`min-h-24 min-w-20 items-center justify-center rounded-3xl border-[1.5px] px-3 transition-transform duration-150 active:scale-95 ${selected ? 'border-saffron-500 bg-saffron-50' : 'border-warm-200 bg-white'}`}
             >
               <Text className="text-[11px] font-bold uppercase text-warm-500">
                 {option.weekday}
