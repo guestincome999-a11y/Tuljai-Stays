@@ -3,7 +3,7 @@ import type { BookingLodgeContact } from '@tuljai/types';
 import { palette } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Text, View } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import {
@@ -17,6 +17,7 @@ import {
   AnimatedResultBadge,
   AppScreen,
   EmptyState,
+  IconButton,
   InfoRow,
   PrimaryButton,
   SecondaryButton,
@@ -223,17 +224,16 @@ export function PilgrimBookingDetailScreen() {
       <TopBar
         onBack={() => router.back()}
         right={
-          <Pressable
-            className="h-12 w-12 items-center justify-center rounded-2xl bg-warm-100"
+          <IconButton
+            accessibilityLabel={t('Share booking', 'बुकिंग शेअर करा')}
+            icon="share-variant-outline"
             onPress={() =>
               void openExternalLink(
                 `https://wa.me/?text=${encodeURIComponent(`Tuljai Stays booking ${booking.bookingCode}`)}`,
                 t,
               )
             }
-          >
-            <MaterialCommunityIcons color={ui.ink} name="share-variant-outline" size={22} />
-          </Pressable>
+          />
         }
         subtitle={booking.bookingCode}
         title={t('Booking details', 'बुकिंग तपशील')}
@@ -311,26 +311,24 @@ export function PilgrimBookingDetailScreen() {
               'तुमचे बुकिंग अजूनही प्रलंबित आहे — काहीही गमावले नाही. पुन्हा ऑनलाइन पेमेंट करा किंवा लॉजवर पैसे भरा.',
             )}
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            className="mt-5 min-h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
-            disabled={onlinePaymentBusy}
+          <PrimaryButton
+            className="mt-5 w-full"
+            icon="reload"
+            loading={onlinePaymentBusy}
             onPress={() => void payAndConfirmNow()}
           >
-            {onlinePaymentBusy ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <MaterialCommunityIcons color="#FFFFFF" name="reload" size={20} />
-            )}
-            <Text className="text-sm font-extrabold text-white">
-              {t('Retry payment', 'पुन्हा पेमेंट करा')}
-            </Text>
-          </Pressable>
+            {t('Retry payment', 'पुन्हा पेमेंट करा')}
+          </PrimaryButton>
         </View>
       ) : null}
 
-      <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white">
-        <Image className="h-44 w-full" resizeMode="cover" source={{ uri: booking.image }} />
+      <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
+        <Image
+          className="h-52 w-full bg-warm-100"
+          fadeDuration={150}
+          resizeMode="cover"
+          source={{ uri: booking.image }}
+        />
         <View className="gap-4 p-4">
           <StatusBadge status={booking.status} />
           <View>
@@ -343,7 +341,7 @@ export function PilgrimBookingDetailScreen() {
       </View>
 
       {booking.status === 'pending' ? (
-        <View className="rounded-2xl bg-bell-50 p-4">
+        <View className="rounded-3xl bg-bell-50 p-4">
           <View className="flex-row items-start gap-3">
             <MaterialCommunityIcons color={palette.bell[400]} name="clock-outline" size={22} />
             <Text className="flex-1 text-sm leading-5 text-warm-600">
@@ -361,32 +359,21 @@ export function PilgrimBookingDetailScreen() {
                   'लॉजच्या प्रतीक्षेऐवजी त्वरित पुष्टीकरण हवे आहे का?',
                 )}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                className="mt-3 min-h-14 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
-                disabled={onlinePaymentBusy}
+              <PrimaryButton
+                className="mt-3"
+                icon="credit-card-fast-outline"
+                loading={onlinePaymentBusy}
                 onPress={() => void payAndConfirmNow()}
               >
-                {onlinePaymentBusy ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <MaterialCommunityIcons
-                    color="#FFFFFF"
-                    name="credit-card-fast-outline"
-                    size={20}
-                  />
-                )}
-                <Text className="text-sm font-extrabold text-white">
-                  {t('Pay & Confirm Now', 'आता पैसे भरा आणि निश्चित करा')}
-                </Text>
-              </Pressable>
+                {t('Pay & Confirm Now', 'आता पैसे भरा आणि निश्चित करा')}
+              </PrimaryButton>
             </>
           ) : null}
         </View>
       ) : null}
 
       {booking.status === 'checked-in' ? (
-        <View className="flex-row items-start gap-3 rounded-2xl bg-templeGreen-50 p-4">
+        <View className="flex-row items-start gap-3 rounded-3xl bg-templeGreen-50 p-4">
           <MaterialCommunityIcons color={ui.green} name="account-check" size={22} />
           <Text className="flex-1 text-sm leading-5 text-warm-600">
             {t(
@@ -481,7 +468,7 @@ export function PilgrimBookingDetailScreen() {
       {lodgeContact ? (
         <View className="rounded-3xl border border-templeGreen-200 bg-templeGreen-50 p-5">
           <View className="flex-row items-center gap-3">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-templeGreen-500">
+            <View className="h-12 w-12 items-center justify-center rounded-full bg-templeGreen-500">
               <MaterialCommunityIcons color="#FFFFFF" name="phone-outline" size={24} />
             </View>
             <View className="flex-1">
@@ -566,22 +553,20 @@ function ConfirmedNextSteps({
 }) {
   return (
     <View className="mt-5 w-full flex-row gap-3">
-      <Pressable
-        accessibilityRole="button"
-        className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700 active:bg-maroon-800"
+      <PrimaryButton
+        className="flex-1 px-4"
+        icon="qrcode-scan"
         onPress={() => router.push({ pathname: '/(app)/pass', params: { bookingId } })}
       >
-        <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={20} />
-        <Text className="text-sm font-extrabold text-white">{t('Get Pass', 'पास मिळवा')}</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-templeGreen-200 bg-white active:bg-templeGreen-100"
+        {t('Get Pass', 'पास मिळवा')}
+      </PrimaryButton>
+      <SecondaryButton
+        className="flex-1 px-4"
+        icon="map-marker-outline"
         onPress={() => void openDirections(lodgeName, t)}
       >
-        <MaterialCommunityIcons color={ui.maroon} name="map-marker-outline" size={20} />
-        <Text className="text-sm font-extrabold text-maroon-700">{t('Location', 'ठिकाण')}</Text>
-      </Pressable>
+        {t('Location', 'ठिकाण')}
+      </SecondaryButton>
     </View>
   );
 }
