@@ -145,7 +145,7 @@ export function PilgrimPassScreen() {
             <Text className="mt-2 text-center text-sm leading-6 text-warm-600">
               {t(
                 'Your QR will appear here automatically as soon as the lodge accepts this stay.',
-                'लॉजने हा निवास स्वीकारतास तुमचा QR येथे आपोआप दिसेल.',
+                'लॉजने हा निवास स्वीकारताच तुमचा QR येथे आपोआप दिसेल.',
               )}
             </Text>
           </View>
