@@ -425,13 +425,21 @@ type LodgeCardProps = {
   onPress: () => void;
 };
 
-function LodgeCardBase({ lodge, favorite, horizontal = false, onPress, onFavorite }: LodgeCardProps) {
+function LodgeCardBase({
+  lodge,
+  favorite,
+  horizontal = false,
+  onPress,
+  onFavorite,
+}: LodgeCardProps) {
   const { t } = usePilgrimApp();
 
   const price = (
     <View className="absolute bottom-3 right-3 flex-row items-end rounded-full bg-maroon-700 px-3.5 py-2">
       <Text className="text-base font-extrabold text-white">{formatRupees(lodge.price)}</Text>
-      <Text className="mb-0.5 text-xs font-semibold text-white/80">{t(' / night', ' / रात्र')}</Text>
+      <Text className="mb-0.5 text-xs font-semibold text-white/80">
+        {t(' / night', ' / रात्र')}
+      </Text>
     </View>
   );
 
