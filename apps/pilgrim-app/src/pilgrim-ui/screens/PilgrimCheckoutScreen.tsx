@@ -468,7 +468,7 @@ export function PilgrimCheckoutScreen() {
 
       Alert.alert(
         paymentMethod === 'ONLINE'
-          ? t('Payment successful', 'पेमंट यशस्वी')
+          ? t('Payment successful', 'पेमेंट यशस्वी')
           : t('Booking request sent', 'बुकिंग विनंती पाठवली'),
         paymentMethod === 'ONLINE'
           ? t(
@@ -725,7 +725,7 @@ export function PilgrimCheckoutScreen() {
             <View className="items-center rounded-3xl bg-danger-50 px-5 py-6">
               <AnimatedResultBadge tone="danger" />
               <Text className="mt-4 text-center text-lg font-extrabold text-danger-700">
-                {t('Payment failed', 'पेमंट अयशस्वी')}
+                {t('Payment failed', 'पेमेंट अयशस्वी')}
               </Text>
               <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
                 {paymentFailure}
@@ -769,11 +769,11 @@ export function PilgrimCheckoutScreen() {
             </View>
           </Pressable>
 
-          <SectionTitle title={t('Choose payment', 'पेमंट निवडा')} />
+          <SectionTitle title={t('Choose payment', 'पेमेंट निवडा')} />
           <PaymentOption
             active={paymentMethod === 'ONLINE'}
             icon="qrcode-scan"
-            label={t('Pay online', 'ऑनलाइन पेमंट')}
+            label={t('Pay online', 'ऑनलाइन पेमेंट')}
             description={t(
               'UPI, cards and Razorpay · instant prepaid confirmation',
               'UPI, कार्ड आणि Razorpay · त्वरित प्रीपेड पुष्टीकरण',
@@ -848,7 +848,7 @@ export function PilgrimCheckoutScreen() {
         {paymentMethod === 'ONLINE'
           ? t(
               'Secure Razorpay checkout · prepaid bookings do not require owner approval',
-              'सुरक्षित Razorpay पेमंट · प्रीपेड बुकिंगला मालकाची मंजुरी आवश्यक नाही',
+              'सुरक्षित Razorpay पेमेंट · प्रीपेड बुकिंगला मालकाची मंजुरी आवश्यक नाही',
             )
           : t(
               'Your request will be sent to the lodge owner',
@@ -858,10 +858,10 @@ export function PilgrimCheckoutScreen() {
       {step === 3 && paymentMethod === 'ONLINE' && (prepaidPreparing || prepaidError) ? (
         <Text className="text-center text-xs text-warm-400">
           {prepaidPreparing
-            ? t('Setting up secure payment…', 'सुरक्षित पेमंट तयार होत आहे…')
+            ? t('Setting up secure payment…', 'सुरक्षित पेमेंट तयार होत आहे…')
             : t(
                 'Payment will be set up when you tap Pay — it may take a moment longer.',
-                'पेमंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
+                'पेमेंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
               )}
         </Text>
       ) : null}
@@ -886,7 +886,7 @@ function CheckoutStepHeader({
   }> = [
     { step: 1, label: 'Stay', marathi: 'निवास', icon: 'bed-outline' },
     { step: 2, label: 'Guest', marathi: 'पाहुणे', icon: 'account-outline' },
-    { step: 3, label: 'Payment', marathi: 'पेमंट', icon: 'credit-card-outline' },
+    { step: 3, label: 'Payment', marathi: 'पेमेंट', icon: 'credit-card-outline' },
   ];
   return (
     <View className="flex-row rounded-3xl border border-warm-200 bg-white p-2">
