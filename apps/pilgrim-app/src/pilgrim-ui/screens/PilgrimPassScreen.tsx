@@ -5,14 +5,15 @@ import type { QrDisplayPayload } from '@tuljai/types';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 
+import brandIcon from '../../../assets/icon.png';
 import { useAuth } from '../../auth/auth-context';
 import { getBookingQrMetadata } from '../../features/bookings/api/booking-qr-api';
 import { isActionablePassBooking, selectCurrentPassBooking } from '../booking-selection';
-import { AppScreen, EmptyState, InfoRow, PrimaryButton, ui } from '../components';
+import { AppScreen, EmptyState, InfoRow, PrimaryButton, SecondaryButton, ui } from '../components';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 export function PilgrimPassScreen() {
@@ -100,7 +101,7 @@ export function PilgrimPassScreen() {
     <AppScreen className="gap-5 pt-2">
       <View>
         <View className="flex-row items-center gap-3">
-          <View className="h-12 w-12 items-center justify-center rounded-2xl bg-maroon-700">
+          <View className="h-12 w-12 items-center justify-center rounded-full bg-maroon-700">
             <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={26} />
           </View>
           <View className="flex-1">
@@ -144,7 +145,7 @@ export function PilgrimPassScreen() {
             <Text className="mt-2 text-center text-sm leading-6 text-warm-600">
               {t(
                 'Your QR will appear here automatically as soon as the lodge accepts this stay.',
-                'लॉजने हा निवास स्वीकारताच तुमचा QR येथे आपोआप दिसेल.',
+                'लॉजने हा निवास स्वीकारतास तुमचा QR येथे आपोआप दिसेल.',
               )}
             </Text>
           </View>
@@ -157,15 +158,9 @@ export function PilgrimPassScreen() {
               last
             />
           </View>
-          <Pressable
-            className="mx-4 mb-4 min-h-14 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700"
-            onPress={() => void refreshPass()}
-          >
-            <MaterialCommunityIcons color="#FFFFFF" name="refresh" size={21} />
-            <Text className="text-sm font-extrabold text-white">
-              {t('Check status again', 'स्थिती पुन्हा तपासा')}
-            </Text>
-          </Pressable>
+          <PrimaryButton className="mx-4 mb-4" icon="refresh" onPress={() => void refreshPass()}>
+            {t('Check status again', 'स्थिती पुन्हा तपासा')}
+          </PrimaryButton>
         </View>
       ) : booking.status === 'checked-in' ? (
         <View className="overflow-hidden rounded-3xl border border-templeGreen-100 bg-white">
@@ -187,17 +182,15 @@ export function PilgrimPassScreen() {
             <InfoRow icon="home-heart" label={t('Lodge', 'लॉज')} value={booking.lodgeName} />
             <InfoRow icon="bed-outline" label={t('Room', 'खोली')} value={booking.roomName} last />
           </View>
-          <Pressable
-            className="mx-4 mb-4 min-h-14 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon-700"
+          <PrimaryButton
+            className="mx-4 mb-4"
+            icon="book-open-outline"
             onPress={() =>
               router.push({ pathname: '/(app)/bookings/[id]', params: { id: booking.id } })
             }
           >
-            <MaterialCommunityIcons color="#FFFFFF" name="book-open-outline" size={21} />
-            <Text className="text-sm font-extrabold text-white">
-              {t('View stay details', 'निवासाची माहिती पहा')}
-            </Text>
-          </Pressable>
+            {t('View stay details', 'निवासाची माहिती पहा')}
+          </PrimaryButton>
         </View>
       ) : (
         <>
@@ -209,11 +202,7 @@ export function PilgrimPassScreen() {
               <View className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-saffron-500/20" />
               <View className="absolute -bottom-16 -left-12 h-44 w-44 rounded-full bg-white/5" />
               <View className="mb-5 flex-row items-center gap-2.5">
-                <Image
-                  className="h-9 w-9 rounded-xl"
-                  resizeMode="cover"
-                  source={require('../../../assets/icon.png')}
-                />
+                <Image className="h-9 w-9 rounded-xl" resizeMode="cover" source={brandIcon} />
                 <Text className="text-base font-extrabold tracking-tight text-white">
                   Tuljai Stays
                 </Text>
@@ -256,15 +245,9 @@ export function PilgrimPassScreen() {
             </View>
 
             {error ? (
-              <Pressable
-                className="min-h-14 flex-row items-center justify-center gap-2 rounded-2xl border border-warm-200 bg-white"
-                onPress={() => void refreshPass()}
-              >
-                <MaterialCommunityIcons color={ui.maroon} name="refresh" size={21} />
-                <Text className="text-sm font-extrabold text-maroon-700">
-                  {t('Try loading QR again', 'QR पुन्हा लोड करा')}
-                </Text>
-              </Pressable>
+              <SecondaryButton icon="refresh" onPress={() => void refreshPass()}>
+                {t('Try loading QR again', 'QR पुन्हा लोड करा')}
+              </SecondaryButton>
             ) : null}
 
             <View className="rounded-3xl border border-warm-100 bg-white px-4">
@@ -292,7 +275,7 @@ export function PilgrimPassScreen() {
             {t('Download pass', 'पास डाउनलोड करा')}
           </PrimaryButton>
 
-          <View className="flex-row items-start gap-3 rounded-2xl bg-bell-50 p-4">
+          <View className="flex-row items-start gap-3 rounded-3xl bg-bell-50 p-4">
             <MaterialCommunityIcons color="#884E13" name="shield-check-outline" size={22} />
             <Text className="flex-1 text-sm leading-5 text-warm-600">
               {t(
