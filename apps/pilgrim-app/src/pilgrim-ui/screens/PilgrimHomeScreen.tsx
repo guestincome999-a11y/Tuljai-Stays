@@ -311,7 +311,7 @@ export function PilgrimHomeScreen() {
         <Text className="text-center text-xs text-warm-500">
           {t(
             `Rooms from ${formatRupees(699)} per night · No hidden platform fees`,
-            `${formatRupees(699)} प्रति रात्र पासून · कोणतेही लपलेले शुल्क नाही.`,
+            `${formatRupees(699)} प्रति रात्र पासून · कोणतेही लपलेले शुल्क नाही`,
           )}
         </Text>
       </View>
