@@ -8,7 +8,16 @@ import { requestLoginOtp, useMockExperience } from '../../auth/auth-api';
 import { useAuth } from '../../auth/auth-context';
 import { GoogleLoginCancelledError, startGoogleLogin } from '../../auth/google-auth';
 import { AnimatedWelcomeSplash } from '../../components/AnimatedWelcomeSplash';
-import { AppScreen, BrandMark, Field, LanguageToggle, PrimaryButton, ui } from '../components';
+import {
+  AppScreen,
+  BrandMark,
+  Field,
+  IconButton,
+  LanguageToggle,
+  PrimaryButton,
+  Reveal,
+  ui,
+} from '../components';
 import { LegalDocument, type LegalDocumentKind } from '../legal-documents';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
@@ -110,24 +119,26 @@ export function PilgrimLoginScreen() {
         <LanguageToggle />
       </View>
 
-      <View className="relative min-h-60 overflow-hidden rounded-3xl bg-maroon-700 p-6">
-        <View className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-saffron-500/20" />
-        <View className="absolute -bottom-14 -left-8 h-36 w-36 rounded-full bg-white/5" />
-        <View className="h-20 w-20 items-center justify-center rounded-3xl bg-white/10">
-          <MaterialCommunityIcons color="#FFE8C8" name="temple-hindu" size={49} />
+      <Reveal index={0}>
+        <View className="relative min-h-60 overflow-hidden rounded-3xl bg-maroon-700 p-6 shadow-lg shadow-maroon-800/30">
+          <View className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-saffron-500/20" />
+          <View className="absolute -bottom-14 -left-8 h-36 w-36 rounded-full bg-white/5" />
+          <View className="h-20 w-20 items-center justify-center rounded-full bg-white/10">
+            <MaterialCommunityIcons color="#FFE8C8" name="temple-hindu" size={49} />
+          </View>
+          <Text className="mt-5 text-3xl font-extrabold leading-10 text-white">
+            {t('A peaceful stay for your sacred journey', 'तुमच्या पवित्र यात्रेसाठी शांत निवास')}
+          </Text>
+          <Text className="mt-2 text-sm leading-6 text-orange-100">
+            {t(
+              'Verified lodges and Bhakt Niwas near Tulja Bhavani Temple.',
+              'तुळजाभवानी मंदिराजवळील सत्यापित लॉज आणि भक्त निवास.',
+            )}
+          </Text>
         </View>
-        <Text className="mt-5 text-3xl font-extrabold leading-10 text-white">
-          {t('A peaceful stay for your sacred journey', 'तुमच्या पवित्र यात्रेसाठी शांत निवास')}
-        </Text>
-        <Text className="mt-2 text-sm leading-6 text-orange-100">
-          {t(
-            'Verified lodges and Bhakt Niwas near Tulja Bhavani Temple.',
-            'तुळजाभवानी मंदिराजवळील सत्यापित लॉज आणि भक्त निवास.',
-          )}
-        </Text>
-      </View>
+      </Reveal>
 
-      <View>
+      <Reveal index={1}>
         <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
           {t('Welcome to Tuljai Stays', 'तुळजाई स्टेजमध्ये स्वागत')}
         </Text>
@@ -137,10 +148,10 @@ export function PilgrimLoginScreen() {
             'तुमच्या मोबाइल क्रमांकाने किंवा Google खात्याने सुरक्षितपणे साइन इन करा.',
           )}
         </Text>
-      </View>
+      </Reveal>
 
       {auth.sessionExpiredMessage ? (
-        <View className="flex-row items-center gap-2 rounded-2xl bg-saffron-50 p-3">
+        <View className="flex-row items-center gap-2 rounded-3xl bg-saffron-50 p-4">
           <MaterialCommunityIcons color={ui.saffronDeep} name="information-outline" size={19} />
           <Text className="flex-1 text-sm font-semibold text-warm-700">
             {auth.sessionExpiredMessage}
@@ -162,7 +173,7 @@ export function PilgrimLoginScreen() {
           value={phone}
         />
         {error ? (
-          <View className="mt-3 flex-row items-center gap-2 rounded-2xl bg-danger-50 p-3">
+          <View className="mt-3 flex-row items-center gap-2 rounded-3xl bg-danger-50 p-4">
             <MaterialCommunityIcons color={ui.danger} name="alert-circle-outline" size={19} />
             <Text className="flex-1 text-sm font-semibold text-danger-700">{error}</Text>
           </View>
@@ -175,7 +186,7 @@ export function PilgrimLoginScreen() {
         )}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: agreedToTerms }}
-        className="flex-row items-start gap-3"
+        className="min-h-12 flex-row items-start gap-3 py-1"
         hitSlop={4}
         onPress={() => {
           setAgreedToTerms((value) => !value);
@@ -183,7 +194,7 @@ export function PilgrimLoginScreen() {
         }}
       >
         <View
-          className={`mt-0.5 h-6 w-6 items-center justify-center rounded-md border-2 ${agreedToTerms ? 'border-maroon-700 bg-maroon-700' : 'border-warm-300 bg-white'}`}
+          className={`mt-0.5 h-7 w-7 items-center justify-center rounded-lg border-2 ${agreedToTerms ? 'border-maroon-700 bg-maroon-700' : 'border-warm-300 bg-white'}`}
         >
           {agreedToTerms ? (
             <MaterialCommunityIcons color="#FFFFFF" name="check-bold" size={15} />
@@ -231,7 +242,7 @@ export function PilgrimLoginScreen() {
         accessibilityLabel={t('Continue with Google', 'Google सह पुढे चला')}
         accessibilityRole="button"
         accessibilityState={{ disabled: loading || googleLoading || !agreedToTerms }}
-        className={`min-h-14 flex-row items-center justify-center gap-3 rounded-2xl border border-warm-200 bg-white px-5 ${loading || googleLoading || !agreedToTerms ? 'opacity-60' : 'active:bg-warm-50'}`}
+        className={`min-h-14 flex-row items-center justify-center gap-3 rounded-full border-[1.5px] border-warm-200 bg-white px-5 transition-transform duration-150 ${loading || googleLoading || !agreedToTerms ? 'opacity-60' : 'active:scale-95 active:bg-warm-50'}`}
         disabled={loading || googleLoading || !agreedToTerms}
         onPress={() => void continueWithGoogle()}
       >
@@ -245,7 +256,7 @@ export function PilgrimLoginScreen() {
         </Text>
       </Pressable>
 
-      <View className="flex-row items-start gap-3 rounded-2xl bg-saffron-50 p-4">
+      <View className="flex-row items-start gap-3 rounded-3xl bg-saffron-50 p-4">
         <MaterialCommunityIcons color={ui.saffronDeep} name="shield-lock-outline" size={22} />
         <Text className="flex-1 text-sm leading-5 text-warm-600">
           {t(
@@ -273,7 +284,8 @@ export function PilgrimLoginScreen() {
             </View>
             <Pressable
               accessibilityLabel={t('Close legal document', 'कायदेशीर दस्तऐवज बंद करा')}
-              className="h-10 w-10 items-center justify-center rounded-full bg-warm-100"
+              accessibilityRole="button"
+              className="h-12 w-12 items-center justify-center rounded-full bg-warm-100 transition-transform duration-150 active:scale-90"
               hitSlop={8}
               onPress={() => setLegalOpen(false)}
             >
@@ -357,13 +369,14 @@ export function PilgrimVerifyOtpScreen() {
 
   return (
     <AppScreen className="gap-7 pt-3">
-      <Pressable
-        className="h-12 w-12 items-center justify-center rounded-2xl bg-warm-100"
-        onPress={() => router.back()}
-      >
-        <MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} />
-      </Pressable>
-      <View className="h-20 w-20 items-center justify-center rounded-3xl bg-saffron-100">
+      <View className="self-start">
+        <IconButton
+          accessibilityLabel="Go back"
+          icon="chevron-left"
+          onPress={() => router.back()}
+        />
+      </View>
+      <View className="h-20 w-20 items-center justify-center rounded-full bg-saffron-100">
         <MaterialCommunityIcons color={ui.saffronDeep} name="message-lock-outline" size={39} />
       </View>
       <View>
@@ -382,10 +395,10 @@ export function PilgrimVerifyOtpScreen() {
         <View className="flex-row justify-between gap-3">
           {Array.from({ length: OTP_LENGTH }, (_, index) => (
             <View
-              className={`h-14 flex-1 items-center justify-center rounded-xl border-2 bg-white ${otp.length === index ? 'border-saffron-500' : otp[index] ? 'border-templeGreen-500' : 'border-warm-200'}`}
+              className={`h-16 flex-1 items-center justify-center rounded-2xl border-2 bg-white ${otp.length === index ? 'border-saffron-500' : otp[index] ? 'border-templeGreen-500' : 'border-warm-200'}`}
               key={index}
             >
-              <Text className="text-xl font-extrabold text-warm-900">{otp[index] ?? ''}</Text>
+              <Text className="text-2xl font-extrabold text-warm-900">{otp[index] ?? ''}</Text>
             </View>
           ))}
         </View>
@@ -412,7 +425,7 @@ export function PilgrimVerifyOtpScreen() {
         </Text>
         {seconds === 0 ? (
           <Pressable
-            className="min-h-11 justify-center"
+            className="min-h-12 justify-center rounded-full px-5 active:bg-saffron-50"
             disabled={resending}
             onPress={() => void resend()}
           >
@@ -427,7 +440,7 @@ export function PilgrimVerifyOtpScreen() {
       </PrimaryButton>
 
       {previewOtp ? (
-        <View className="items-center rounded-2xl bg-bell-50 p-4">
+        <View className="items-center rounded-3xl bg-bell-50 p-4">
           <Text className="text-xs font-bold text-bell-700">
             {t('PREVIEW CODE', 'प्रीव्ह्यू कोड')}
           </Text>
