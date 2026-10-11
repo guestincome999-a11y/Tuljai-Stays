@@ -367,9 +367,22 @@ export function SearchBox({
           value={value}
         />
       )}
-      <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-500">
-        <MaterialCommunityIcons color="#FFFFFF" name="tune-variant" size={20} />
-      </View>
+      {onPress ? (
+        <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-500">
+          <MaterialCommunityIcons color="#FFFFFF" name="tune-variant" size={20} />
+        </View>
+      ) : value ? (
+        <Pressable
+          accessibilityLabel="Clear search"
+          accessibilityRole="button"
+          className="h-11 w-11 items-center justify-center rounded-full bg-warm-100 transition-transform duration-150 active:scale-90 active:bg-warm-200"
+          onPress={() => onChangeText?.('')}
+        >
+          <MaterialCommunityIcons color={ui.muted} name="close" size={20} />
+        </Pressable>
+      ) : (
+        <View className="h-11 w-3" />
+      )}
     </View>
   );
   return onPress ? (
