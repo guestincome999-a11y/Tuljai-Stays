@@ -62,8 +62,11 @@ export function PilgrimTabBar({ state }: BottomTabBarProps) {
   }
 
   return (
-    <SafeAreaView className="border-t border-warm-200 bg-white" edges={['bottom']}>
-      <View className="relative h-[72px] flex-row items-center px-1">
+    <SafeAreaView
+      className="border-t border-warm-100 bg-white shadow-lg shadow-warm-900/10"
+      edges={['bottom']}
+    >
+      <View className="relative h-[76px] flex-row items-center px-2">
         {tabItems.slice(0, 2).map((item) => (
           <TabItem
             item={item}
@@ -78,7 +81,7 @@ export function PilgrimTabBar({ state }: BottomTabBarProps) {
           <Pressable
             accessibilityLabel={t('Open upcoming stay pass', 'आगामी निवास पास उघडा')}
             accessibilityRole="button"
-            className={`absolute -top-8 h-[68px] w-[68px] items-center justify-center rounded-full border-[5px] border-white shadow-lg shadow-maroon-800/30 active:bg-maroon-800 ${passSelected ? 'bg-saffron-600' : 'bg-maroon-700'}`}
+            className={`absolute -top-8 h-[68px] w-[68px] items-center justify-center rounded-full border-[5px] border-white shadow-lg shadow-maroon-800/40 transition-transform duration-150 active:scale-90 active:bg-maroon-800 ${passSelected ? 'bg-saffron-600' : 'bg-maroon-700'}`}
             onPress={openPass}
           >
             <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={29} />
@@ -87,7 +90,7 @@ export function PilgrimTabBar({ state }: BottomTabBarProps) {
             ) : null}
           </Pressable>
           <Text
-            className={`mt-10 text-[11px] font-extrabold ${passSelected ? 'text-saffron-700' : 'text-maroon-700'}`}
+            className={`mt-10 text-xs font-extrabold ${passSelected ? 'text-saffron-700' : 'text-maroon-700'}`}
           >
             {t('Pass', 'पास')}
           </Text>
@@ -126,11 +129,11 @@ function TabItem({
       accessibilityLabel={t(item.label, item.labelMr)}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      className="min-h-16 flex-1 items-center justify-center gap-1"
+      className="min-h-16 flex-1 items-center justify-center gap-1 transition-transform duration-150 active:scale-90"
       onPress={() => router.push(item.href)}
     >
       <View
-        className={`h-8 min-w-12 items-center justify-center rounded-full px-3 ${selected ? 'bg-saffron-50' : ''}`}
+        className={`h-8 min-w-14 items-center justify-center rounded-full px-4 ${selected ? 'bg-saffron-100' : ''}`}
       >
         <MaterialCommunityIcons
           color={selected ? ui.saffronDeep : ui.muted}
@@ -138,7 +141,7 @@ function TabItem({
           size={23}
         />
       </View>
-      <Text className={`text-[10px] font-bold ${selected ? 'text-saffron-700' : 'text-warm-500'}`}>
+      <Text className={`text-[11px] font-bold ${selected ? 'text-saffron-700' : 'text-warm-500'}`}>
         {t(item.label, item.labelMr)}
       </Text>
     </Pressable>
