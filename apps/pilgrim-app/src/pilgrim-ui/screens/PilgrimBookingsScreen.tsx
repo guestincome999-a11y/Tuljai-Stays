@@ -3,7 +3,15 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 
-import { AppScreen, EmptyState, LoadingList, PrimaryButton, StatusBadge, ui } from '../components';
+import {
+  AppScreen,
+  EmptyState,
+  LoadingList,
+  PrimaryButton,
+  Reveal,
+  StatusBadge,
+  ui,
+} from '../components';
 import { formatRupees, type PilgrimBooking } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
@@ -24,19 +32,21 @@ export function PilgrimBookingsScreen() {
 
   return (
     <AppScreen className="gap-5 pt-2">
-      <View>
-        <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
+      <Reveal index={0}>
+        <Text className="text-[28px] font-extrabold tracking-tight text-warm-900">
           {t('My bookings', 'माझी बुकिंग')}
         </Text>
         <Text className="mt-1 text-sm text-warm-500">
           {t('Everything for your Tuljapur yatra', 'तुमच्या तुळजापूर यात्रेची सर्व माहिती')}
         </Text>
-      </View>
+      </Reveal>
 
-      <View className="flex-row rounded-2xl bg-warm-100 p-1">
+      <View className="flex-row rounded-full bg-warm-100 p-1.5">
         {(['upcoming', 'past'] as const).map((item) => (
           <Pressable
-            className={`min-h-12 flex-1 items-center justify-center rounded-xl ${tab === item ? 'bg-white shadow-sm shadow-warm-900/10' : ''}`}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === item }}
+            className={`min-h-12 flex-1 items-center justify-center rounded-full transition-transform duration-150 active:scale-95 ${tab === item ? 'bg-white shadow-md shadow-warm-900/10' : ''}`}
             key={item}
             onPress={() => setTab(item)}
           >
@@ -55,22 +65,26 @@ export function PilgrimBookingsScreen() {
           <Text className="flex-1 text-sm font-semibold text-danger-700">
             {t('Bookings could not be refreshed.', 'बुकिंग अपडेट करता आली नाहीत.')}
           </Text>
-          <Pressable className="min-h-11 justify-center" onPress={() => void refresh()}>
+          <Pressable
+            className="min-h-11 justify-center rounded-full bg-white px-4 active:opacity-70"
+            onPress={() => void refresh()}
+          >
             <Text className="text-sm font-extrabold text-danger-700">{t('Retry', 'पुन्हा')}</Text>
           </Pressable>
         </View>
       ) : null}
 
-      <View className="gap-3">
-        {visible.map((booking) => (
-          <BookingCard
-            booking={booking}
-            checkoutFlexibleLabel={t('Checkout not fixed', 'चेक-आउट निश्चित नाही')}
-            key={booking.id}
-            onPress={() =>
-              router.push({ pathname: '/(app)/bookings/[id]', params: { id: booking.id } })
-            }
-          />
+      <View className="gap-4">
+        {visible.map((booking, index) => (
+          <Reveal index={index} key={booking.id}>
+            <BookingCard
+              booking={booking}
+              checkoutFlexibleLabel={t('Checkout not fixed', 'चेक-आउट निश्चित नाही')}
+              onPress={() =>
+                router.push({ pathname: '/(app)/bookings/[id]', params: { id: booking.id } })
+              }
+            />
+          </Reveal>
         ))}
       </View>
 
@@ -118,11 +132,12 @@ function BookingCard({
   return (
     <Pressable
       accessibilityRole="button"
-      className="min-h-[132px] flex-row overflow-hidden rounded-2xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10"
+      className="min-h-[140px] flex-row overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10 transition-transform duration-150 active:scale-[0.985]"
       onPress={onPress}
     >
       <Image
-        className="w-[112px] self-stretch"
+        className="w-[112px] self-stretch bg-warm-100"
+        fadeDuration={150}
         resizeMode="cover"
         source={{ uri: booking.image }}
       />
