@@ -272,7 +272,7 @@ export function PilgrimLodgeDetailScreen() {
                 >
                   {index === 0 ? (
                     <View className="bg-saffron-500 px-4 py-2">
-                      <Text className="text-xs font-extrabold text-white">
+                      <Text className="text-xs font-extrabold text-warm-900">
                         {t('BEST VALUE FOR FAMILIES', 'कुटुंबासाठी उत्तम पर्याय')}
                       </Text>
                     </View>
