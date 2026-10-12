@@ -100,12 +100,12 @@ export default function ResetPasswordScreen() {
             {t('Choose a new password', 'नवीन पासवर्ड निवडा')}
           </Text>
         </View>
-        <View className="gap-5 rounded-3xl border border-warm-100 bg-white p-6 shadow-md shadow-warm-900/10">
+        <View className="gap-5 rounded-2xl border border-warm-200 bg-white p-5">
           <View className="gap-2">
             <Text className="font-body text-sm font-bold text-warm-700">
               {t('New password', 'नवीन पासवर्ड')}
             </Text>
-            <View className="min-h-14 flex-row items-center rounded-2xl border-[1.5px] border-warm-200 bg-white px-4">
+            <View className="min-h-14 flex-row items-center rounded-xl border border-warm-300 bg-warm-50 px-4">
               <TextInput
                 accessibilityLabel="New password"
                 autoCapitalize="none"
@@ -149,7 +149,7 @@ export default function ResetPasswordScreen() {
             <TextInput
               accessibilityLabel="Confirm new password"
               autoCapitalize="none"
-              className="min-h-14 rounded-2xl border-[1.5px] border-warm-200 bg-white px-4 font-body text-base text-warm-900"
+              className="min-h-14 rounded-xl border border-warm-300 bg-warm-50 px-4 font-body text-base text-warm-900"
               secureTextEntry={!isPasswordVisible}
               textContentType="newPassword"
               value={confirmPassword}
