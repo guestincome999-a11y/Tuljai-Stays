@@ -237,7 +237,7 @@ export function PilgrimLodgesScreen() {
                 key={chip.key}
                 onPress={() => setActiveFilter(chip.key)}
               >
-                <Text className={`text-sm font-bold ${active ? 'text-white' : 'text-warm-700'}`}>
+                <Text className={`text-sm font-bold ${active ? 'text-warm-900' : 'text-warm-700'}`}>
                   {t(chip.label, chip.labelMr)}
                 </Text>
               </Pressable>
