@@ -89,11 +89,27 @@ export function DashboardScreen() {
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
             {selectedLodge.name}
           </Text>
-          <Text style={{ color: theme.colors.primary }} variant="labelLarge">
-            {realtime.connected ? tr('Realtime connected') : tr('Realtime reconnecting')}
-          </Text>
+          <View
+            style={[
+              styles.liveChip,
+              { backgroundColor: realtime.connected ? '#EFF7F1' : '#FFFAEB' },
+            ]}
+          >
+            <View
+              style={[
+                styles.liveDot,
+                { backgroundColor: realtime.connected ? '#4A7C59' : '#C98B17' },
+              ]}
+            />
+            <Text
+              style={{ color: realtime.connected ? '#35543F' : '#884E13' }}
+              variant="labelMedium"
+            >
+              {realtime.connected ? tr('Realtime connected') : tr('Realtime reconnecting')}
+            </Text>
+          </View>
         </View>
-        <View style={styles.notificationIcon}>
+        <View style={[styles.notificationIcon, { backgroundColor: theme.colors.surface }]}>
           <IconButton
             accessibilityHint="Opens booking alerts and owner notifications."
             accessibilityLabel={`Open notifications, ${bellAlertCount} alerts`}
@@ -118,7 +134,9 @@ export function DashboardScreen() {
       <Button
         accessibilityHint="Opens all bookings with date and status filters."
         accessibilityLabel="Open owner bookings"
+        contentStyle={styles.bigButtonContent}
         icon="clipboard-list-outline"
+        labelStyle={styles.bigButtonLabel}
         mode="contained"
         onPress={() => router.push('/(app)/bookings')}
       >
@@ -148,9 +166,11 @@ export function DashboardScreen() {
               <Button
                 accessibilityHint={`Sets owner status to ${formatOwnerStatus(status, tr)} for live presence.`}
                 accessibilityLabel={`Set owner status ${formatOwnerStatus(status, tr)}`}
+                contentStyle={styles.statusButtonContent}
                 key={status}
                 mode={realtime.ownerStatus === status ? 'contained' : 'outlined'}
                 onPress={() => realtime.setOwnerStatus(status)}
+                style={styles.statusButton}
               >
                 {formatOwnerStatus(status, tr)}
               </Button>
@@ -264,7 +284,9 @@ export function DashboardScreen() {
         <Button
           accessibilityHint="Opens arrivals, departures, and guest register summary."
           accessibilityLabel="Open register dashboard"
+          contentStyle={styles.bigButtonContent}
           icon="book-open-variant"
+          labelStyle={styles.bigButtonLabel}
           mode="contained-tonal"
           onPress={() => router.push('/(app)/register-dashboard')}
         >
@@ -273,7 +295,9 @@ export function DashboardScreen() {
         <Button
           accessibilityHint="Opens room status and gallery management."
           accessibilityLabel="Open room management"
+          contentStyle={styles.bigButtonContent}
           icon="bed-outline"
+          labelStyle={styles.bigButtonLabel}
           mode="contained-tonal"
           onPress={() => router.push('/(app)/rooms')}
         >
@@ -427,14 +451,21 @@ const styles = StyleSheet.create({
     top: 0,
     width: 20,
   },
+  bigButtonContent: {
+    minHeight: 56,
+  },
+  bigButtonLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
   card: {
-    borderRadius: radius.sm,
+    borderRadius: radius.xl,
   },
   cardContent: {
     gap: spacing.sm,
   },
   financeCard: {
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     flex: 1,
     minWidth: 156,
   },
@@ -487,13 +518,29 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     justifyContent: 'space-between',
   },
+  liveChip: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderRadius: radius.full,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  liveDot: {
+    borderRadius: radius.full,
+    height: 8,
+    width: 8,
+  },
   notificationIcon: {
     alignItems: 'center',
+    borderColor: '#E8DED2',
     borderRadius: radius.full,
-    height: 48,
+    borderWidth: 1,
+    height: 52,
     justifyContent: 'center',
     position: 'relative',
-    width: 48,
+    width: 52,
   },
   receptionBlock: {
     gap: spacing.xs,
@@ -504,7 +551,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   statCard: {
-    borderRadius: radius.sm,
+    borderRadius: radius.xl,
     flexBasis: '47%',
     flexGrow: 1,
   },
@@ -517,8 +564,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.md,
   },
+  statusButton: {
+    flex: 1,
+  },
+  statusButtonContent: {
+    minHeight: 48,
+  },
   statusCard: {
-    borderRadius: radius.sm,
+    borderRadius: radius.xl,
   },
   statusRow: {
     flexDirection: 'row',
@@ -529,19 +582,19 @@ const styles = StyleSheet.create({
 
 const financeColors = {
   income: {
-    background: '#E3F8FA',
-    icon: '#047C91',
-    iconBackground: '#C4F0F5',
-    label: '#075B6A',
-    subtitle: '#397481',
-    value: '#023E4A',
+    background: '#EFF7F1',
+    icon: '#35543F',
+    iconBackground: '#DDEEE1',
+    label: '#35543F',
+    subtitle: '#62554E',
+    value: '#2B2320',
   },
   payable: {
-    background: '#D3F3F7',
-    icon: '#006E83',
-    iconBackground: '#B4EAF1',
-    label: '#075B6A',
-    subtitle: '#397481',
-    value: '#023E4A',
+    background: '#FFF7ED',
+    icon: '#A64F12',
+    iconBackground: '#FFEDD5',
+    label: '#853F16',
+    subtitle: '#62554E',
+    value: '#2B2320',
   },
 } as const;
