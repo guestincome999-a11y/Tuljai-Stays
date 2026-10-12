@@ -167,7 +167,7 @@ export function LanguageToggle({ inverse = false }: { inverse?: boolean }) {
             onPress={() => setLanguage(item)}
           >
             <Text
-              className={`text-xs font-extrabold ${active ? (inverse ? 'text-maroon-700' : 'text-white') : inverse ? 'text-white' : 'text-warm-600'}`}
+              className={`text-xs font-extrabold ${active ? (inverse ? 'text-maroon-700' : 'text-warm-900') : inverse ? 'text-white' : 'text-warm-600'}`}
             >
               {item === 'en' ? 'EN' : 'मरा'}
             </Text>
@@ -259,11 +259,11 @@ export function PrimaryButton({
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color="#FFFFFF" />
+        <ActivityIndicator color={ui.ink} />
       ) : icon ? (
-        <MaterialCommunityIcons color={disabled ? ui.muted : '#FFFFFF'} name={icon} size={22} />
+        <MaterialCommunityIcons color={disabled ? ui.muted : ui.ink} name={icon} size={22} />
       ) : null}
-      <Text className={`text-base font-extrabold ${disabled ? 'text-warm-500' : 'text-white'}`}>
+      <Text className={`text-base font-extrabold ${disabled ? 'text-warm-500' : 'text-warm-900'}`}>
         {children}
       </Text>
     </Pressable>
