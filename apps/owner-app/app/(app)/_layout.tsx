@@ -35,12 +35,17 @@ export default function AppLayout() {
           headerShown: false,
           tabBarActiveTintColor: '#7A1F2B',
           tabBarInactiveTintColor: '#817267',
-          tabBarLabelStyle: { fontSize: 10, fontWeight: '700', marginBottom: 7 },
+          tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginBottom: 7 },
           tabBarStyle: {
             backgroundColor: '#FFFFFF',
-            borderTopColor: '#E8DED2',
+            borderTopColor: '#F4EEE6',
+            elevation: 14,
             height: 76,
             paddingTop: 6,
+            shadowColor: '#2B2320',
+            shadowOffset: { height: -4, width: 0 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
           },
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
             <MaterialCommunityIcons color={color} name={getTabIcon(route.name)} size={size} />

@@ -8,6 +8,7 @@ import {
   type PressableProps,
   type ScrollViewProps,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { useOwnerApp } from './OwnerAppProvider';
 
@@ -27,6 +28,28 @@ export function Screen({ children, ...props }: PropsWithChildren<ScrollViewProps
   );
 }
 
+/**
+ * Entrance animation wrapper: content fades in and rises slightly. Stagger a
+ * group of blocks by passing each one its `index`. Runs on the UI thread.
+ */
+export function Reveal({
+  children,
+  index = 0,
+  className = '',
+}: PropsWithChildren<{ className?: string; index?: number }>) {
+  return (
+    <Animated.View
+      className={className}
+      entering={FadeInDown.duration(320)
+        .delay(Math.min(index, 8) * 45)
+        .springify()
+        .damping(18)}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 export function PageHeader({
   title,
   subtitle,
@@ -37,21 +60,23 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <View className="flex-row items-start justify-between gap-4">
+    <Reveal className="flex-row items-start justify-between gap-4" index={0}>
       <View className="flex-1 gap-1">
-        <Text className="font-heading text-2xl font-bold text-warm-900">{title}</Text>
+        <Text className="font-heading text-[26px] font-bold leading-8 text-warm-900">{title}</Text>
         {subtitle ? (
           <Text className="font-body text-sm leading-5 text-warm-600">{subtitle}</Text>
         ) : null}
       </View>
       {action}
-    </View>
+    </Reveal>
   );
 }
 
 export function Card({ children, className = '' }: PropsWithChildren<{ className?: string }>) {
   return (
-    <View className={`rounded-2xl border border-warm-200 bg-white p-4 shadow-sm ${className}`}>
+    <View
+      className={`rounded-3xl border border-warm-100 bg-white p-4 shadow-md shadow-warm-900/10 ${className}`}
+    >
       {children}
     </View>
   );
@@ -75,7 +100,8 @@ export function PrimaryButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`min-h-[52px] flex-row items-center justify-center gap-2 rounded-xl bg-saffron-500 px-5 active:bg-saffron-600 ${className}`}
+      accessibilityState={{ disabled: Boolean(props.disabled) }}
+      className={`min-h-14 flex-row items-center justify-center gap-2.5 rounded-full bg-saffron-500 px-6 shadow-md shadow-saffron-500/30 transition-transform duration-150 active:scale-95 active:bg-saffron-600 ${props.disabled ? 'opacity-50' : ''} ${className}`}
       {...props}
     >
       {icon ? <MaterialCommunityIcons color="#2B2320" name={icon} size={21} /> : null}
@@ -95,7 +121,8 @@ export function SecondaryButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`min-h-[52px] flex-row items-center justify-center gap-2 rounded-xl border bg-white px-5 active:bg-warm-100 ${destructive ? 'border-danger-500' : 'border-maroon-700'} ${className}`}
+      accessibilityState={{ disabled: Boolean(props.disabled) }}
+      className={`min-h-14 flex-row items-center justify-center gap-2.5 rounded-full border-[1.5px] bg-white px-6 transition-transform duration-150 active:scale-95 active:bg-warm-100 ${destructive ? 'border-danger-500' : 'border-maroon-700'} ${props.disabled ? 'opacity-50' : ''} ${className}`}
       {...props}
     >
       {icon ? <MaterialCommunityIcons color={color} name={icon} size={21} /> : null}
@@ -121,7 +148,8 @@ export function IconButton({
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
-      className="h-12 w-12 items-center justify-center rounded-xl bg-saffron-100"
+      className="h-12 w-12 items-center justify-center rounded-full bg-saffron-100 transition-transform duration-150 active:scale-90 active:bg-saffron-200"
+      hitSlop={6}
       onPress={onPress}
     >
       <MaterialCommunityIcons color="#7A1F2B" name={icon} size={24} />
@@ -156,7 +184,7 @@ export function LanguagePill() {
   return (
     <Pressable
       accessibilityRole="button"
-      className="min-h-12 min-w-16 items-center justify-center rounded-xl border border-warm-200 bg-white px-3"
+      className="min-h-12 min-w-16 items-center justify-center rounded-full border-[1.5px] border-warm-200 bg-white px-4 transition-transform duration-150 active:scale-95"
       onPress={() => setLanguage(language === 'en' ? 'mr' : 'en')}
     >
       <Text className="font-devanagari text-sm font-bold text-maroon-700">
