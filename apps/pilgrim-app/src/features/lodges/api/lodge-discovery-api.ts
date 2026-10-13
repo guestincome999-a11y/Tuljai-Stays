@@ -65,6 +65,15 @@ export function invalidateLodgeCatalogCache(): void {
   citiesCache = null;
 }
 
+// Clears only what an admin price/content edit can change (lodge details and
+// room types), keeping photos cached. Used by the background price refresh so
+// it stays light while still never serving a stale price.
+export function invalidateLodgePriceCache(): void {
+  cacheGeneration += 1;
+  lodgeDetailsCache.clear();
+  lodgeRoomTypesCache.clear();
+}
+
 export async function listCities(): Promise<City[]> {
   const cached = readCache(citiesCache);
 
