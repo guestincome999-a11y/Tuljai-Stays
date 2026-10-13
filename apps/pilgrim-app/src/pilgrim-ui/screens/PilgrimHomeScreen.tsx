@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PromotionalBanner } from '@tuljai/types';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Linking,
@@ -14,43 +14,24 @@ import {
 
 import { useAuth } from '../../auth/auth-context';
 import { usePublicSettings } from '../../settings/usePublicSettings';
-import {
-  AppScreen,
-  BrandMark,
-  IconButton,
-  LodgeCard,
-  LodgeCardSkeleton,
-  Reveal,
-  SearchBox,
-  SectionTitle,
-  StatusBadge,
-  ui,
-} from '../components';
+import { AppScreen, StatusBadge, type PilgrimIconName } from '../components';
+import { Gradient, GradientButton, home, HomeSectionHeader, IconChip } from '../home/HomeKit';
 import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
-const categories = [
-  {
-    icon: 'temple-hindu' as const,
-    label: 'Near temple',
-    labelMr: 'मंदिराजवळ',
-    quick: 'near-temple',
-  },
-  {
-    icon: 'account-group' as const,
-    label: 'Family stays',
-    labelMr: 'कुटुंबासाठी',
-    quick: 'family',
-  },
-  { icon: 'wallet-outline' as const, label: 'Budget', labelMr: 'बजेट', quick: 'budget' },
-  { icon: 'car' as const, label: 'Parking', labelMr: 'पार्किंग', quick: 'parking' },
-];
+const categories: Array<{ icon: PilgrimIconName; label: string; labelMr: string; quick: string }> =
+  [
+    { icon: 'temple-hindu', label: 'Near temple', labelMr: 'मंदिराजवळ', quick: 'near-temple' },
+    { icon: 'account-group', label: 'Family', labelMr: 'कुटुंब', quick: 'family' },
+    { icon: 'wallet-outline', label: 'Budget', labelMr: 'बजेट', quick: 'budget' },
+    { icon: 'car', label: 'Parking', labelMr: 'पार्किंग', quick: 'parking' },
+  ];
 
-// How many featured lodges show in the "Loved by pilgrims" strip. Only
-// these get their full details (photos, price) requested from the home
-// screen — the rest of the catalog stays untouched until the user opens
-// the full lodges list.
+// Only these lodges get their full details requested from Home; the rest of
+// the catalog stays untouched until the full lodges list is opened.
 const FEATURED_LODGE_COUNT = 4;
+const STAY_CARD_WIDTH = 248;
+const STAY_CARD_GAP = 14;
 
 export function PilgrimHomeScreen() {
   const router = useRouter();
@@ -71,142 +52,185 @@ export function PilgrimHomeScreen() {
   const upcoming = bookings.find(
     (booking) => booking.status === 'checked-in' || booking.status === 'confirmed',
   );
-  const unread = unreadCount;
   const firstName = auth.user?.displayName?.trim().split(/\s+/)[0];
   const featuredLodges = useMemo(() => lodges.slice(0, FEATURED_LODGE_COUNT), [lodges]);
   const featuredLodgeIdsKey = useMemo(
     () => featuredLodges.map((lodge) => lodge.id).join('|'),
     [featuredLodges],
   );
+  const startingPrice = useMemo(() => {
+    const prices = lodges
+      .filter((lodge) => lodge.hydrated !== false && lodge.price > 0)
+      .map((lodge) => lodge.price);
+    return prices.length > 0 ? Math.min(...prices) : null;
+  }, [lodges]);
 
   useEffect(() => {
     if (!featuredLodgeIdsKey) return;
     ensureLodgesHydrated(featuredLodgeIdsKey.split('|'));
   }, [ensureLodgesHydrated, featuredLodgeIdsKey]);
 
+  const openLodges = (quick?: string) =>
+    router.push(
+      quick ? { pathname: '/(app)/lodges', params: { quick } } : { pathname: '/(app)/lodges' },
+    );
+
   return (
-    <AppScreen className="gap-7 pt-2">
+    <AppScreen className="gap-6 pt-3">
+      {/* Header */}
       <View className="flex-row items-center justify-between">
-        <BrandMark compact />
-        <View className="relative">
-          <IconButton
-            accessibilityLabel="Open notifications"
-            icon="bell-outline"
-            onPress={() => router.push('/(app)/notifications')}
-          />
-          {unread > 0 ? (
+        <View className="min-w-0 flex-1 pr-3">
+          <Text className="text-[13px] font-semibold text-warm-500">
+            {t('Namaskar', 'नमस्कार')}
+            {firstName ? `, ${firstName}` : ''} 🙏
+          </Text>
+          <Text className="mt-0.5 text-[24px] font-extrabold tracking-tight text-warm-900">
+            {t('Find your stay', 'तुमचा निवास शोधा')}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityLabel="Open notifications"
+          accessibilityRole="button"
+          className="h-11 w-11 items-center justify-center rounded-full bg-white active:opacity-70"
+          onPress={() => router.push('/(app)/notifications')}
+          style={{ borderColor: home.line, borderWidth: 1 }}
+        >
+          <MaterialCommunityIcons color={home.ink} name="bell-outline" size={20} />
+          {unreadCount > 0 ? (
             <View
-              className="absolute right-0 top-0 h-5 min-w-5 items-center justify-center rounded-full border-2 border-warm-50 bg-maroon-700 px-1"
-              style={{ pointerEvents: 'none' }}
+              className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full px-1"
+              style={{ backgroundColor: home.primary, borderColor: '#FAF7F2', borderWidth: 2 }}
             >
-              <Text className="text-[10px] font-extrabold text-white">{unread}</Text>
+              <Text className="text-[10px] font-extrabold text-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
             </View>
           ) : null}
-        </View>
+        </Pressable>
       </View>
 
-      <Reveal index={0}>
-        <Text className="text-sm font-bold text-maroon-700">
-          {t('Namaskar', 'नमस्कार')}
-          {firstName ? ` ${firstName}` : ''} 🙏
+      {/* Search */}
+      <Pressable
+        accessibilityLabel={t('Search lodges', 'लॉज शोधा')}
+        accessibilityRole="button"
+        className="h-[52px] flex-row items-center gap-3 rounded-full bg-white pl-4 pr-2 active:opacity-90"
+        onPress={() => openLodges()}
+        style={{ borderColor: home.line, borderWidth: 1 }}
+      >
+        <MaterialCommunityIcons color={home.primary} name="magnify" size={20} />
+        <Text className="flex-1 text-[14px] font-medium text-warm-500" numberOfLines={1}>
+          {t('Search lodges, Bhakt Niwas or area', 'लॉज, भक्त निवास किंवा परिसर शोधा')}
         </Text>
-        <Text className="mt-1 text-[28px] font-extrabold leading-9 tracking-tight text-warm-900">
-          {t('Plan a peaceful darshan', 'शांत दर्शनाची योजना करा')}
-        </Text>
-        <Text className="mt-1 text-sm leading-5 text-warm-500">
-          {t('Verified stays around Tulja Bhavani Temple', 'तुळजाभवानी मंदिराजवळील सत्यापित निवास')}
-        </Text>
-      </Reveal>
+        <Gradient
+          colors={home.sunriseSoft}
+          style={{
+            alignItems: 'center',
+            borderRadius: 18,
+            height: 36,
+            justifyContent: 'center',
+            width: 36,
+          }}
+        >
+          <MaterialCommunityIcons color="#FFFFFF" name="tune-variant" size={16} />
+        </Gradient>
+      </Pressable>
 
-      <Reveal index={1}>
-        <SearchBox
-          onPress={() => router.push('/(app)/lodges')}
-          placeholder={t('Search lodges, Bhakt Niwas or area', 'लॉज, भक्त निवास किंवा परिसर शोधा')}
-        />
-      </Reveal>
-
+      {/* Live sync status */}
       {syncError ? (
-        <View className="flex-row items-center gap-3 rounded-2xl bg-danger-50 p-4">
-          <MaterialCommunityIcons color={ui.danger} name="cloud-alert-outline" size={22} />
-          <View className="flex-1">
-            <Text className="text-sm font-extrabold text-danger-700">
-              {t('Live updates are paused', 'लाइव्ह अपडेट थांबले आहेत')}
-            </Text>
-            <Text className="mt-0.5 text-xs text-warm-600">
-              {t('Saved lodge details are still available.', 'जतन केलेली लॉज माहिती उपलब्ध आहे.')}
-            </Text>
-          </View>
+        <View className="flex-row items-center gap-3 rounded-2xl bg-danger-50 px-4 py-3">
+          <MaterialCommunityIcons color="#C0392B" name="cloud-alert-outline" size={18} />
+          <Text className="flex-1 text-[13px] font-semibold text-danger-700">
+            {t('Live updates are paused', 'लाइव्ह अपडेट थांबले आहेत')}
+          </Text>
           <Pressable
-            className="min-h-11 justify-center rounded-full bg-white px-4 active:opacity-70"
+            accessibilityRole="button"
+            className="py-1 active:opacity-60"
+            hitSlop={8}
             onPress={() => void refresh()}
           >
-            <Text className="text-sm font-extrabold text-danger-700">{t('Retry', 'पुन्हा')}</Text>
+            <Text className="text-[13px] font-extrabold text-danger-700">
+              {t('Retry', 'पुन्हा')}
+            </Text>
           </Pressable>
         </View>
       ) : isSyncing ? (
-        <View className="flex-row items-center gap-2 rounded-2xl bg-warm-100 px-4 py-3">
-          <MaterialCommunityIcons color={ui.saffronDeep} name="cloud-sync-outline" size={20} />
-          <Text className="text-xs font-bold text-warm-600">
+        <View className="flex-row items-center gap-2 self-start rounded-full bg-white px-3 py-1.5">
+          <MaterialCommunityIcons color={home.primary} name="cloud-sync-outline" size={16} />
+          <Text className="text-[12px] font-semibold text-warm-600">
             {t('Updating live availability…', 'लाइव्ह उपलब्धता अपडेट होत आहे…')}
           </Text>
         </View>
       ) : null}
 
+      {/* Hero / promotions */}
       {publicSettings.promotionalBanners.length > 0 ? (
-        <PromotionalBannerCarousel banners={publicSettings.promotionalBanners} lodges={lodges} />
+        <BannerCarousel banners={publicSettings.promotionalBanners} lodges={lodges} />
       ) : (
-        <View className="overflow-hidden rounded-3xl bg-maroon-700 p-5">
-          <View className="absolute -right-8 -top-7 h-32 w-32 rounded-full bg-saffron-500/20" />
-          <View className="absolute -bottom-12 right-12 h-28 w-28 rounded-full bg-white/5" />
-          <View className="flex-row items-start gap-4">
-            <View className="min-w-0 flex-1">
-              <View className="self-start rounded-full bg-white/10 px-3 py-1.5">
-                <Text className="text-xs font-bold text-orange-100">
-                  NAVRATRI 2026 · EARLY ACCESS
-                </Text>
-              </View>
-              <Text className="mt-3 text-2xl font-extrabold leading-8 text-white">
-                {t('Book early. Travel with peace of mind.', 'लवकर बुक करा. निश्चिंत प्रवास करा.')}
-              </Text>
-              <Text className="mt-2 text-sm leading-5 text-orange-100">
-                {t(
-                  'Free cancellation on selected stays until 30 September.',
-                  'निवडक निवासांवर ३० सप्टेंबरपर्यंत मोफत रद्दीकरण.',
-                )}
-              </Text>
-              <Pressable
-                className="mt-4 min-h-12 self-start justify-center rounded-full bg-white px-5 transition-transform duration-150 active:scale-95"
-                onPress={() =>
-                  router.push({ pathname: '/(app)/lodges', params: { quick: 'family' } })
-                }
-              >
-                <Text className="text-sm font-extrabold text-maroon-700">
-                  {t('Explore Navratri stays', 'नवरात्र निवास पहा')}
-                </Text>
-              </Pressable>
-            </View>
-            <View className="h-20 w-20 items-center justify-center rounded-full bg-white/10">
-              <MaterialCommunityIcons color="#FFE8C8" name="temple-hindu" size={47} />
-            </View>
+        <Gradient colors={home.sunrise} style={{ borderRadius: 28, elevation: 4, padding: 22 }}>
+          <View
+            pointerEvents="none"
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.12)',
+              borderRadius: 90,
+              height: 180,
+              position: 'absolute',
+              right: -50,
+              top: -60,
+              width: 180,
+            }}
+          />
+          <View
+            pointerEvents="none"
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              borderRadius: 60,
+              bottom: -40,
+              height: 120,
+              position: 'absolute',
+              right: 60,
+              width: 120,
+            }}
+          />
+          <View className="flex-row items-center gap-1.5 self-start rounded-full bg-white/20 px-3 py-1.5">
+            <MaterialCommunityIcons color="#FFFFFF" name="map-marker" size={13} />
+            <Text className="text-[12px] font-bold text-white">
+              {t('Tulja Bhavani Temple, Tuljapur', 'तुळजाभवानी मंदिर, तुळजापूर')}
+            </Text>
           </View>
-        </View>
+          <Text className="mt-4 text-[24px] font-extrabold leading-[30px] text-white">
+            {t('Rest well. Pray in peace.', 'शांत मुक्काम. निश्चिंत दर्शन.')}
+          </Text>
+          <Text className="mb-5 mt-2 text-[14px] leading-5 text-white/90">
+            {startingPrice
+              ? t(
+                  `Verified stays from ${formatRupees(startingPrice)} per night.`,
+                  `${formatRupees(startingPrice)} प्रति रात्रीपासून सत्यापित निवास.`,
+                )
+              : t('Verified stays close to the temple.', 'मंदिराजवळ सत्यापित निवास.')}
+          </Text>
+          <GradientButton
+            icon="arrow-right"
+            label={t('Explore stays', 'निवास पहा')}
+            onPress={() => openLodges()}
+            tone="light"
+          />
+        </Gradient>
       )}
 
-      <View className="gap-4">
-        <SectionTitle title={t('Find your kind of stay', 'तुमच्या पसंतीचा निवास')} />
-        <View className="flex-row justify-between gap-2">
+      {/* Categories */}
+      <View className="gap-3">
+        <HomeSectionHeader title={t('Browse by need', 'गरजेनुसार निवडा')} />
+        <View className="flex-row gap-3">
           {categories.map((category) => (
             <Pressable
-              className="min-h-28 flex-1 items-center justify-center gap-2.5 rounded-3xl border border-warm-100 bg-white px-1 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-95 active:bg-saffron-50"
+              accessibilityRole="button"
+              className="flex-1 items-center gap-2 rounded-[20px] bg-white py-3.5 active:opacity-80"
               key={category.quick}
-              onPress={() =>
-                router.push({ pathname: '/(app)/lodges', params: { quick: category.quick } })
-              }
+              onPress={() => openLodges(category.quick)}
+              style={{ borderColor: home.line, borderWidth: 1 }}
             >
-              <View className="h-12 w-12 items-center justify-center rounded-full bg-saffron-50">
-                <MaterialCommunityIcons color={ui.saffronDeep} name={category.icon} size={24} />
-              </View>
-              <Text className="text-center text-[11px] font-bold text-warm-700" numberOfLines={2}>
+              <IconChip icon={category.icon} />
+              <Text className="text-[12px] font-bold text-warm-700" numberOfLines={1}>
                 {t(category.label, category.labelMr)}
               </Text>
             </Pressable>
@@ -214,73 +238,75 @@ export function PilgrimHomeScreen() {
         </View>
       </View>
 
+      {/* Upcoming stay */}
       {upcoming ? (
-        <View className="gap-4">
-          <SectionTitle
-            action={t('View booking', 'बुकिंग पहा')}
+        <View className="gap-3">
+          <HomeSectionHeader
+            actionLabel={t('Details', 'तपशील')}
             onAction={() =>
               router.push({ pathname: '/(app)/bookings/[id]', params: { id: upcoming.id } })
             }
             title={t('Your upcoming yatra', 'तुमची आगामी यात्रा')}
           />
           <Pressable
-            className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10 transition-transform duration-150 active:scale-[0.985]"
+            accessibilityRole="button"
+            className="flex-row overflow-hidden rounded-[22px] bg-white active:opacity-90"
             onPress={() =>
               router.push({ pathname: '/(app)/bookings/[id]', params: { id: upcoming.id } })
             }
+            style={{ borderColor: home.line, borderWidth: 1 }}
           >
-            <View className="bg-templeGreen-50 px-4 py-3">
-              <StatusBadge status={upcoming.status} />
-            </View>
-            <View className="gap-4 p-4">
-              <View>
-                <Text className="text-lg font-extrabold text-warm-900">{upcoming.lodgeName}</Text>
-                <Text className="mt-1 text-sm text-warm-500">{upcoming.roomName}</Text>
-              </View>
-              <View className="flex-row items-center gap-4 rounded-2xl bg-warm-50 p-3.5">
-                <View className="h-12 w-12 items-center justify-center rounded-full bg-white">
-                  <MaterialCommunityIcons color={ui.maroon} name="calendar-check" size={25} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-semibold text-warm-500">CHECK-IN · CHECK-OUT</Text>
-                  <Text className="mt-1 text-sm font-extrabold text-warm-900">
-                    {upcoming.checkIn} — {upcoming.checkOut}
+            <Gradient colors={home.sunrise} direction="down" style={{ width: 5 }} />
+            <View className="flex-1 gap-3 p-4">
+              <View className="flex-row items-start justify-between gap-3">
+                <View className="min-w-0 flex-1">
+                  <Text className="text-[17px] font-extrabold text-warm-900" numberOfLines={1}>
+                    {upcoming.lodgeName}
+                  </Text>
+                  <Text className="mt-0.5 text-[13px] text-warm-500" numberOfLines={1}>
+                    {upcoming.roomName}
                   </Text>
                 </View>
+                <StatusBadge status={upcoming.status} />
+              </View>
+              <View className="flex-row items-center gap-2.5 rounded-2xl bg-warm-50 px-3 py-2.5">
+                <MaterialCommunityIcons color={home.primary} name="calendar-check" size={16} />
+                <Text className="text-[13px] font-bold text-warm-800">
+                  {upcoming.checkIn} — {upcoming.checkOut}
+                </Text>
               </View>
             </View>
           </Pressable>
         </View>
       ) : null}
 
-      <View className="gap-4">
-        <SectionTitle
-          action={t('View all', 'सर्व पहा')}
-          onAction={() => router.push('/(app)/lodges')}
-          subtitle={t(
-            'Handpicked for comfort, location and trust',
-            'आराम, स्थान आणि विश्वासासाठी निवडलेले',
-          )}
+      {/* Featured stays */}
+      <View className="gap-3">
+        <HomeSectionHeader
+          actionLabel={t('View all', 'सर्व पहा')}
+          onAction={() => openLodges()}
+          subtitle={t('Handpicked for comfort and trust', 'आराम आणि विश्वासासाठी निवडलेले')}
           title={t('Loved by pilgrims', 'भाविकांची आवड')}
         />
         <ScrollView
           decelerationRate="fast"
-          disableIntervalMomentum
           horizontal
           showsHorizontalScrollIndicator={false}
           snapToAlignment="start"
-          snapToInterval={304}
-          style={{ marginHorizontal: -20, paddingLeft: 20 }}
+          snapToInterval={STAY_CARD_WIDTH + STAY_CARD_GAP}
+          style={{ marginHorizontal: -20 }}
+          contentContainerStyle={{ paddingHorizontal: 20 }}
         >
           {featuredLodges.map((lodge) =>
             lodge.hydrated === false ? (
-              <LodgeCardSkeleton horizontal key={lodge.id} />
+              <StayCardSkeleton key={lodge.id} />
             ) : (
-              <LodgeCard
+              <StayCard
                 favorite={favoriteIds.includes(lodge.id)}
-                horizontal
                 key={lodge.id}
                 lodge={lodge}
+                nightLabel={t('/ night', '/ रात्र')}
+                newLabel={t('New', 'नवीन')}
                 onFavorite={() => toggleFavorite(lodge.id)}
                 onPress={() =>
                   router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
@@ -291,35 +317,144 @@ export function PilgrimHomeScreen() {
         </ScrollView>
       </View>
 
-      <View className="gap-4">
-        <SectionTitle title={t('Why book with Tuljai Stays?', 'तुळजाई स्टेजसोबत का बुक करावे?')} />
-        <View className="flex-row gap-3">
-          {[
-            { icon: 'check-decagram' as const, label: t('Verified lodges', 'सत्यापित लॉज') },
-            { icon: 'currency-inr' as const, label: t('Clear pricing', 'स्पष्ट किंमत') },
-            { icon: 'headset' as const, label: t('Local support', 'स्थानिक मदत') },
-          ].map((item) => (
-            <View
-              className="flex-1 items-center gap-2.5 rounded-3xl bg-saffron-50 px-2 py-5"
-              key={item.label}
-            >
-              <MaterialCommunityIcons color={ui.saffronDeep} name={item.icon} size={25} />
-              <Text className="text-center text-xs font-extrabold text-warm-700">{item.label}</Text>
-            </View>
-          ))}
-        </View>
-        <Text className="text-center text-xs text-warm-500">
-          {t(
-            `Rooms from ${formatRupees(699)} per night · No hidden platform fees`,
-            `${formatRupees(699)} प्रति रात्र पासून · कोणतेही लपलेले शुल्क नाही`,
-          )}
-        </Text>
+      {/* Trust */}
+      <View
+        className="flex-row rounded-[22px] bg-white py-4"
+        style={{ borderColor: home.line, borderWidth: 1 }}
+      >
+        {[
+          { icon: 'check-decagram' as const, label: t('Verified lodges', 'सत्यापित लॉज') },
+          { icon: 'currency-inr' as const, label: t('Clear pricing', 'स्पष्ट किंमत') },
+          { icon: 'headset' as const, label: t('Local support', 'स्थानिक मदत') },
+        ].map((item, index) => (
+          <View
+            className="flex-1 items-center gap-2 px-1"
+            key={item.label}
+            style={index > 0 ? { borderLeftColor: home.line, borderLeftWidth: 1 } : undefined}
+          >
+            <IconChip icon={item.icon} />
+            <Text className="text-center text-[12px] font-bold text-warm-700">{item.label}</Text>
+          </View>
+        ))}
       </View>
     </AppScreen>
   );
 }
 
-function PromotionalBannerCarousel({
+const StayCard = memo(function StayCard({
+  favorite,
+  lodge,
+  newLabel,
+  nightLabel,
+  onFavorite,
+  onPress,
+}: {
+  favorite: boolean;
+  lodge: PilgrimLodge;
+  newLabel: string;
+  nightLabel: string;
+  onFavorite: () => void;
+  onPress: () => void;
+}) {
+  return (
+    <View
+      className="overflow-hidden rounded-[24px] bg-white"
+      style={{
+        borderColor: home.line,
+        borderWidth: 1,
+        marginRight: STAY_CARD_GAP,
+        width: STAY_CARD_WIDTH,
+      }}
+    >
+      <Pressable accessibilityRole="button" className="active:opacity-90" onPress={onPress}>
+        <View className="h-36 bg-warm-100">
+          <Image
+            fadeDuration={150}
+            resizeMode="cover"
+            source={{ uri: lodge.hero }}
+            style={{ height: '100%', width: '100%' }}
+          />
+          <Gradient
+            colors={[
+              ['#000000', 0],
+              ['#000000', 0.35],
+            ]}
+            direction="down"
+            style={{ bottom: 0, height: 56, left: 0, position: 'absolute', right: 0 }}
+          />
+          <Gradient
+            colors={home.sunriseSoft}
+            direction="right"
+            style={{ borderRadius: 999, bottom: 10, left: 10, position: 'absolute' }}
+          >
+            <View className="flex-row items-end px-3 py-1.5">
+              <Text className="text-[14px] font-extrabold text-white">
+                {formatRupees(lodge.price)}
+              </Text>
+              <Text className="mb-px ml-1 text-[11px] font-semibold text-white/90">
+                {nightLabel}
+              </Text>
+            </View>
+          </Gradient>
+        </View>
+        <View className="gap-1 px-3.5 pb-3.5 pt-3">
+          <View className="flex-row items-center justify-between gap-2">
+            <Text className="flex-1 text-[15px] font-extrabold text-warm-900" numberOfLines={1}>
+              {lodge.name}
+            </Text>
+            <View className="flex-row items-center gap-1">
+              <MaterialCommunityIcons color="#F5A623" name="star" size={13} />
+              <Text className="text-[12px] font-bold text-warm-700">
+                {lodge.rating > 0 ? lodge.rating.toFixed(1) : newLabel}
+              </Text>
+            </View>
+          </View>
+          <View className="flex-row items-center gap-1">
+            <MaterialCommunityIcons color={home.muted} name="map-marker-outline" size={14} />
+            <Text className="flex-1 text-[12px] text-warm-500" numberOfLines={1}>
+              {lodge.distance}
+            </Text>
+          </View>
+        </View>
+      </Pressable>
+      <Pressable
+        accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'}
+        accessibilityRole="button"
+        className="absolute right-2.5 top-2.5 h-8 w-8 items-center justify-center rounded-full bg-white/95 active:opacity-70"
+        hitSlop={6}
+        onPress={onFavorite}
+      >
+        <MaterialCommunityIcons
+          color={favorite ? '#E5383B' : home.ink}
+          name={favorite ? 'heart' : 'heart-outline'}
+          size={17}
+        />
+      </Pressable>
+    </View>
+  );
+});
+
+function StayCardSkeleton() {
+  return (
+    <View
+      className="overflow-hidden rounded-[24px] bg-white"
+      style={{
+        borderColor: home.line,
+        borderWidth: 1,
+        marginRight: STAY_CARD_GAP,
+        width: STAY_CARD_WIDTH,
+      }}
+    >
+      <View className="h-36 bg-warm-100" />
+      <View className="gap-2 px-3.5 pb-3.5 pt-3">
+        <View className="h-4 w-3/4 rounded-full bg-warm-100" />
+        <View className="h-3 w-1/2 rounded-full bg-warm-100" />
+      </View>
+    </View>
+  );
+}
+
+function BannerCarousel({
   banners,
   lodges,
 }: {
@@ -352,7 +487,6 @@ function PromotionalBannerCarousel({
       }
       return;
     }
-
     if (banner.linkUrl) {
       await Linking.openURL(banner.linkUrl).catch(() => undefined);
     }
@@ -377,37 +511,41 @@ function PromotionalBannerCarousel({
           return (
             <Pressable
               accessibilityRole={clickable ? 'button' : undefined}
-              className="overflow-hidden rounded-3xl bg-maroon-800"
+              className="overflow-hidden rounded-[28px] bg-warm-800"
               disabled={!clickable}
               key={banner.id}
-              style={{ height: 210, width: cardWidth }}
+              style={{ height: 200, width: cardWidth }}
               onPress={() => void openBanner(banner)}
             >
               <Image
-                className="absolute inset-0 h-full w-full"
                 resizeMode="cover"
                 source={{ uri: banner.imageUrl }}
+                style={{ height: '100%', position: 'absolute', width: '100%' }}
               />
-              <View className="absolute inset-0 bg-black/40" />
+              <Gradient
+                colors={[
+                  ['#000000', 0.05],
+                  ['#000000', 0.7],
+                ]}
+                direction="down"
+                style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 }}
+              />
               <View className="flex-1 justify-end p-5">
-                <View className="self-start rounded-full bg-white/90 px-3 py-1.5">
-                  <Text className="text-[11px] font-extrabold text-maroon-700">
+                <View className="self-start rounded-full bg-white/90 px-2.5 py-1">
+                  <Text className="text-[11px] font-extrabold" style={{ color: home.primary }}>
                     {banner.category.replace('_', ' ')}
                   </Text>
                 </View>
-                <Text className="mt-3 text-2xl font-extrabold leading-8 text-white">
+                <Text className="mt-2 text-[21px] font-extrabold leading-7 text-white">
                   {banner.title}
                 </Text>
                 {banner.subtitle ? (
-                  <Text className="mt-1 text-sm leading-5 text-white/90" numberOfLines={2}>
+                  <Text
+                    className="mt-0.5 text-[13px] leading-[18px] text-white/90"
+                    numberOfLines={2}
+                  >
                     {banner.subtitle}
                   </Text>
-                ) : null}
-                {clickable ? (
-                  <View className="mt-3 flex-row items-center gap-1.5">
-                    <Text className="text-xs font-extrabold text-white">View details</Text>
-                    <MaterialCommunityIcons color="#FFFFFF" name="arrow-right" size={16} />
-                  </View>
                 ) : null}
               </View>
             </Pressable>
@@ -418,8 +556,13 @@ function PromotionalBannerCarousel({
         <View className="flex-row justify-center gap-1.5">
           {banners.map((banner, index) => (
             <View
-              className={`h-2 rounded-full ${index === activeIndex ? 'w-6 bg-saffron-500' : 'w-2 bg-warm-200'}`}
               key={banner.id}
+              style={{
+                backgroundColor: index === activeIndex ? home.primary : '#E8DED2',
+                borderRadius: 4,
+                height: 6,
+                width: index === activeIndex ? 20 : 6,
+              }}
             />
           ))}
         </View>
