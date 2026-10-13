@@ -18,7 +18,10 @@ import {
   createBookingLock,
   getBookingRecord,
 } from '../features/bookings/api/bookings-api';
-import { invalidateLodgeCatalogCache } from '../features/lodges/api/lodge-discovery-api';
+import {
+  invalidateLodgeCatalogCache,
+  invalidateLodgePriceCache,
+} from '../features/lodges/api/lodge-discovery-api';
 import {
   markAllNotificationsRead,
   markNotificationRead as markBackendNotificationRead,
@@ -61,7 +64,12 @@ export type PilgrimLanguage = 'en' | 'mr';
 // When the app returns to the foreground, lodge prices and content are
 // re-fetched if the last load is older than this, so edits made in the admin
 // panel while the app was in the background show up without a restart.
-const LODGE_FOREGROUND_REFRESH_MS = 30_000;
+const LODGE_FOREGROUND_REFRESH_MS = 3_000;
+
+// While the app is open, lodge prices are also re-checked on a timer. The live
+// socket only reaches signed-in pilgrims and can silently drop, so this makes
+// an admin-panel edit show up within seconds no matter what.
+const LODGE_POLL_INTERVAL_MS = 15_000;
 
 interface CreateBookingInput {
   checkInDate: string;
@@ -189,11 +197,12 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
-  const loadLodges = useCallback(async (): Promise<PilgrimLodge[]> => {
-    // Drop every cached lodge/photo/room-type response first, so prices and
-    // content edited in the admin panel are fetched fresh from the backend
-    // instead of being served from the in-memory cache.
-    invalidateLodgeCatalogCache();
+  const loadLodges = useCallback(async (light = false): Promise<PilgrimLodge[]> => {
+    // Drop cached lodge/room-type responses first, so prices and content edited
+    // in the admin panel are fetched fresh from the backend instead of being
+    // served from the in-memory cache. The light (timer) refresh keeps photos.
+    if (light) invalidateLodgePriceCache();
+    else invalidateLodgeCatalogCache();
     const loadVersion = ++lodgeLoadVersionRef.current;
     const summaries = await loadLodgeSummaries();
     if (loadVersion !== lodgeLoadVersionRef.current) return summaries;
@@ -214,16 +223,21 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     });
 
     lastLodgeLoadAtRef.current = Date.now();
-    setLodges(merged);
+    // Keep the same array when nothing changed so the timer refresh doesn't
+    // re-render every screen for no reason.
+    setLodges((current) => (isSameLodgeData(current, merged) ? current : merged));
     hydratingIdsRef.current.clear();
-    setFavoriteIds((current) =>
-      current.map((favoriteId) => {
+    setFavoriteIds((current) => {
+      const next = current.map((favoriteId) => {
         const matchingLodge = summaries.find(
           (lodge) => lodge.id === favoriteId || lodge.slug === favoriteId,
         );
         return matchingLodge?.id ?? favoriteId;
-      }),
-    );
+      });
+      // Same array when nothing changed, so the timer refresh doesn't re-save
+      // preferences or re-render for no reason.
+      return next.every((id, index) => id === current[index]) ? current : next;
+    });
 
     // Re-fetch full details (price, rooms, photos, content) for every lodge
     // that was already hydrated and swap the fresh copy in place. If a
@@ -233,7 +247,11 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       void hydrateBackendLodge(previous)
         .then((fresh) => {
           if (loadVersion !== lodgeLoadVersionRef.current) return;
-          setLodges((current) => current.map((item) => (item.id === fresh.id ? fresh : item)));
+          setLodges((current) =>
+            current.map((item) =>
+              item.id === fresh.id && !isSameLodgeData(item, fresh) ? fresh : item,
+            ),
+          );
         })
         .catch(() => undefined);
     });
@@ -391,6 +409,21 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       void loadLodges().catch(() => undefined);
     });
     return () => subscription.remove();
+  }, [loadLodges]);
+
+  // Timer-based price/content refresh while the app is in the foreground.
+  useEffect(() => {
+    let inFlight = false;
+    const interval = setInterval(() => {
+      if (inFlight || AppState.currentState !== 'active') return;
+      inFlight = true;
+      void loadLodges(true)
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false;
+        });
+    }, LODGE_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, [loadLodges]);
 
   useEffect(() => {
@@ -582,6 +615,10 @@ export function usePilgrimApp(): PilgrimAppContextValue {
   const context = useContext(PilgrimAppContext);
   if (!context) throw new Error('usePilgrimApp must be used inside PilgrimAppProvider');
   return context;
+}
+
+function isSameLodgeData(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function applyRealtimeBookingEvent(
