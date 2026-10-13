@@ -17,7 +17,6 @@ import {
 import Animated, {
   Easing,
   Extrapolation,
-  FadeInDown,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
@@ -87,29 +86,19 @@ export function AppScreen({
 }
 
 /**
- * Entrance animation wrapper: content fades in and rises slightly. Stagger a
- * list of blocks by passing each one its `index`. Runs on the UI thread.
+ * Layout wrapper for screen blocks. It used to fade content in and float it
+ * upward on mount; that entrance animation was removed, so content now renders
+ * in place. The `index` prop is kept so existing call sites stay unchanged.
  */
 export function Reveal({
   children,
-  index = 0,
   className = '',
 }: {
   children: ReactNode;
   className?: string;
   index?: number;
 }) {
-  return (
-    <Animated.View
-      className={className}
-      entering={FadeInDown.duration(320)
-        .delay(Math.min(index, 8) * 45)
-        .springify()
-        .damping(18)}
-    >
-      {children}
-    </Animated.View>
-  );
+  return <View className={className}>{children}</View>;
 }
 
 export function BrandMark({
