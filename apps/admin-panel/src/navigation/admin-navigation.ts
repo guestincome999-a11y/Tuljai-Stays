@@ -75,6 +75,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { href: '/admin/exports', label: 'Exports', permission: 'reports.export', section: 'Reports', icon: 'reports', status: 'ready', hidden: true, tabGroup: 'reports', tabLabel: 'Exports' },
 
   { href: '/admin/settings', label: 'Settings', permission: 'settings.manage', section: 'Settings', icon: 'settings', status: 'ready', tabGroup: 'settings', tabLabel: 'Settings' },
+  { href: '/admin/app-content', label: 'App Content', permission: 'settings.manage', section: 'Settings', icon: 'settings', status: 'ready', hidden: true, tabGroup: 'settings', tabLabel: 'App Content' },
   { href: '/admin/feature-flags', label: 'Feature Flags', permission: 'feature_flags.manage', section: 'Settings', icon: 'settings', status: 'ready', hidden: true, tabGroup: 'settings', tabLabel: 'Feature Flags' },
   { href: '/admin/staff', label: 'Platform Team', permission: 'settings.manage', section: 'Settings', icon: 'staff', status: 'ready', hidden: true, tabGroup: 'settings', tabLabel: 'Platform Team' },
 
