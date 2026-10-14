@@ -27,9 +27,8 @@ const categories: Array<{ icon: PilgrimIconName; label: string; labelMr: string;
     { icon: 'car', label: 'Parking', labelMr: 'पार्किंग', quick: 'parking' },
   ];
 
-// Only these lodges get their full details requested from Home; the rest of
-// the catalog stays untouched until the full lodges list is opened.
-const FEATURED_LODGE_COUNT = 4;
+// Home only requests full details for the featured lodges (count is set from
+// the admin panel); the rest of the catalog loads when the lodges list opens.
 const STAY_CARD_WIDTH = 248;
 const STAY_CARD_GAP = 14;
 
@@ -53,7 +52,11 @@ export function PilgrimHomeScreen() {
     (booking) => booking.status === 'checked-in' || booking.status === 'confirmed',
   );
   const firstName = auth.user?.displayName?.trim().split(/\s+/)[0];
-  const featuredLodges = useMemo(() => lodges.slice(0, FEATURED_LODGE_COUNT), [lodges]);
+  const content = publicSettings.homeContent;
+  const featuredLodges = useMemo(
+    () => lodges.slice(0, content.featuredCount),
+    [lodges, content.featuredCount],
+  );
   const featuredLodgeIdsKey = useMemo(
     () => featuredLodges.map((lodge) => lodge.id).join('|'),
     [featuredLodges],
@@ -166,7 +169,10 @@ export function PilgrimHomeScreen() {
       {publicSettings.promotionalBanners.length > 0 ? (
         <BannerCarousel banners={publicSettings.promotionalBanners} lodges={lodges} />
       ) : (
-        <Gradient colors={home.sunrise} style={{ borderRadius: 28, elevation: 4, padding: 22 }}>
+        <Gradient
+          colors={content.heroColors}
+          style={{ borderRadius: 28, elevation: 4, padding: 22 }}
+        >
           <View
             pointerEvents="none"
             style={{
@@ -198,19 +204,20 @@ export function PilgrimHomeScreen() {
             </Text>
           </View>
           <Text className="mt-4 text-[24px] font-extrabold leading-[30px] text-white">
-            {t('Rest well. Pray in peace.', 'शांत मुक्काम. निश्चिंत दर्शन.')}
+            {t(content.heroTitleEn, content.heroTitleMr)}
           </Text>
           <Text className="mb-5 mt-2 text-[14px] leading-5 text-white/90">
-            {startingPrice
-              ? t(
-                  `Verified stays from ${formatRupees(startingPrice)} per night.`,
-                  `${formatRupees(startingPrice)} प्रति रात्रीपासून सत्यापित निवास.`,
-                )
-              : t('Verified stays close to the temple.', 'मंदिराजवळ सत्यापित निवास.')}
+            {t(content.heroSubtitleEn, content.heroSubtitleMr) ||
+              (startingPrice
+                ? t(
+                    `Verified stays from ${formatRupees(startingPrice)} per night.`,
+                    `${formatRupees(startingPrice)} प्रति रात्रीपासून सत्यापित निवास.`,
+                  )
+                : t('Verified stays close to the temple.', 'मंदिराजवळ सत्यापित निवास.'))}
           </Text>
           <GradientButton
             icon="arrow-right"
-            label={t('Explore stays', 'निवास पहा')}
+            label={t(content.heroCtaEn, content.heroCtaMr)}
             onPress={() => openLodges()}
             tone="light"
           />
@@ -218,25 +225,27 @@ export function PilgrimHomeScreen() {
       )}
 
       {/* Categories */}
-      <View className="gap-3">
-        <HomeSectionHeader title={t('Browse by need', 'गरजेनुसार निवडा')} />
-        <View className="flex-row gap-3">
-          {categories.map((category) => (
-            <Pressable
-              accessibilityRole="button"
-              className="flex-1 items-center gap-2 rounded-[20px] bg-white py-3.5 active:opacity-80"
-              key={category.quick}
-              onPress={() => openLodges(category.quick)}
-              style={{ borderColor: home.line, borderWidth: 1 }}
-            >
-              <IconChip icon={category.icon} />
-              <Text className="text-[12px] font-bold text-warm-700" numberOfLines={1}>
-                {t(category.label, category.labelMr)}
-              </Text>
-            </Pressable>
-          ))}
+      {content.showCategories ? (
+        <View className="gap-3">
+          <HomeSectionHeader title={t('Browse by need', 'गरजेनुसार निवडा')} />
+          <View className="flex-row gap-3">
+            {categories.map((category) => (
+              <Pressable
+                accessibilityRole="button"
+                className="flex-1 items-center gap-2 rounded-[20px] bg-white py-3.5 active:opacity-80"
+                key={category.quick}
+                onPress={() => openLodges(category.quick)}
+                style={{ borderColor: home.line, borderWidth: 1 }}
+              >
+                <IconChip icon={category.icon} />
+                <Text className="text-[12px] font-bold text-warm-700" numberOfLines={1}>
+                  {t(category.label, category.labelMr)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
-      </View>
+      ) : null}
 
       {/* Upcoming stay */}
       {upcoming ? (
@@ -281,62 +290,66 @@ export function PilgrimHomeScreen() {
       ) : null}
 
       {/* Featured stays */}
-      <View className="gap-3">
-        <HomeSectionHeader
-          actionLabel={t('View all', 'सर्व पहा')}
-          onAction={() => openLodges()}
-          subtitle={t('Handpicked for comfort and trust', 'आराम आणि विश्वासासाठी निवडलेले')}
-          title={t('Loved by pilgrims', 'भाविकांची आवड')}
-        />
-        <ScrollView
-          decelerationRate="fast"
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToAlignment="start"
-          snapToInterval={STAY_CARD_WIDTH + STAY_CARD_GAP}
-          style={{ marginHorizontal: -20 }}
-          contentContainerStyle={{ paddingHorizontal: 20 }}
-        >
-          {featuredLodges.map((lodge) =>
-            lodge.hydrated === false ? (
-              <StayCardSkeleton key={lodge.id} />
-            ) : (
-              <StayCard
-                favorite={favoriteIds.includes(lodge.id)}
-                key={lodge.id}
-                lodge={lodge}
-                nightLabel={t('/ night', '/ रात्र')}
-                newLabel={t('New', 'नवीन')}
-                onFavorite={() => toggleFavorite(lodge.id)}
-                onPress={() =>
-                  router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
-                }
-              />
-            ),
-          )}
-        </ScrollView>
-      </View>
+      {content.showFeatured ? (
+        <View className="gap-3">
+          <HomeSectionHeader
+            actionLabel={t('View all', 'सर्व पहा')}
+            onAction={() => openLodges()}
+            subtitle={t(content.featuredSubtitleEn, content.featuredSubtitleMr)}
+            title={t(content.featuredTitleEn, content.featuredTitleMr)}
+          />
+          <ScrollView
+            decelerationRate="fast"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToAlignment="start"
+            snapToInterval={STAY_CARD_WIDTH + STAY_CARD_GAP}
+            style={{ marginHorizontal: -20 }}
+            contentContainerStyle={{ paddingHorizontal: 20 }}
+          >
+            {featuredLodges.map((lodge) =>
+              lodge.hydrated === false ? (
+                <StayCardSkeleton key={lodge.id} />
+              ) : (
+                <StayCard
+                  favorite={favoriteIds.includes(lodge.id)}
+                  key={lodge.id}
+                  lodge={lodge}
+                  nightLabel={t('/ night', '/ रात्र')}
+                  newLabel={t('New', 'नवीन')}
+                  onFavorite={() => toggleFavorite(lodge.id)}
+                  onPress={() =>
+                    router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } })
+                  }
+                />
+              ),
+            )}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {/* Trust */}
-      <View
-        className="flex-row rounded-[22px] bg-white py-4"
-        style={{ borderColor: home.line, borderWidth: 1 }}
-      >
-        {[
-          { icon: 'check-decagram' as const, label: t('Verified lodges', 'सत्यापित लॉज') },
-          { icon: 'currency-inr' as const, label: t('Clear pricing', 'स्पष्ट किंमत') },
-          { icon: 'headset' as const, label: t('Local support', 'स्थानिक मदत') },
-        ].map((item, index) => (
-          <View
-            className="flex-1 items-center gap-2 px-1"
-            key={item.label}
-            style={index > 0 ? { borderLeftColor: home.line, borderLeftWidth: 1 } : undefined}
-          >
-            <IconChip icon={item.icon} />
-            <Text className="text-center text-[12px] font-bold text-warm-700">{item.label}</Text>
-          </View>
-        ))}
-      </View>
+      {content.showTrust ? (
+        <View
+          className="flex-row rounded-[22px] bg-white py-4"
+          style={{ borderColor: home.line, borderWidth: 1 }}
+        >
+          {[
+            { icon: 'check-decagram' as const, label: t('Verified lodges', 'सत्यापित लॉज') },
+            { icon: 'currency-inr' as const, label: t('Clear pricing', 'स्पष्ट किंमत') },
+            { icon: 'headset' as const, label: t('Local support', 'स्थानिक मदत') },
+          ].map((item, index) => (
+            <View
+              className="flex-1 items-center gap-2 px-1"
+              key={item.label}
+              style={index > 0 ? { borderLeftColor: home.line, borderLeftWidth: 1 } : undefined}
+            >
+              <IconChip icon={item.icon} />
+              <Text className="text-center text-[12px] font-bold text-warm-700">{item.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </AppScreen>
   );
 }
