@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import {
+  HOME_CONTENT_KEY,
+  defaultHomeContent,
+  parseHomeContent,
+  type HomeContent,
+} from './home-content';
+import {
   isFestivalModeEnabled,
   listPublicFeatureFlags,
   listPublicSettings,
@@ -10,6 +16,7 @@ import {
 
 interface PublicSettingsState {
   festivalModeEnabled: boolean;
+  homeContent: HomeContent;
   promotionalBanners: PromotionalBanner[];
   privacyPolicyUrl: string | null;
   supportEmail: string | null;
@@ -19,6 +26,7 @@ interface PublicSettingsState {
 
 const initialState: PublicSettingsState = {
   festivalModeEnabled: false,
+  homeContent: defaultHomeContent,
   promotionalBanners: [],
   privacyPolicyUrl: null,
   supportEmail: null,
@@ -41,6 +49,9 @@ export function usePublicSettings() {
       if (mounted) {
         setState({
           festivalModeEnabled: isFestivalModeEnabled(settings, flags),
+          homeContent: parseHomeContent(
+            settings.find((setting) => setting.key === HOME_CONTENT_KEY)?.value,
+          ),
           promotionalBanners: readPromotionalBanners(settings),
           privacyPolicyUrl: readPublicUrl(settings, 'privacy_policy_url'),
           supportEmail: readSupportEmail(settings),
@@ -51,7 +62,7 @@ export function usePublicSettings() {
     }
 
     void load();
-    const interval = setInterval(() => void load(), 60_000);
+    const interval = setInterval(() => void load(), 20_000);
     const subscription = AppState.addEventListener('change', (appState) => {
       if (appState === 'active') void load();
     });
