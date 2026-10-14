@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "assetBundlePatterns": ["**/*"],
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/ea095b95-27bb-4c76-8ad2-ddf7ab8ba614",
