@@ -8,6 +8,14 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": ["**/*"],
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ea095b95-27bb-4c76-8ad2-ddf7ab8ba614",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
     "android": {
       "package": "com.tuljaistays.pilgrim",
       "googleServicesFile": "./google-services.json",
