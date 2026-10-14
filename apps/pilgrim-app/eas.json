@@ -14,7 +14,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://tuljai-stays-backend.onrender.com/api",
         "EXPO_PUBLIC_USE_MOCKS": "false"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "environment": "preview",
@@ -26,7 +27,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://tuljai-stays-backend.onrender.com/api",
         "EXPO_PUBLIC_USE_MOCKS": "false"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "environment": "production",
@@ -34,7 +36,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://tuljai-stays-backend.onrender.com/api",
         "EXPO_PUBLIC_USE_MOCKS": "false"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
