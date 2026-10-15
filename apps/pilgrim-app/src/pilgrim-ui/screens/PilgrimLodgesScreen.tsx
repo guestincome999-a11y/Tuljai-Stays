@@ -184,8 +184,8 @@ export function PilgrimLodgesScreen() {
   return (
     <AppScreen className="gap-5 pt-2" scrollEventThrottle={150} onScroll={handleScroll}>
       <Reveal index={0}>
-        <Text className="text-[28px] font-extrabold tracking-tight text-warm-900">
-          {t('Find your stay', 'तुमचा निवास शोधा')}
+        <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
+          {t('Stays in Tuljapur', 'तुळजापूर निवास')}
         </Text>
         <Text className="mt-1 text-sm text-warm-500">
           {t(
@@ -233,11 +233,13 @@ export function PilgrimLodgesScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                className={`min-h-12 justify-center rounded-full border-[1.5px] px-5 transition-transform duration-150 active:scale-95 ${active ? 'border-saffron-500 bg-saffron-500 shadow-sm shadow-saffron-500/30' : 'border-warm-200 bg-white'}`}
+                className={`min-h-10 justify-center rounded-lg border-[1.5px] px-4 active:opacity-80 ${active ? 'border-saffron-500 bg-saffron-50' : 'border-warm-200 bg-white'}`}
                 key={chip.key}
                 onPress={() => setActiveFilter(chip.key)}
               >
-                <Text className={`text-sm font-bold ${active ? 'text-warm-900' : 'text-warm-700'}`}>
+                <Text
+                  className={`text-[13px] font-bold ${active ? 'text-saffron-700' : 'text-warm-700'}`}
+                >
                   {t(chip.label, chip.labelMr)}
                 </Text>
               </Pressable>
@@ -255,13 +257,13 @@ export function PilgrimLodgesScreen() {
         <Pressable
           accessibilityLabel={t('Open filters and sorting', 'फिल्टर आणि क्रमवारी उघडा')}
           accessibilityRole="button"
-          className="min-h-12 flex-row items-center gap-2 rounded-full border border-warm-200 bg-white px-4 transition-transform duration-150 active:scale-95"
+          className="min-h-10 flex-row items-center gap-2 rounded-lg border border-warm-200 bg-white px-3.5 active:opacity-80"
           onPress={openFilters}
         >
-          <MaterialCommunityIcons color={ui.maroon} name="tune-variant" size={20} />
-          <Text className="text-sm font-extrabold text-maroon-700">{t('Filters', 'फिल्टर')}</Text>
+          <MaterialCommunityIcons color={ui.brandDeep} name="tune-variant" size={18} />
+          <Text className="text-sm font-bold text-saffron-600">{t('Filters', 'फिल्टर')}</Text>
           {modalFilterCount > 0 ? (
-            <View className="h-6 min-w-6 items-center justify-center rounded-full bg-maroon-700 px-1.5">
+            <View className="h-5 min-w-5 items-center justify-center rounded-full bg-saffron-500 px-1.5">
               <Text className="text-xs font-extrabold text-white">{modalFilterCount}</Text>
             </View>
           ) : null}
@@ -286,7 +288,7 @@ export function PilgrimLodgesScreen() {
         </View>
       ) : null}
 
-      <View className="gap-5">
+      <View className="gap-4">
         {visibleResults.map((lodge, index) =>
           lodge.hydrated === false ? (
             <LodgeCardSkeleton key={lodge.id} />
