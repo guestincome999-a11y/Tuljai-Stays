@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LodgeReviewsSection } from '../../features/reviews/components/LodgeReviewsSection';
 import {
@@ -33,6 +34,7 @@ export function PilgrimLodgeDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { favoriteIds, isSyncing, lodges, t, toggleFavorite } = usePilgrimApp();
   const lodge = lodges.find((item) => item.id === params.id);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -97,7 +99,7 @@ export function PilgrimLodgeDetailScreen() {
           >
             {lodge.photos.map((photo) => (
               <Image
-                className="h-80 bg-warm-100"
+                className="h-72 bg-warm-100"
                 fadeDuration={150}
                 key={photo}
                 resizeMode="cover"
@@ -147,8 +149,8 @@ export function PilgrimLodgeDetailScreen() {
           </View>
         </View>
 
-        <View className="-mt-6 gap-7 rounded-t-3xl bg-warm-50 px-5 pb-6 pt-7">
-          <Reveal index={0}>
+        <View className="-mt-4 gap-4 rounded-t-3xl bg-warm-50 px-4 pb-6 pt-5">
+          <Reveal className="rounded-2xl border border-warm-200 bg-white p-4" index={0}>
             <View className="mb-3 flex-row flex-wrap gap-2">
               <View className="rounded-full bg-templeGreen-50 px-3 py-1.5">
                 <Text className="text-xs font-extrabold text-templeGreen-700">
@@ -161,7 +163,7 @@ export function PilgrimLodgeDetailScreen() {
                 </View>
               ) : null}
             </View>
-            <Text className="text-[27px] font-extrabold leading-9 tracking-tight text-warm-900">
+            <Text className="text-[24px] font-extrabold leading-8 tracking-tight text-warm-900">
               {lodge.name}
             </Text>
             <Text className="mt-1 text-sm text-warm-500">
@@ -177,10 +179,10 @@ export function PilgrimLodgeDetailScreen() {
             </View>
           </Reveal>
 
-          <Reveal className="flex-row gap-3" index={1}>
+          <Reveal className="flex-row gap-2.5" index={1}>
             <Pressable
               accessibilityRole="button"
-              className="min-h-24 flex-1 items-center justify-center rounded-3xl bg-saffron-50 px-2 transition-transform duration-150 active:scale-95 active:bg-saffron-100"
+              className="min-h-20 flex-1 items-center justify-center rounded-2xl border border-warm-200 bg-white px-2 active:bg-saffron-50"
               onPress={() => void openDirections(lodge, t)}
             >
               <MaterialCommunityIcons color={ui.saffronDeep} name="map-marker-radius" size={24} />
@@ -188,13 +190,13 @@ export function PilgrimLodgeDetailScreen() {
                 {t('Open directions', 'दिशा पहा')}
               </Text>
             </Pressable>
-            <View className="min-h-24 flex-1 items-center justify-center rounded-3xl bg-saffron-50 px-2">
+            <View className="min-h-20 flex-1 items-center justify-center rounded-2xl border border-warm-200 bg-white px-2">
               <MaterialCommunityIcons color={ui.saffronDeep} name="clock-fast" size={24} />
               <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
                 {t('12 PM check-in', '१२ वा. चेक-इन')}
               </Text>
             </View>
-            <View className="min-h-24 flex-1 items-center justify-center rounded-3xl bg-saffron-50 px-2">
+            <View className="min-h-20 flex-1 items-center justify-center rounded-2xl border border-warm-200 bg-white px-2">
               <MaterialCommunityIcons color={ui.saffronDeep} name="shield-check" size={24} />
               <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
                 {t('Safe & trusted', 'सुरक्षित निवास')}
@@ -202,15 +204,15 @@ export function PilgrimLodgeDetailScreen() {
             </View>
           </Reveal>
 
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
+          <View className="rounded-2xl border border-warm-200 bg-white p-4">
+            <Text className="text-lg font-bold text-warm-900">
               {t('About this stay', 'या निवासाबद्दल')}
             </Text>
             <Text className="mt-3 text-[15px] leading-6 text-warm-600">{lodge.description}</Text>
           </View>
 
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
+          <View className="rounded-2xl border border-warm-200 bg-white p-4">
+            <Text className="text-lg font-bold text-warm-900">
               {t('What this place offers', 'येथे मिळणाऱ्या सुविधा')}
             </Text>
             <View className="mt-4 flex-row flex-wrap">
@@ -231,8 +233,8 @@ export function PilgrimLodgeDetailScreen() {
             </View>
           </View>
 
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
+          <View className="rounded-2xl border border-warm-200 bg-white p-4">
+            <Text className="text-lg font-bold text-warm-900">
               {t('Choose a room', 'खोली निवडा')}
             </Text>
             <Text className="mt-1 text-sm text-warm-500">
@@ -267,12 +269,12 @@ export function PilgrimLodgeDetailScreen() {
               ) : null}
               {lodge.rooms.map((room, index) => (
                 <View
-                  className={`overflow-hidden rounded-3xl border-[1.5px] bg-white shadow-sm shadow-warm-900/5 ${index === 0 ? 'border-saffron-500' : 'border-warm-200'}`}
+                  className={`overflow-hidden rounded-2xl border-[1.5px] bg-white ${index === 0 ? 'border-saffron-500' : 'border-warm-200'}`}
                   key={room.id}
                 >
                   {index === 0 ? (
                     <View className="bg-saffron-500 px-4 py-2">
-                      <Text className="text-xs font-extrabold text-warm-900">
+                      <Text className="text-xs font-extrabold text-white">
                         {t('BEST VALUE FOR FAMILIES', 'कुटुंबासाठी उत्तम पर्याय')}
                       </Text>
                     </View>
@@ -309,7 +311,7 @@ export function PilgrimLodgeDetailScreen() {
                     </View>
                     <View className="flex-row items-end justify-between gap-3 border-t border-warm-100 pt-4">
                       <View>
-                        <Text className="text-2xl font-extrabold text-maroon-700">
+                        <Text className="text-2xl font-extrabold text-warm-900">
                           {formatRupees(room.price)}
                         </Text>
                         <Text className="text-xs text-warm-500">
@@ -317,6 +319,8 @@ export function PilgrimLodgeDetailScreen() {
                         </Text>
                       </View>
                       <PrimaryButton
+                        className="min-h-[46px] px-5"
+                        disabled={availability.counts[room.id] === 0}
                         onPress={() =>
                           router.push({
                             pathname: '/(app)/bookings/new',
@@ -347,14 +351,14 @@ export function PilgrimLodgeDetailScreen() {
             </View>
           </View>
 
-          <View className="border-t border-warm-100 pt-6">
-            <Text className="text-xl font-extrabold text-warm-900">
+          <View className="rounded-2xl border border-warm-200 bg-white p-4">
+            <Text className="text-lg font-bold text-warm-900">
               {t('Good to know', 'महत्त्वाची माहिती')}
             </Text>
-            <View className="mt-3 rounded-3xl border border-warm-100 bg-white px-4">
+            <View className="mt-1">
               {lodge.rules.map((rule, index) => (
                 <View
-                  className={`flex-row items-center gap-3 py-3.5 ${index < lodge.rules.length - 1 ? 'border-b border-warm-100' : ''}`}
+                  className={`flex-row items-center gap-3 py-3 ${index < lodge.rules.length - 1 ? 'border-b border-warm-100' : ''}`}
                   key={rule}
                 >
                   <MaterialCommunityIcons
@@ -381,12 +385,15 @@ export function PilgrimLodgeDetailScreen() {
         </View>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 flex-row items-center gap-4 rounded-t-3xl bg-white px-5 pb-7 pt-4 shadow-2xl shadow-warm-900/20">
+      <View
+        className="absolute bottom-0 left-0 right-0 flex-row items-center gap-4 border-t border-warm-200 bg-white px-4 pt-3"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+      >
         <View className="flex-1">
           <Text className="text-xs font-semibold text-warm-500">
             {t('Rooms from', 'खोली सुरू')}
           </Text>
-          <Text className="text-xl font-extrabold text-warm-900">
+          <Text className="text-lg font-bold text-warm-900">
             {formatRupees(lodge.price)}{' '}
             <Text className="text-xs font-medium text-warm-500">/ night</Text>
           </Text>
