@@ -2,8 +2,17 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BookingGuestIdProofUpload } from '@tuljai/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../auth/auth-context';
 import {
@@ -19,6 +28,7 @@ import {
   AppScreen,
   EmptyState,
   Field,
+  IconButton,
   PrimaryButton,
   RoomsUnavailableNotice,
   SecondaryButton,
@@ -32,7 +42,6 @@ import { isRoomFullError, useRoomAvailability } from '../useRoomAvailability';
 const allowedIdProofTypes = ['application/pdf', 'image/jpeg', 'image/png'] as const;
 const maxIdProofSizeBytes = 5 * 1024 * 1024;
 type PaymentMethod = 'ONLINE' | 'PAY_AT_LODGE';
-type Step = 1 | 2 | 3;
 // The room hold + order live for 15 min on the server once the order is
 // attached; refresh well before that so a slow guest never pays against an
 // order whose hold is about to lapse.
@@ -55,11 +64,12 @@ export function PilgrimCheckoutScreen() {
   const params = useLocalSearchParams<{ lodgeId?: string; roomTypeId?: string }>();
   const router = useRouter();
   const auth = useAuth();
+  const insets = useSafeAreaInsets();
   const { createBooking, lodges, t } = usePilgrimApp();
   const lodge = lodges.find((item) => item.id === params.lodgeId);
   const initialRoom = lodge?.rooms.find((item) => item.id === params.roomTypeId) ?? lodge?.rooms[0];
 
-  const [step, setStep] = useState<Step>(1);
+  const [editingStay, setEditingStay] = useState(false);
   const [roomId, setRoomId] = useState(initialRoom?.id ?? '');
   const [checkInDate, setCheckInDate] = useState(toDateOnly(addDays(startOfToday(), 1)));
   const [checkOutDate, setCheckOutDate] = useState(toDateOnly(addDays(startOfToday(), 2)));
@@ -84,7 +94,10 @@ export function PilgrimCheckoutScreen() {
   // instead of starting a second one. The booking itself is only created after
   // payment is verified (see confirmBooking). Pay-at-lodge holds nothing: the
   // hold is released if the guest switches to it.
-  const [datesTouched, setDatesTouched] = useState(false);
+  // The first hold + order starts the moment checkout opens (default dates are
+  // already chosen on the stay page); later date changes wait a beat so a guest
+  // tapping through dates doesn't churn holds.
+  const firstPrepareRef = useRef(true);
   const [prepaidPreparing, setPrepaidPreparing] = useState(false);
   const [prepaidError, setPrepaidError] = useState<string | null>(null);
   const [prepaidRefreshTick, setPrepaidRefreshTick] = useState(0);
@@ -133,7 +146,7 @@ export function PilgrimCheckoutScreen() {
   const availability = useRoomAvailability({
     checkInDate,
     checkOutDate,
-    enabled: step === 1,
+    enabled: true,
     lodgeId: lodge?.id,
     roomTypeIds: lodge?.rooms.map((item) => item.id) ?? [],
     shouldDiscard: () => Boolean(prepaidRef.current),
@@ -179,14 +192,15 @@ export function PilgrimCheckoutScreen() {
     [lodge, room, checkInDate, checkOutDate, prepaidSignature],
   );
 
-  const holdEnabled =
-    paymentMethod === 'ONLINE' && (datesTouched || step >= 2) && Boolean(lodge) && Boolean(room);
+  const holdEnabled = paymentMethod === 'ONLINE' && Boolean(lodge) && Boolean(room);
   useEffect(() => {
     if (!holdEnabled) return;
     let cancelled = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     const force = refreshDueRef.current;
     refreshDueRef.current = false;
+    const immediate = force || firstPrepareRef.current;
+    firstPrepareRef.current = false;
     const startTimer = setTimeout(
       () => {
         setPrepaidError(null);
@@ -218,14 +232,14 @@ export function PilgrimCheckoutScreen() {
             if (!cancelled) setPrepaidPreparing(false);
           });
       },
-      step >= 2 || force ? 0 : PREPAID_DATE_DEBOUNCE_MS,
+      immediate ? 0 : PREPAID_DATE_DEBOUNCE_MS,
     );
     return () => {
       cancelled = true;
       clearTimeout(startTimer);
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [holdEnabled, step, preparePrepaid, prepaidRefreshTick, prepaidSignature]);
+  }, [holdEnabled, preparePrepaid, prepaidRefreshTick, prepaidSignature]);
 
   // Pay at lodge holds nothing: drop the hold if the guest switches to it.
   useEffect(() => {
@@ -282,16 +296,6 @@ export function PilgrimCheckoutScreen() {
       return false;
     }
     return true;
-  }
-
-  function goToStep(target: Step) {
-    if (target === 3 && !validateGuestDetails()) return;
-    setStep(target);
-  }
-
-  function continueFlow() {
-    if (step === 2 && !validateGuestDetails()) return;
-    setStep((current) => Math.min(3, current + 1) as Step);
   }
 
   async function pickGuestIdProof() {
@@ -370,7 +374,6 @@ export function PilgrimCheckoutScreen() {
           ),
         );
       }
-      setStep(3);
       return;
     }
 
@@ -410,7 +413,7 @@ export function PilgrimCheckoutScreen() {
               email: email.trim() || undefined,
             },
             notes: { lockCode },
-            theme: { color: '#C2410C' },
+            theme: { color: '#E8452C' },
           });
         } catch (openError) {
           // Sheet dismissed or failed: the hold is still good for a retry.
@@ -489,7 +492,7 @@ export function PilgrimCheckoutScreen() {
         // The room filled up while the guest was booking: show the sad
         // "not available" state back on the stay step instead of an alert.
         setRoomStatus({ full: true, signature: prepaidSignature });
-        setStep(1);
+        setEditingStay(true);
         return;
       }
       const message =
@@ -524,409 +527,380 @@ export function PilgrimCheckoutScreen() {
     );
   }
 
+  const stayDates = `${formatShortDate(checkInDate)} → ${formatShortDate(checkOutDate)}`;
+  const guestsLabel = `${adults} ${t(adults === 1 ? 'adult' : 'adults', 'प्रौढ')}${children > 0 ? ` · ${children} ${t(children === 1 ? 'child' : 'children', 'मुले')}` : ''}`;
+
   return (
-    <AppScreen className="gap-5 pt-1">
-      <TopBar
-        onBack={() =>
-          step === 1 ? router.back() : setStep((current) => Math.max(1, current - 1) as Step)
-        }
-        subtitle={lodge.name}
-        title={t('Complete your booking', 'बुकिंग पूर्ण करा')}
-      />
+    <AppScreen edges={['top']} padded={false} scroll={false}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        className="flex-1"
+      >
+        <View className="flex-row items-center gap-3 border-b border-warm-200 bg-white px-4 pb-3 pt-2">
+          <IconButton
+            accessibilityLabel={t('Go back', 'मागे')}
+            icon="chevron-left"
+            onPress={() => router.back()}
+          />
+          <View className="min-w-0 flex-1">
+            <Text className="text-lg font-bold text-warm-900" numberOfLines={1}>
+              {t('Review & pay', 'तपासा आणि भरा')}
+            </Text>
+            <Text className="text-xs text-warm-500" numberOfLines={1}>
+              {lodge.name}
+            </Text>
+          </View>
+        </View>
 
-      <CheckoutStepHeader step={step} t={t} onSelect={goToStep} />
-
-      {roomFull ? (
-        <RoomsUnavailableNotice
-          body={
-            otherRoomsFree
-              ? t(
-                  'This room is full for the selected dates. Try another room or different dates.',
-                  'निवडलेल्या तारखांसाठी ही खोली भरली आहे. दुसरी खोली किंवा वेगळ्या तारखा निवडा.',
-                )
-              : t(
-                  'Every room is full for the selected dates. Try different dates or choose another stay.',
-                  'निवडलेल्या तारखांसाठी सर्व खोल्या भरल्या आहेत. वेगळ्या तारखा निवडा किंवा दुसरा निवास निवडा.',
-                )
-          }
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-3 px-4 pb-8 pt-3"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {step !== 1 ? (
-            <SecondaryButton icon="calendar-edit" onPress={() => setStep(1)}>
-              {t('Change dates or room', 'तारखा किंवा खोली बदला')}
-            </SecondaryButton>
-          ) : null}
-          <SecondaryButton
-            icon="home-search-outline"
-            onPress={() => router.replace('/(app)/lodges')}
-          >
-            {t('See other stays', 'इतर निवास पहा')}
-          </SecondaryButton>
-        </RoomsUnavailableNotice>
-      ) : null}
-
-      {step === 1 ? (
-        <View className="gap-5">
-          <SectionTitle title={t('Your stay', 'तुमचा निवास')} />
-          <View className="rounded-3xl border border-warm-100 bg-white p-4 shadow-sm shadow-warm-900/5">
-            <Text className="text-lg font-extrabold text-warm-900">{lodge.name}</Text>
-            <Text className="mt-1 text-sm text-warm-500">
-              {room.name} · {room.bed} · {room.capacity}
-            </Text>
-          </View>
-          <SectionTitle title={t('Select room', 'खोली निवडा')} />
-          <View className="gap-3">
-            {lodge.rooms.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() => setRoomId(item.id)}
-                className={`rounded-3xl border-[1.5px] bg-white p-4 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-[0.985] ${roomId === item.id ? 'border-saffron-500' : 'border-warm-200'}`}
-              >
-                <View className="flex-row items-center gap-3">
-                  <MaterialCommunityIcons
-                    color={roomId === item.id ? ui.saffronDeep : ui.muted}
-                    name={roomId === item.id ? 'radiobox-marked' : 'radiobox-blank'}
-                    size={24}
-                  />
-                  <View className="flex-1">
-                    <Text className="text-base font-extrabold text-warm-900">{item.name}</Text>
-                    <Text className="mt-1 text-sm text-warm-500">
-                      {item.bed} · {item.capacity}
-                    </Text>
-                    <Text className="mt-2 text-lg font-extrabold text-maroon-700">
-                      {formatRupees(item.price)} / night
-                    </Text>
-                    {availability.counts[item.id] === 0 ? (
-                      <Text className="mt-1 text-xs font-extrabold text-danger-700">
-                        {t('Full for these dates', 'या तारखांसाठी भरले')}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-          <SectionTitle title={t('Choose dates', 'तारखा निवडा')} />
-          <DateSelector
-            label={t('Check-in', 'चेक-इन')}
-            options={checkInOptions}
-            selectedDate={checkInDate}
-            onSelect={(value) => {
-              setDatesTouched(true);
-              setCheckInDate(value);
-              if (checkOutDate <= value)
-                setCheckOutDate(toDateOnly(addDays(parseDateOnly(value), 1)));
-            }}
-          />
-          <DateSelector
-            label={t('Checkout', 'चेक-आउट')}
-            options={checkoutOptions}
-            selectedDate={checkOutDate}
-            onSelect={(value) => {
-              setDatesTouched(true);
-              setCheckOutDate(value);
-            }}
-          />
-          <GuestCounter
-            label={t('Adults', 'प्रौढ')}
-            value={adults}
-            min={1}
-            max={6}
-            onChange={setAdults}
-          />
-          <GuestCounter
-            label={t('Children', 'मुले')}
-            value={children}
-            min={0}
-            max={6}
-            onChange={setChildren}
-          />
-        </View>
-      ) : null}
-
-      {step === 2 ? (
-        <View className="gap-5">
-          <SectionTitle title={t('Guest details', 'पाहुण्यांची माहिती')} />
-          <Text className="text-sm text-warm-500">
-            {t(
-              'Enter the lead guest exactly as shown on the ID proof.',
-              'मुख्य पाहुण्याची माहिती ओळखपत्राप्रमाणे अचूक भरा.',
-            )}
-          </Text>
-          <Field
-            autoCapitalize="words"
-            icon="account-outline"
-            label={t('Full name', 'पूर्ण नाव')}
-            onChangeText={setName}
-            placeholder="As on photo ID"
-            value={name}
-          />
-          <Field
-            icon="phone-outline"
-            keyboardType="phone-pad"
-            label={t('Mobile number', 'मोबाइल क्रमांक')}
-            maxLength={10}
-            onChangeText={(value) => setPhone(value.replace(/\D/gu, ''))}
-            placeholder="10-digit mobile number"
-            value={phone}
-          />
-          <Field
-            autoCapitalize="none"
-            icon="email-outline"
-            keyboardType="email-address"
-            label={t('Email address', 'ईमेल पत्ता')}
-            onChangeText={setEmail}
-            placeholder="Optional"
-            value={email}
-          />
-          <View className="gap-2">
-            <Text className="text-sm font-bold text-warm-700">
-              {t('Government ID proof', 'सरकारी ओळखपत्र')} *
-            </Text>
-            <Pressable
-              onPress={() => void pickGuestIdProof()}
-              className="min-h-28 items-center justify-center rounded-3xl border-2 border-dashed border-saffron-300 bg-saffron-50 px-5 transition-transform duration-150 active:scale-[0.985]"
+          {roomFull ? (
+            <RoomsUnavailableNotice
+              body={
+                otherRoomsFree
+                  ? t(
+                      'This room is full for the selected dates. Try another room or different dates.',
+                      'निवडलेल्या तारखांसाठी ही खोली भरली आहे. दुसरी खोली किंवा वेगळ्या तारखा निवडा.',
+                    )
+                  : t(
+                      'Every room is full for the selected dates. Try different dates or choose another stay.',
+                      'निवडलेल्या तारखांसाठी सर्व खोल्या भरल्या आहेत. वेगळ्या तारखा निवडा किंवा दुसरा निवास निवडा.',
+                    )
+              }
             >
-              <MaterialCommunityIcons
-                color={ui.saffronDeep}
-                name={
-                  idProofUploading
-                    ? 'cloud-upload-outline'
-                    : uploadedIdProof
-                      ? 'file-check-outline'
-                      : 'upload-outline'
-                }
-                size={26}
-              />
-              <Text className="mt-2 text-center text-sm font-extrabold text-maroon-700">
-                {idProofUploading
-                  ? t('Uploading…', 'अपलोड होत आहे…')
-                  : (guestIdProof?.name ??
-                    t(
-                      'Upload JPEG, PNG or PDF · Max 5 MB',
-                      'JPEG, PNG किंवा PDF अपलोड करा · कमाल ५ MB',
-                    ))}
-              </Text>
-            </Pressable>
-          </View>
-          <Field
-            icon="message-text-outline"
-            label={t('Special request (optional)', 'विशेष विनंती (ऐच्छिक)')}
-            multiline
-            onChangeText={setRequest}
-            placeholder={t('Any request for the lodge…', 'लॉजसाठी कोणतीही विनंती…')}
-            value={request}
-          />
-        </View>
-      ) : null}
+              <SecondaryButton icon="calendar-edit" onPress={() => setEditingStay(true)}>
+                {t('Change dates or room', 'तारखा किंवा खोली बदला')}
+              </SecondaryButton>
+              <SecondaryButton
+                icon="home-search-outline"
+                onPress={() => router.replace('/(app)/lodges')}
+              >
+                {t('See other stays', 'इतर निवास पहा')}
+              </SecondaryButton>
+            </RoomsUnavailableNotice>
+          ) : null}
 
-      {step === 3 ? (
-        <View className="gap-5">
           {paymentFailure ? (
-            <View className="items-center rounded-3xl bg-danger-50 px-5 py-6">
+            <View className="items-center rounded-2xl bg-danger-50 px-5 py-5">
               <AnimatedResultBadge tone="danger" />
-              <Text className="mt-4 text-center text-lg font-extrabold text-danger-700">
+              <Text className="mt-3 text-center text-base font-bold text-danger-700">
                 {t('Payment failed', 'पेमेंट अयशस्वी')}
               </Text>
-              <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
+              <Text className="mt-1 text-center text-sm leading-5 text-warm-600">
                 {paymentFailure}
               </Text>
             </View>
           ) : null}
-          <SectionTitle title={t('Review guest details', 'पाहुण्यांची माहिती तपासा')} />
-          <Pressable
-            onPress={() => setStep(2)}
-            className="rounded-3xl border border-warm-100 bg-white p-5 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-[0.985]"
-          >
-            <View className="flex-row items-center gap-3">
-              <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-50">
-                <MaterialCommunityIcons
-                  color={ui.saffronDeep}
-                  name="account-check-outline"
-                  size={24}
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-extrabold text-warm-900">
-                  {name || t('Guest name', 'पाहुण्याचे नाव')}
-                </Text>
-                <Text className="mt-1 text-sm text-warm-500">
-                  {phone || t('Mobile not entered', 'मोबाइल दिलेला नाही')}
-                </Text>
-                {email ? <Text className="mt-1 text-sm text-warm-500">{email}</Text> : null}
-              </View>
-              <Text className="font-extrabold text-saffron-700">{t('Edit', 'बदला')}</Text>
-            </View>
-            <View className="mt-4 border-t border-warm-100 pt-4">
-              <View className="flex-row items-center gap-2">
-                <MaterialCommunityIcons color={ui.success} name="file-check-outline" size={18} />
-                <Text className="text-sm font-semibold text-warm-700">{guestIdProof?.name}</Text>
-              </View>
-              {request ? (
-                <Text className="mt-2 text-sm text-warm-500">
-                  {t('Request:', 'विनंती:')} {request}
-                </Text>
-              ) : null}
-            </View>
-          </Pressable>
 
-          <SectionTitle title={t('Choose payment', 'पेमेंट निवडा')} />
-          <PaymentOption
-            active={paymentMethod === 'ONLINE'}
-            icon="qrcode-scan"
-            label={t('Pay online', 'ऑनलाइन पेमेंट')}
-            description={t(
-              'UPI, cards and Razorpay · instant prepaid confirmation',
-              'UPI, कार्ड आणि Razorpay · त्वरित प्रीपेड पुष्टीकरण',
-            )}
-            onPress={() => {
-              setPaymentFailure(null);
-              setPaymentMethod('ONLINE');
-            }}
-          />
-          <PaymentOption
-            active={paymentMethod === 'PAY_AT_LODGE'}
-            icon="cash"
-            label={t('Pay at the lodge', 'लॉजवर पैसे भरा')}
-            description={t(
-              'Owner approval is required before confirmation',
-              'पुष्टीकरणापूर्वी लॉज मालकाची मंजुरी आवश्यक',
-            )}
-            onPress={() => {
-              setPaymentFailure(null);
-              setPaymentMethod('PAY_AT_LODGE');
-            }}
-          />
-          <View className="rounded-3xl border border-warm-100 bg-white p-5">
-            <Text className="text-lg font-extrabold text-warm-900">
-              {t('Price details', 'किंमत तपशील')}
+          {/* Stay summary */}
+          <View className="rounded-2xl border border-warm-200 bg-white p-4">
+            <View className="flex-row items-start justify-between gap-3">
+              <View className="min-w-0 flex-1">
+                <Text className="text-base font-bold text-warm-900" numberOfLines={2}>
+                  {lodge.name}
+                </Text>
+                <Text className="mt-0.5 text-[13px] text-warm-500" numberOfLines={1}>
+                  {room.name} · {room.bed} · {room.capacity}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                className="active:opacity-60"
+                hitSlop={8}
+                onPress={() => setEditingStay((value) => !value)}
+              >
+                <Text className="text-sm font-bold text-saffron-600">
+                  {editingStay ? t('Done', 'झाले') : t('Change', 'बदला')}
+                </Text>
+              </Pressable>
+            </View>
+            <View className="mt-3 flex-row rounded-xl bg-warm-50 py-2.5">
+              <View className="flex-1 px-3">
+                <Text className="text-[11px] font-semibold uppercase text-warm-500">
+                  {t('Check-in', 'चेक-इन')}
+                </Text>
+                <Text className="mt-0.5 text-sm font-bold text-warm-900">
+                  {formatShortDate(checkInDate)}
+                </Text>
+              </View>
+              <View className="flex-1 border-l border-warm-200 px-3">
+                <Text className="text-[11px] font-semibold uppercase text-warm-500">
+                  {t('Checkout', 'चेक-आउट')}
+                </Text>
+                <Text className="mt-0.5 text-sm font-bold text-warm-900">
+                  {formatShortDate(checkOutDate)}
+                </Text>
+              </View>
+              <View className="flex-1 border-l border-warm-200 px-3">
+                <Text className="text-[11px] font-semibold uppercase text-warm-500">
+                  {t('Guests', 'पाहुणे')}
+                </Text>
+                <Text className="mt-0.5 text-sm font-bold text-warm-900" numberOfLines={1}>
+                  {adults + children}
+                </Text>
+              </View>
+            </View>
+            <Text className="mt-2 text-xs text-warm-500">
+              {stayDates} · {nights} {t(nights === 1 ? 'night' : 'nights', 'रात्र')} · {guestsLabel}
             </Text>
+          </View>
+
+          {editingStay ? (
+            <View className="gap-4 rounded-2xl border border-warm-200 bg-white p-4">
+              <SectionTitle title={t('Select room', 'खोली निवडा')} />
+              <View className="gap-2.5">
+                {lodge.rooms.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => setRoomId(item.id)}
+                    className={`rounded-xl border-[1.5px] p-3.5 active:opacity-80 ${roomId === item.id ? 'border-saffron-500 bg-saffron-50' : 'border-warm-200 bg-white'}`}
+                  >
+                    <View className="flex-row items-center gap-3">
+                      <MaterialCommunityIcons
+                        color={roomId === item.id ? ui.brandDeep : ui.muted}
+                        name={roomId === item.id ? 'radiobox-marked' : 'radiobox-blank'}
+                        size={22}
+                      />
+                      <View className="flex-1">
+                        <Text className="text-[15px] font-bold text-warm-900">{item.name}</Text>
+                        <Text className="mt-0.5 text-xs text-warm-500">
+                          {item.bed} · {item.capacity}
+                        </Text>
+                        {availability.counts[item.id] === 0 ? (
+                          <Text className="mt-1 text-xs font-extrabold text-danger-700">
+                            {t('Full for these dates', 'या तारखांसाठी भरले')}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text className="text-base font-extrabold text-warm-900">
+                        {formatRupees(item.price)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+              <DateSelector
+                label={t('Check-in', 'चेक-इन')}
+                options={checkInOptions}
+                selectedDate={checkInDate}
+                onSelect={(value) => {
+                  setCheckInDate(value);
+                  if (checkOutDate <= value)
+                    setCheckOutDate(toDateOnly(addDays(parseDateOnly(value), 1)));
+                }}
+              />
+              <DateSelector
+                label={t('Checkout', 'चेक-आउट')}
+                options={checkoutOptions}
+                selectedDate={checkOutDate}
+                onSelect={setCheckOutDate}
+              />
+              <GuestCounter
+                label={t('Adults', 'प्रौढ')}
+                value={adults}
+                min={1}
+                max={6}
+                onChange={setAdults}
+              />
+              <GuestCounter
+                label={t('Children', 'मुले')}
+                value={children}
+                min={0}
+                max={6}
+                onChange={setChildren}
+              />
+            </View>
+          ) : null}
+
+          {/* Guest details */}
+          <View className="gap-4 rounded-2xl border border-warm-200 bg-white p-4">
+            <View>
+              <SectionTitle title={t('Guest details', 'पाहुण्यांची माहिती')} />
+              <Text className="mt-1 text-[13px] text-warm-500">
+                {t(
+                  'Enter the lead guest exactly as shown on the ID proof.',
+                  'मुख्य पाहुण्याची माहिती ओळखपत्राप्रमाणे अचूक भरा.',
+                )}
+              </Text>
+            </View>
+            <Field
+              autoCapitalize="words"
+              icon="account-outline"
+              label={t('Full name', 'पूर्ण नाव')}
+              onChangeText={setName}
+              placeholder="As on photo ID"
+              value={name}
+            />
+            <Field
+              icon="phone-outline"
+              keyboardType="phone-pad"
+              label={t('Mobile number', 'मोबाइल क्रमांक')}
+              maxLength={10}
+              onChangeText={(value) => setPhone(value.replace(/\D/gu, ''))}
+              placeholder="10-digit mobile number"
+              value={phone}
+            />
+            <Field
+              autoCapitalize="none"
+              icon="email-outline"
+              keyboardType="email-address"
+              label={t('Email address', 'ईमेल पत्ता')}
+              onChangeText={setEmail}
+              placeholder="Optional"
+              value={email}
+            />
+            <View className="gap-2">
+              <Text className="ml-1 text-sm font-bold text-warm-700">
+                {t('Government ID proof', 'सरकारी ओळखपत्र')} *
+              </Text>
+              <Pressable
+                onPress={() => void pickGuestIdProof()}
+                className={`min-h-24 items-center justify-center rounded-xl border-[1.5px] border-dashed px-5 active:opacity-80 ${uploadedIdProof ? 'border-templeGreen-500 bg-templeGreen-50' : 'border-saffron-300 bg-saffron-50'}`}
+              >
+                <MaterialCommunityIcons
+                  color={uploadedIdProof ? ui.green : ui.brandDeep}
+                  name={
+                    idProofUploading
+                      ? 'cloud-upload-outline'
+                      : uploadedIdProof
+                        ? 'file-check-outline'
+                        : 'upload-outline'
+                  }
+                  size={26}
+                />
+                <Text className="mt-2 text-center text-sm font-bold text-warm-800">
+                  {idProofUploading
+                    ? t('Uploading…', 'अपलोड होत आहे…')
+                    : (guestIdProof?.name ??
+                      t(
+                        'Upload JPEG, PNG or PDF · Max 5 MB',
+                        'JPEG, PNG किंवा PDF अपलोड करा · कमाल ५ MB',
+                      ))}
+                </Text>
+              </Pressable>
+            </View>
+            <Field
+              icon="message-text-outline"
+              label={t('Special request (optional)', 'विशेष विनंती (ऐच्छिक)')}
+              multiline
+              onChangeText={setRequest}
+              placeholder={t('Any request for the lodge…', 'लॉजसाठी कोणतीही विनंती…')}
+              value={request}
+            />
+          </View>
+
+          {/* Payment */}
+          <View className="gap-3 rounded-2xl border border-warm-200 bg-white p-4">
+            <SectionTitle title={t('Choose payment', 'पेमेंट निवडा')} />
+            <PaymentOption
+              active={paymentMethod === 'ONLINE'}
+              icon="qrcode-scan"
+              label={t('Pay online', 'ऑनलाइन पेमेंट')}
+              description={t(
+                'UPI, cards and Razorpay · instant prepaid confirmation',
+                'UPI, कार्ड आणि Razorpay · त्वरित प्रीपेड पुष्टीकरण',
+              )}
+              onPress={() => {
+                setPaymentFailure(null);
+                setPaymentMethod('ONLINE');
+              }}
+            />
+            <PaymentOption
+              active={paymentMethod === 'PAY_AT_LODGE'}
+              icon="cash"
+              label={t('Pay at the lodge', 'लॉजवर पैसे भरा')}
+              description={t(
+                'Owner approval is required before confirmation',
+                'पुष्टीकरणापूर्वी लॉज मालकाची मंजुरी आवश्यक',
+              )}
+              onPress={() => {
+                setPaymentFailure(null);
+                setPaymentMethod('PAY_AT_LODGE');
+              }}
+            />
+          </View>
+
+          {/* Price details */}
+          <View className="rounded-2xl border border-warm-200 bg-white p-4">
+            <SectionTitle title={t('Price details', 'किंमत तपशील')} />
             <PriceRow
-              label={`${formatRupees(room.price)} × ${nights} nights`}
+              label={`${formatRupees(room.price)} × ${nights} ${t(nights === 1 ? 'night' : 'nights', 'रात्र')}`}
               value={formatRupees(subtotal)}
             />
-            <View className="mt-4 flex-row items-center justify-between border-t border-warm-100 pt-4">
-              <Text className="text-base font-extrabold text-warm-900">{t('Total', 'एकूण')}</Text>
-              <Text className="text-2xl font-extrabold text-maroon-700">{formatRupees(total)}</Text>
+            <View className="mt-3 flex-row items-center justify-between border-t border-warm-100 pt-3">
+              <Text className="text-base font-bold text-warm-900">{t('Total', 'एकूण')}</Text>
+              <Text className="text-xl font-extrabold text-warm-900">{formatRupees(total)}</Text>
             </View>
           </View>
+
           <Pressable
             onPress={() => setAgree((value) => !value)}
-            className="min-h-12 flex-row items-start gap-3 py-1"
+            className="min-h-12 flex-row items-start gap-3 px-1 py-1"
           >
             <MaterialCommunityIcons
-              color={agree ? ui.saffronDeep : ui.muted}
+              color={agree ? ui.brandDeep : ui.muted}
               name={agree ? 'checkbox-marked' : 'checkbox-blank-outline'}
               size={24}
             />
-            <Text className="flex-1 text-sm leading-5 text-warm-600">
+            <Text className="flex-1 text-[13px] leading-5 text-warm-600">
               {t(
                 'I agree to the lodge rules, guest policy and cancellation terms.',
                 'मी लॉजचे नियम, पाहुणे धोरण आणि रद्दीकरण अटी मान्य करतो/करते.',
               )}
             </Text>
           </Pressable>
-        </View>
-      ) : null}
+        </ScrollView>
 
-      {step < 3 ? (
-        <PrimaryButton disabled={roomFull} icon="arrow-right" onPress={continueFlow}>
-          {t('Continue', 'पुढे चला')}
-        </PrimaryButton>
-      ) : (
-        <PrimaryButton
-          disabled={roomFull}
-          icon={paymentMethod === 'ONLINE' ? 'lock-outline' : 'check-circle-outline'}
-          loading={submitting}
-          onPress={() => void confirmBooking()}
+        {/* Sticky pay bar */}
+        <View
+          className="border-t border-warm-200 bg-white px-4 pt-3"
+          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
         >
-          {paymentMethod === 'ONLINE'
-            ? t(`Pay ${formatRupees(total)}`, `${formatRupees(total)} भरा`)
-            : t('Confirm booking', 'बुकिंग निश्चित करा')}
-        </PrimaryButton>
-      )}
-      <Text className="text-center text-xs text-warm-500">
-        {paymentMethod === 'ONLINE'
-          ? t(
-              'Secure Razorpay checkout · prepaid bookings do not require owner approval',
-              'सुरक्षित Razorpay पेमेंट · प्रीपेड बुकिंगला मालकाची मंजुरी आवश्यक नाही',
-            )
-          : t(
-              'Your request will be sent to the lodge owner',
-              'तुमची विनंती लॉज मालकाकडे पाठवली जाईल',
-            )}
-      </Text>
-      {step === 3 && paymentMethod === 'ONLINE' && (prepaidPreparing || prepaidError) ? (
-        <Text className="text-center text-xs text-warm-400">
-          {prepaidPreparing
-            ? t('Setting up secure payment…', 'सुरक्षित पेमेंट तयार होत आहे…')
-            : t(
-                'Payment will be set up when you tap Pay — it may take a moment longer.',
-                'पेमेंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
-              )}
-        </Text>
-      ) : null}
+          {paymentMethod === 'ONLINE' && (prepaidPreparing || prepaidError) ? (
+            <Text className="mb-2 text-center text-xs text-warm-500">
+              {prepaidPreparing
+                ? t('Securing your room and payment…', 'तुमची खोली आणि पेमेंट सुरक्षित करत आहोत…')
+                : t(
+                    'Payment will be set up when you tap Pay — it may take a moment longer.',
+                    'पेमेंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
+                  )}
+            </Text>
+          ) : null}
+          <View className="flex-row items-center gap-4">
+            <View className="flex-1">
+              <Text className="text-xl font-extrabold text-warm-900">{formatRupees(total)}</Text>
+              <Text className="text-xs text-warm-500">
+                {nights} {t(nights === 1 ? 'night' : 'nights', 'रात्र')} · {t('Total', 'एकूण')}
+              </Text>
+            </View>
+            <PrimaryButton
+              className="min-w-44"
+              disabled={roomFull}
+              icon={paymentMethod === 'ONLINE' ? 'lock-outline' : 'check-circle-outline'}
+              loading={submitting}
+              onPress={() => void confirmBooking()}
+            >
+              {paymentMethod === 'ONLINE'
+                ? t(`Pay ${formatRupees(total)}`, `${formatRupees(total)} भरा`)
+                : t('Confirm booking', 'बुकिंग निश्चित करा')}
+            </PrimaryButton>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </AppScreen>
   );
 }
 
-function CheckoutStepHeader({
-  step,
-  t,
-  onSelect,
-}: {
-  step: Step;
-  t: (english: string, marathi: string) => string;
-  onSelect: (step: Step) => void;
-}) {
-  const items: Array<{
-    step: Step;
-    label: string;
-    marathi: string;
-    icon: 'bed-outline' | 'account-outline' | 'credit-card-outline';
-  }> = [
-    { step: 1, label: 'Stay', marathi: 'निवास', icon: 'bed-outline' },
-    { step: 2, label: 'Guest', marathi: 'पाहुणे', icon: 'account-outline' },
-    { step: 3, label: 'Payment', marathi: 'पेमेंट', icon: 'credit-card-outline' },
-  ];
-  return (
-    <View className="flex-row rounded-3xl border border-warm-200 bg-white p-2">
-      {items.map((item) => {
-        const active = item.step === step;
-        const completed = item.step < step;
-        return (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(item.label, item.marathi)}
-            key={item.step}
-            onPress={() => onSelect(item.step)}
-            className={`flex-1 items-center rounded-3xl px-2 py-3 transition-transform duration-150 active:scale-95 ${active ? 'bg-saffron-50' : ''}`}
-          >
-            <MaterialCommunityIcons
-              color={active || completed ? ui.saffronDeep : ui.muted}
-              name={item.icon}
-              size={23}
-            />
-            <Text
-              className={`mt-1 text-xs font-extrabold ${active ? 'text-saffron-700' : 'text-warm-600'}`}
-            >
-              {t(item.label, item.marathi)}
-            </Text>
-            <View
-              className={`mt-2 h-1 w-10 rounded-full ${item.step <= step ? 'bg-saffron-500' : 'bg-warm-200'}`}
-            />
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 function SectionTitle({ title }: { title: string }) {
-  return <Text className="text-xl font-extrabold text-warm-900">{title}</Text>;
+  return <Text className="text-base font-bold text-warm-900">{title}</Text>;
 }
 function PriceRow({ label, value }: { label: string; value: string }) {
   return (
-    <View className="mt-4 flex-row justify-between gap-4">
+    <View className="mt-3 flex-row justify-between gap-4">
       <Text className="flex-1 text-sm text-warm-500">{label}</Text>
       <Text className="text-sm font-bold text-warm-900">{value}</Text>
     </View>
@@ -948,15 +922,15 @@ function PaymentOption({
   return (
     <Pressable
       onPress={onPress}
-      className={`min-h-20 flex-row items-center gap-3 rounded-3xl border-[1.5px] bg-white p-4 shadow-sm shadow-warm-900/5 transition-transform duration-150 active:scale-[0.985] ${active ? 'border-saffron-500' : 'border-warm-200'}`}
+      className={`min-h-[68px] flex-row items-center gap-3 rounded-xl border-[1.5px] p-3.5 active:opacity-80 ${active ? 'border-saffron-500 bg-saffron-50' : 'border-warm-200 bg-white'}`}
     >
-      <MaterialCommunityIcons color={active ? ui.saffronDeep : ui.muted} name={icon} size={25} />
+      <MaterialCommunityIcons color={active ? ui.brandDeep : ui.muted} name={icon} size={25} />
       <View className="flex-1">
         <Text className="text-base font-extrabold text-warm-900">{label}</Text>
         <Text className="mt-1 text-xs leading-4 text-warm-500">{description}</Text>
       </View>
       <MaterialCommunityIcons
-        color={active ? ui.saffronDeep : ui.muted}
+        color={active ? ui.brandDeep : ui.muted}
         name={active ? 'radiobox-marked' : 'radiobox-blank'}
         size={23}
       />
@@ -977,25 +951,25 @@ function GuestCounter({
   onChange: (value: number) => void;
 }) {
   return (
-    <View className="flex-row items-center rounded-3xl border border-warm-200 bg-white px-4 py-3">
-      <Text className="flex-1 text-base font-extrabold text-warm-900">{label}</Text>
+    <View className="flex-row items-center rounded-xl border border-warm-200 bg-white px-4 py-2.5">
+      <Text className="flex-1 text-[15px] font-bold text-warm-900">{label}</Text>
       <View className="flex-row items-center gap-3">
         <Pressable
           onPress={() => onChange(Math.max(min, value - 1))}
           accessibilityRole="button"
-          className="h-12 w-12 items-center justify-center rounded-full border-[1.5px] border-warm-200 transition-transform duration-150 active:scale-90 active:bg-warm-100"
+          className="h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-warm-200 active:bg-warm-100"
           hitSlop={4}
         >
-          <MaterialCommunityIcons name="minus" color={ui.maroon} size={18} />
+          <MaterialCommunityIcons name="minus" color={ui.brandDeep} size={18} />
         </Pressable>
         <Text className="w-7 text-center text-lg font-extrabold text-warm-900">{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
           accessibilityRole="button"
-          className="h-12 w-12 items-center justify-center rounded-full border-[1.5px] border-warm-200 transition-transform duration-150 active:scale-90 active:bg-warm-100"
+          className="h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-warm-200 active:bg-warm-100"
           hitSlop={4}
         >
-          <MaterialCommunityIcons name="plus" color={ui.maroon} size={18} />
+          <MaterialCommunityIcons name="plus" color={ui.brandDeep} size={18} />
         </Pressable>
       </View>
     </View>
@@ -1032,13 +1006,13 @@ function DateSelector({
             <Pressable
               key={option.date}
               onPress={() => onSelect(option.date)}
-              className={`min-h-24 min-w-20 items-center justify-center rounded-3xl border-[1.5px] px-3 transition-transform duration-150 active:scale-95 ${selected ? 'border-saffron-500 bg-saffron-50' : 'border-warm-200 bg-white'}`}
+              className={`min-h-20 min-w-[68px] items-center justify-center rounded-xl border-[1.5px] px-3 active:opacity-80 ${selected ? 'border-saffron-500 bg-saffron-50' : 'border-warm-200 bg-white'}`}
             >
               <Text className="text-[11px] font-bold uppercase text-warm-500">
                 {option.weekday}
               </Text>
               <Text
-                className={`text-xl font-extrabold ${selected ? 'text-saffron-700' : 'text-warm-900'}`}
+                className={`text-lg font-extrabold ${selected ? 'text-saffron-700' : 'text-warm-900'}`}
               >
                 {option.day}
               </Text>
@@ -1049,6 +1023,13 @@ function DateSelector({
       </ScrollView>
     </View>
   );
+}
+function formatShortDate(value: string) {
+  return parseDateOnly(value).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    weekday: 'short',
+  });
 }
 function startOfToday() {
   const today = new Date();
