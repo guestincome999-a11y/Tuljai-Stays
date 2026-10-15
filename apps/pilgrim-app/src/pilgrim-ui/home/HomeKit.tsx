@@ -1,6 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useId, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useId, useState, type ReactNode } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { PilgrimIconName } from '../components';
@@ -36,27 +44,45 @@ export function Gradient({
   const id = `g${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [x2, y2] = direction === 'down' ? [0, 1] : direction === 'right' ? [1, 0] : [1, 1];
   const last = Math.max(colors.length - 1, 1);
+  const [size, setSize] = useState({ height: 0, width: 0 });
+  const firstColor = typeof colors[0] === 'string' ? colors[0] : (colors[0]?.[0] ?? 'transparent');
+
+  // Percentage-sized SVGs can stay at their first (smaller) measured size on
+  // Android, leaving the gradient short of the container edge. Measure the
+  // container and give the SVG explicit pixel dimensions instead.
+  const onLayout = (event: LayoutChangeEvent) => {
+    const { height, width } = event.nativeEvent.layout;
+    setSize((prev) => (prev.width === width && prev.height === height ? prev : { height, width }));
+  };
 
   return (
-    <View style={[{ overflow: 'hidden' }, style]}>
-      <Svg height="100%" preserveAspectRatio="none" style={StyleSheet.absoluteFill} width="100%">
-        <Defs>
-          <LinearGradient id={id} x1="0" x2={String(x2)} y1="0" y2={String(y2)}>
-            {colors.map((stop, index) => {
-              const [color, opacity] = typeof stop === 'string' ? [stop, 1] : stop;
-              return (
-                <Stop
-                  key={`${color}-${index}`}
-                  offset={`${(index / last) * 100}%`}
-                  stopColor={color}
-                  stopOpacity={opacity}
-                />
-              );
-            })}
-          </LinearGradient>
-        </Defs>
-        <Rect fill={`url(#${id})`} height="100%" width="100%" />
-      </Svg>
+    <View onLayout={onLayout} style={[{ backgroundColor: firstColor, overflow: 'hidden' }, style]}>
+      {size.width > 0 && size.height > 0 ? (
+        <Svg
+          height={size.height}
+          pointerEvents="none"
+          preserveAspectRatio="none"
+          style={StyleSheet.absoluteFill}
+          width={size.width}
+        >
+          <Defs>
+            <LinearGradient id={id} x1="0" x2={String(x2)} y1="0" y2={String(y2)}>
+              {colors.map((stop, index) => {
+                const [color, opacity] = typeof stop === 'string' ? [stop, 1] : stop;
+                return (
+                  <Stop
+                    key={`${color}-${index}`}
+                    offset={`${(index / last) * 100}%`}
+                    stopColor={color}
+                    stopOpacity={opacity}
+                  />
+                );
+              })}
+            </LinearGradient>
+          </Defs>
+          <Rect fill={`url(#${id})`} height={size.height} width={size.width} />
+        </Svg>
+      ) : null}
       {children}
     </View>
   );
