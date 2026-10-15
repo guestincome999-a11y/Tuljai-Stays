@@ -74,8 +74,20 @@ export function PilgrimTabBar({ state }: BottomTabBarProps) {
   if (isFunnelScreen(state)) return null;
 
   return (
-    <SafeAreaView className="border-t border-warm-200 bg-white" edges={['bottom']}>
-      <View className="h-[60px] flex-row items-center">
+    <SafeAreaView
+      className="bg-white"
+      edges={['bottom']}
+      style={{
+        borderTopColor: '#E5E7EB',
+        borderTopWidth: 1,
+        elevation: 12,
+        shadowColor: '#111827',
+        shadowOffset: { height: -2, width: 0 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      }}
+    >
+      <View className="h-16 flex-row">
         {tabItems.slice(0, 2).map((item) => (
           <TabItem
             item={item}
@@ -89,17 +101,18 @@ export function PilgrimTabBar({ state }: BottomTabBarProps) {
         <Pressable
           accessibilityLabel={t('Open upcoming stay pass', 'आगामी निवास पास उघडा')}
           accessibilityRole="button"
-          className="h-full flex-1 items-center justify-center gap-0.5 active:opacity-70"
+          className="flex-1 items-center justify-center active:opacity-70"
           onPress={() => router.push('/(app)/pass')}
         >
-          <View className="h-9 w-9 items-center justify-center rounded-full bg-saffron-500">
-            <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={19} />
+          <View className="h-7 w-12 items-center justify-center rounded-full bg-saffron-500">
+            <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={18} />
             {upcoming?.qrReady ? (
               <View className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-templeGreen-500" />
             ) : null}
           </View>
           <Text
-            className={`text-[11px] font-bold ${passSelected ? 'text-saffron-600' : 'text-warm-500'}`}
+            className={`mt-1 text-[11px] font-bold ${passSelected ? 'text-saffron-600' : 'text-warm-500'}`}
+            numberOfLines={1}
           >
             {t('Pass', 'पास')}
           </Text>
@@ -133,20 +146,26 @@ function TabItem({
   const routeName = item.routeMatch.slice(1);
   const selected = selectedRoute === routeName || selectedRoute.startsWith(`${routeName}/`);
 
+  // Same 28px icon slot as the Pass tab so every label shares one baseline.
   return (
     <Pressable
       accessibilityLabel={t(item.label, item.labelMr)}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      className="h-full flex-1 items-center justify-center gap-0.5 active:opacity-70"
+      className="flex-1 items-center justify-center active:opacity-70"
       onPress={() => router.push(item.href)}
     >
-      <MaterialCommunityIcons
-        color={selected ? ui.brandDeep : ui.muted}
-        name={selected ? item.activeIcon : item.icon}
-        size={24}
-      />
-      <Text className={`text-[11px] font-bold ${selected ? 'text-saffron-600' : 'text-warm-500'}`}>
+      <View className="h-7 items-center justify-center">
+        <MaterialCommunityIcons
+          color={selected ? ui.brandDeep : ui.muted}
+          name={selected ? item.activeIcon : item.icon}
+          size={24}
+        />
+      </View>
+      <Text
+        className={`mt-1 text-[11px] font-bold ${selected ? 'text-saffron-600' : 'text-warm-500'}`}
+        numberOfLines={1}
+      >
         {t(item.label, item.labelMr)}
       </Text>
     </Pressable>
