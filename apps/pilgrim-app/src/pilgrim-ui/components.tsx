@@ -37,16 +37,18 @@ export type PilgrimIconName = ComponentProps<typeof MaterialCommunityIcons>['nam
 // (they matched exactly); now sourced directly so the two can't drift apart.
 export const ui = {
   bell: palette.bell[600],
-  canvas: palette.warm[50],
+  brand: '#E8452C',
+  brandDeep: '#CF3A22',
+  canvas: '#F4F5F7',
   danger: palette.red[500],
-  green: palette.green[500],
-  ink: palette.warm[900],
-  maroon: palette.maroon[700],
-  muted: palette.warm[600],
-  saffron: palette.saffron[500],
-  saffronDeep: palette.saffron[600],
-  success: palette.green[500],
-  surface: palette.warm[0],
+  green: '#1E9E5A',
+  ink: '#111827',
+  maroon: '#B02F1B',
+  muted: '#6B7280',
+  saffron: '#E8452C',
+  saffronDeep: '#CF3A22',
+  success: '#1E9E5A',
+  surface: '#FFFFFF',
 } as const;
 
 export function AppScreen({
@@ -54,11 +56,13 @@ export function AppScreen({
   scroll = true,
   padded = true,
   className = '',
+  edges = ['top'],
   onScroll,
   scrollEventThrottle,
 }: {
   children: ReactNode;
   className?: string;
+  edges?: Array<'bottom' | 'left' | 'right' | 'top'>;
   onScroll?: ScrollViewProps['onScroll'];
   padded?: boolean;
   scroll?: boolean;
@@ -66,7 +70,7 @@ export function AppScreen({
 }) {
   const contentClass = `${padded ? 'px-5' : ''} ${className}`;
   return (
-    <SafeAreaView className="flex-1 bg-warm-50" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-warm-50" edges={edges}>
       {scroll ? (
         <ScrollView
           className="flex-1"
@@ -179,12 +183,12 @@ export function TopBar({
   title: string;
 }) {
   return (
-    <View className="mb-6 mt-3 flex-row items-center gap-3">
+    <View className="mb-4 mt-2 flex-row items-center gap-3">
       {onBack ? (
         <IconButton accessibilityLabel="Go back" icon="chevron-left" onPress={onBack} />
       ) : null}
       <View className="min-w-0 flex-1">
-        <Text className="text-2xl font-extrabold tracking-tight text-warm-900" numberOfLines={1}>
+        <Text className="text-xl font-bold tracking-tight text-warm-900" numberOfLines={1}>
           {title}
         </Text>
         {subtitle ? (
@@ -216,7 +220,7 @@ export function IconButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`h-12 w-12 items-center justify-center rounded-full ${shell} transition-transform duration-150 active:scale-90`}
+      className={`h-11 w-11 items-center justify-center rounded-full ${shell} transition-transform duration-150 active:scale-90`}
       hitSlop={6}
       {...props}
     >
@@ -243,16 +247,16 @@ export function PrimaryButton({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ busy: loading, disabled: inactive }}
-      className={`min-h-14 flex-row items-center justify-center gap-2.5 rounded-full px-6 transition-transform duration-150 ${disabled ? 'bg-warm-200' : 'bg-saffron-500 shadow-md shadow-saffron-500/30 active:scale-95 active:bg-saffron-600'} ${className}`}
+      className={`min-h-[52px] flex-row items-center justify-center gap-2.5 rounded-2xl px-6 transition-transform duration-150 ${disabled ? 'bg-warm-200' : 'bg-saffron-500 active:scale-[0.98] active:bg-saffron-600'} ${className}`}
       disabled={inactive}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={ui.ink} />
+        <ActivityIndicator color="#FFFFFF" />
       ) : icon ? (
-        <MaterialCommunityIcons color={disabled ? ui.muted : ui.ink} name={icon} size={22} />
+        <MaterialCommunityIcons color={disabled ? ui.muted : '#FFFFFF'} name={icon} size={22} />
       ) : null}
-      <Text className={`text-base font-extrabold ${disabled ? 'text-warm-500' : 'text-warm-900'}`}>
+      <Text className={`text-base font-bold ${disabled ? 'text-warm-500' : 'text-white'}`}>
         {children}
       </Text>
     </Pressable>
@@ -274,14 +278,18 @@ export function SecondaryButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`min-h-14 flex-row items-center justify-center gap-2.5 rounded-full border-[1.5px] px-6 transition-transform duration-150 active:scale-95 ${destructive ? 'border-danger-100 bg-danger-50' : 'border-warm-200 bg-white active:bg-warm-100'} ${className}`}
+      className={`min-h-[52px] flex-row items-center justify-center gap-2.5 rounded-2xl border-[1.5px] px-6 transition-transform duration-150 active:scale-[0.98] ${destructive ? 'border-danger-100 bg-danger-50' : 'border-saffron-500 bg-white active:bg-saffron-50'} ${className}`}
       {...props}
     >
       {icon ? (
-        <MaterialCommunityIcons color={destructive ? ui.danger : ui.maroon} name={icon} size={21} />
+        <MaterialCommunityIcons
+          color={destructive ? ui.danger : ui.brandDeep}
+          name={icon}
+          size={21}
+        />
       ) : null}
       <Text
-        className={`text-base font-extrabold ${destructive ? 'text-danger-500' : 'text-maroon-700'}`}
+        className={`text-base font-bold ${destructive ? 'text-danger-500' : 'text-saffron-600'}`}
       >
         {children}
       </Text>
@@ -302,7 +310,7 @@ export function Field({
     <View className={className}>
       <Text className="mb-2 ml-1 text-sm font-bold text-warm-700">{label}</Text>
       <View
-        className={`min-h-14 flex-row items-center gap-3 rounded-2xl border-[1.5px] bg-white px-4 ${focused ? 'border-saffron-500' : 'border-warm-200'}`}
+        className={`min-h-[52px] flex-row items-center gap-3 rounded-xl border-[1.5px] bg-white px-4 ${focused ? 'border-saffron-500' : 'border-warm-200'}`}
       >
         {icon ? (
           <MaterialCommunityIcons
@@ -341,7 +349,7 @@ export function SearchBox({
   value?: string;
 }) {
   const shell = (
-    <View className="min-h-14 flex-row items-center gap-3 rounded-full border border-warm-200 bg-white py-1.5 pl-5 pr-1.5 shadow-md shadow-warm-900/10">
+    <View className="min-h-[52px] flex-row items-center gap-3 rounded-xl border border-warm-200 bg-white py-1.5 pl-4 pr-1.5 shadow-sm shadow-warm-900/10">
       <MaterialCommunityIcons color={ui.saffronDeep} name="magnify" size={24} />
       {onPress ? (
         <Text className="flex-1 text-base font-medium text-warm-500" numberOfLines={1}>
@@ -357,7 +365,7 @@ export function SearchBox({
         />
       )}
       {onPress ? (
-        <View className="h-11 w-11 items-center justify-center rounded-full bg-saffron-500">
+        <View className="h-10 w-10 items-center justify-center rounded-lg bg-saffron-500">
           <MaterialCommunityIcons color="#FFFFFF" name="tune-variant" size={20} />
         </View>
       ) : value ? (
@@ -435,97 +443,67 @@ function LodgeCardBase({
   onFavorite,
 }: LodgeCardProps) {
   const { t } = usePilgrimApp();
-
-  const price = (
-    <View className="absolute bottom-3 right-3 flex-row items-end rounded-full bg-maroon-700 px-3.5 py-2">
-      <Text className="text-base font-extrabold text-white">{formatRupees(lodge.price)}</Text>
-      <Text className="mb-0.5 text-xs font-semibold text-white/80">
-        {t(' / night', ' / रात्र')}
-      </Text>
-    </View>
-  );
-
-  if (horizontal) {
-    return (
-      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
-        <Pressable
-          accessibilityRole="button"
-          className="transition-transform duration-150 active:scale-[0.98]"
-          onPress={onPress}
-        >
-          <View className="relative h-44 bg-warm-100">
-            <Image
-              className="h-full w-full"
-              fadeDuration={150}
-              resizeMode="cover"
-              source={{ uri: lodge.hero }}
-            />
-            {lodge.badge ? (
-              <Text className="absolute left-3 top-3 overflow-hidden rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
-                {lodge.badge}
-              </Text>
-            ) : null}
-            {price}
-          </View>
-          <View className="gap-1.5 px-4 pb-4 pt-3.5">
-            <View className="flex-row items-center justify-between gap-2">
-              <Text className="flex-1 text-base font-extrabold text-warm-900" numberOfLines={1}>
-                {lodge.name}
-              </Text>
-              <Rating rating={lodge.rating} />
-            </View>
-            <View className="flex-row items-center gap-1.5">
-              <MaterialCommunityIcons color={ui.saffronDeep} name="map-marker" size={16} />
-              <Text className="flex-1 text-sm text-warm-500" numberOfLines={1}>
-                {lodge.distance}
-              </Text>
-            </View>
-          </View>
-        </Pressable>
-        <FavoriteButton favorite={favorite} onPress={onFavorite} />
-      </View>
-    );
-  }
+  const photoCount = lodge.photos.length;
 
   return (
-    <View className="relative overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
-      <Pressable
-        accessibilityRole="button"
-        className="transition-transform duration-150 active:scale-[0.985]"
-        onPress={onPress}
-      >
-        <View className="relative h-52 bg-warm-100">
+    <View
+      className={`relative overflow-hidden rounded-2xl border border-warm-200 bg-white ${horizontal ? 'mr-3 w-[290px]' : ''}`}
+    >
+      <Pressable accessibilityRole="button" className="active:opacity-95" onPress={onPress}>
+        <View className={`relative bg-warm-100 ${horizontal ? 'h-40' : 'h-48'}`}>
           <Image
             className="h-full w-full"
-            fadeDuration={150}
+            fadeDuration={100}
             resizeMode="cover"
             source={{ uri: lodge.hero }}
           />
-          <View className="absolute left-3 top-3 flex-row gap-2">
-            <Text className="overflow-hidden rounded-full bg-white/95 px-3 py-1.5 text-xs font-extrabold text-templeGreen-700">
-              ✓ {t('Verified stay', 'सत्यापित निवास')}
+          {lodge.badge ? (
+            <Text className="absolute bottom-0 left-0 overflow-hidden rounded-tr-xl bg-saffron-500 px-3 py-1.5 text-xs font-bold text-white">
+              {lodge.badge}
             </Text>
-            {lodge.badge ? (
-              <Text className="overflow-hidden rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
-                {lodge.badge}
+          ) : null}
+          {!horizontal && photoCount > 1 ? (
+            <View className="absolute bottom-2 right-2 flex-row items-center gap-1 rounded-md bg-black/60 px-2 py-1">
+              <MaterialCommunityIcons color="#FFFFFF" name="image-multiple-outline" size={13} />
+              <Text className="text-[11px] font-bold text-white">{photoCount}</Text>
+            </View>
+          ) : null}
+        </View>
+        <View className="gap-1 px-3.5 pb-3.5 pt-3">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <Text className="text-base font-bold text-warm-900" numberOfLines={1}>
+                {lodge.name}
+              </Text>
+              <Text className="mt-0.5 text-[13px] text-warm-500" numberOfLines={1}>
+                {lodge.type} · {lodge.location}
+              </Text>
+            </View>
+            <Rating rating={lodge.rating} />
+          </View>
+          <View className="mt-0.5 flex-row items-center gap-1.5">
+            <MaterialCommunityIcons color={ui.brandDeep} name="temple-hindu" size={15} />
+            <Text className="flex-1 text-[13px] font-semibold text-warm-600" numberOfLines={1}>
+              {lodge.distance}
+            </Text>
+            {lodge.reviewCount > 0 ? (
+              <Text className="text-xs text-warm-500">
+                {lodge.reviewCount} {t('reviews', 'अभिप्राय')}
               </Text>
             ) : null}
           </View>
-          {price}
-        </View>
-        <View className="gap-1.5 px-4 pb-4 pt-3.5">
-          <View className="flex-row items-center justify-between gap-3">
-            <Text className="flex-1 text-lg font-extrabold text-warm-900" numberOfLines={1}>
-              {lodge.name}
+          <View className="mt-2 flex-row items-end justify-between border-t border-warm-100 pt-2.5">
+            <Text className="text-xs font-semibold text-templeGreen-700">
+              ✓ {t('Verified stay', 'सत्यापित निवास')}
             </Text>
-            <Rating rating={lodge.rating} />
-          </View>
-          <Text className="text-sm text-warm-500" numberOfLines={1}>
-            {lodge.type} · {lodge.location}
-          </Text>
-          <View className="mt-1 flex-row items-center gap-1.5">
-            <MaterialCommunityIcons color={ui.saffronDeep} name="temple-hindu" size={17} />
-            <Text className="text-sm font-semibold text-warm-600">{lodge.distance}</Text>
+            <View className="items-end">
+              <Text className="text-xl font-extrabold text-warm-900">
+                {formatRupees(lodge.price)}
+              </Text>
+              <Text className="-mt-0.5 text-[11px] text-warm-500">
+                {t('per night · from', 'प्रति रात्र · पासून')}
+              </Text>
+            </View>
           </View>
         </View>
       </Pressable>
@@ -542,7 +520,7 @@ function FavoriteButton({ favorite, onPress }: { favorite: boolean; onPress: () 
       accessibilityLabel={favorite ? 'Remove from saved stays' : 'Save this stay'}
       accessibilityRole="button"
       accessibilityState={{ selected: favorite }}
-      className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-sm shadow-black/20 transition-transform duration-150 active:scale-90"
+      className="absolute right-3 top-3 h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm shadow-black/20 transition-transform duration-150 active:scale-90"
       hitSlop={8}
       onPress={(event) => {
         event.stopPropagation();
@@ -550,9 +528,9 @@ function FavoriteButton({ favorite, onPress }: { favorite: boolean; onPress: () 
       }}
     >
       <MaterialCommunityIcons
-        color={favorite ? ui.maroon : ui.ink}
+        color={favorite ? ui.brandDeep : ui.ink}
         name={favorite ? 'heart' : 'heart-outline'}
-        size={23}
+        size={21}
       />
     </Pressable>
   );
@@ -560,9 +538,9 @@ function FavoriteButton({ favorite, onPress }: { favorite: boolean; onPress: () 
 
 export function Rating({ rating }: { rating: number }) {
   return (
-    <View className="flex-row items-center gap-1 rounded-full bg-bell-50 px-2.5 py-1.5">
-      <MaterialCommunityIcons color={ui.bell} name="star" size={15} />
-      <Text className="text-xs font-extrabold text-warm-900">{rating.toFixed(1)}</Text>
+    <View className="flex-row items-center gap-1 rounded-md bg-templeGreen-500 px-2 py-1">
+      <Text className="text-xs font-extrabold text-white">{rating.toFixed(1)}</Text>
+      <MaterialCommunityIcons color="#FFFFFF" name="star" size={12} />
     </View>
   );
 }
@@ -919,8 +897,8 @@ function ShimmerBlock({ className }: { className: string }) {
 export function LodgeCardSkeleton({ horizontal = false }: { horizontal?: boolean }) {
   if (horizontal) {
     return (
-      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
-        <ShimmerBlock className="h-44 rounded-none" />
+      <View className="relative mr-3 w-[290px] overflow-hidden rounded-2xl border border-warm-200 bg-white">
+        <ShimmerBlock className="h-40 rounded-none" />
         <View className="gap-3 px-4 pb-4 pt-3.5">
           <ShimmerBlock className="h-4 w-3/4 rounded-full" />
           <ShimmerBlock className="h-3 w-1/2 rounded-full" />
@@ -930,8 +908,8 @@ export function LodgeCardSkeleton({ horizontal = false }: { horizontal?: boolean
   }
 
   return (
-    <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-md shadow-warm-900/10">
-      <ShimmerBlock className="h-52 rounded-none" />
+    <View className="overflow-hidden rounded-2xl border border-warm-200 bg-white">
+      <ShimmerBlock className="h-48 rounded-none" />
       <View className="gap-3 px-4 pb-4 pt-3.5">
         <ShimmerBlock className="h-5 w-2/3 rounded-full" />
         <ShimmerBlock className="h-4 w-1/2 rounded-full" />
