@@ -50,6 +50,20 @@ const tabItems: Array<{
   },
 ];
 
+// Lodge detail and checkout own a sticky bottom action bar (Check availability /
+// Pay), so the tab bar steps aside there — like a booking app's funnel pages.
+// The nested stack's active screen is read from the tab route's own state.
+function isFunnelScreen(state: BottomTabBarProps['state']): boolean {
+  const route = state.routes[state.index];
+  const nested = route?.state;
+  const nestedName = nested?.routes[nested.index ?? nested.routes.length - 1]?.name;
+  if (!route || !nestedName) return false;
+  return (
+    (route.name === 'lodges' && nestedName === '[id]') ||
+    (route.name === 'bookings' && nestedName === 'new')
+  );
+}
+
 export function PilgrimTabBar({ state }: BottomTabBarProps) {
   const router = useRouter();
   const selectedRoute = state.routes[state.index]?.name ?? '';
@@ -57,16 +71,11 @@ export function PilgrimTabBar({ state }: BottomTabBarProps) {
   const upcoming = selectCurrentPassBooking(bookings);
   const passSelected = selectedRoute === 'pass';
 
-  function openPass() {
-    router.push('/(app)/pass');
-  }
+  if (isFunnelScreen(state)) return null;
 
   return (
-    <SafeAreaView
-      className="border-t border-warm-100 bg-white shadow-lg shadow-warm-900/10"
-      edges={['bottom']}
-    >
-      <View className="relative h-[76px] flex-row items-center px-2">
+    <SafeAreaView className="border-t border-warm-200 bg-white" edges={['bottom']}>
+      <View className="h-[60px] flex-row items-center">
         {tabItems.slice(0, 2).map((item) => (
           <TabItem
             item={item}
@@ -77,24 +86,24 @@ export function PilgrimTabBar({ state }: BottomTabBarProps) {
           />
         ))}
 
-        <View className="flex-1 items-center">
-          <Pressable
-            accessibilityLabel={t('Open upcoming stay pass', 'आगामी निवास पास उघडा')}
-            accessibilityRole="button"
-            className={`absolute -top-8 h-[68px] w-[68px] items-center justify-center rounded-full border-[5px] border-white shadow-lg shadow-maroon-800/40 transition-transform duration-150 active:scale-90 active:bg-maroon-800 ${passSelected ? 'bg-saffron-600' : 'bg-maroon-700'}`}
-            onPress={openPass}
-          >
-            <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={29} />
+        <Pressable
+          accessibilityLabel={t('Open upcoming stay pass', 'आगामी निवास पास उघडा')}
+          accessibilityRole="button"
+          className="h-full flex-1 items-center justify-center gap-0.5 active:opacity-70"
+          onPress={() => router.push('/(app)/pass')}
+        >
+          <View className="h-9 w-9 items-center justify-center rounded-full bg-saffron-500">
+            <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={19} />
             {upcoming?.qrReady ? (
-              <View className="absolute right-0 top-0 h-4 w-4 rounded-full border-2 border-white bg-templeGreen-500" />
+              <View className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-templeGreen-500" />
             ) : null}
-          </Pressable>
+          </View>
           <Text
-            className={`mt-10 text-xs font-extrabold ${passSelected ? 'text-saffron-700' : 'text-maroon-700'}`}
+            className={`text-[11px] font-bold ${passSelected ? 'text-saffron-600' : 'text-warm-500'}`}
           >
             {t('Pass', 'पास')}
           </Text>
-        </View>
+        </Pressable>
 
         {tabItems.slice(2).map((item) => (
           <TabItem
@@ -129,19 +138,15 @@ function TabItem({
       accessibilityLabel={t(item.label, item.labelMr)}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      className="min-h-16 flex-1 items-center justify-center gap-1 transition-transform duration-150 active:scale-90"
+      className="h-full flex-1 items-center justify-center gap-0.5 active:opacity-70"
       onPress={() => router.push(item.href)}
     >
-      <View
-        className={`h-8 min-w-14 items-center justify-center rounded-full px-4 ${selected ? 'bg-saffron-100' : ''}`}
-      >
-        <MaterialCommunityIcons
-          color={selected ? ui.saffronDeep : ui.muted}
-          name={selected ? item.activeIcon : item.icon}
-          size={23}
-        />
-      </View>
-      <Text className={`text-[11px] font-bold ${selected ? 'text-saffron-700' : 'text-warm-500'}`}>
+      <MaterialCommunityIcons
+        color={selected ? ui.brandDeep : ui.muted}
+        name={selected ? item.activeIcon : item.icon}
+        size={24}
+      />
+      <Text className={`text-[11px] font-bold ${selected ? 'text-saffron-600' : 'text-warm-500'}`}>
         {t(item.label, item.labelMr)}
       </Text>
     </Pressable>
