@@ -10,6 +10,7 @@ import { validateEnvironment } from '../shared/config/env.validation';
 import { AdminSecurityModule } from './admin-security/admin-security.module';
 import { AdminSupportModule } from './admin-support/admin-support.module';
 import { AmenitiesModule } from './amenities/amenities.module';
+import { AppConfigModule } from './app-config/app-config.module';
 import { AuthModule } from './auth/auth.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CitiesModule } from './cities/cities.module';
@@ -55,6 +56,7 @@ import { UserDirectoryModule } from './user-directory/user-directory.module';
     NotificationsModule,
     ReviewsModule,
     SettingsModule,
+    AppConfigModule,
     OperationsModule,
     StaffModule,
     StorageModule,
