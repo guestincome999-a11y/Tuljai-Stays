@@ -13,6 +13,7 @@ import { AmenitiesModule } from './amenities/amenities.module';
 import { AppConfigModule } from './app-config/app-config.module';
 import { AuthModule } from './auth/auth.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { CitiesModule } from './cities/cities.module';
 import { HealthModule } from './health/health.module';
 import { LodgesModule } from './lodges/lodges.module';
@@ -45,6 +46,7 @@ import { UserDirectoryModule } from './user-directory/user-directory.module';
     AdminSecurityModule,
     AdminSupportModule,
     BookingsModule,
+    CatalogModule,
     CitiesModule,
     AmenitiesModule,
     LodgesModule,
