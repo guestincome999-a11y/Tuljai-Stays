@@ -10,6 +10,7 @@ export interface CatalogAmenity {
 
 export interface CatalogLodgeCard {
   amenities: CatalogAmenity[];
+  amenitySlugs: string[];
   averageRating: number | null;
   coverUrl: string | null;
   distanceFromTempleMeters: number | null;
