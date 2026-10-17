@@ -56,7 +56,7 @@ export class CatalogService {
       if (search && !card.name.toLowerCase().includes(search)) return false;
       if (
         amenitySlugs.length > 0 &&
-        !amenitySlugs.every((slug) => card.amenities.some((item) => item.slug === slug))
+        !amenitySlugs.every((slug) => card.amenitySlugs.includes(slug))
       ) {
         return false;
       }
@@ -197,9 +197,8 @@ export class CatalogService {
       const cover = coverByLodge.get(lodge.id);
       const price = pricesByLodge.get(lodge.id);
       const review = reviewByLodge.get(lodge.id);
-      const amenities: CatalogAmenity[] = lodge.amenities
+      const allAmenities: CatalogAmenity[] = lodge.amenities
         .filter((item) => item.amenity.isActive && item.amenity.deletedAt === null)
-        .slice(0, MAX_CARD_AMENITIES)
         .map((item) => ({
           iconName: item.amenity.iconName,
           name: item.amenity.name,
@@ -207,7 +206,8 @@ export class CatalogService {
         }));
 
       return {
-        amenities,
+        amenities: allAmenities.slice(0, MAX_CARD_AMENITIES),
+        amenitySlugs: allAmenities.map((item) => item.slug),
         averageRating: review?.averageRating ?? null,
         coverUrl: cover ? (cover.thumbnailUrl ?? cover.url) : null,
         distanceFromTempleMeters: lodge.distanceFromTempleMeters,

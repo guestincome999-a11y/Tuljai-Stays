@@ -7,7 +7,10 @@ export interface CatalogAmenity {
 }
 
 export interface CatalogLodgeCard {
+  /** Up to four amenities for display on the card. */
   amenities: CatalogAmenity[];
+  /** Every amenity slug the lodge offers, used for filtering. */
+  amenitySlugs: string[];
   averageRating: number | null;
   coverUrl: string | null;
   distanceFromTempleMeters: number | null;
