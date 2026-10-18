@@ -54,3 +54,19 @@ export interface CatalogLodgeDetails {
   photos: CatalogPhoto[];
   roomTypes: CatalogRoomType[];
 }
+
+export interface MyBookingCard {
+  bookingCode: string;
+  checkInDate: string;
+  checkOutDate: string;
+  coverUrl: string | null;
+  createdAt: string;
+  id: string;
+  lodgeId: string;
+  lodgeName: string;
+  paymentStatus: string;
+  roomTypeName: string;
+  status: string;
+  totalAmount: string | null;
+  totalGuests: number;
+}

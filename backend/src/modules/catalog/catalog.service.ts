@@ -11,6 +11,7 @@ import type {
   CatalogPage,
   CatalogPhoto,
   CatalogRoomType,
+  MyBookingCard,
 } from './catalog.types';
 import type { CatalogQueryDto } from './dto/catalog-query.dto';
 
@@ -123,6 +124,48 @@ export class CatalogService {
         totalRooms: roomType.totalRooms,
       })),
     };
+  }
+
+  /**
+   * The signed-in pilgrim's bookings with lodge name, room name and cover photo already joined,
+   * so the app needs one request instead of several per booking.
+   */
+  public async listMyBookings(userId: string): Promise<MyBookingCard[]> {
+    const bookings = await this.prisma.booking.findMany({
+      include: {
+        lodge: { select: { name: true } },
+        roomType: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      where: { deletedAt: null, pilgrimUserId: userId },
+    });
+    const lodgeIds = [...new Set(bookings.map((booking) => booking.lodgeId))];
+    const photos = await this.prisma.lodgePhoto.findMany({
+      orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+      where: { approvalStatus: 'APPROVED', deletedAt: null, lodgeId: { in: lodgeIds } },
+    });
+    const coverByLodge = new Map<string, string>();
+    for (const photo of photos) {
+      if (!coverByLodge.has(photo.lodgeId)) {
+        coverByLodge.set(photo.lodgeId, photo.thumbnailUrl ?? photo.fileUrl);
+      }
+    }
+
+    return bookings.map((booking): MyBookingCard => ({
+      bookingCode: booking.bookingCode,
+      checkInDate: booking.checkInDate.toISOString().slice(0, 10),
+      checkOutDate: booking.checkOutDate.toISOString().slice(0, 10),
+      coverUrl: coverByLodge.get(booking.lodgeId) ?? null,
+      createdAt: booking.createdAt.toISOString(),
+      id: booking.id,
+      lodgeId: booking.lodgeId,
+      lodgeName: booking.lodge.name,
+      paymentStatus: booking.paymentStatus,
+      roomTypeName: booking.roomType.name,
+      status: booking.status,
+      totalAmount: booking.totalAmount?.toString() ?? null,
+      totalGuests: booking.totalGuests,
+    }));
   }
 
   /** Drops the cached catalogue so the next read rebuilds it from the database. */
