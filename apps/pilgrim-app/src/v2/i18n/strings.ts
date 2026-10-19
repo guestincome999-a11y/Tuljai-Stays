@@ -176,3 +176,129 @@ export const bookingStrings = {
   title: { en: 'Reserve your stay', mr: 'तुमचा मुक्काम निश्चित करा' },
   total: { en: 'Total', mr: 'एकूण' },
 } as const satisfies Record<string, Bilingual>;
+
+export const myBookingsStrings = {
+  amountPaid: { en: 'Amount', mr: 'रक्कम' },
+  balance: { en: 'Pay at lodge', mr: 'निवासात भरायचे' },
+  bookingCode: { en: 'Booking code', mr: 'बुकिंग कोड' },
+  call: { en: 'Call lodge', mr: 'निवासाला फोन करा' },
+  cancel: { en: 'Cancel booking', mr: 'बुकिंग रद्द करा' },
+  cancelBody: {
+    en: 'This releases your room. Refunds, if any, follow the lodge’s cancellation terms.',
+    mr: 'यामुळे तुमची खोली मोकळी होईल. परतावा, असल्यास, निवासाच्या रद्दीकरण अटींनुसार असेल.',
+  },
+  cancelConfirm: { en: 'Yes, cancel', mr: 'होय, रद्द करा' },
+  cancelKeep: { en: 'Keep booking', mr: 'बुकिंग ठेवा' },
+  cancelTitle: { en: 'Cancel this booking?', mr: 'हे बुकिंग रद्द करायचे?' },
+  empty: { en: 'No bookings here yet.', mr: 'येथे अजून बुकिंग नाहीत.' },
+  emptyAction: { en: 'Find a stay', mr: 'निवास शोधा' },
+  guests: { en: 'guests', mr: 'पाहुणे' },
+  passHint: {
+    en: 'Show this QR code at the lodge when you arrive.',
+    mr: 'निवासात पोहोचल्यावर हा QR कोड दाखवा.',
+  },
+  passRetry: { en: 'Try again', mr: 'पुन्हा प्रयत्न करा' },
+  passTitle: { en: 'Your check-in pass', mr: 'तुमचा चेक-इन पास' },
+  passUnavailable: {
+    en: 'The pass could not be loaded. Check your connection and try again.',
+    mr: 'पास लोड होऊ शकला नाही. इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.',
+  },
+  past: { en: 'Past', mr: 'मागील' },
+  paymentTitle: { en: 'Payment', mr: 'पेमेंट' },
+  room: { en: 'Room', mr: 'खोली' },
+  signInBody: {
+    en: 'Sign in to see your bookings and check-in passes.',
+    mr: 'तुमची बुकिंग आणि चेक-इन पास पाहण्यासाठी साइन इन करा.',
+  },
+  signInTitle: { en: 'Your bookings', mr: 'तुमची बुकिंग' },
+  signInAction: { en: 'Sign in', mr: 'साइन इन करा' },
+  stayTitle: { en: 'Your stay', mr: 'तुमचा मुक्काम' },
+  title: { en: 'My bookings', mr: 'माझी बुकिंग' },
+  upcoming: { en: 'Upcoming', mr: 'येणारी' },
+  whatsapp: { en: 'WhatsApp', mr: 'व्हॉट्सअ‍ॅप' },
+} as const satisfies Record<string, Bilingual>;
+
+export const bookingStatusText: Record<string, { hint: Bilingual; label: Bilingual }> = {
+  ACCEPTED: {
+    hint: {
+      en: 'Your stay is confirmed. Your check-in pass is below.',
+      mr: 'तुमचा मुक्काम निश्चित झाला आहे. तुमचा चेक-इन पास खाली आहे.',
+    },
+    label: { en: 'Confirmed', mr: 'निश्चित' },
+  },
+  CANCELLED: {
+    hint: { en: 'This booking was cancelled.', mr: 'हे बुकिंग रद्द झाले आहे.' },
+    label: { en: 'Cancelled', mr: 'रद्द' },
+  },
+  CHECKED_IN: {
+    hint: {
+      en: 'You are checked in. Enjoy your stay.',
+      mr: 'तुमचे चेक-इन झाले आहे. मुक्काम सुखाचा होवो.',
+    },
+    label: { en: 'Checked in', mr: 'चेक-इन झाले' },
+  },
+  CHECKED_OUT: {
+    hint: { en: 'Thank you for staying with us.', mr: 'आमच्याकडे राहिल्याबद्दल धन्यवाद.' },
+    label: { en: 'Completed', mr: 'पूर्ण' },
+  },
+  COMPLETED: {
+    hint: { en: 'Thank you for staying with us.', mr: 'आमच्याकडे राहिल्याबद्दल धन्यवाद.' },
+    label: { en: 'Completed', mr: 'पूर्ण' },
+  },
+  DRAFT: {
+    hint: { en: 'This booking was not completed.', mr: 'हे बुकिंग पूर्ण झाले नाही.' },
+    label: { en: 'Draft', mr: 'अपूर्ण' },
+  },
+  EXPIRED: {
+    hint: { en: 'The lodge did not respond in time.', mr: 'निवासाने वेळेत उत्तर दिले नाही.' },
+    label: { en: 'Expired', mr: 'मुदत संपली' },
+  },
+  NO_SHOW: {
+    hint: {
+      en: 'This stay was marked as a no-show.',
+      mr: 'हा मुक्काम गैरहजेरी म्हणून नोंदवला आहे.',
+    },
+    label: { en: 'No-show', mr: 'गैरहजर' },
+  },
+  PENDING_OWNER_APPROVAL: {
+    hint: {
+      en: 'Waiting for the lodge to confirm your request.',
+      mr: 'निवासाने तुमची विनंती निश्चित करण्याची प्रतीक्षा आहे.',
+    },
+    label: { en: 'Waiting for lodge', mr: 'निवासाच्या उत्तराची प्रतीक्षा' },
+  },
+  QR_GENERATED: {
+    hint: {
+      en: 'Your stay is confirmed. Your check-in pass is below.',
+      mr: 'तुमचा मुक्काम निश्चित झाला आहे. तुमचा चेक-इन पास खाली आहे.',
+    },
+    label: { en: 'Confirmed', mr: 'निश्चित' },
+  },
+  REJECTED: {
+    hint: {
+      en: 'The lodge could not accept this request.',
+      mr: 'निवासाला ही विनंती स्वीकारता आली नाही.',
+    },
+    label: { en: 'Declined', mr: 'नाकारले' },
+  },
+};
+
+export const paymentStatusText: Record<string, Bilingual> = {
+  ADVANCE_PAID: { en: 'Paid online', mr: 'ऑनलाइन भरले' },
+  FAILED: { en: 'Payment failed', mr: 'पेमेंट अयशस्वी' },
+  FULLY_PAID: { en: 'Paid online', mr: 'ऑनलाइन भरले' },
+  NOT_REQUIRED: { en: 'No payment needed', mr: 'पेमेंट आवश्यक नाही' },
+  PAY_AT_LODGE: { en: 'Pay at lodge', mr: 'निवासात भरायचे' },
+  PENDING: { en: 'Payment pending', mr: 'पेमेंट बाकी' },
+  REFUNDED: { en: 'Refunded', mr: 'परतावा दिला' },
+};
+
+export const UPCOMING_STATUSES = [
+  'ACCEPTED',
+  'CHECKED_IN',
+  'PENDING_OWNER_APPROVAL',
+  'QR_GENERATED',
+];
+export const CANCELLABLE_STATUSES = ['ACCEPTED', 'PENDING_OWNER_APPROVAL', 'QR_GENERATED'];
+export const PASS_STATUSES = ['ACCEPTED', 'QR_GENERATED'];
+export const CONTACT_STATUSES = ['ACCEPTED', 'CHECKED_IN', 'QR_GENERATED'];
