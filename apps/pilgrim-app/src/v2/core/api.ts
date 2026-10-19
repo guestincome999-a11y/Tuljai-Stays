@@ -20,7 +20,7 @@ export function onSessionExpired(handler: (() => void) | null): void {
 const refreshClient = new ApiClient({ baseUrl: apiBaseUrl() });
 let refreshInFlight: Promise<string | null> | null = null;
 
-function refreshAccessToken(): Promise<string | null> {
+export function refreshAccessToken(): Promise<string | null> {
   refreshInFlight ??= (async () => {
     const refreshToken = await readRefreshToken();
     if (!refreshToken) return null;
