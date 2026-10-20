@@ -8,6 +8,11 @@ export type CatalogSort = (typeof CATALOG_SORTS)[number];
 export class CatalogQueryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(1500)
+  ids?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(200)
   amenities?: string;
 

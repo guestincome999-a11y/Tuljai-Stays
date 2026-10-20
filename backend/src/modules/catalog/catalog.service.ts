@@ -50,9 +50,19 @@ export class CatalogService {
       .map((slug) => slug.trim().toLowerCase())
       .filter((slug) => slug.length > 0);
     const search = query.search?.trim().toLowerCase();
+    const ids =
+      query.ids === undefined
+        ? null
+        : new Set(
+            query.ids
+              .split(',')
+              .map((id) => id.trim())
+              .filter((id) => id.length > 0),
+          );
 
     const filtered = cards.filter((card) => {
       const price = toNumber(card.startingPrice);
+      if (ids && !ids.has(card.id)) return false;
       if (query.propertyType && card.propertyType !== query.propertyType) return false;
       if (search && !card.name.toLowerCase().includes(search)) return false;
       if (
