@@ -1,6 +1,7 @@
 import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { fetchCatalog } from '../../core/catalog';
+import { usePreferences } from '../../core/preferences';
 import { useCachedFetch } from '../../core/useCachedFetch';
 import { gutter, space } from '../../design/tokens';
 import { bilingualProp, useLang } from '../../i18n/language';
@@ -22,6 +23,7 @@ export function LodgeRailSection({
   props: Record<string, unknown>;
 }) {
   const { t } = useLang();
+  const { isSaved, toggleSaved } = usePreferences();
   const { width } = useWindowDimensions();
   const limit = Math.min(typeof props['limit'] === 'number' ? props['limit'] : 8, MAX_RAIL_ITEMS);
   const { data, error, loading } = useCachedFetch(`catalog:home:${limit}`, () =>
@@ -77,7 +79,13 @@ export function LodgeRailSection({
           ItemSeparatorComponent={() => <View style={styles.gap} />}
           keyExtractor={(card) => card.id}
           renderItem={({ item }) => (
-            <LodgeCard card={item} width={cardWidth} onPress={onOpenLodge} />
+            <LodgeCard
+              card={item}
+              saved={isSaved(item.id)}
+              width={cardWidth}
+              onPress={onOpenLodge}
+              onToggleSaved={toggleSaved}
+            />
           )}
           showsHorizontalScrollIndicator={false}
           snapToInterval={cardWidth + space.lg}

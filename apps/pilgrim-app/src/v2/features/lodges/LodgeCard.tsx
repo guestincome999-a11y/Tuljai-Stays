@@ -13,11 +13,13 @@ import { Text } from '../../ui/Text';
 export interface LodgeCardProps {
   card: CatalogLodgeCard;
   onPress: (lodgeId: string) => void;
+  onToggleSaved?: (lodgeId: string) => void;
+  saved?: boolean;
   /** Fixed width for horizontal rails; omit to fill the parent (vertical lists). */
   width?: number;
 }
 
-export function LodgeCard({ card, onPress, width }: LodgeCardProps) {
+export function LodgeCard({ card, onPress, onToggleSaved, saved = false, width }: LodgeCardProps) {
   const colors = useColors();
   const { lang, t } = useLang();
 
@@ -33,6 +35,18 @@ export function LodgeCard({ card, onPress, width }: LodgeCardProps) {
     >
       <View>
         <Photo style={styles.photo} uri={card.coverUrl} />
+        {onToggleSaved ? (
+          <PressableScale
+            accessibilityLabel={card.name}
+            accessibilityState={{ selected: saved }}
+            hitSlop={space.sm}
+            pressedScale={0.88}
+            style={[styles.heart, { backgroundColor: saved ? colors.primary : colors.surface }]}
+            onPress={() => onToggleSaved(card.id)}
+          >
+            <Icon color={saved ? 'onPrimary' : 'ink'} name="heart" size={16} />
+          </PressableScale>
+        ) : null}
         {card.averageRating !== null ? (
           <View style={[styles.rating, { backgroundColor: colors.surface }]}>
             <Icon color="star" name="star" size={13} />
@@ -74,6 +88,16 @@ export function LodgeCard({ card, onPress, width }: LodgeCardProps) {
 }
 
 const styles = StyleSheet.create({
+  heart: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    height: 36,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: space.md,
+    top: space.md,
+    width: 36,
+  },
   body: { gap: space.xs, padding: space.lg },
   card: { borderRadius: radius.lg, overflow: 'hidden' },
   meta: { alignItems: 'center', flexDirection: 'row', gap: space.xs },

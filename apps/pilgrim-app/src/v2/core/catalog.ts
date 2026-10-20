@@ -57,6 +57,7 @@ export interface CatalogLodgeDetails {
 
 export interface CatalogQuery {
   amenities?: string[];
+  ids?: string[];
   maxDistance?: number;
   maxPrice?: number;
   minPrice?: number;
@@ -69,7 +70,7 @@ export interface CatalogQuery {
 
 export function fetchCatalog(query: CatalogQuery = {}): Promise<CatalogPage> {
   return api.get<CatalogPage>('/catalog/lodges', {
-    params: { ...query, amenities: query.amenities?.join(',') },
+    params: { ...query, amenities: query.amenities?.join(','), ids: query.ids?.join(',') },
   });
 }
 

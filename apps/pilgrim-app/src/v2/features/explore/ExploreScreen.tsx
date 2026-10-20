@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { usePreferences } from '../../core/preferences';
 import { useCatalogList } from '../../core/useCatalogList';
 import type { CatalogListQuery } from '../../core/useCatalogList';
 import { useColors } from '../../design/theme';
 import { gutter, space } from '../../design/tokens';
+import { accountStrings } from '../../i18n/accountStrings';
 import { useLang } from '../../i18n/language';
 import {
   amenityOptions,
@@ -36,10 +38,18 @@ function useDebounced<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-export function ExploreScreen({ onOpenLodge }: { onOpenLodge: (lodgeId: string) => void }) {
+export function ExploreScreen({
+  initialSavedOnly = false,
+  onOpenLodge,
+}: {
+  initialSavedOnly?: boolean;
+  onOpenLodge: (lodgeId: string) => void;
+}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useLang();
+  const { favoriteIds, isSaved, toggleSaved } = usePreferences();
+  const [savedOnly, setSavedOnly] = useState(initialSavedOnly);
   const [text, setText] = useState('');
   const [sort, setSort] = useState<SortId>('distance');
   const [propertyType, setPropertyType] = useState<string | null>(null);
@@ -51,20 +61,26 @@ export function ExploreScreen({ onOpenLodge }: { onOpenLodge: (lodgeId: string) 
     const price = priceOptions.find((option) => option.id === priceId);
     return {
       amenities: amenities.length > 0 ? amenities : undefined,
+      ids: savedOnly ? (favoriteIds.length > 0 ? favoriteIds : ['none']) : undefined,
       maxPrice: price && 'max' in price ? price.max : undefined,
       minPrice: price && 'min' in price ? price.min : undefined,
       propertyType: propertyType ?? undefined,
       search: search.length > 0 ? search : undefined,
       sort,
     };
-  }, [amenities, priceId, propertyType, search, sort]);
+  }, [amenities, favoriteIds, priceId, propertyType, savedOnly, search, sort]);
 
   const list = useCatalogList(query);
   const hasFilters =
-    text.length > 0 || propertyType !== null || priceId !== null || amenities.length > 0;
+    savedOnly ||
+    text.length > 0 ||
+    propertyType !== null ||
+    priceId !== null ||
+    amenities.length > 0;
 
   function clearFilters() {
     setText('');
+    setSavedOnly(false);
     setPropertyType(null);
     setPriceId(null);
     setAmenities([]);
@@ -85,6 +101,11 @@ export function ExploreScreen({ onOpenLodge }: { onOpenLodge: (lodgeId: string) 
         onChangeText={setText}
       />
       <ChipRow>
+        <FilterChip
+          label={t(accountStrings.savedFilter)}
+          selected={savedOnly}
+          onPress={() => setSavedOnly((value) => !value)}
+        />
         {sortOptions.map((option) => (
           <FilterChip
             key={option.id}
@@ -168,7 +189,14 @@ export function ExploreScreen({ onOpenLodge }: { onOpenLodge: (lodgeId: string) 
         }
         ListHeaderComponent={header}
         refreshing={false}
-        renderItem={({ item }) => <LodgeCard card={item} onPress={onOpenLodge} />}
+        renderItem={({ item }) => (
+          <LodgeCard
+            card={item}
+            saved={isSaved(item.id)}
+            onPress={onOpenLodge}
+            onToggleSaved={toggleSaved}
+          />
+        )}
         showsVerticalScrollIndicator={false}
         onEndReached={() => void list.loadMore()}
         onEndReachedThreshold={0.6}
