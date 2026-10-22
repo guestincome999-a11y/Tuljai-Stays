@@ -31,6 +31,7 @@ import { Text } from '../../ui/Text';
 import { statusTone } from './BookingStatusBadge';
 import { LodgeContactActions } from './LodgeContactActions';
 import { QrPass } from './QrPass';
+import { ReviewCard } from './ReviewCard';
 
 function DirectionsButton({ lodgeId }: { lodgeId: string }) {
   const { t } = useLang();
@@ -197,6 +198,10 @@ export function BookingDetailScreen({
               />
             ) : null}
           </View>
+        ) : null}
+
+        {status === 'CHECKED_OUT' || status === 'COMPLETED' ? (
+          <ReviewCard bookingId={bookingId} />
         ) : null}
 
         {status && CONTACT_STATUSES.includes(status) ? (

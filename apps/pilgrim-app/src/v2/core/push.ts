@@ -109,6 +109,16 @@ export async function enablePushNotifications(): Promise<{ registered: boolean }
   }
 }
 
+/** Asks for notification permission the first time only, right after someone signs in. */
+export async function promptForPushOnce(): Promise<void> {
+  const prompted = await SecureStore.getItemAsync(PUSH_PROMPTED_KEY).catch(() => null);
+  if (prompted === 'true') {
+    await refreshPushRegistration().catch(() => false);
+    return;
+  }
+  await enablePushNotifications();
+}
+
 /** Re-registers an already granted phone, for example after sign-in. Never prompts. */
 export async function refreshPushRegistration(): Promise<boolean> {
   await configureChannels();
