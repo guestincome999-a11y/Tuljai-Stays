@@ -40,6 +40,14 @@ export function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
+/**
+ * The server sleeps when nobody has used it for a while and can take up to a minute to wake.
+ * Asking for /health the moment the app opens starts that wake-up while the first screen draws.
+ */
+export function warmUpBackend(): void {
+  void fetch(`${apiBaseUrl()}/health`, { method: 'GET' }).catch(() => undefined);
+}
+
 export const api = new ApiClient({
   baseUrl: apiBaseUrl(),
   getAccessToken: readAccessToken,

@@ -128,7 +128,28 @@ export function ProfileScreen({
       showsVerticalScrollIndicator={false}
       style={{ backgroundColor: colors.background }}
     >
-      <Text variant="title">{t(accountStrings.profile)}</Text>
+      <View style={styles.header}>
+        <Text variant="title">{t(accountStrings.profile)}</Text>
+        <View style={[styles.segment, { backgroundColor: colors.surfaceMuted }]}>
+          {languages.map((option) => (
+            <PressableScale
+              accessibilityLabel={option.label}
+              accessibilityState={{ selected: lang === option.id }}
+              key={option.id}
+              pressedScale={0.94}
+              style={[
+                styles.segmentOption,
+                lang === option.id ? { backgroundColor: colors.primary } : null,
+              ]}
+              onPress={() => setLang(option.id)}
+            >
+              <Text color={lang === option.id ? 'onPrimary' : 'inkMuted'} variant="label">
+                {option.label}
+              </Text>
+            </PressableScale>
+          ))}
+        </View>
+      </View>
 
       {auth.signedIn ? (
         <View
@@ -174,31 +195,6 @@ export function ProfileScreen({
           label={t(accountStrings.announcements)}
           subtitle={t(accountStrings.announcementsBody)}
           onPress={onOpenAnnouncements}
-        />
-        <Row
-          icon="globe"
-          label={t(accountStrings.appLanguage)}
-          trailing={
-            <View style={[styles.segment, { backgroundColor: colors.surfaceMuted }]}>
-              {languages.map((option) => (
-                <PressableScale
-                  accessibilityLabel={option.label}
-                  accessibilityState={{ selected: lang === option.id }}
-                  key={option.id}
-                  pressedScale={0.94}
-                  style={[
-                    styles.segmentOption,
-                    lang === option.id ? { backgroundColor: colors.surface } : null,
-                  ]}
-                  onPress={() => setLang(option.id)}
-                >
-                  <Text color={lang === option.id ? 'primary' : 'inkMuted'} variant="label">
-                    {option.label}
-                  </Text>
-                </PressableScale>
-              ))}
-            </View>
-          }
         />
         {auth.signedIn ? (
           <Row
@@ -267,6 +263,7 @@ const styles = StyleSheet.create({
   },
   card: { borderRadius: radius.lg, gap: space.lg, padding: space.lg },
   content: { gap: space.xl, paddingHorizontal: gutter },
+  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   identity: { alignItems: 'center', flexDirection: 'row' },
   row: { alignItems: 'center', flexDirection: 'row', gap: space.md },
   rowCopy: { flex: 1, gap: 2 },

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { warmUpBackend } from '../core/api';
 import { hydrateConfig, refreshConfig } from '../core/config';
 import { useAppFonts } from '../design/fonts';
 
@@ -12,6 +13,7 @@ export function useBootstrap(): boolean {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    warmUpBackend();
     void hydrateConfig().finally(() => {
       setHydrated(true);
       void refreshConfig();

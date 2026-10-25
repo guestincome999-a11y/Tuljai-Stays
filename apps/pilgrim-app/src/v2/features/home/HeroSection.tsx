@@ -8,7 +8,7 @@ import { bilingualProp, useLang } from '../../i18n/language';
 import { Photo } from '../../ui/Photo';
 import { Text } from '../../ui/Text';
 
-import { LanguageToggle } from './LanguageToggle';
+import { HeaderActions } from './HeaderActions';
 
 const HERO_HEIGHT = 320;
 
@@ -38,7 +38,7 @@ export function HeroSection({ props }: { props: Record<string, unknown> }) {
       )}
       <View style={[styles.content, { paddingTop: insets.top + space.md }]}>
         <View style={styles.topRow}>
-          <LanguageToggle />
+          <HeaderActions props={props} />
         </View>
         <View style={styles.copy}>
           <Text color="onPrimary" variant="display">

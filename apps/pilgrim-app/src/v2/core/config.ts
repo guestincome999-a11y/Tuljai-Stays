@@ -41,6 +41,10 @@ export const DEFAULT_CONFIG: PilgrimAppConfig = {
             props: {
               ctaEn: 'Explore stays',
               ctaMr: 'निवास पहा',
+              passLabelEn: 'Darshan Pass',
+              passLabelMr: 'दर्शन पास',
+              showBell: true,
+              showPass: true,
               subtitleEn: '',
               subtitleMr: '',
               titleEn: 'Rest well. Pray in peace.',
@@ -62,7 +66,6 @@ export const DEFAULT_CONFIG: PilgrimAppConfig = {
             },
             type: 'LODGE_RAIL',
           },
-          { enabled: true, id: 'notice', props: {}, type: 'NOTICE' },
           {
             enabled: true,
             id: 'trust',

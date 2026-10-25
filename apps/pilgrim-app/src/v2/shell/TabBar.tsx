@@ -2,16 +2,13 @@ import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fetchMyBookings } from '../core/bookings';
-import { toDateOnly, startOfToday } from '../core/dates';
 import { useCachedFetch } from '../core/useCachedFetch';
-import { useSession } from '../core/useSession';
+import { useCurrentPass } from '../core/useCurrentPass';
 import { useColors } from '../design/theme';
 import { elevation, space } from '../design/tokens';
 import { fetchUnreadCount } from '../features/notifications/NotificationsScreen';
 import { extraStrings } from '../i18n/extraStrings';
 import { useLang } from '../i18n/language';
-import { CONTACT_STATUSES } from '../i18n/strings';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { PressableScale } from '../ui/PressableScale';
@@ -35,21 +32,11 @@ export function TabBar({ navigation, state }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { t } = useLang();
   const { push } = useGo();
-  const session = useSession();
-  const signedIn = session.user !== null;
-  const { data: bookings } = useCachedFetch(
-    signedIn ? 'my-bookings' : 'my-bookings:signed-out',
-    () => (signedIn ? fetchMyBookings() : Promise.resolve([])),
-  );
+  const { currentPass, signedIn } = useCurrentPass();
   const { data: unread } = useCachedFetch(
     signedIn ? 'notifications:unread' : 'notifications:none',
     () => (signedIn ? fetchUnreadCount() : Promise.resolve({ unreadCount: 0 })),
   );
-
-  const today = toDateOnly(startOfToday());
-  const currentPass = (bookings ?? [])
-    .filter((booking) => CONTACT_STATUSES.includes(booking.status) && booking.checkOutDate >= today)
-    .sort((left, right) => left.checkInDate.localeCompare(right.checkInDate))[0];
 
   const activeName = state.routes[state.index]?.name;
   const left = TABS.slice(0, 2);
