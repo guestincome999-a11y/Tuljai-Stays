@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthenticatedUser, ManualBookingBlock, Room, RoomType } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
@@ -35,6 +35,8 @@ interface ManualBookingMetadata {
 
 @Injectable()
 export class RoomsService {
+  private readonly logger = new Logger(RoomsService.name);
+
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly bookingAvailabilityService: BookingAvailabilityService,
@@ -63,15 +65,32 @@ export class RoomsService {
         totalRooms: dto.totalRooms,
       },
     });
-    await this.auditLogService.create({
-      action: 'ROOM_TYPE_CREATED',
-      actorUserId: user.id,
-      entityId: roomType.id,
-      entityType: 'room_type',
-    });
+    this.runSecondary('ROOM_TYPE_CREATED audit', () =>
+      this.auditLogService.create({
+        action: 'ROOM_TYPE_CREATED',
+        actorUserId: user.id,
+        entityId: roomType.id,
+        entityType: 'room_type',
+      }),
+    );
     this.publishCatalogUpdated(lodgeId, roomType.id);
 
     return this.toRoomType(roomType);
+  }
+
+  /**
+   * Every room type of a lodge, including inactive ones and ones with no
+   * currently-AVAILABLE room. This is the management view: the public list
+   * hides those, which made them impossible to edit or re-activate.
+   */
+  public async listLodgeRoomTypes(lodgeId: string, user: AuthenticatedUser): Promise<RoomType[]> {
+    await this.lodgeAccessService.assertCanManageLodge(user, lodgeId);
+    const roomTypes = await this.prisma.roomType.findMany({
+      orderBy: { name: 'asc' },
+      where: { deletedAt: null, lodgeId },
+    });
+
+    return roomTypes.map((roomType) => this.toRoomType(roomType));
   }
 
   public async updateRoomType(
@@ -79,6 +98,7 @@ export class RoomsService {
     dto: UpdateRoomTypeDto,
     user: AuthenticatedUser,
   ): Promise<RoomType> {
+    const startedAt = Date.now();
     const existing = await this.prisma.roomType.findFirst({ where: { deletedAt: null, id } });
 
     if (!existing) {
@@ -86,20 +106,38 @@ export class RoomsService {
     }
 
     await this.lodgeAccessService.assertCanManageLodge(user, existing.lodgeId);
-    const roomType = await this.prisma.roomType.update({
-      data: dto,
-      where: { id },
-    });
-    await this.auditLogService.create({
-      action: 'ROOM_TYPE_UPDATED',
-      actorUserId: user.id,
-      entityId: id,
-      entityType: 'room_type',
-    });
+
+    let roomType;
+    try {
+      roomType = await this.prisma.roomType.update({
+        data: dto,
+        where: { id },
+      });
+    } catch (error) {
+      // Unique constraint (e.g. slug already used in this lodge) is a client
+      // error, not a server failure.
+      if ((error as { code?: string } | null)?.code === 'P2002') {
+        throw new ConflictException('Another room type already uses this slug');
+      }
+      throw error;
+    }
+
+    // The write is committed at this point. Audit logging and the realtime
+    // broadcast are secondary: a failure there must never turn a successful
+    // price change into an error response.
+    this.runSecondary('ROOM_TYPE_UPDATED audit', () =>
+      this.auditLogService.create({
+        action: 'ROOM_TYPE_UPDATED',
+        actorUserId: user.id,
+        entityId: id,
+        entityType: 'room_type',
+      }),
+    );
     // Price, capacity, description or active-state changed: tell pilgrim apps
     // to drop their cached copy and re-fetch, so the new price shows without
     // an app restart.
     this.publishCatalogUpdated(existing.lodgeId, id);
+    this.logger.log(`Room type ${id} updated in ${Date.now() - startedAt}ms`);
 
     return this.toRoomType(roomType);
   }
@@ -152,12 +190,14 @@ export class RoomsService {
         roomTypeId,
       },
     });
-    await this.auditLogService.create({
-      action: 'ROOM_CREATED',
-      actorUserId: user.id,
-      entityId: room.id,
-      entityType: 'room',
-    });
+    this.runSecondary('ROOM_CREATED audit', () =>
+      this.auditLogService.create({
+        action: 'ROOM_CREATED',
+        actorUserId: user.id,
+        entityId: room.id,
+        entityType: 'room',
+      }),
+    );
     this.publishCatalogUpdated(roomType.lodgeId, roomTypeId);
 
     return this.toRoom(room);
@@ -182,6 +222,7 @@ export class RoomsService {
     dto: UpdateRoomStatusDto,
     user: AuthenticatedUser,
   ): Promise<Room> {
+    const startedAt = Date.now();
     const existing = await this.prisma.room.findFirst({ where: { deletedAt: null, id } });
 
     if (!existing) {
@@ -193,71 +234,86 @@ export class RoomsService {
       data: { status: dto.status },
       where: { id },
     });
-    await this.auditLogService.create({
-      action: 'ROOM_STATUS_UPDATED',
-      actorUserId: user.id,
-      entityId: id,
-      entityType: 'room',
-      metadata: { status: dto.status },
-    });
-    this.realtimeEventsService.publishToLodge(room.lodgeId, 'room:status-updated', {
+
+    // The status write is committed. Everything below is secondary and must
+    // not delay or fail the response (the owner-notification fan-out used to
+    // be awaited here, so a slow push provider made the toggle look stuck).
+    this.runSecondary('ROOM_STATUS_UPDATED audit', () =>
+      this.auditLogService.create({
+        action: 'ROOM_STATUS_UPDATED',
+        actorUserId: user.id,
+        entityId: id,
+        entityType: 'room',
+        metadata: { status: dto.status },
+      }),
+    );
+    const eventPayload = {
       blocked: room.status === 'BLOCKED',
       lodgeId: room.lodgeId,
       roomId: room.id,
       roomTypeId: room.roomTypeId,
       status: room.status,
       updatedAt: new Date().toISOString(),
-    });
-    this.realtimeEventsService.publishToLodge(room.lodgeId, 'room:availability-updated', {
-      blocked: room.status === 'BLOCKED',
-      lodgeId: room.lodgeId,
-      roomId: room.id,
-      roomTypeId: room.roomTypeId,
-      status: room.status,
-      updatedAt: new Date().toISOString(),
-    });
+    };
+    try {
+      this.realtimeEventsService.publishToLodge(room.lodgeId, 'room:status-updated', eventPayload);
+      this.realtimeEventsService.publishToLodge(
+        room.lodgeId,
+        'room:availability-updated',
+        eventPayload,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Realtime publish failed after room ${id} status update`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
     this.publishCatalogUpdated(room.lodgeId, room.roomTypeId);
     if (isOperationalRoomStatusTransition(existing.status, room.status)) {
-      const ownerUserIds = (
-        await this.prisma.lodgeOwner.findMany({
-          select: { userId: true },
-          where: {
-            deletedAt: null,
-            isActive: true,
+      this.runSecondary('room status owner notifications', async () => {
+        const ownerUserIds = (
+          await this.prisma.lodgeOwner.findMany({
+            select: { userId: true },
+            where: {
+              deletedAt: null,
+              isActive: true,
+              lodgeId: room.lodgeId,
+              userId: { not: user.id },
+            },
+          })
+        ).map((owner) => owner.userId);
+        await this.notificationsService.createManyForUsers(ownerUserIds, {
+          body:
+            room.status === 'BLOCKED'
+              ? `Room ${room.roomNumber} was blocked.`
+              : room.status === 'MAINTENANCE'
+                ? `Room ${room.roomNumber} requires maintenance.`
+                : `Room ${room.roomNumber} returned to service.`,
+          data: {
+            blocked: room.status === 'BLOCKED',
+            context: 'ROOM_ALERT',
             lodgeId: room.lodgeId,
-            userId: { not: user.id },
+            operationallyImportant: true,
+            previousStatus: existing.status,
+            roomId: room.id,
+            roomTypeId: room.roomTypeId,
+            status: room.status,
           },
-        })
-      ).map((owner) => owner.userId);
-      await this.notificationsService.createManyForUsers(ownerUserIds, {
-        body:
-          room.status === 'BLOCKED'
-            ? `Room ${room.roomNumber} was blocked.`
-            : room.status === 'MAINTENANCE'
-              ? `Room ${room.roomNumber} requires maintenance.`
-              : `Room ${room.roomNumber} returned to service.`,
-        data: {
-          blocked: room.status === 'BLOCKED',
-          context: 'ROOM_ALERT',
           lodgeId: room.lodgeId,
-          operationallyImportant: true,
-          previousStatus: existing.status,
-          roomId: room.id,
-          roomTypeId: room.roomTypeId,
-          status: room.status,
-        },
-        lodgeId: room.lodgeId,
-        priority: room.status === 'BLOCKED' || room.status === 'MAINTENANCE' ? 'HIGH' : 'NORMAL',
-        recipientRole: 'OWNER',
-        title:
-          room.status === 'BLOCKED'
-            ? 'Room blocked'
-            : room.status === 'MAINTENANCE'
-              ? 'Room maintenance alert'
-              : 'Room available again',
-        type: 'SYSTEM',
+          priority:
+            room.status === 'BLOCKED' || room.status === 'MAINTENANCE' ? 'HIGH' : 'NORMAL',
+          recipientRole: 'OWNER',
+          title:
+            room.status === 'BLOCKED'
+              ? 'Room blocked'
+              : room.status === 'MAINTENANCE'
+                ? 'Room maintenance alert'
+                : 'Room available again',
+          type: 'SYSTEM',
+        });
       });
     }
+    this.logger.log(`Room ${id} status -> ${room.status} in ${Date.now() - startedAt}ms`);
 
     return this.toRoom(room);
   }
@@ -319,6 +375,21 @@ export class RoomsService {
     const reason = `${MANUAL_BOOKING_PREFIX}${JSON.stringify(metadata)}`;
 
     await this.prisma.$transaction(async (tx) => {
+      // Re-check inside the transaction so the upserts below can never
+      // overwrite a reservation or block written since the check above.
+      const clash = await tx.roomAvailability.findFirst({
+        where: {
+          date: { gte: checkInDate, lt: checkOutDate },
+          roomId,
+          status: { not: 'AVAILABLE' },
+        },
+      });
+      if (clash) {
+        throw new ConflictException(
+          'This room is already booked or blocked for the selected dates',
+        );
+      }
+
       await Promise.all(
         this.getStayDates(checkInDate, checkOutDate).map((date) =>
           tx.roomAvailability.upsert({
@@ -329,18 +400,20 @@ export class RoomsService {
         ),
       );
     });
-    await this.auditLogService.create({
-      action: 'OWNER_MANUAL_BOOKING_CREATED',
-      actorUserId: user.id,
-      entityId: metadata.bookingId,
-      entityType: 'manual_booking',
-      metadata: {
-        checkInDate: metadata.checkInDate,
-        checkOutDate: metadata.checkOutDate,
-        lodgeId: room.lodgeId,
-        roomId,
-      },
-    });
+    this.runSecondary('OWNER_MANUAL_BOOKING_CREATED audit', () =>
+      this.auditLogService.create({
+        action: 'OWNER_MANUAL_BOOKING_CREATED',
+        actorUserId: user.id,
+        entityId: metadata.bookingId,
+        entityType: 'manual_booking',
+        metadata: {
+          checkInDate: metadata.checkInDate,
+          checkOutDate: metadata.checkOutDate,
+          lodgeId: room.lodgeId,
+          roomId,
+        },
+      }),
+    );
     this.publishManualAvailability(room.lodgeId, room.id, room.roomTypeId, metadata, false);
 
     return this.toManualBooking(metadata, room);
@@ -405,13 +478,15 @@ export class RoomsService {
     await this.prisma.roomAvailability.deleteMany({
       where: { reason: row.reason, roomId: row.roomId },
     });
-    await this.auditLogService.create({
-      action: 'OWNER_MANUAL_BOOKING_REMOVED',
-      actorUserId: user.id,
-      entityId: bookingId,
-      entityType: 'manual_booking',
-      metadata: { lodgeId: row.room.lodgeId, roomId: row.roomId },
-    });
+    this.runSecondary('OWNER_MANUAL_BOOKING_REMOVED audit', () =>
+      this.auditLogService.create({
+        action: 'OWNER_MANUAL_BOOKING_REMOVED',
+        actorUserId: user.id,
+        entityId: bookingId,
+        entityType: 'manual_booking',
+        metadata: { lodgeId: row.room.lodgeId, roomId: row.roomId },
+      }),
+    );
     this.publishManualAvailability(
       row.room.lodgeId,
       row.room.id,
@@ -421,6 +496,23 @@ export class RoomsService {
     );
 
     return { deleted: true };
+  }
+
+  /**
+   * Runs follow-up work (audit logging, notifications) after a database write
+   * has already committed. It is not awaited and its failure is only logged,
+   * so slow or failing secondary work can never make a successful write look
+   * like a failed or hanging request.
+   */
+  private runSecondary(label: string, work: () => Promise<unknown>): void {
+    void Promise.resolve()
+      .then(work)
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Secondary task "${label}" failed after a committed write`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
   }
 
   private getStayDates(checkInDate: Date, checkOutDate: Date): Date[] {
@@ -464,13 +556,21 @@ export class RoomsService {
    * Tells every connected pilgrim app that lodge/room-type data changed
    * (price, capacity, description, rooms added or taken out of service) so it
    * drops its cached copy and re-fetches instead of showing stale prices.
+   * A broadcast failure is logged, never thrown: the write already committed.
    */
   private publishCatalogUpdated(lodgeId: string, roomTypeId?: string): void {
-    this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', {
-      lodgeId,
-      ...(roomTypeId ? { roomTypeId } : {}),
-      updatedAt: new Date().toISOString(),
-    });
+    try {
+      this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', {
+        lodgeId,
+        ...(roomTypeId ? { roomTypeId } : {}),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(
+        'Catalog-updated broadcast failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   private publishManualAvailability(
@@ -490,8 +590,15 @@ export class RoomsService {
       roomTypeId,
       updatedAt: new Date().toISOString(),
     };
-    this.realtimeEventsService.publishToLodge(lodgeId, 'room:availability-updated', payload);
-    this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', payload);
+    try {
+      this.realtimeEventsService.publishToLodge(lodgeId, 'room:availability-updated', payload);
+      this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', payload);
+    } catch (error) {
+      this.logger.error(
+        'Manual-booking availability broadcast failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   private toManualBooking(
