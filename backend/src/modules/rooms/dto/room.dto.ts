@@ -9,8 +9,13 @@ import {
   IsString,
   MaxLength,
   Matches,
+  Max,
   Min,
 } from 'class-validator';
+
+// Upper bound keeps a typo (e.g. an extra digit) from overflowing the price
+// column and surfacing as an opaque 500 instead of a clear validation error.
+const MAX_PRICE = 10_000_000;
 
 export class CreateRoomTypeDto {
   @IsString()
@@ -33,13 +38,15 @@ export class CreateRoomTypeDto {
   @Min(0)
   capacityChildren!: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
+  @Max(MAX_PRICE)
   basePrice!: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(0)
+  @Max(MAX_PRICE)
   festivalPrice?: number;
 
   @IsInt()
@@ -58,9 +65,10 @@ export class UpdateRoomTypeDto {
   @MaxLength(140)
   slug?: string;
 
+  // null clears the description. @IsOptional skips validation for null.
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   @IsInt()
   @IsOptional()
@@ -72,19 +80,23 @@ export class UpdateRoomTypeDto {
   @Min(0)
   capacityChildren?: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(0)
+  @Max(MAX_PRICE)
   basePrice?: number;
 
-  @IsNumber()
+  // null clears the festival price. @IsOptional skips validation for null.
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(0)
-  festivalPrice?: number;
+  @Max(MAX_PRICE)
+  festivalPrice?: number | null;
 
+  // The admin panel allows 0 (every room of the type deactivated).
   @IsInt()
   @IsOptional()
-  @Min(1)
+  @Min(0)
   totalRooms?: number;
 
   @IsBoolean()

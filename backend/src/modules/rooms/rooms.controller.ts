@@ -31,6 +31,21 @@ export class RoomsController {
     return this.roomsService.createRoomType(lodgeId, dto, user);
   }
 
+  /**
+   * Management list: every room type of the lodge, including inactive ones and
+   * ones with no currently-AVAILABLE room. The public list below hides those,
+   * which made them impossible to edit or re-activate from the admin panel.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Get('owner/lodges/:lodgeId/room-types')
+  public listLodgeRoomTypes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('lodgeId') lodgeId: string,
+  ): Promise<RoomType[]> {
+    return this.roomsService.listLodgeRoomTypes(lodgeId, user);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'ADMIN')
   @Patch('owner/room-types/:id')
