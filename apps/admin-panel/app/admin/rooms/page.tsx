@@ -5,15 +5,14 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { type FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { listManageableRoomTypes, saveRoomType } from '../../../src/api/admin-room-types-api';
 import {
   createGovernanceRoom,
   createGovernanceRoomType,
   listGovernanceLodges,
   listGovernanceRooms,
-  listGovernanceRoomTypes,
   updateGovernanceRoom,
   updateGovernanceRoomStatus,
-  updateGovernanceRoomType,
 } from '../../../src/api/admin-governance-api';
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
 import { PermissionGate } from '../../../src/components/PermissionGate';
@@ -24,6 +23,12 @@ import {
   summarizeRooms,
 } from '../../../src/governance/governance-utils';
 import { hasPermission } from '../../../src/permissions/permissions';
+
+const MAX_PRICE = 10_000_000;
+
+function errorText(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export default function AdminRoomsPage() {
   return (
@@ -48,6 +53,9 @@ function AdminRoomsPageContent() {
   const [isCreatingRoomType, setIsCreatingRoomType] = useState(false);
   const [editingRoomTypeId, setEditingRoomTypeId] = useState<string | null>(null);
   const [isSavingRoomType, setIsSavingRoomType] = useState(false);
+  // Rooms whose status change is in flight: their selector is disabled so a
+  // second change can't race the first, and the admin sees it is working.
+  const [pendingRoomIds, setPendingRoomIds] = useState<ReadonlySet<string>>(new Set());
   const summary = summarizeRooms(rooms);
   const activeRoomCountsByType = useMemo(() => {
     const counts = new Map<string, number>();
@@ -69,21 +77,23 @@ function AdminRoomsPageContent() {
     }
   }, [lodgeIdFromQuery]);
 
-  const loadRooms = useCallback(async () => {
+  /** Returns true only when both lists were refreshed from the server. */
+  const loadRooms = useCallback(async (): Promise<boolean> => {
     if (!selectedLodgeId) {
-      return;
+      return false;
     }
 
-    setErrorMessage(null);
     try {
       const [roomResponse, roomTypeResponse] = await Promise.all([
         listGovernanceRooms(selectedLodgeId),
-        listGovernanceRoomTypes(selectedLodgeId),
+        listManageableRoomTypes(selectedLodgeId),
       ]);
       setRooms(roomResponse);
       setRoomTypes(roomTypeResponse);
-    } catch {
-      setErrorMessage('Rooms could not be loaded. Please retry.');
+      return true;
+    } catch (error) {
+      setErrorMessage(errorText(error, 'Rooms could not be loaded. Please retry.'));
+      return false;
     }
   }, [selectedLodgeId]);
 
@@ -92,25 +102,58 @@ function AdminRoomsPageContent() {
   }, [loadLodges]);
 
   useEffect(() => {
+    setErrorMessage(null);
     void loadRooms();
     setEditingRoomTypeId(null);
     setAddRoomTypeFormVisible(false);
   }, [loadRooms]);
 
   async function changeRoomStatus(roomId: string, status: RoomStatus) {
+    if (pendingRoomIds.has(roomId)) {
+      return;
+    }
+
     setErrorMessage(null);
     setSuccessMessage(null);
+    setPendingRoomIds((current) => new Set(current).add(roomId));
+    let saved = false;
     try {
       await updateGovernanceRoomStatus(roomId, { status });
+      saved = true;
+    } catch (error) {
+      setErrorMessage(errorText(error, 'Room status could not be updated.'));
+    } finally {
+      setPendingRoomIds((current) => {
+        const next = new Set(current);
+        next.delete(roomId);
+        return next;
+      });
+    }
+
+    if (!saved) {
+      // Re-read so the selector shows what the server actually has.
       await loadRooms();
+      return;
+    }
+
+    // The write succeeded; report the refresh separately so a failed refetch
+    // is never mistaken for a failed save (or the other way round).
+    const refreshed = await loadRooms();
+    if (refreshed) {
       setSuccessMessage('Room status updated.');
-    } catch {
-      setErrorMessage('Room status could not be updated.');
+    } else {
+      setErrorMessage('Room status was saved, but the list could not be refreshed. Press Refresh.');
     }
   }
 
   async function submitRoomType(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // React clears event.currentTarget once the handler yields, so keep the
+    // form element for the reset after the awaits below.
+    const formElement = event.currentTarget;
+    if (isCreatingRoomType) {
+      return;
+    }
     if (!selectedLodgeId) {
       setErrorMessage('Select a lodge before adding a room type.');
       return;
@@ -118,9 +161,8 @@ function AdminRoomsPageContent() {
 
     setErrorMessage(null);
     setSuccessMessage(null);
-    setIsCreatingRoomType(true);
 
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     const text = (name: string) => {
       const value = form.get(name);
       return typeof value === 'string' ? value.trim() : '';
@@ -134,42 +176,65 @@ function AdminRoomsPageContent() {
     const name = text('name');
     const slug = text('slug') || slugify(name);
     const totalRooms = Number(text('totalRooms') || '0');
+    const basePrice = Number(text('basePrice') || '0');
+    const festivalPrice = optionalNumber('festivalPrice');
     const startingRoomNumber = optionalText('startingRoomNumber');
     const floor = optionalText('floor');
 
+    const priceError = validatePrices(basePrice, festivalPrice);
+    if (priceError) {
+      setErrorMessage(priceError);
+      return;
+    }
+
+    setIsCreatingRoomType(true);
+    let createdRoomType: RoomType | null = null;
+    let roomsCreated = 0;
+
     try {
-      const roomType = await createGovernanceRoomType(selectedLodgeId, {
-        basePrice: Number(text('basePrice') || '0'),
+      createdRoomType = await createGovernanceRoomType(selectedLodgeId, {
+        basePrice,
         capacityAdults: Number(text('capacityAdults') || '1'),
         capacityChildren: Number(text('capacityChildren') || '0'),
         description: optionalText('description'),
-        festivalPrice: optionalNumber('festivalPrice'),
+        festivalPrice,
         name,
         slug,
         totalRooms,
       });
 
-      let roomsCreated = 0;
       for (let index = 0; index < totalRooms; index += 1) {
         const roomNumber = startingRoomNumber
           ? String(Number(startingRoomNumber) + index)
           : `${slug}-${index + 1}`;
-        await createGovernanceRoom(roomType.id, { floor, roomNumber });
+        await createGovernanceRoom(createdRoomType.id, { floor, roomNumber });
         roomsCreated += 1;
       }
 
-      await loadRooms();
-      setSuccessMessage(
-        roomsCreated > 0
-          ? `Room type "${roomType.name}" added with ${roomsCreated} room(s).`
-          : `Room type "${roomType.name}" added.`,
-      );
+      const refreshed = await loadRooms();
+      if (refreshed) {
+        setSuccessMessage(
+          roomsCreated > 0
+            ? `Room type "${createdRoomType.name}" added with ${roomsCreated} room(s).`
+            : `Room type "${createdRoomType.name}" added.`,
+        );
+      } else {
+        setErrorMessage(
+          `Room type "${createdRoomType.name}" was created, but the list could not be refreshed. Press Refresh.`,
+        );
+      }
       setAddRoomTypeFormVisible(false);
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'The room type could not be created.',
-      );
+      if (createdRoomType) {
+        // The room type exists on the server; only creating its rooms failed.
+        await loadRooms();
+        setErrorMessage(
+          `Room type "${createdRoomType.name}" was created with ${roomsCreated} of ${totalRooms} room(s). ${errorText(error, 'Creating the remaining rooms failed.')}`,
+        );
+      } else {
+        setErrorMessage(errorText(error, 'The room type could not be created.'));
+      }
     } finally {
       setIsCreatingRoomType(false);
     }
@@ -177,30 +242,47 @@ function AdminRoomsPageContent() {
 
   async function submitRoomTypeEdit(event: FormEvent<HTMLFormElement>, roomType: RoomType) {
     event.preventDefault();
+    if (isSavingRoomType) {
+      return;
+    }
+
     setErrorMessage(null);
     setSuccessMessage(null);
-    setIsSavingRoomType(true);
 
     const form = new FormData(event.currentTarget);
     const text = (name: string) => {
       const value = form.get(name);
       return typeof value === 'string' ? value.trim() : '';
     };
-    const optionalText = (name: string) => text(name) || undefined;
-    const optionalNumber = (name: string) => {
-      const value = text(name);
-      return value ? Number(value) : undefined;
-    };
 
+    const basePrice = Number(text('basePrice') || '0');
+    // Blank means "clear it" (null). Omitting the field would leave the old
+    // value in the database, so the admin could never remove a festival price
+    // or a description.
+    const festivalPrice = text('festivalPrice') ? Number(text('festivalPrice')) : null;
+    const description = text('description') || null;
     const targetRoomCount = Number(text('totalRooms') || '0');
 
+    const priceError = validatePrices(basePrice, festivalPrice ?? undefined);
+    if (priceError) {
+      setErrorMessage(priceError);
+      return;
+    }
+    if (!Number.isInteger(targetRoomCount) || targetRoomCount < 0) {
+      setErrorMessage('Number of rooms must be a whole number, 0 or more.');
+      return;
+    }
+
+    setIsSavingRoomType(true);
+    let updated: RoomType | null = null;
+
     try {
-      const updated = await updateGovernanceRoomType(roomType.id, {
-        basePrice: Number(text('basePrice') || '0'),
+      updated = await saveRoomType(roomType.id, {
+        basePrice,
         capacityAdults: Number(text('capacityAdults') || '1'),
         capacityChildren: Number(text('capacityChildren') || '0'),
-        description: optionalText('description'),
-        festivalPrice: optionalNumber('festivalPrice'),
+        description,
+        festivalPrice,
         isActive: form.get('isActive') === 'on',
         name: text('name'),
         totalRooms: targetRoomCount,
@@ -244,13 +326,27 @@ function AdminRoomsPageContent() {
             : ` Removed ${removable.length} of ${Math.abs(diff)} requested room(s); the rest are not currently available (occupied, reserved, or blocked) and were left untouched.`;
       }
 
-      await loadRooms();
-      setSuccessMessage(`Room type "${updated.name}" updated.${note}`);
+      const refreshed = await loadRooms();
+      if (refreshed) {
+        setSuccessMessage(`Room type "${updated.name}" updated.${note}`);
+      } else {
+        setErrorMessage(
+          `Room type "${updated.name}" was saved.${note} The list could not be refreshed, so press Refresh to see the new values.`,
+        );
+      }
       setEditingRoomTypeId(null);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'The room type could not be updated.',
-      );
+      if (updated) {
+        // The price and details are already saved; only the follow-up room
+        // adjustment failed. Re-read so the screen shows what is really stored
+        // and say exactly which part succeeded.
+        await loadRooms();
+        setErrorMessage(
+          `Price and details for "${updated.name}" were saved, but adjusting the room count failed: ${errorText(error, 'unknown error')}`,
+        );
+      } else {
+        setErrorMessage(errorText(error, 'The room type could not be updated.'));
+      }
     } finally {
       setIsSavingRoomType(false);
     }
@@ -442,12 +538,12 @@ function AdminRoomsPageContent() {
                 <span>{getRoomTypeLabel(room.roomTypeId, roomTypes)}</span>
                 <span>{room.floor ?? 'Not set'}</span>
                 <span className="status-card">
-                  {formatGovernanceStatus(room.status)}
+                  {pendingRoomIds.has(room.id) ? 'Saving…' : formatGovernanceStatus(room.status)}
                   {room.isActive ? '' : ' · Inactive'}
                 </span>
                 <span className="row-actions">
                   <select
-                    disabled={!canManage}
+                    disabled={!canManage || pendingRoomIds.has(room.id)}
                     value={room.status}
                     onChange={(event) =>
                       void changeRoomStatus(room.id, event.target.value as RoomStatus)
@@ -473,6 +569,19 @@ function AdminRoomsPageContent() {
       </div>
     </PermissionGate>
   );
+}
+
+function validatePrices(basePrice: number, festivalPrice: number | undefined): string | null {
+  if (!Number.isFinite(basePrice) || basePrice < 0 || basePrice > MAX_PRICE) {
+    return `Base price must be a number between 0 and ${MAX_PRICE.toLocaleString('en-IN')}.`;
+  }
+  if (
+    festivalPrice !== undefined &&
+    (!Number.isFinite(festivalPrice) || festivalPrice < 0 || festivalPrice > MAX_PRICE)
+  ) {
+    return `Festival price must be a number between 0 and ${MAX_PRICE.toLocaleString('en-IN')}.`;
+  }
+  return null;
 }
 
 function MetricCard({ label, value }: { label: string; value: number }) {
@@ -523,7 +632,7 @@ function RoomTypeRow({
           />
           <Field
             defaultValue={roomType.festivalPrice ?? ''}
-            label="Festival price (₹, optional)"
+            label="Festival price (₹, leave blank to clear)"
             min="0"
             name="festivalPrice"
             step="0.01"
