@@ -1,32 +1,47 @@
+import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Text, useTheme } from 'react-native-paper';
 
-import { useAuth } from '../../src/v2/core/auth';
-import { useColors } from '../../src/v2/design/theme';
-import { space } from '../../src/v2/design/tokens';
-import { useGo } from '../../src/v2/shell/navigation';
-import { Text } from '../../src/v2/ui/Text';
+import { useAuth } from '../../src/auth/auth-context';
 
-/** Landing screen for the Google sign-in redirect. It simply waits for the session, then moves on. */
-export default function GoogleCallbackRoute() {
-  const colors = useColors();
+export default function GoogleAuthCallbackScreen() {
   const auth = useAuth();
-  const { replace } = useGo();
+  const router = useRouter();
+  const theme = useTheme();
 
   useEffect(() => {
-    if (auth.ready && auth.signedIn) replace('/');
-  }, [auth.ready, auth.signedIn, replace]);
+    if (auth.bootstrapComplete && auth.isAuthenticated) {
+      router.replace('/(app)/home');
+    }
+  }, [auth.bootstrapComplete, auth.isAuthenticated, router]);
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <ActivityIndicator color={colors.primary} size="large" />
-      <Text align="center" variant="heading">
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ActivityIndicator color={theme.colors.primary} size="large" />
+      <Text style={styles.title} variant="titleMedium">
         Completing Google sign-in…
+      </Text>
+      <Text style={[styles.message, { color: theme.colors.onSurfaceVariant }]} variant="bodyMedium">
+        Please wait while we securely open Tuljai Stays.
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { alignItems: 'center', flex: 1, gap: space.lg, justifyContent: 'center' },
+  container: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  message: {
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  title: {
+    marginTop: 20,
+    textAlign: 'center',
+  },
 });

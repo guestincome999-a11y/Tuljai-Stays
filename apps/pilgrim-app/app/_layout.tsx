@@ -1,54 +1,53 @@
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { PaperProvider } from 'react-native-paper';
 
-import { useAuth } from '../src/v2/core/auth';
-import { useColors } from '../src/v2/design/theme';
-import { AppProviders } from '../src/v2/shell/AppProviders';
-import { PushRouting } from '../src/v2/shell/PushRouting';
-import { useAppBack } from '../src/v2/shell/useAppBack';
-import { useBootstrap } from '../src/v2/shell/useBootstrap';
-import { OfflineBanner } from '../src/v2/ui/OfflineBanner';
+import { AuthProvider } from '../src/auth/auth-context';
+import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
+import { OfflineBanner } from '../src/components/OfflineBanner';
+import { ConnectivityProvider } from '../src/connectivity/connectivity-context';
+import { useDoubleBackToExit } from '../src/hooks/useDoubleBackToExit';
+import { PilgrimPushNotifications } from '../src/notifications/PilgrimPushNotifications';
+import { PilgrimAppProvider } from '../src/pilgrim-ui/PilgrimAppProvider';
+import { RealtimeProvider } from '../src/realtime/realtime-provider';
+import { pilgrimLightTheme } from '../src/theme/pilgrim-theme';
+import { PilgrimFontSwitcher } from '../src/theme/PilgrimFontSwitcher';
 
-void SplashScreen.preventAutoHideAsync();
-
-function Shell() {
-  const colors = useColors();
-  const auth = useAuth();
-  const bootstrapped = useBootstrap();
-  const ready = bootstrapped && auth.ready;
-  useAppBack();
-
-  useEffect(() => {
-    if (ready) void SplashScreen.hideAsync();
-  }, [ready]);
-
-  if (!ready) return null;
-
-  return (
-    <>
-      <StatusBar style="dark" />
-      <PushRouting />
-      <Stack
-        screenOptions={{
-          animation: 'slide_from_right',
-          contentStyle: { backgroundColor: colors.background },
-          headerShown: false,
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-        <Stack.Screen name="login" options={{ animation: 'slide_from_bottom' }} />
-      </Stack>
-      <OfflineBanner />
-    </>
-  );
-}
+import '../global.css';
 
 export default function RootLayout() {
+  const theme = pilgrimLightTheme;
+
+  useDoubleBackToExit();
+
   return (
-    <AppProviders>
-      <Shell />
-    </AppProviders>
+    <PaperProvider theme={theme}>
+      <AppErrorBoundary>
+        <ConnectivityProvider>
+          <AuthProvider>
+            <RealtimeProvider>
+              <PilgrimAppProvider>
+                <PilgrimFontSwitcher>
+                  <PilgrimPushNotifications />
+                  <StatusBar style="dark" />
+                  <OfflineBanner />
+                  <Stack
+                    screenOptions={{
+                      contentStyle: { backgroundColor: theme.colors.background },
+                      headerShown: false,
+                    }}
+                  >
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(app)" />
+                    <Stack.Screen name="auth/google" />
+                  </Stack>
+                </PilgrimFontSwitcher>
+              </PilgrimAppProvider>
+            </RealtimeProvider>
+          </AuthProvider>
+        </ConnectivityProvider>
+      </AppErrorBoundary>
+    </PaperProvider>
   );
 }
