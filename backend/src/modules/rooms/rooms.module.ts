@@ -5,12 +5,13 @@ import { LodgesModule } from '../lodges/lodges.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 
+import { RoomTypesAdminService } from './room-types-admin.service';
 import { RoomsController } from './rooms.controller';
 import { RoomsService } from './rooms.service';
 
 @Module({
   imports: [BookingsModule, LodgesModule, NotificationsModule, RealtimeModule],
   controllers: [RoomsController],
-  providers: [RoomsService],
+  providers: [RoomsService, RoomTypesAdminService],
 })
 export class RoomsModule {}

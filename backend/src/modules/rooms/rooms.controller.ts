@@ -14,11 +14,15 @@ import {
   UpdateRoomStatusDto,
   UpdateRoomTypeDto,
 } from './dto/room.dto';
+import { RoomTypesAdminService } from './room-types-admin.service';
 import { RoomsService } from './rooms.service';
 
 @Controller()
 export class RoomsController {
-  public constructor(private readonly roomsService: RoomsService) {}
+  public constructor(
+    private readonly roomsService: RoomsService,
+    private readonly roomTypesAdminService: RoomTypesAdminService,
+  ) {}
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('OWNER', 'ADMIN')
@@ -29,6 +33,16 @@ export class RoomsController {
     @Body() dto: CreateRoomTypeDto,
   ): Promise<RoomType> {
     return this.roomsService.createRoomType(lodgeId, dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Get('owner/lodges/:lodgeId/room-types')
+  public listManageableRoomTypes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('lodgeId') lodgeId: string,
+  ): Promise<RoomType[]> {
+    return this.roomTypesAdminService.listManageableRoomTypes(lodgeId, user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
