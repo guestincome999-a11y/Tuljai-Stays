@@ -82,9 +82,11 @@ export class UpdateRoomTypeDto {
   @Min(0)
   festivalPrice?: number;
 
+  // Min(0): the admin edit form lets staff reduce a type to zero active rooms,
+  // and totalRooms is sent on every save. Min(1) made every such save a 400.
   @IsInt()
   @IsOptional()
-  @Min(1)
+  @Min(0)
   totalRooms?: number;
 
   @IsBoolean()
