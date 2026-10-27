@@ -20,6 +20,10 @@ import { RazorpayProvider } from './providers/razorpay.provider';
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
+  // Confirmations currently being processed, keyed by Razorpay order id. A double tap or an
+  // automatic client retry that arrives while the first request is still running joins the
+  // same work instead of racing it into a second booking for the same payment.
+  private readonly inFlightConfirmations = new Map<string, Promise<Booking>>();
 
   public constructor(
     private readonly bookingLocksService: BookingLocksService,
@@ -225,8 +229,27 @@ export class PaymentsService {
    * physical room can't be assigned, no booking is ever created — there is
    * nothing to cancel, by design, since booking creation only happens after
    * payment success is confirmed.
+   *
+   * Safe to call again for the same payment: a repeat (client retry after a
+   * timeout, double tap) returns the booking already created for it instead
+   * of failing on the now-consumed hold or creating a second booking.
    */
   public async confirmPrepaidBooking(
+    dto: CreateBookingDto,
+    user: AuthenticatedUser,
+    input: { orderId: string; paymentId: string; signature: string },
+  ): Promise<Booking> {
+    const inFlight = this.inFlightConfirmations.get(input.orderId);
+    if (inFlight) return inFlight;
+
+    const work = this.confirmPrepaidBookingOnce(dto, user, input).finally(() => {
+      this.inFlightConfirmations.delete(input.orderId);
+    });
+    this.inFlightConfirmations.set(input.orderId, work);
+    return work;
+  }
+
+  private async confirmPrepaidBookingOnce(
     dto: CreateBookingDto,
     user: AuthenticatedUser,
     input: { orderId: string; paymentId: string; signature: string },
@@ -238,6 +261,20 @@ export class PaymentsService {
     const verification = await this.razorpayProvider.verifyPayment(input);
     if (!verification.verified) {
       throw new BadRequestException('Razorpay payment verification failed');
+    }
+
+    // Already confirmed by an earlier request for this exact payment? Return that booking.
+    // The signature above has been verified, and getBookingById only returns a booking to
+    // its own pilgrim (or an admin), so this cannot be used to read someone else's booking.
+    const alreadyConfirmed = await this.prisma.$queryRaw<Array<{ booking_id: string }>>`
+      SELECT booking_id FROM payment_collections
+      WHERE provider_order_id = ${input.orderId}
+        AND provider_payment_id = ${input.paymentId}
+        AND status = 'PAID'
+      ORDER BY created_at ASC LIMIT 1
+    `;
+    if (alreadyConfirmed[0]) {
+      return this.bookingsService.getBookingById(alreadyConfirmed[0].booking_id, user);
     }
 
     const payment = await this.razorpayProvider.getPayment(input.paymentId);
