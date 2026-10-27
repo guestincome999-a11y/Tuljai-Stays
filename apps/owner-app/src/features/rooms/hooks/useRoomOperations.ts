@@ -142,9 +142,13 @@ export function useRoomOperations() {
   }, [load]);
 
   useEffect(() => {
+    // 'lodge:catalog-updated' is what an admin (or another owner/staff member) price, capacity
+    // or room-type edit produces; without it this board kept showing the old price until the
+    // owner pulled to refresh.
     if (
       realtime.lastEvent?.name === 'room:availability-updated' ||
-      realtime.lastEvent?.name === 'room:status-updated'
+      realtime.lastEvent?.name === 'room:status-updated' ||
+      realtime.lastEvent?.name === 'lodge:catalog-updated'
     ) {
       void load(true);
     }
