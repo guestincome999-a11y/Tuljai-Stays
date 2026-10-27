@@ -5,6 +5,7 @@ import type { AuthenticatedUser, ManualBookingBlock, Room, RoomType } from '@tul
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { BookingAvailabilityService } from '../bookings/booking-availability.service';
+import { CatalogService } from '../catalog/catalog.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { isOperationalRoomStatusTransition } from '../notifications/notification-policy';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -38,6 +39,7 @@ export class RoomsService {
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly bookingAvailabilityService: BookingAvailabilityService,
+    private readonly catalogService: CatalogService,
     private readonly lodgeAccessService: LodgeAccessService,
     private readonly notificationsService: NotificationsService,
     private readonly prisma: PrismaService,
@@ -317,17 +319,27 @@ export class RoomsService {
       source: 'OWNER_OFFLINE_BOOKING',
     };
     const reason = `${MANUAL_BOOKING_PREFIX}${JSON.stringify(metadata)}`;
+    const stayDates = this.getStayDates(checkInDate, checkOutDate);
 
+    // The availability check above is only a fast pre-check. The real guard is the unique
+    // (roomId, date) key: rows are inserted with skipDuplicates and the whole transaction is
+    // rolled back if any night was already taken by a concurrent booking or block. The previous
+    // upsert silently overwrote an existing reservation for the same night.
     await this.prisma.$transaction(async (tx) => {
-      await Promise.all(
-        this.getStayDates(checkInDate, checkOutDate).map((date) =>
-          tx.roomAvailability.upsert({
-            create: { date, reason, roomId, status: 'RESERVED' },
-            update: { reason, status: 'RESERVED' },
-            where: { roomId_date: { date, roomId } },
-          }),
-        ),
-      );
+      // An explicit AVAILABLE row carries no reservation, so clear it out of the way first.
+      await tx.roomAvailability.deleteMany({
+        where: { date: { in: stayDates }, roomId, status: 'AVAILABLE' },
+      });
+      const created = await tx.roomAvailability.createMany({
+        data: stayDates.map((date) => ({ date, reason, roomId, status: 'RESERVED' as const })),
+        skipDuplicates: true,
+      });
+
+      if (created.count !== stayDates.length) {
+        throw new ConflictException(
+          'This room is already booked or blocked for the selected dates',
+        );
+      }
     });
     await this.auditLogService.create({
       action: 'OWNER_MANUAL_BOOKING_CREATED',
@@ -461,16 +473,21 @@ export class RoomsService {
   }
 
   /**
-   * Tells every connected pilgrim app that lodge/room-type data changed
-   * (price, capacity, description, rooms added or taken out of service) so it
-   * drops its cached copy and re-fetches instead of showing stale prices.
+   * Called after any change to lodge/room-type data (price, capacity, description, rooms added
+   * or taken out of service). It drops the server-side catalogue cache first so the very next
+   * read is fresh, then tells every connected pilgrim app AND the owner/admin clients joined to
+   * that lodge's room to re-fetch. Owners were previously never notified: the event only went to
+   * the PILGRIM role, so the owner room board kept showing the old price.
    */
   private publishCatalogUpdated(lodgeId: string, roomTypeId?: string): void {
-    this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', {
+    this.catalogService.invalidate();
+    const payload = {
       lodgeId,
       ...(roomTypeId ? { roomTypeId } : {}),
       updatedAt: new Date().toISOString(),
-    });
+    };
+    this.realtimeEventsService.publishToRole('PILGRIM', 'lodge:catalog-updated', payload);
+    this.realtimeEventsService.publishToLodge(lodgeId, 'lodge:catalog-updated', payload);
   }
 
   private publishManualAvailability(
