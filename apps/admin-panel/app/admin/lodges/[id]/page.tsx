@@ -1,6 +1,15 @@
 'use client';
 
-import type { Amenity, LodgeDetails, LodgePhoto, Room, RoomStatus, RoomType } from '@tuljai/types';
+import type {
+  Amenity,
+  LodgeDetails,
+  LodgePhoto,
+  LodgeStatus,
+  Room,
+  RoomStatus,
+  RoomType,
+  VerificationStatus,
+} from '@tuljai/types';
 import Link from 'next/link';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -18,6 +27,17 @@ import {
   verifyGovernanceLodge,
 } from '../../../../src/api/admin-governance-api';
 import { useAdminAuth } from '../../../../src/auth/AdminAuthProvider';
+import { FinanceStyles } from '../../../../src/components/finance/FinanceStyles';
+import {
+  FinBanners,
+  FinHeader,
+  FinKpi,
+  FinKv,
+  FinPanel,
+  FinPill,
+} from '../../../../src/components/finance/FinanceUi';
+import type { FinTone } from '../../../../src/components/finance/FinanceUi';
+import { LodgeInspectStyles } from '../../../../src/components/lodges/LodgeInspectStyles';
 import { PermissionGate } from '../../../../src/components/PermissionGate';
 import {
   formatGovernanceStatus,
@@ -32,15 +52,56 @@ import {
 } from '../../../../src/governance/governance-utils';
 import { hasPermission } from '../../../../src/permissions/permissions';
 
-interface LodgeDetailState {
-  amenities: Amenity[];
-  errorMessage: string | null;
-  isLoading: boolean;
-  lodge: LodgeDetails | null;
-  photos: LodgePhoto[];
-  rooms: Room[];
-  roomTypes: RoomType[];
-  successMessage: string | null;
+interface Part<T> {
+  data: T;
+  error: string | null;
+}
+
+const emptyPart = <T,>(): Part<T[]> => ({ data: [], error: null });
+
+function describeError(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim() ? `${fallback} ${error.message}` : fallback;
+}
+
+function settleList<T>(
+  result: PromiseSettledResult<T[]>,
+  fallback: string,
+  previous: T[],
+): Part<T[]> {
+  if (result.status === 'fulfilled') return { data: result.value, error: null };
+  return { data: previous, error: describeError(result.reason, fallback) };
+}
+
+function lodgeStatusTone(status: LodgeStatus): FinTone {
+  if (status === 'VERIFIED') return 'green';
+  if (status === 'PENDING_VERIFICATION') return 'orange';
+  if (status === 'SUSPENDED' || status === 'REJECTED') return 'red';
+  return 'gray';
+}
+
+function verificationTone(status: VerificationStatus): FinTone {
+  if (status === 'VERIFIED') return 'green';
+  if (status === 'REJECTED') return 'red';
+  return 'orange';
+}
+
+function roomTone(status: RoomStatus): FinTone {
+  if (status === 'AVAILABLE') return 'green';
+  if (status === 'MAINTENANCE' || status === 'BLOCKED') return 'red';
+  if (status === 'PENDING_APPROVAL' || status === 'CLEANING') return 'orange';
+  return 'blue';
+}
+
+function photoTone(status: LodgePhoto['approvalStatus']): FinTone {
+  if (status === 'APPROVED') return 'green';
+  if (status === 'REJECTED') return 'red';
+  return 'orange';
+}
+
+function verificationButtonClass(status: VerificationStatus): string {
+  if (status === 'VERIFIED') return 'fin-btn-green';
+  if (status === 'REJECTED') return 'fin-btn-danger';
+  return 'fin-btn-soft';
 }
 
 export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -49,447 +110,623 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
   const canManageLodges = hasPermission(auth.permissions, 'lodges.manage');
   const canManageRooms = hasPermission(auth.permissions, 'rooms.manage');
   const canReviewPhotos = hasPermission(auth.permissions, 'photos.review');
+
+  const [lodge, setLodge] = useState<LodgeDetails | null>(null);
+  const [lodgeError, setLodgeError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [roomTypes, setRoomTypes] = useState<Part<RoomType[]>>(emptyPart<RoomType>());
+  const [rooms, setRooms] = useState<Part<Room[]>>(emptyPart<Room>());
+  const [photos, setPhotos] = useState<Part<LodgePhoto[]>>(emptyPart<LodgePhoto>());
+  const [amenities, setAmenities] = useState<Part<Amenity[]>>(emptyPart<Amenity>());
+
   const [selectedAmenityIds, setSelectedAmenityIds] = useState<string[]>([]);
   const [verificationNotes, setVerificationNotes] = useState('');
   const [googleMapsLinkDraft, setGoogleMapsLinkDraft] = useState('');
-  const [isSavingLocation, setIsSavingLocation] = useState(false);
-  const [state, setState] = useState<LodgeDetailState>({
-    amenities: [],
-    errorMessage: null,
-    isLoading: true,
-    lodge: null,
-    photos: [],
-    rooms: [],
-    roomTypes: [],
-    successMessage: null,
-  });
+  const [rejectReason, setRejectReason] = useState(photoRejectReasons[0] ?? '');
+  const [isBusy, setIsBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setState((current) => ({ ...current, errorMessage: null, isLoading: true }));
-    try {
-      const [lodge, roomTypes, rooms, photos, amenities] = await Promise.all([
-        getGovernanceLodge(lodgeId),
-        listGovernanceRoomTypes(lodgeId),
-        listGovernanceRooms(lodgeId),
-        listGovernanceLodgePhotos(lodgeId),
-        listGovernanceAmenities(),
-      ]);
-      setState({
-        amenities,
-        errorMessage: null,
-        isLoading: false,
-        lodge,
-        photos,
-        rooms,
-        roomTypes,
-        successMessage: null,
-      });
-      setSelectedAmenityIds(lodge.amenities.map((amenity) => amenity.id));
-      setGoogleMapsLinkDraft(lodge.googleMapsLink ?? '');
-    } catch {
-      setState((current) => ({
-        ...current,
-        errorMessage: 'Lodge governance detail could not be loaded.',
-        isLoading: false,
-      }));
-    }
-  }, [lodgeId]);
+  const load = useCallback(
+    async ({ resetDrafts, showSkeleton }: { resetDrafts: boolean; showSkeleton: boolean }) => {
+      if (showSkeleton) setIsLoading(true);
+      setLodgeError(null);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+      // Each request settles on its own so one failing section never blanks the page.
+      const [lodgeResult, typesResult, roomsResult, photosResult, amenitiesResult] =
+        await Promise.allSettled([
+          getGovernanceLodge(lodgeId),
+          listGovernanceRoomTypes(lodgeId),
+          listGovernanceRooms(lodgeId),
+          listGovernanceLodgePhotos(lodgeId),
+          listGovernanceAmenities(),
+        ]);
 
-  const roomSummary = useMemo(() => summarizeRooms(state.rooms), [state.rooms]);
-  const photoSummary = useMemo(() => summarizePhotos(state.photos), [state.photos]);
-  const readinessReasons = useMemo(
-    () =>
-      state.lodge
-        ? getLodgeReadinessReasons(state.lodge, state.roomTypes, state.photos)
-        : ['Lodge detail unavailable'],
-    [state.lodge, state.photos, state.roomTypes],
+      if (lodgeResult.status === 'fulfilled') {
+        setLodge(lodgeResult.value);
+        if (resetDrafts) {
+          setSelectedAmenityIds(lodgeResult.value.amenities.map((amenity) => amenity.id));
+          setGoogleMapsLinkDraft(lodgeResult.value.googleMapsLink ?? '');
+        }
+      } else {
+        setLodgeError(describeError(lodgeResult.reason, 'Lodge details could not be loaded.'));
+      }
+
+      setRoomTypes((previous) =>
+        settleList(typesResult, 'Room types could not be loaded.', previous.data),
+      );
+      setRooms((previous) => settleList(roomsResult, 'Rooms could not be loaded.', previous.data));
+      setPhotos((previous) =>
+        settleList(photosResult, 'Photos could not be loaded.', previous.data),
+      );
+      setAmenities((previous) =>
+        settleList(amenitiesResult, 'Amenities could not be loaded.', previous.data),
+      );
+      setIsLoading(false);
+    },
+    [lodgeId],
   );
 
-  async function runAction(action: () => Promise<unknown>, successMessage: string) {
-    setState((current) => ({ ...current, errorMessage: null, successMessage: null }));
+  useEffect(() => {
+    void load({ resetDrafts: true, showSkeleton: true });
+  }, [load]);
+
+  const roomSummary = useMemo(() => summarizeRooms(rooms.data), [rooms.data]);
+  const photoSummary = useMemo(() => summarizePhotos(photos.data), [photos.data]);
+  const readinessReasons = useMemo(
+    () => (lodge ? getLodgeReadinessReasons(lodge, roomTypes.data, photos.data) : []),
+    [lodge, photos.data, roomTypes.data],
+  );
+
+  async function runAction(
+    action: () => Promise<unknown>,
+    message: string,
+    resetDrafts = false,
+  ): Promise<void> {
+    setActionError(null);
+    setSuccessMessage(null);
+    setIsBusy(true);
     try {
       await action();
-      await load();
-      setState((current) => ({ ...current, successMessage }));
-    } catch {
-      setState((current) => ({
-        ...current,
-        errorMessage: 'Action failed. Please verify permissions and retry.',
-      }));
-    }
-  }
-
-  async function saveGoogleMapsLink() {
-    setIsSavingLocation(true);
-    try {
-      await runAction(
-        () =>
-          updateGovernanceLodge(lodgeId, {
-            googleMapsLink: googleMapsLinkDraft.trim() || undefined,
-          }),
-        'Google Maps link updated.',
-      );
+      await load({ resetDrafts, showSkeleton: false });
+      setSuccessMessage(message);
+    } catch (error) {
+      setActionError(describeError(error, 'Action failed. Please verify permissions and retry.'));
     } finally {
-      setIsSavingLocation(false);
+      setIsBusy(false);
     }
   }
 
-  if (state.isLoading) {
+  function toggleAmenity(amenityId: string, checked: boolean) {
+    setSelectedAmenityIds((current) =>
+      checked ? [...current, amenityId] : current.filter((id) => id !== amenityId),
+    );
+  }
+
+  if (isLoading) {
     return (
       <PermissionGate permission="lodges.view">
-        <section className="panel">
-          <p className="eyebrow">Loading</p>
-          <h2>Loading lodge governance detail</h2>
-        </section>
+        <div className="fin-stack">
+          <FinanceStyles />
+          <FinHeader
+            description="Loading lodge governance detail."
+            eyebrow="Lodge Governance Detail"
+            title="Lodge"
+          />
+          <div className="fin-skeleton" />
+          <div className="fin-skeleton" />
+        </div>
       </PermissionGate>
     );
   }
 
-  if (!state.lodge) {
+  if (!lodge) {
     return (
       <PermissionGate permission="lodges.view">
-        <section className="panel">
-          <p className="eyebrow">Unavailable</p>
-          <h2>Lodge could not be opened</h2>
-          <button className="button button-primary" type="button" onClick={() => void load()}>
-            Retry
-          </button>
-        </section>
+        <div className="fin-stack">
+          <FinanceStyles />
+          <LodgeInspectStyles />
+          <FinHeader
+            actions={
+              <Link className="fin-btn fin-btn-outline" href="/admin/lodges">
+                Back to lodges
+              </Link>
+            }
+            description="The lodge record could not be opened."
+            eyebrow="Lodge Governance Detail"
+            title="Lodge unavailable"
+          />
+          <FinPanel sub="Could not load" title="Lodge could not be opened">
+            <div className="li-section-error" role="alert">
+              <span>{lodgeError ?? 'Lodge details could not be loaded.'}</span>
+              <button
+                className="fin-btn fin-btn-sm"
+                type="button"
+                onClick={() => void load({ resetDrafts: true, showSkeleton: true })}
+              >
+                Retry
+              </button>
+            </div>
+          </FinPanel>
+        </div>
       </PermissionGate>
     );
   }
+
+  const addressText = lodge.address
+    ? [
+        lodge.address.addressLine1,
+        lodge.address.addressLine2,
+        lodge.address.landmark,
+        lodge.address.city,
+        lodge.address.district,
+        lodge.address.state,
+        lodge.address.pincode,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(', ')
+    : 'Address pending';
 
   return (
     <PermissionGate permission="lodges.view">
-      <div className="page-stack">
-        <section className="hero-panel">
-          <div>
-            <p className="eyebrow">Lodge Governance Detail</p>
-            <h2>{state.lodge.name}</h2>
-            <p className="muted-copy">
-              {state.lodge.address
-                ? `${state.lodge.address.addressLine1}, ${state.lodge.address.city}`
-                : 'Address pending'}
-            </p>
-          </div>
-          <div className="hero-actions">
-            <span className="status-card">{formatGovernanceStatus(state.lodge.status)}</span>
-            <span className="status-card">
-              {formatGovernanceStatus(state.lodge.verificationStatus)}
-            </span>
-            <Link className="button button-secondary" href="/admin/lodges">
-              Back to lodges
-            </Link>
-          </div>
+      <div className="fin-stack">
+        <FinanceStyles />
+        <LodgeInspectStyles />
+
+        <FinHeader
+          actions={
+            <div className="li-head-actions">
+              <FinPill tone={lodgeStatusTone(lodge.status)}>
+                {formatGovernanceStatus(lodge.status)}
+              </FinPill>
+              <FinPill tone={verificationTone(lodge.verificationStatus)}>
+                {formatGovernanceStatus(lodge.verificationStatus)}
+              </FinPill>
+              <button
+                className="fin-btn fin-btn-soft"
+                type="button"
+                onClick={() => void load({ resetDrafts: true, showSkeleton: false })}
+              >
+                Refresh
+              </button>
+              <Link className="fin-btn fin-btn-outline" href="/admin/lodges">
+                Back to lodges
+              </Link>
+            </div>
+          }
+          description={addressText}
+          eyebrow="Lodge Governance Detail"
+          title={lodge.name}
+        />
+
+        <FinBanners error={actionError} message={successMessage} />
+
+        <section aria-label="Lodge summary" className="fin-kpis">
+          <FinKpi
+            icon="receipt"
+            label="Room types"
+            meta={roomTypes.error ? 'Could not load' : 'Configured'}
+            tone="blue"
+            value={roomTypes.data.length}
+          />
+          <FinKpi
+            icon="lodge"
+            label="Rooms"
+            meta={rooms.error ? 'Could not load' : 'In this lodge'}
+            tone="purple"
+            value={roomSummary.total}
+          />
+          <FinKpi
+            icon="check"
+            label="Available"
+            meta={`${roomSummary.occupied} occupied`}
+            tone="green"
+            value={roomSummary.available}
+          />
+          <FinKpi
+            icon="clock"
+            label="Pending photos"
+            meta={`${photoSummary.approved} approved`}
+            tone="orange"
+            value={photoSummary.pending}
+          />
         </section>
 
-        {state.errorMessage ? (
-          <section className="error-banner">{state.errorMessage}</section>
-        ) : null}
-        {state.successMessage ? (
-          <section className="success-banner">
-            {state.successMessage}
-            <button
-              className="ghost-control"
-              type="button"
-              onClick={() => setState((current) => ({ ...current, successMessage: null }))}
-            >
-              Dismiss
-            </button>
-          </section>
-        ) : null}
+        <div className="fin-split">
+          <FinPanel
+            sub={readinessReasons.length ? 'Needs attention' : 'All checks passed'}
+            title="Publication readiness"
+          >
+            {readinessReasons.length ? (
+              <ul className="li-ready">
+                {readinessReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="li-ok">
+                Ready for discovery. Status, verification, rooms, address, and photos are ready.
+              </p>
+            )}
+          </FinPanel>
 
-        <section className="grid grid-4">
-          <MetricCard label="Room types" value={state.roomTypes.length} />
-          <MetricCard label="Rooms" value={roomSummary.total} />
-          <MetricCard label="Available" value={roomSummary.available} />
-          <MetricCard label="Pending photos" value={photoSummary.pending} />
-        </section>
+          <FinPanel sub="Read-only" title="Lodge details">
+            <FinKv
+              rows={[
+                {
+                  label: 'Property type',
+                  value: formatGovernanceStatus(lodge.propertyType),
+                },
+                {
+                  label: 'Distance from temple',
+                  value: lodge.distanceFromTempleMeters
+                    ? `${lodge.distanceFromTempleMeters} m`
+                    : 'Not set',
+                },
+                {
+                  label: 'Check-in / check-out',
+                  value: `${lodge.checkInTime ?? '—'} / ${lodge.checkOutTime ?? '—'}`,
+                },
+                {
+                  label: 'Rating',
+                  value:
+                    lodge.averageRating === null
+                      ? 'No reviews yet'
+                      : `${lodge.averageRating} (${lodge.reviewCount})`,
+                },
+                { label: 'Primary phone', value: lodge.primaryPhone || '—' },
+                { label: 'WhatsApp', value: lodge.whatsappNumber ?? '—' },
+                { label: 'Email', value: lodge.email ?? '—' },
+              ]}
+            />
+          </FinPanel>
+        </div>
 
-        <section className={readinessReasons.length ? 'panel warning-panel' : 'panel'}>
-          <p className="eyebrow">Publication Readiness</p>
-          <h3>{readinessReasons.length ? 'Needs attention' : 'Ready for discovery'}</h3>
-          {readinessReasons.length ? (
-            <ul className="governance-list">
-              {readinessReasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted-copy">
-              Status, verification, rooms, address, and photos are ready.
-            </p>
-          )}
-        </section>
-
-        <section className="panel">
-          <p className="eyebrow">Location</p>
-          <h3>Directions link for pilgrims</h3>
-          <p className="muted-copy">
+        <FinPanel sub="Pilgrim directions" title="Google Maps link">
+          <p className="fin-text">
             Open this lodge&apos;s pin in the Google Maps app, tap Share, and paste the link here.
             Pilgrims see an &quot;Open directions&quot; button that uses this link for precise,
             pin-to-pin directions.
           </p>
-          <label className="form-field">
+          <label className="fin-field">
             <span>Google Maps link</span>
             <input
-              disabled={!canManageLodges}
+              disabled={!canManageLodges || isBusy}
               placeholder="https://maps.app.goo.gl/..."
               type="url"
               value={googleMapsLinkDraft}
               onChange={(event) => setGoogleMapsLinkDraft(event.target.value)}
             />
           </label>
-          <div className="row-actions">
+          <div className="fin-actions">
             <button
-              className="button button-primary"
-              disabled={!canManageLodges || isSavingLocation}
+              className="fin-btn"
+              disabled={!canManageLodges || isBusy}
               type="button"
-              onClick={() => void saveGoogleMapsLink()}
+              onClick={() =>
+                void runAction(
+                  () =>
+                    updateGovernanceLodge(lodgeId, {
+                      googleMapsLink: googleMapsLinkDraft.trim() || undefined,
+                    }),
+                  'Google Maps link updated.',
+                  true,
+                )
+              }
             >
-              {isSavingLocation ? 'Saving…' : 'Save Google Maps Link'}
+              {isBusy ? 'Saving…' : 'Save Google Maps link'}
             </button>
-            {state.lodge.googleMapsLink ? (
+            {lodge.googleMapsLink ? (
               <a
-                className="button button-secondary"
-                href={state.lodge.googleMapsLink}
+                className="fin-btn fin-btn-outline"
+                href={lodge.googleMapsLink}
                 rel="noreferrer"
                 target="_blank"
               >
-                Open Current Link
+                Open current link
               </a>
             ) : null}
           </div>
-        </section>
+        </FinPanel>
 
-        <section className="grid grid-2">
-          <section className="panel">
-            <p className="eyebrow">Verification</p>
-            <h3>Moderation controls</h3>
-            <div className="quick-actions">
-              {lodgeStatuses.map((status) => (
-                <button
-                  className="button button-secondary"
-                  disabled={!canManageLodges || state.lodge?.status === status}
-                  key={status}
-                  type="button"
-                  onClick={() =>
-                    void runAction(
-                      () => updateGovernanceLodgeStatus(lodgeId, { status }),
-                      `Lodge status changed to ${formatGovernanceStatus(status)}.`,
-                    )
-                  }
-                >
-                  {formatGovernanceStatus(status)}
-                </button>
-              ))}
+        <div className="fin-split">
+          <FinPanel sub="Moderation controls" title="Status & verification">
+            <p className="li-sub">Lodge status</p>
+            <div className="li-seg">
+              {lodgeStatuses.map((status) => {
+                const isCurrent = lodge.status === status;
+                return (
+                  <button
+                    className={
+                      isCurrent
+                        ? 'fin-btn fin-btn-sm fin-btn-active'
+                        : 'fin-btn fin-btn-sm fin-btn-soft'
+                    }
+                    disabled={!canManageLodges || isBusy || isCurrent}
+                    key={status}
+                    type="button"
+                    onClick={() =>
+                      void runAction(
+                        () => updateGovernanceLodgeStatus(lodgeId, { status }),
+                        `Lodge status changed to ${formatGovernanceStatus(status)}.`,
+                      )
+                    }
+                  >
+                    {formatGovernanceStatus(status)}
+                  </button>
+                );
+              })}
             </div>
-            <label className="form-field">
+
+            <p className="li-sub">Verification</p>
+            <label className="fin-field">
               <span>Verification notes</span>
               <textarea
-                disabled={!canManageLodges}
+                disabled={!canManageLodges || isBusy}
+                placeholder="Optional note saved with the verification decision"
                 value={verificationNotes}
                 onChange={(event) => setVerificationNotes(event.target.value)}
               />
             </label>
-            <div className="quick-actions">
-              {verificationStatuses.map((verificationStatus) => (
-                <button
-                  className="button button-primary"
-                  disabled={!canManageLodges}
-                  key={verificationStatus}
-                  type="button"
-                  onClick={() =>
-                    void runAction(
-                      () =>
-                        verifyGovernanceLodge(lodgeId, {
-                          notes: verificationNotes || undefined,
-                          verificationStatus,
-                        }),
-                      `Verification changed to ${formatGovernanceStatus(verificationStatus)}.`,
-                    )
-                  }
-                >
-                  {formatGovernanceStatus(verificationStatus)}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <p className="eyebrow">Amenity Governance</p>
-            <h3>Assigned amenities</h3>
-            <div className="amenity-checklist">
-              {state.amenities.map((amenity) => (
-                <label key={amenity.id}>
-                  <input
-                    checked={selectedAmenityIds.includes(amenity.id)}
-                    disabled={!canManageLodges}
-                    type="checkbox"
-                    onChange={(event) => {
-                      setSelectedAmenityIds((current) =>
-                        event.target.checked
-                          ? [...current, amenity.id]
-                          : current.filter((id) => id !== amenity.id),
-                      );
-                    }}
-                  />
-                  <span>{amenity.name}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              className="button button-primary"
-              disabled={!canManageLodges}
-              type="button"
-              onClick={() =>
-                void runAction(
-                  () => assignGovernanceAmenities(lodgeId, { amenityIds: selectedAmenityIds }),
-                  'Amenities updated.',
-                )
-              }
-            >
-              Save Amenities
-            </button>
-          </section>
-        </section>
-
-        <section className="table-panel">
-          <div className="section-header">
-            <div>
-              <p className="eyebrow">Rooms</p>
-              <h3>Room status governance</h3>
-            </div>
-            <Link className="ghost-control" href={`/admin/rooms?lodgeId=${lodgeId}`}>
-              Manage Rooms &amp; Room Types
-            </Link>
-          </div>
-          <div className="admin-table governance-room-table">
-            <div className="admin-table-row admin-table-head">
-              <span>Room</span>
-              <span>Type</span>
-              <span>Floor</span>
-              <span>Status</span>
-              <span>Action</span>
-            </div>
-            {state.rooms.map((room) => (
-              <div className="admin-table-row" key={room.id}>
-                <span>{room.roomNumber}</span>
-                <span>{getRoomTypeLabel(room.roomTypeId, state.roomTypes)}</span>
-                <span>{room.floor ?? 'Not set'}</span>
-                <span className="status-card">{formatGovernanceStatus(room.status)}</span>
-                <span>
-                  <RoomStatusSelect
-                    disabled={!canManageRooms}
-                    status={room.status}
-                    onChange={(status) =>
-                      void runAction(
-                        () => updateGovernanceRoomStatus(room.id, { status }),
-                        'Room status updated.',
-                      )
-                    }
-                  />
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="table-panel">
-          <div className="section-header">
-            <div>
-              <p className="eyebrow">Photos</p>
-              <h3>Photo governance</h3>
-            </div>
-            <Link className="ghost-control" href="/admin/photos">
-              Review Pending Photos
-            </Link>
-          </div>
-          <div className="photo-grid">
-            {state.photos.map((photo) => (
-              <article className="photo-card" key={photo.id}>
-                <img
-                  alt={`${state.lodge?.name} ${photo.category}`}
-                  src={photo.thumbnailUrl ?? photo.fileUrl}
-                />
-                <strong>{formatGovernanceStatus(photo.category)}</strong>
-                <span className="status-card">{formatGovernanceStatus(photo.approvalStatus)}</span>
-                <div className="row-actions">
+            <div className="li-seg" style={{ marginTop: 12 }}>
+              {verificationStatuses.map((verificationStatus) => {
+                const isCurrent = lodge.verificationStatus === verificationStatus;
+                return (
                   <button
-                    className="ghost-control"
-                    disabled={!canReviewPhotos || photo.approvalStatus === 'APPROVED'}
-                    type="button"
-                    onClick={() =>
-                      void runAction(
-                        () => updateGovernancePhotoApproval(photo.id, 'APPROVED'),
-                        'Photo approved.',
-                      )
+                    className={
+                      isCurrent
+                        ? 'fin-btn fin-btn-sm fin-btn-active'
+                        : `fin-btn fin-btn-sm ${verificationButtonClass(verificationStatus)}`
                     }
-                  >
-                    Approve
-                  </button>
-                  <button
-                    className="ghost-control"
-                    disabled={!canReviewPhotos || photo.approvalStatus === 'REJECTED'}
+                    disabled={!canManageLodges || isBusy}
+                    key={verificationStatus}
                     type="button"
                     onClick={() =>
                       void runAction(
                         () =>
-                          updateGovernancePhotoApproval(photo.id, 'REJECTED', {
-                            rejectionReason: photoRejectReasons[0] ?? 'Photo rejected by admin',
+                          verifyGovernanceLodge(lodgeId, {
+                            notes: verificationNotes || undefined,
+                            verificationStatus,
                           }),
-                        'Photo rejected.',
-                      )
+                        `Verification changed to ${formatGovernanceStatus(verificationStatus)}.`,
+                      ).then(() => setVerificationNotes(''))
                     }
                   >
-                    Reject
+                    {formatGovernanceStatus(verificationStatus)}
                   </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+                );
+              })}
+            </div>
+          </FinPanel>
+
+          <FinPanel
+            action={
+              <button
+                className="fin-btn fin-btn-sm"
+                disabled={!canManageLodges || isBusy || amenities.error !== null}
+                type="button"
+                onClick={() =>
+                  void runAction(
+                    () => assignGovernanceAmenities(lodgeId, { amenityIds: selectedAmenityIds }),
+                    'Amenities updated.',
+                    true,
+                  )
+                }
+              >
+                Save amenities
+              </button>
+            }
+            sub={`${selectedAmenityIds.length} selected`}
+            title="Amenities"
+          >
+            {amenities.error ? (
+              <div className="li-section-error" role="alert">
+                <span>{amenities.error}</span>
+                <button
+                  className="fin-btn fin-btn-sm"
+                  type="button"
+                  onClick={() => void load({ resetDrafts: false, showSkeleton: false })}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : amenities.data.length === 0 ? (
+              <p className="fin-empty">No amenities are available to assign.</p>
+            ) : (
+              <div className="li-amenities">
+                {amenities.data.map((amenity) => {
+                  const checked = selectedAmenityIds.includes(amenity.id);
+                  return (
+                    <label
+                      className={checked ? 'li-amenity li-amenity-on' : 'li-amenity'}
+                      key={amenity.id}
+                    >
+                      <input
+                        checked={checked}
+                        disabled={!canManageLodges || isBusy}
+                        type="checkbox"
+                        onChange={(event) => toggleAmenity(amenity.id, event.target.checked)}
+                      />
+                      <span>{amenity.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </FinPanel>
+        </div>
+
+        <FinPanel
+          action={
+            <Link
+              className="fin-btn fin-btn-sm fin-btn-soft"
+              href={`/admin/rooms?lodgeId=${lodgeId}`}
+            >
+              Manage rooms &amp; room types
+            </Link>
+          }
+          sub={`${roomSummary.total} rooms · ${roomSummary.available} available`}
+          title="Room status"
+        >
+          {rooms.error ? (
+            <div className="li-section-error" role="alert">
+              <span>{rooms.error}</span>
+              <button
+                className="fin-btn fin-btn-sm"
+                type="button"
+                onClick={() => void load({ resetDrafts: false, showSkeleton: false })}
+              >
+                Retry
+              </button>
+            </div>
+          ) : rooms.data.length === 0 ? (
+            <p className="fin-empty">No rooms have been added to this lodge yet.</p>
+          ) : (
+            <div className="fin-scroll">
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>Room</th>
+                    <th>Type</th>
+                    <th>Floor</th>
+                    <th>Status</th>
+                    <th>Change status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rooms.data.map((room) => (
+                    <tr key={room.id}>
+                      <td>
+                        <b>{room.roomNumber}</b>
+                      </td>
+                      <td>{getRoomTypeLabel(room.roomTypeId, roomTypes.data)}</td>
+                      <td>{room.floor ?? 'Not set'}</td>
+                      <td>
+                        <FinPill tone={roomTone(room.status)}>
+                          {formatGovernanceStatus(room.status)}
+                        </FinPill>
+                      </td>
+                      <td>
+                        <select
+                          aria-label={`Status for room ${room.roomNumber}`}
+                          className="li-select"
+                          disabled={!canManageRooms || isBusy}
+                          value={room.status}
+                          onChange={(event) => {
+                            const status = event.target.value as RoomStatus;
+                            void runAction(
+                              () => updateGovernanceRoomStatus(room.id, { status }),
+                              `Room ${room.roomNumber} status updated.`,
+                            );
+                          }}
+                        >
+                          {roomStatuses.map((roomStatus) => (
+                            <option key={roomStatus} value={roomStatus}>
+                              {formatGovernanceStatus(roomStatus)}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </FinPanel>
+
+        <FinPanel
+          action={
+            <Link className="fin-btn fin-btn-sm fin-btn-soft" href="/admin/photos">
+              Review pending photos
+            </Link>
+          }
+          sub={`${photoSummary.total} photos · ${photoSummary.pending} pending`}
+          title="Photos"
+        >
+          {photos.error ? (
+            <div className="li-section-error" role="alert">
+              <span>{photos.error}</span>
+              <button
+                className="fin-btn fin-btn-sm"
+                type="button"
+                onClick={() => void load({ resetDrafts: false, showSkeleton: false })}
+              >
+                Retry
+              </button>
+            </div>
+          ) : photos.data.length === 0 ? (
+            <p className="fin-empty">No photos have been uploaded for this lodge yet.</p>
+          ) : (
+            <>
+              <label className="fin-field" style={{ marginBottom: 14, maxWidth: 420 }}>
+                <span>Rejection reason (used when you reject a photo)</span>
+                <select
+                  disabled={!canReviewPhotos || isBusy}
+                  value={rejectReason}
+                  onChange={(event) => setRejectReason(event.target.value)}
+                >
+                  {photoRejectReasons.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="li-photos">
+                {photos.data.map((photo) => (
+                  <article className="li-photo" key={photo.id}>
+                    <img
+                      alt={`${lodge.name} ${photo.category}`}
+                      src={photo.thumbnailUrl ?? photo.fileUrl}
+                    />
+                    <div className="li-photo-meta">
+                      <b>{formatGovernanceStatus(photo.category)}</b>
+                      <FinPill tone={photoTone(photo.approvalStatus)}>
+                        {formatGovernanceStatus(photo.approvalStatus)}
+                      </FinPill>
+                    </div>
+                    {photo.approvalStatus === 'REJECTED' && photo.rejectionReason ? (
+                      <p className="li-photo-reason">{photo.rejectionReason}</p>
+                    ) : null}
+                    <div className="li-photo-actions">
+                      <button
+                        className="fin-btn fin-btn-sm fin-btn-green"
+                        disabled={!canReviewPhotos || isBusy || photo.approvalStatus === 'APPROVED'}
+                        type="button"
+                        onClick={() =>
+                          void runAction(
+                            () => updateGovernancePhotoApproval(photo.id, 'APPROVED'),
+                            'Photo approved.',
+                          )
+                        }
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="fin-btn fin-btn-sm fin-btn-danger"
+                        disabled={!canReviewPhotos || isBusy || photo.approvalStatus === 'REJECTED'}
+                        type="button"
+                        onClick={() =>
+                          void runAction(
+                            () =>
+                              updateGovernancePhotoApproval(photo.id, 'REJECTED', {
+                                rejectionReason: rejectReason || 'Photo rejected by admin',
+                              }),
+                            'Photo rejected.',
+                          )
+                        }
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+        </FinPanel>
       </div>
     </PermissionGate>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="kpi-card">
-      <span className="kpi-icon">TS</span>
-      <div>
-        <span className="kpi-label">{label}</span>
-        <strong>{value}</strong>
-      </div>
-    </div>
-  );
-}
-
-function RoomStatusSelect({
-  disabled,
-  onChange,
-  status,
-}: {
-  disabled: boolean;
-  onChange: (status: RoomStatus) => void;
-  status: RoomStatus;
-}) {
-  return (
-    <select
-      disabled={disabled}
-      value={status}
-      onChange={(event) => onChange(event.target.value as RoomStatus)}
-    >
-      {roomStatuses.map((roomStatus) => (
-        <option key={roomStatus} value={roomStatus}>
-          {formatGovernanceStatus(roomStatus)}
-        </option>
-      ))}
-    </select>
   );
 }
