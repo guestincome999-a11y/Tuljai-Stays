@@ -42,24 +42,40 @@ export function BookingConflictsView() {
       <FinBanners error={error} />
       <FinPanel sub="Next 90 days" title="Overlap check">
         {!conflicts && !error ? <div aria-label="Loading" className="fin-skeleton" /> : null}
-        {conflicts && conflicts.length === 0 ? <p className="fin-empty">No booking conflicts found. Every room is covered for the next 90 days.</p> : null}
+        {conflicts && conflicts.length === 0 ? (
+          <p className="fin-empty">
+            No booking conflicts found. Every room is covered for the next 90 days.
+          </p>
+        ) : null}
         {conflicts && conflicts.length > 0 ? (
           <div className="bk-conflicts">
             {conflicts.map((conflict) => {
               const doubleBooked = conflict.kind === 'DOUBLE_BOOKED_ROOM';
               return (
-                <article className={doubleBooked ? 'bk-conflict' : 'bk-conflict bk-conflict-warn'} key={conflict.id}>
+                <article
+                  className={doubleBooked ? 'bk-conflict' : 'bk-conflict bk-conflict-warn'}
+                  key={conflict.id}
+                >
                   <div className="bk-conflict-head">
-                    <FinPill tone={doubleBooked ? 'red' : 'orange'}>{doubleBooked ? 'Double-booked room' : 'Overbooked room type'}</FinPill>
+                    <FinPill tone={doubleBooked ? 'red' : 'orange'}>
+                      {doubleBooked ? 'Double-booked room' : 'Overbooked room type'}
+                    </FinPill>
                     <h3>{conflict.lodgeName}</h3>
                   </div>
-                  <p>{conflict.detail} First clash on {formatDate(conflict.onDate)}.</p>
+                  <p>
+                    {conflict.detail} First clash on {formatDate(conflict.onDate)}.
+                  </p>
                   <ul>
                     {conflict.bookings.map((booking) => (
                       <li key={booking.bookingId}>
-                        <Link className="fin-link" href={`/admin/bookings/${booking.bookingId}`}>{booking.bookingCode}</Link>
+                        <Link className="fin-link" href={`/admin/bookings/${booking.bookingId}`}>
+                          {booking.bookingCode}
+                        </Link>
                         <span>{booking.guestName}</span>
-                        <span className="fin-cell-sub">{formatDate(booking.checkInDate)} to {formatDate(booking.checkOutDate)} · {statusLabel(booking.status)}</span>
+                        <span className="fin-cell-sub">
+                          {formatDate(booking.checkInDate)} to {formatDate(booking.checkOutDate)} ·{' '}
+                          {statusLabel(booking.status)}
+                        </span>
                       </li>
                     ))}
                   </ul>

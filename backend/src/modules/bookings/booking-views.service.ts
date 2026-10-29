@@ -11,7 +11,12 @@ import type {
 
 import { PrismaService } from '../prisma/prisma.service';
 
-export const BOOKING_VIEW_KEYS: AdminBookingViewKey[] = ['upcoming', 'active', 'completed', 'cancelled'];
+export const BOOKING_VIEW_KEYS: AdminBookingViewKey[] = [
+  'upcoming',
+  'active',
+  'completed',
+  'cancelled',
+];
 export const BOOKING_DATE_RANGES: AdminBookingDateRange[] = [
   'all',
   'today',
@@ -156,20 +161,18 @@ export class BookingViewsService {
     ]);
     const totalItems = totals[0]?.total ?? 0;
     return {
-      items: rows.map(
-        (row): AdminBookingViewRow => ({
-          bookingCode: row.bookingCode,
-          checkInDate: row.checkInDate,
-          checkOutDate: row.checkOutDate,
-          guestName: row.guestName,
-          id: row.id,
-          lodgeName: row.lodgeName,
-          paymentStatus: row.paymentStatus,
-          roomTypeName: row.roomTypeName,
-          status: row.status,
-          totalAmount: row.totalAmount,
-        }),
-      ),
+      items: rows.map((row): AdminBookingViewRow => ({
+        bookingCode: row.bookingCode,
+        checkInDate: row.checkInDate,
+        checkOutDate: row.checkOutDate,
+        guestName: row.guestName,
+        id: row.id,
+        lodgeName: row.lodgeName,
+        paymentStatus: row.paymentStatus,
+        roomTypeName: row.roomTypeName,
+        status: row.status,
+        totalAmount: row.totalAmount,
+      })),
       page: input.page,
       pageSize: input.pageSize,
       totalItems,
@@ -271,26 +274,22 @@ export class BookingViewsService {
     ]);
 
     const conflicts: AdminBookingConflict[] = [
-      ...doubleBooked.map(
-        (row): AdminBookingConflict => ({
-          bookings: [row.a, row.b],
-          detail: `Room ${row.roomNumber} is held by two overlapping bookings.`,
-          id: `room-${row.a.bookingId}-${row.b.bookingId}`,
-          kind: 'DOUBLE_BOOKED_ROOM',
-          lodgeName: row.lodgeName,
-          onDate: row.onDate,
-        }),
-      ),
-      ...overbooked.map(
-        (row): AdminBookingConflict => ({
-          bookings: row.bookings,
-          detail: `${row.roomTypeName}: ${row.booked} bookings overlap but only ${row.totalRooms} ${row.totalRooms === 1 ? 'room exists' : 'rooms exist'}.`,
-          id: `type-${row.lodgeName}-${row.roomTypeName}-${row.onDate}`,
-          kind: 'OVERBOOKED_ROOM_TYPE',
-          lodgeName: row.lodgeName,
-          onDate: row.onDate,
-        }),
-      ),
+      ...doubleBooked.map((row): AdminBookingConflict => ({
+        bookings: [row.a, row.b],
+        detail: `Room ${row.roomNumber} is held by two overlapping bookings.`,
+        id: `room-${row.a.bookingId}-${row.b.bookingId}`,
+        kind: 'DOUBLE_BOOKED_ROOM',
+        lodgeName: row.lodgeName,
+        onDate: row.onDate,
+      })),
+      ...overbooked.map((row): AdminBookingConflict => ({
+        bookings: row.bookings,
+        detail: `${row.roomTypeName}: ${row.booked} bookings overlap but only ${row.totalRooms} ${row.totalRooms === 1 ? 'room exists' : 'rooms exist'}.`,
+        id: `type-${row.lodgeName}-${row.roomTypeName}-${row.onDate}`,
+        kind: 'OVERBOOKED_ROOM_TYPE',
+        lodgeName: row.lodgeName,
+        onDate: row.onDate,
+      })),
     ];
     return conflicts.sort((a, b) => a.onDate.localeCompare(b.onDate));
   }

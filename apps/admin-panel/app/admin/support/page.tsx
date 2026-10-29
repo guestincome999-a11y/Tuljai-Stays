@@ -71,7 +71,9 @@ export default function SupportPage() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">Customer Directory</p>
-              <h3>{loading ? 'Searching…' : `${users.length} result${users.length === 1 ? '' : 's'}`}</h3>
+              <h3>
+                {loading ? 'Searching…' : `${users.length} result${users.length === 1 ? '' : 's'}`}
+              </h3>
             </div>
           </div>
           <div className="admin-table">

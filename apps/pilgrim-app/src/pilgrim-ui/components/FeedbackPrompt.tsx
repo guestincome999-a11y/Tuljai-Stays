@@ -27,7 +27,10 @@ export function FeedbackPrompt({ bookingId, onClose }: { bookingId: string; onCl
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : t('Could not submit feedback. Please try again.', 'अभिप्राय पाठवता आला नाही. कृपया पुन्हा प्रयत्न करा.'),
+          : t(
+              'Could not submit feedback. Please try again.',
+              'अभिप्राय पाठवता आला नाही. कृपया पुन्हा प्रयत्न करा.',
+            ),
       );
     } finally {
       setSubmitting(false);
@@ -84,7 +87,10 @@ export function FeedbackPrompt({ bookingId, onClose }: { bookingId: string; onCl
             multiline
             maxLength={2000}
             onChangeText={setComment}
-            placeholder={t('Tell us about your experience (optional)', 'तुमचा अनुभव सांगा (ऐच्छिक)')}
+            placeholder={t(
+              'Tell us about your experience (optional)',
+              'तुमचा अनुभव सांगा (ऐच्छिक)',
+            )}
             placeholderTextColor={ui.muted}
             textAlignVertical="top"
             value={comment}

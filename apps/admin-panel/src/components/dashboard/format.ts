@@ -14,13 +14,17 @@ export function formatDate(value: string): string {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime())
     ? value
-    : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(parsed);
+    : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(
+        parsed,
+      );
 }
 
 export function shortDate(iso: string): string {
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
-    new Date(`${iso}T00:00:00Z`),
-  );
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(`${iso}T00:00:00Z`));
 }
 
 export function timeAgo(iso: string): string {

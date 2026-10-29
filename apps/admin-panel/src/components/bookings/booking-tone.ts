@@ -16,7 +16,8 @@ export function paymentStatusTone(status: string): FinTone {
   if (value.includes('FAIL') || value.includes('CANCEL')) return 'red';
   if (value.includes('REFUND')) return 'purple';
   if (value === 'PAID' || value.includes('SUCCESS') || value.includes('COMPLETE')) return 'green';
-  if (value.includes('PENDING') || value.includes('UNPAID') || value.includes('CREATED')) return 'orange';
+  if (value.includes('PENDING') || value.includes('UNPAID') || value.includes('CREATED'))
+    return 'orange';
   return 'blue';
 }
 

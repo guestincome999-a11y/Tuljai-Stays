@@ -298,7 +298,9 @@ function PaymentGuidanceBanner({ booking }: { booking: Booking }) {
         : colors.light.textMuted;
 
   return (
-    <View style={[styles.paymentBanner, { backgroundColor: `${toneColor}22`, borderColor: toneColor }]}>
+    <View
+      style={[styles.paymentBanner, { backgroundColor: `${toneColor}22`, borderColor: toneColor }]}
+    >
       <Text style={{ color: toneColor }} variant="titleMedium">
         {guidance.title}
       </Text>

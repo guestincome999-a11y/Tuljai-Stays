@@ -564,8 +564,8 @@ function RoomTypeRow({
         </label>
         <p className="muted-copy">
           Increasing the room count adds new rooms automatically. Decreasing it deactivates the
-          highest-numbered rooms that are currently available; occupied, reserved, or blocked
-          rooms are left untouched.
+          highest-numbered rooms that are currently available; occupied, reserved, or blocked rooms
+          are left untouched.
         </p>
         <div className="row-actions">
           <button className="button button-primary" disabled={isSaving} type="submit">

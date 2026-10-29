@@ -210,9 +210,7 @@ export function useRoomOperations() {
         ? runMutation(() => createPhotoMetadata(lodgeId, input), 'Photo metadata submitted.')
         : Promise.resolve(false),
     uploadPhoto: (photo: PickedPhoto) =>
-      lodgeId
-        ? uploadLodgePhoto(lodgeId, photo)
-        : Promise.reject(new Error('No lodge selected.')),
+      lodgeId ? uploadLodgePhoto(lodgeId, photo) : Promise.reject(new Error('No lodge selected.')),
     createManualBooking: (roomId: string, input: ManualBookingInput) =>
       runMutation(
         () => createManualBooking(roomId, input),

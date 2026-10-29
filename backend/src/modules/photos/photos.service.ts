@@ -56,7 +56,12 @@ export class PhotosService {
       action: 'LODGE_PHOTO_UPLOADED',
       actorUserId: user.id,
       entityType: 'lodge_photo',
-      metadata: { lodgeId, mimeType: detectedImage.mimeType, sizeBytes: contents.length, storagePath },
+      metadata: {
+        lodgeId,
+        mimeType: detectedImage.mimeType,
+        sizeBytes: contents.length,
+        storagePath,
+      },
     });
 
     return { fileUrl };

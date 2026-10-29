@@ -165,8 +165,8 @@ export function OwnerBookingDetailScreen() {
             ) : null}
             {isPrepaid ? (
               <Text variant="bodyMedium">
-                Prepaid booking. A room is assigned automatically based on availability, so it
-                needs no approval and cannot be rejected or cancelled from here.
+                Prepaid booking. A room is assigned automatically based on availability, so it needs
+                no approval and cannot be rejected or cancelled from here.
               </Text>
             ) : null}
             {canRespond ? (

@@ -126,23 +126,21 @@ export class FinanceAdminService {
       return { amount: found?.amount ?? '0', count: found?.count ?? 0, status };
     });
     return {
-      items: rows.map(
-        (row): AdminPaymentRow => ({
-          amount: row.amount,
-          bookingCode: row.bookingCode,
-          bookingId: row.bookingId,
-          createdAt: row.createdAt.toISOString(),
-          guestName: row.guestName,
-          id: row.id,
-          lodgeName: row.lodgeName,
-          method: row.method,
-          paidAt: row.paidAt ? row.paidAt.toISOString() : null,
-          provider: row.provider,
-          providerOrderId: row.providerOrderId,
-          providerPaymentId: row.providerPaymentId,
-          status: row.status,
-        }),
-      ),
+      items: rows.map((row): AdminPaymentRow => ({
+        amount: row.amount,
+        bookingCode: row.bookingCode,
+        bookingId: row.bookingId,
+        createdAt: row.createdAt.toISOString(),
+        guestName: row.guestName,
+        id: row.id,
+        lodgeName: row.lodgeName,
+        method: row.method,
+        paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+        provider: row.provider,
+        providerOrderId: row.providerOrderId,
+        providerPaymentId: row.providerPaymentId,
+        status: row.status,
+      })),
       page: input.page,
       pageSize: input.pageSize,
       statusCounts,
@@ -182,19 +180,17 @@ export class FinanceAdminService {
     ]);
     const totalItems = totals[0]?.total ?? 0;
     return {
-      items: rows.map(
-        (row): AdminSettlementHistoryRow => ({
-          amount: row.amount,
-          id: row.id,
-          lodgeId: row.lodgeId,
-          lodgeName: row.lodgeName,
-          notes: row.notes,
-          paymentMethod: row.paymentMethod,
-          reference: row.reference,
-          settledAt: row.settledAt.toISOString(),
-          settledByName: row.settledByName,
-        }),
-      ),
+      items: rows.map((row): AdminSettlementHistoryRow => ({
+        amount: row.amount,
+        id: row.id,
+        lodgeId: row.lodgeId,
+        lodgeName: row.lodgeName,
+        notes: row.notes,
+        paymentMethod: row.paymentMethod,
+        reference: row.reference,
+        settledAt: row.settledAt.toISOString(),
+        settledByName: row.settledByName,
+      })),
       page: input.page,
       pageSize: input.pageSize,
       settledTotal: totals[0]?.settledTotal ?? '0',

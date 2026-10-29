@@ -7,7 +7,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { listAdminSettings, updateAdminSetting } from '../../../src/api/admin-platform-control-api';
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
 import { FinanceStyles } from '../../../src/components/finance/FinanceStyles';
-import { FinBanners, FinHeader, FinIcon, FinKv, FinPanel, FinPill } from '../../../src/components/finance/FinanceUi';
+import {
+  FinBanners,
+  FinHeader,
+  FinIcon,
+  FinKv,
+  FinPanel,
+  FinPill,
+} from '../../../src/components/finance/FinanceUi';
 import type { FinIconName, FinTone } from '../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import { hasPermission } from '../../../src/permissions/permissions';
@@ -15,11 +22,52 @@ import { stringifySettingValue } from '../../../src/platform-control/platform-co
 
 const ONLINE_PAYMENTS_KEY = 'enable_online_payments';
 
-const SHORTCUTS: Array<{ action: string; buttonClass: string; description: string; href: string; icon: FinIconName; title: string; tone: FinTone }> = [
-  { action: 'Open Commission', buttonClass: 'fin-btn-soft', description: 'Configure commission rates and enable or disable commission for each lodge.', href: '/admin/commission', icon: 'percent', title: 'Lodge Commission', tone: 'blue' },
-  { action: 'Open Revenue', buttonClass: 'fin-btn-soft', description: 'Review booking revenue, commission earned, outstanding lodge receivables, and financial history.', href: '/admin/revenue', icon: 'chart', title: 'Revenue', tone: 'green' },
-  { action: 'Open Settlements', buttonClass: 'fin-btn-violet', description: 'See which lodges owe commission and record settlements against their ledger.', href: '/admin/settlements', icon: 'bank', title: 'Owner Settlements', tone: 'purple' },
-  { action: 'Open Payments', buttonClass: 'fin-btn-soft', description: 'Every payment collected for a booking, online or at the lodge.', href: '/admin/payments', icon: 'card', title: 'Payments', tone: 'orange' },
+const SHORTCUTS: Array<{
+  action: string;
+  buttonClass: string;
+  description: string;
+  href: string;
+  icon: FinIconName;
+  title: string;
+  tone: FinTone;
+}> = [
+  {
+    action: 'Open Commission',
+    buttonClass: 'fin-btn-soft',
+    description: 'Configure commission rates and enable or disable commission for each lodge.',
+    href: '/admin/commission',
+    icon: 'percent',
+    title: 'Lodge Commission',
+    tone: 'blue',
+  },
+  {
+    action: 'Open Revenue',
+    buttonClass: 'fin-btn-soft',
+    description:
+      'Review booking revenue, commission earned, outstanding lodge receivables, and financial history.',
+    href: '/admin/revenue',
+    icon: 'chart',
+    title: 'Revenue',
+    tone: 'green',
+  },
+  {
+    action: 'Open Settlements',
+    buttonClass: 'fin-btn-violet',
+    description: 'See which lodges owe commission and record settlements against their ledger.',
+    href: '/admin/settlements',
+    icon: 'bank',
+    title: 'Owner Settlements',
+    tone: 'purple',
+  },
+  {
+    action: 'Open Payments',
+    buttonClass: 'fin-btn-soft',
+    description: 'Every payment collected for a booking, online or at the lodge.',
+    href: '/admin/payments',
+    icon: 'card',
+    title: 'Payments',
+    tone: 'orange',
+  },
 ];
 
 const FOUNDATION: Array<{ label: string; tone: FinTone; value: string }> = [
@@ -81,7 +129,9 @@ export default function AdminFinancePage() {
     }
   }
 
-  const paymentsOn = onlinePayments ? stringifySettingValue(onlinePayments.value) === 'true' : false;
+  const paymentsOn = onlinePayments
+    ? stringifySettingValue(onlinePayments.value) === 'true'
+    : false;
   const statusPill = loadingPayments ? (
     <FinPill tone="gray">Loading…</FinPill>
   ) : onlinePayments ? (
@@ -89,7 +139,8 @@ export default function AdminFinancePage() {
   ) : (
     <FinPill tone="orange">SETTING NOT FOUND</FinPill>
   );
-  const controlsDisabled = !canManageSettings || !onlinePayments || savingPayments || loadingPayments;
+  const controlsDisabled =
+    !canManageSettings || !onlinePayments || savingPayments || loadingPayments;
 
   return (
     <PermissionGate permission="finance.view">
@@ -107,7 +158,9 @@ export default function AdminFinancePage() {
               <FinIcon name={item.icon} tone={item.tone} />
               <h3>{item.title}</h3>
               <p>{item.description}</p>
-              <Link className={`fin-btn ${item.buttonClass}`} href={item.href}>{item.action}</Link>
+              <Link className={`fin-btn ${item.buttonClass}`} href={item.href}>
+                {item.action}
+              </Link>
             </article>
           ))}
         </section>
@@ -121,17 +174,32 @@ export default function AdminFinancePage() {
           <FinKv
             rows={[
               { label: 'Online payments', value: statusPill },
-              { label: 'Control permission', value: canManageSettings ? 'Admin can change setting' : 'Read-only for this role' },
+              {
+                label: 'Control permission',
+                value: canManageSettings ? 'Admin can change setting' : 'Read-only for this role',
+              },
             ]}
           />
           <div className="fin-actions">
-            <button className="fin-btn" disabled={controlsDisabled} onClick={() => void setOnlinePaymentState(true)} type="button">
+            <button
+              className="fin-btn"
+              disabled={controlsDisabled}
+              onClick={() => void setOnlinePaymentState(true)}
+              type="button"
+            >
               {savingPayments ? 'Saving…' : 'Enable Online Payments'}
             </button>
-            <button className="fin-btn fin-btn-outline" disabled={controlsDisabled} onClick={() => void setOnlinePaymentState(false)} type="button">
+            <button
+              className="fin-btn fin-btn-outline"
+              disabled={controlsDisabled}
+              onClick={() => void setOnlinePaymentState(false)}
+              type="button"
+            >
               Disable Online Payments
             </button>
-            <Link className="fin-btn fin-btn-soft" href="/admin/settings">Open System Settings</Link>
+            <Link className="fin-btn fin-btn-soft" href="/admin/settings">
+              Open System Settings
+            </Link>
           </div>
         </FinPanel>
 
@@ -143,7 +211,10 @@ export default function AdminFinancePage() {
             backend.
           </p>
           <FinKv
-            rows={FOUNDATION.map((item) => ({ label: item.label, value: <FinPill tone={item.tone}>{item.value}</FinPill> }))}
+            rows={FOUNDATION.map((item) => ({
+              label: item.label,
+              value: <FinPill tone={item.tone}>{item.value}</FinPill>,
+            }))}
             twoColumns
           />
         </FinPanel>
