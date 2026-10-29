@@ -1,11 +1,11 @@
 import { Linking, StyleSheet, View } from 'react-native';
 
+import { BookingActionButton } from '../../../features/bookings/components/BookingActionButton';
 import { fetchLodgeContact } from '../../core/bookings';
 import { useCachedFetch } from '../../core/useCachedFetch';
 import { space } from '../../design/tokens';
 import { useLang } from '../../i18n/language';
 import { myBookingsStrings } from '../../i18n/strings';
-import { Button } from '../../ui/Button';
 
 /**
  * Lodge phone numbers are only released by the backend once a booking is confirmed, so this is
@@ -20,17 +20,15 @@ export function LodgeContactActions({ bookingId }: { bookingId: string }) {
 
   return (
     <View style={styles.row}>
-      <Button
+      <BookingActionButton
+        icon="phone-outline"
         label={t(myBookingsStrings.call)}
-        style={styles.button}
-        variant="secondary"
         onPress={() => void Linking.openURL(`tel:${data.primaryPhone}`)}
       />
       {whatsappDigits.length > 0 ? (
-        <Button
+        <BookingActionButton
+          icon="whatsapp"
           label={t(myBookingsStrings.whatsapp)}
-          style={styles.button}
-          variant="secondary"
           onPress={() => void Linking.openURL(`https://wa.me/${whatsappDigits}`)}
         />
       ) : null}
@@ -39,6 +37,5 @@ export function LodgeContactActions({ bookingId }: { bookingId: string }) {
 }
 
 const styles = StyleSheet.create({
-  button: { flex: 1 },
   row: { flexDirection: 'row', gap: space.md },
 });

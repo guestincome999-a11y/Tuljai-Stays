@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BookingActionButton } from '../../../features/bookings/components/BookingActionButton';
 import { cancelBooking, fetchBooking, fetchMyBookings } from '../../core/bookings';
 import type { MyBookingCard } from '../../core/bookings';
 import { fetchLodge } from '../../core/catalog';
@@ -33,16 +34,18 @@ import { LodgeContactActions } from './LodgeContactActions';
 import { QrPass } from './QrPass';
 import { ReviewCard } from './ReviewCard';
 
-function DirectionsButton({ lodgeId }: { lodgeId: string }) {
+function DirectionsButton({ lodgeId, lodgeName }: { lodgeId: string; lodgeName: string }) {
   const { t } = useLang();
   const { data } = useCachedFetch(`lodge:${lodgeId}`, () => fetchLodge(lodgeId));
-  const link = data?.lodge.googleMapsLink;
-  if (!link) return null;
+  const link =
+    data?.lodge.googleMapsLink ||
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lodgeName}, Tuljapur`)}`;
 
   return (
-    <Button
+    <BookingActionButton
+      compact
+      icon="map-marker-outline"
       label={t(detailStrings.directions)}
-      variant="secondary"
       onPress={() => void Linking.openURL(link)}
     />
   );
@@ -154,6 +157,7 @@ export function BookingDetailScreen({
                   {card.roomTypeName}
                 </Text>
               </View>
+              <DirectionsButton lodgeId={card.lodgeId} lodgeName={card.lodgeName} />
             </View>
             <SummaryRow
               label={t(detailStrings.checkIn)}
@@ -173,6 +177,10 @@ export function BookingDetailScreen({
         ) : (
           <Skeleton height={150} />
         )}
+
+        {status && CONTACT_STATUSES.includes(status) ? (
+          <LodgeContactActions bookingId={bookingId} />
+        ) : null}
 
         {booking ? (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
@@ -203,11 +211,6 @@ export function BookingDetailScreen({
         {status === 'CHECKED_OUT' || status === 'COMPLETED' ? (
           <ReviewCard bookingId={bookingId} />
         ) : null}
-
-        {status && CONTACT_STATUSES.includes(status) ? (
-          <LodgeContactActions bookingId={bookingId} />
-        ) : null}
-        {card ? <DirectionsButton lodgeId={card.lodgeId} /> : null}
 
         {status && CANCELLABLE_STATUSES.includes(status) ? (
           <Button

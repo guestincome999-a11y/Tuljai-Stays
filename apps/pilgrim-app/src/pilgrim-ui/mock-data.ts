@@ -29,6 +29,7 @@ export interface PilgrimLodge {
   name: string;
   photos: string[];
   price: number;
+  priceAvailable?: boolean;
   rating: number;
   reviewCount: number;
   rooms: PilgrimRoom[];
@@ -39,6 +40,9 @@ export interface PilgrimLodge {
 }
 
 export interface PilgrimBooking {
+  googleMapsLink?: string | null;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
   amount: number;
   bookingCode: string;
   checkIn: string;

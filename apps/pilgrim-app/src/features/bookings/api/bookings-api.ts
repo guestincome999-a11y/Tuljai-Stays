@@ -194,6 +194,17 @@ export async function cancelBooking(bookingId: string, reason?: string): Promise
 }
 
 async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {
+  // Booking records carry joined names. Public catalogue failures (or a lodge
+  // being unlisted later) must never replace a guest's actual booking details.
+  if (booking.lodgeName && booking.roomTypeName) {
+    return {
+      booking,
+      coverPhotoUrl: null,
+      directionsQuery: booking.lodgeGoogleMapsLink ?? booking.lodgeName,
+      lodgeName: booking.lodgeName,
+      roomTypeName: booking.roomTypeName,
+    };
+  }
   const [lodge, photos, roomTypes] = await Promise.all([
     getLodgeDetails(booking.lodgeId).catch(() => null),
     listLodgePhotos(booking.lodgeId).catch(() => []),
@@ -215,7 +226,7 @@ async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {
           .filter(Boolean)
           .join(', ')
       : (lodge?.name ?? null),
-    lodgeName: lodge?.name ?? 'Tuljai Stays lodge',
-    roomTypeName: roomType?.name ?? 'Selected room',
+    lodgeName: booking.lodgeName ?? lodge?.name ?? '',
+    roomTypeName: booking.roomTypeName ?? roomType?.name ?? '',
   };
 }

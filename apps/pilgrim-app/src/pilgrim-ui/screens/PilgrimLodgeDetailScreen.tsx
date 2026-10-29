@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,10 +31,14 @@ export function PilgrimLodgeDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { favoriteIds, isSyncing, lodges, t, toggleFavorite } = usePilgrimApp();
+  const { ensureLodgesHydrated, favoriteIds, isSyncing, lodges, t, toggleFavorite } =
+    usePilgrimApp();
   const lodge = lodges.find((item) => item.id === params.id);
   const [photoIndex, setPhotoIndex] = useState(0);
   const favorite = lodge ? favoriteIds.includes(lodge.id) : false;
+  useEffect(() => {
+    if (params.id) ensureLodgesHydrated([params.id]);
+  }, [ensureLodgesHydrated, params.id]);
   // Live check for the same default stay checkout opens with (tomorrow, one
   // night). Only a positive "no rooms free" answer marks the lodge as full;
   // a failed or pending check never blocks booking.
@@ -381,8 +385,14 @@ export function PilgrimLodgeDetailScreen() {
             {t('Rooms from', 'खोली सुरू')}
           </Text>
           <Text className="text-xl font-extrabold text-warm-900">
-            {formatRupees(lodge.price)}{' '}
-            <Text className="text-xs font-medium text-warm-500">/ night</Text>
+            {(lodge.priceAvailable ?? lodge.rooms.length > 0)
+              ? formatRupees(lodge.price)
+              : lodge.hydrated === false
+                ? t('Loading price…', 'किंमत लोड होत आहे…')
+                : t('No rooms listed', 'खोल्या उपलब्ध नाहीत')}{' '}
+            {(lodge.priceAvailable ?? lodge.rooms.length > 0) ? (
+              <Text className="text-xs font-medium text-warm-500">/ night</Text>
+            ) : null}
           </Text>
         </View>
         <PrimaryButton

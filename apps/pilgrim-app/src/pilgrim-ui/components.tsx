@@ -382,9 +382,13 @@ export function LodgeCard({
             <Text className="text-sm text-warm-500">{lodge.distance}</Text>
             <View className="flex-row items-end">
               <Text className="text-lg font-extrabold text-maroon-700">
-                {formatRupees(lodge.price)}
+                {(lodge.priceAvailable ?? lodge.rooms.length > 0)
+                  ? formatRupees(lodge.price)
+                  : t('No rooms listed', 'खोल्या उपलब्ध नाहीत')}
               </Text>
-              <Text className="mb-0.5 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+              {(lodge.priceAvailable ?? lodge.rooms.length > 0) ? (
+                <Text className="mb-0.5 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+              ) : null}
             </View>
           </View>
         </Pressable>
@@ -428,9 +432,13 @@ export function LodgeCard({
             </View>
             <View className="flex-row items-end">
               <Text className="text-xl font-extrabold text-maroon-700">
-                {formatRupees(lodge.price)}
+                {(lodge.priceAvailable ?? lodge.rooms.length > 0)
+                  ? formatRupees(lodge.price)
+                  : t('No rooms listed', 'खोल्या उपलब्ध नाहीत')}
               </Text>
-              <Text className="mb-1 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+              {(lodge.priceAvailable ?? lodge.rooms.length > 0) ? (
+                <Text className="mb-1 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
+              ) : null}
             </View>
           </View>
         </View>

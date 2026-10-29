@@ -12,6 +12,7 @@ import {
   verifyRazorpayPayment,
   type RazorpayOrder,
 } from '../../features/bookings/api/bookings-api';
+import { BookingActionButton } from '../../features/bookings/components/BookingActionButton';
 import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
   AnimatedResultBadge,
@@ -268,6 +269,7 @@ export function PilgrimBookingDetailScreen() {
           </Text>
           <ConfirmedNextSteps
             bookingId={booking.id}
+            googleMapsLink={booking.googleMapsLink ?? lodge?.googleMapsLink}
             lodgeName={lodge?.name ?? booking.lodgeName}
             router={router}
             t={t}
@@ -289,6 +291,7 @@ export function PilgrimBookingDetailScreen() {
           </Text>
           <ConfirmedNextSteps
             bookingId={booking.id}
+            googleMapsLink={booking.googleMapsLink ?? lodge?.googleMapsLink}
             lodgeName={lodge?.name ?? booking.lodgeName}
             router={router}
             t={t}
@@ -333,11 +336,26 @@ export function PilgrimBookingDetailScreen() {
         <Image className="h-44 w-full" resizeMode="cover" source={{ uri: booking.image }} />
         <View className="gap-4 p-4">
           <StatusBadge status={booking.status} />
-          <View>
-            <Text className="text-xl font-extrabold text-warm-900">{booking.lodgeName}</Text>
-            <Text className="mt-1 text-sm text-warm-500">
-              {lodge?.location ?? t('Tuljapur', 'तुळजापूर')}
-            </Text>
+          <View className="flex-row items-center gap-3">
+            <View className="min-w-0 flex-1">
+              <Text className="text-xl font-extrabold text-warm-900">{booking.lodgeName}</Text>
+              <Text className="mt-1 text-sm text-warm-500">
+                {lodge?.location ?? t('Tuljapur', 'तुळजापूर')}
+              </Text>
+            </View>
+            <BookingActionButton
+              compact
+              icon="map-marker-outline"
+              label={t('Lodge location', 'लॉजचे ठिकाण')}
+              onPress={() =>
+                void openExternalLink(
+                  booking.googleMapsLink ||
+                    lodge?.googleMapsLink ||
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${booking.lodgeName}, Tuljapur`)}`,
+                  t,
+                )
+              }
+            />
           </View>
         </View>
       </View>
@@ -405,7 +423,7 @@ export function PilgrimBookingDetailScreen() {
           <InfoRow
             icon="calendar-arrow-right"
             label={t('Check-in', 'चेक-इन')}
-            value={`${booking.checkIn} · after 12:00 PM`}
+            value={[booking.checkIn, booking.checkInTime].filter(Boolean).join(' · ')}
           />
           <InfoRow
             icon="calendar-arrow-left"
@@ -413,7 +431,7 @@ export function PilgrimBookingDetailScreen() {
             value={
               booking.checkoutDateFlexible
                 ? t('Not fixed · confirm with lodge', 'निश्चित नाही · लॉजसोबत ठरवा')
-                : `${booking.checkOut} · before 10:00 AM`
+                : [booking.checkOut, booking.checkOutTime].filter(Boolean).join(' · ')
             }
           />
           <InfoRow icon="bed-king-outline" label={t('Room', 'खोली')} value={booking.roomName} />
@@ -425,6 +443,28 @@ export function PilgrimBookingDetailScreen() {
           />
         </View>
       </View>
+
+      {lodgeContact ? (
+        <View className="flex-row gap-3">
+          <BookingActionButton
+            icon="phone-outline"
+            label={t('Call lodge', 'लॉजला कॉल')}
+            onPress={() => void openExternalLink(`tel:${lodgeContact.primaryPhone}`, t)}
+          />
+          {lodgeContact.whatsappNumber ? (
+            <BookingActionButton
+              icon="whatsapp"
+              label={t('WhatsApp', 'व्हॉट्सअॅप')}
+              onPress={() =>
+                void openExternalLink(
+                  `https://wa.me/${lodgeContact.whatsappNumber!.replace(/\D/g, '')}`,
+                  t,
+                )
+              }
+            />
+          ) : null}
+        </View>
+      ) : null}
 
       <View>
         <Text className="mb-3 text-xl font-extrabold text-warm-900">
@@ -471,62 +511,14 @@ export function PilgrimBookingDetailScreen() {
           </Text>
         </View>
         <View className="mt-4 flex-row items-end justify-between border-t border-warm-100 pt-4">
-          <Text className="text-sm text-warm-500">{t('Total paid', 'एकूण भरले')}</Text>
+          <Text className="text-sm text-warm-500">{t('Booking total', 'बुकिंगची एकूण रक्कम')}</Text>
           <Text className="text-2xl font-extrabold text-maroon-700">
             {formatRupees(booking.amount)}
           </Text>
         </View>
       </View>
 
-      {lodgeContact ? (
-        <View className="rounded-3xl border border-templeGreen-200 bg-templeGreen-50 p-5">
-          <View className="flex-row items-center gap-3">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-templeGreen-500">
-              <MaterialCommunityIcons color="#FFFFFF" name="phone-outline" size={24} />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-extrabold text-templeGreen-800">
-                {t('Lodge Contact Details', 'लॉज संपर्क माहिती')}
-              </Text>
-              <Text className="mt-1 text-sm text-templeGreen-700">{lodgeContact.lodgeName}</Text>
-            </View>
-          </View>
-          <View className="mt-4 flex-row gap-3">
-            <SecondaryButton
-              className="flex-1"
-              icon="phone-outline"
-              onPress={() => void openExternalLink(`tel:${lodgeContact.primaryPhone}`, t)}
-            >
-              {t('Call lodge', 'लॉजला कॉल')}
-            </SecondaryButton>
-            {lodgeContact.whatsappNumber ? (
-              <SecondaryButton
-                className="flex-1"
-                icon="whatsapp"
-                onPress={() =>
-                  void openExternalLink(
-                    `https://wa.me/${lodgeContact.whatsappNumber!.replace(/\D/g, '')}`,
-                    t,
-                  )
-                }
-              >
-                {t('WhatsApp', 'व्हॉट्सअॅप')}
-              </SecondaryButton>
-            ) : null}
-          </View>
-        </View>
-      ) : null}
-
       <View className="gap-3">
-        <View className="flex-row gap-3">
-          <SecondaryButton
-            className="flex-1"
-            icon="map-marker-outline"
-            onPress={() => void openDirections(lodge?.name ?? booking.lodgeName, t)}
-          >
-            {t('Directions', 'दिशा')}
-          </SecondaryButton>
-        </View>
         {supportPhone || supportEmail ? (
           <SecondaryButton
             icon="headset"
@@ -555,11 +547,13 @@ export function PilgrimBookingDetailScreen() {
 
 function ConfirmedNextSteps({
   bookingId,
+  googleMapsLink,
   lodgeName,
   router,
   t,
 }: {
   bookingId: string;
+  googleMapsLink?: string | null;
   lodgeName: string;
   router: ReturnType<typeof useRouter>;
   t: (english: string, marathi: string) => string;
@@ -574,14 +568,11 @@ function ConfirmedNextSteps({
         <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={20} />
         <Text className="text-sm font-extrabold text-white">{t('Get Pass', 'पास मिळवा')}</Text>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-templeGreen-200 bg-white active:bg-templeGreen-100"
-        onPress={() => void openDirections(lodgeName, t)}
-      >
-        <MaterialCommunityIcons color={ui.maroon} name="map-marker-outline" size={20} />
-        <Text className="text-sm font-extrabold text-maroon-700">{t('Location', 'ठिकाण')}</Text>
-      </Pressable>
+      <BookingActionButton
+        icon="map-marker-outline"
+        label={t('Location', 'ठिकाण')}
+        onPress={() => void openDirections(lodgeName, t, googleMapsLink)}
+      />
     </View>
   );
 }
@@ -626,9 +617,11 @@ function TimelineItem({
 async function openDirections(
   name: string,
   t: (english: string, marathi: string) => string,
+  googleMapsLink?: string | null,
 ): Promise<void> {
   await openExternalLink(
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`,
+    googleMapsLink ||
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`,
     t,
   );
 }
