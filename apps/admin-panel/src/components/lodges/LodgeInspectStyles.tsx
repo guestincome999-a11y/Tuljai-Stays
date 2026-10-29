@@ -1,6 +1,6 @@
 'use client';
 
-/** Lodge Inspect extras. Layout, buttons, pills and tables come from FinanceStyles so the page matches the rest of the admin panel. */
+/** Lodge Inspect and Lodges list extras. Layout, buttons, pills and tables come from FinanceStyles so the page matches the rest of the admin panel. */
 export function LodgeInspectStyles() {
   return (
     <style jsx global>{`
@@ -9,35 +9,6 @@ export function LodgeInspectStyles() {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
-      }
-      .li-back {
-        align-items: center;
-        color: var(--color-primary);
-        display: inline-flex;
-        font-size: 0.78rem;
-        font-weight: 700;
-        gap: 6px;
-        margin-bottom: 8px;
-        text-decoration: none;
-      }
-      .li-back:hover {
-        text-decoration: underline;
-      }
-      .li-seg {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .li-seg .fin-btn {
-        min-width: 0;
-      }
-      .fin-btn-active,
-      .fin-btn-active:disabled {
-        background: var(--color-navy);
-        border-color: var(--color-navy);
-        color: #fff;
-        cursor: default;
-        opacity: 1;
       }
       .fin-btn-green {
         background: #e3f6ec;
@@ -48,6 +19,39 @@ export function LodgeInspectStyles() {
         background: #16a368;
         border-color: #16a368;
         color: #fff;
+      }
+      .li-layout {
+        align-items: start;
+        display: grid;
+        gap: 16px;
+        grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+      }
+      .li-col {
+        display: grid;
+        gap: 16px;
+        min-width: 0;
+      }
+      .li-foot {
+        margin: 14px 0 0;
+      }
+      .li-cover {
+        aspect-ratio: 16 / 7;
+        background: #eef2f8;
+        border-radius: 14px;
+        display: block;
+        margin-bottom: 16px;
+        object-fit: cover;
+        width: 100%;
+      }
+      .li-confirm {
+        margin-top: 12px;
+      }
+      .li-notes {
+        margin-top: 12px;
+      }
+      .li-reject {
+        margin-bottom: 14px;
+        max-width: 420px;
       }
       .li-sub {
         color: var(--color-muted);
@@ -210,11 +214,10 @@ export function LodgeInspectStyles() {
         justify-content: space-between;
         padding: 12px 14px;
       }
-      .li-link-row {
-        align-items: center;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
+      @media (max-width: 1100px) {
+        .li-layout {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
       @media (max-width: 640px) {
         .li-amenities {
