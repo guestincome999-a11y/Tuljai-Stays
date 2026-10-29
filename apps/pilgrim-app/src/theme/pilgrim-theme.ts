@@ -1,19 +1,19 @@
 import { palette } from '@tuljai/ui';
 import { MD3DarkTheme, MD3LightTheme, type MD3Theme } from 'react-native-paper';
 
-// Mirrors the shared @tuljai/ui saffron/maroon palette (packages/ui/src/theme/tokens.ts)
-// so pilgrim-app's react-native-paper components match the rest of the brand
-// instead of drifting with their own hardcoded shades.
+import tokens from '../pilgrim-ui/design-tokens.json';
+
+// Pilgrim-owned tokens keep Paper controls and native screen styling aligned.
 export const pilgrimColors = {
-  saffron: palette.saffron[600],
-  saffronDeep: palette.saffron[700],
-  saffronSoft: palette.saffron[50],
-  vermilion: palette.maroon[700],
-  gold: palette.bell[600],
+  saffron: tokens.colors.maroon[700],
+  saffronDeep: tokens.colors.maroon[800],
+  saffronSoft: tokens.colors.maroon[50],
+  vermilion: tokens.colors.maroon[700],
+  gold: tokens.colors.bell[500],
   goldSoft: palette.bell[50],
-  ink: palette.warm[900],
-  muted: palette.warm[600],
-  canvas: palette.warm[50],
+  ink: tokens.colors.warm[900],
+  muted: tokens.colors.warm[600],
+  canvas: tokens.colors.warm[50],
   surface: palette.warm[0],
   line: palette.warm[200],
 } as const;

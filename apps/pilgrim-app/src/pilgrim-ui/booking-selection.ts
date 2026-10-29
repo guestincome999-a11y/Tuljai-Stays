@@ -46,3 +46,14 @@ export function selectCurrentPassBooking(
     .filter((booking) => booking.status === 'checked-in' && isNotFinished(booking, now))
     .sort(byNearestCheckIn)[0];
 }
+
+/** Explicit links keep their identity even when the selected stay is ineligible. */
+export function selectPassBooking(
+  bookings: PilgrimBooking[],
+  requestedId?: string,
+  now = new Date(),
+): PilgrimBooking | undefined {
+  return requestedId !== undefined
+    ? bookings.find((booking) => booking.id === requestedId)
+    : selectCurrentPassBooking(bookings, now);
+}

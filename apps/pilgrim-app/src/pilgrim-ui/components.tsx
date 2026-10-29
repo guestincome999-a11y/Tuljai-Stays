@@ -1,10 +1,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { palette } from '@tuljai/ui';
+import { Image as ExpoImage } from 'expo-image';
 import type { ComponentProps, ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
   Pressable,
   type PressableProps,
   ScrollView,
@@ -28,26 +31,64 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { formatRupees, type BookingStatus, type PilgrimLodge } from './mock-data';
+import tokens from './design-tokens.json';
+import {
+  formatRupees,
+  type BookingStatus,
+  type PilgrimBooking,
+  type PilgrimLodge,
+} from './mock-data';
 import { usePilgrimApp } from './PilgrimAppProvider';
 
 export type PilgrimIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-// These values previously duplicated the shared @tuljai/ui palette by hand
-// (they matched exactly); now sourced directly so the two can't drift apart.
+// NativeWind and native controls consume the same app-scoped brand tokens.
 export const ui = {
-  bell: palette.bell[600],
-  canvas: palette.warm[50],
-  danger: palette.red[500],
-  green: palette.green[500],
-  ink: palette.warm[900],
-  maroon: palette.maroon[700],
-  muted: palette.warm[600],
-  saffron: palette.saffron[500],
-  saffronDeep: palette.saffron[600],
-  success: palette.green[500],
-  surface: palette.warm[0],
+  bell: tokens.colors.bell[500],
+  canvas: tokens.colors.warm[50],
+  danger: tokens.colors.danger[500],
+  green: tokens.colors.templeGreen[500],
+  ink: tokens.colors.warm[900],
+  maroon: tokens.colors.maroon[700],
+  muted: tokens.colors.warm[600],
+  saffron: tokens.colors.maroon[700],
+  saffronDeep: tokens.colors.maroon[800],
+  success: tokens.colors.templeGreen[500],
+  surface: '#FFFFFF',
 } as const;
+export const design = tokens;
+
+/** Cached, downsampled photography; missing media never impersonates a lodge. */
+export function StayImage({
+  uri,
+  label,
+  className = '',
+}: {
+  uri: string;
+  label: string;
+  className?: string;
+}) {
+  const [failedUri, setFailedUri] = useState<string | null>(null);
+  return (
+    <View accessibilityLabel={label} className={`overflow-hidden bg-warm-100 ${className}`}>
+      {uri && failedUri !== uri ? (
+        <ExpoImage
+          accessibilityLabel={label}
+          source={{ uri }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          recyclingKey={uri}
+          onError={() => setFailedUri(uri)}
+          style={{ height: '100%', width: '100%' }}
+        />
+      ) : (
+        <View className="flex-1 items-center justify-center">
+          <MaterialCommunityIcons color={ui.muted} name="image-outline" size={28} />
+        </View>
+      )}
+    </View>
+  );
+}
 
 export function AppScreen({
   children,
@@ -56,6 +97,8 @@ export function AppScreen({
   className = '',
   onScroll,
   scrollEventThrottle,
+  refreshing = false,
+  onRefresh,
 }: {
   children: ReactNode;
   className?: string;
@@ -63,24 +106,42 @@ export function AppScreen({
   padded?: boolean;
   scroll?: boolean;
   scrollEventThrottle?: number;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }) {
   const contentClass = `${padded ? 'px-5' : ''} ${className}`;
   return (
     <SafeAreaView className="flex-1 bg-warm-50" edges={['top']}>
-      {scroll ? (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName={`${contentClass} pb-32`}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          onScroll={onScroll}
-          scrollEventThrottle={onScroll ? (scrollEventThrottle ?? 150) : undefined}
-        >
-          {children}
-        </ScrollView>
-      ) : (
-        <View className={`flex-1 ${contentClass}`}>{children}</View>
-      )}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        {scroll ? (
+          <ScrollView
+            className="flex-1"
+            contentContainerClassName={`${contentClass} pb-32`}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            refreshControl={
+              onRefresh ? (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={ui.maroon}
+                  colors={[ui.maroon]}
+                />
+              ) : undefined
+            }
+            showsVerticalScrollIndicator={false}
+            onScroll={onScroll}
+            scrollEventThrottle={onScroll ? (scrollEventThrottle ?? 150) : undefined}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View className={`flex-1 ${contentClass}`}>{children}</View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -131,7 +192,7 @@ export function LanguageToggle({ inverse = false }: { inverse?: boolean }) {
           <Pressable
             accessibilityLabel={item === 'en' ? 'Use English' : 'मराठी वापरा'}
             accessibilityRole="button"
-            className={`min-h-9 min-w-10 items-center justify-center rounded-full px-2 ${active ? 'bg-white' : ''}`}
+            className={`min-h-14 min-w-14 items-center justify-center rounded-full px-2 ${active ? 'bg-white' : ''}`}
             key={item}
             onPress={() => setLanguage(item)}
           >
@@ -188,7 +249,7 @@ export function IconButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`h-12 w-12 items-center justify-center rounded-2xl ${background} active:opacity-75`}
+      className={`h-14 w-14 items-center justify-center rounded-2xl ${background} active:opacity-75`}
       {...props}
     >
       <MaterialCommunityIcons color={color} name={icon} size={23} />
@@ -213,6 +274,7 @@ export function PrimaryButton({
     <Pressable
       accessibilityRole="button"
       className={`min-h-14 flex-row items-center justify-center gap-2 rounded-2xl px-5 ${disabled ? 'bg-warm-300' : 'bg-saffron-500 active:bg-saffron-600'} ${className}`}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       {...props}
     >
@@ -221,7 +283,7 @@ export function PrimaryButton({
       ) : icon ? (
         <MaterialCommunityIcons color="#FFFFFF" name={icon} size={21} />
       ) : null}
-      <Text className="text-base font-extrabold text-white">{children}</Text>
+      <Text className="shrink text-center text-base font-extrabold text-white">{children}</Text>
     </Pressable>
   );
 }
@@ -230,6 +292,7 @@ export function SecondaryButton({
   children,
   icon,
   destructive = false,
+  disabled = false,
   className = '',
   ...props
 }: PressableProps & {
@@ -241,14 +304,16 @@ export function SecondaryButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`min-h-13 flex-row items-center justify-center gap-2 rounded-2xl border px-5 active:bg-warm-100 ${destructive ? 'border-danger-100 bg-danger-50' : 'border-warm-200 bg-white'} ${className}`}
+      accessibilityState={{ disabled: Boolean(disabled) }}
+      disabled={disabled}
+      className={`min-h-14 ${disabled ? 'opacity-50' : ''} flex-row items-center justify-center gap-2 rounded-2xl border px-5 active:bg-warm-100 ${destructive ? 'border-danger-100 bg-danger-50' : 'border-warm-200 bg-white'} ${className}`}
       {...props}
     >
       {icon ? (
         <MaterialCommunityIcons color={destructive ? ui.danger : ui.maroon} name={icon} size={20} />
       ) : null}
       <Text
-        className={`text-sm font-extrabold ${destructive ? 'text-danger-500' : 'text-maroon-700'}`}
+        className={`shrink text-center text-sm font-extrabold ${destructive ? 'text-danger-500' : 'text-maroon-700'}`}
       >
         {children}
       </Text>
@@ -362,10 +427,13 @@ export function LodgeCard({
   const { t } = usePilgrimApp();
   if (horizontal) {
     return (
-      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+      <View
+        style={design.shadows.card}
+        className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white"
+      >
         <Pressable accessibilityRole="button" onPress={onPress}>
           <View className="relative h-44">
-            <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
+            <StayImage className="h-full w-full" uri={lodge.hero} label={lodge.name} />
             {lodge.badge ? (
               <Text className="absolute bottom-3 left-3 rounded-full bg-maroon-700 px-3 py-1.5 text-xs font-bold text-white">
                 {lodge.badge}
@@ -377,7 +445,7 @@ export function LodgeCard({
               <Text className="flex-1 text-base font-extrabold text-warm-900" numberOfLines={1}>
                 {lodge.name}
               </Text>
-              <Rating rating={lodge.rating} />
+              <Rating rating={lodge.rating} reviewCount={lodge.reviewCount} />
             </View>
             <Text className="text-sm text-warm-500">{lodge.distance}</Text>
             <View className="flex-row items-end">
@@ -390,6 +458,9 @@ export function LodgeCard({
                 <Text className="mb-0.5 text-xs text-warm-500">{t(' / night', ' / रात्र')}</Text>
               ) : null}
             </View>
+            <Text className="mt-1 text-sm font-bold text-maroon-700">
+              {t('View rooms →', 'खोल्या पहा →')}
+            </Text>
           </View>
         </Pressable>
         <FavoriteButton favorite={favorite} onPress={onFavorite} />
@@ -398,10 +469,13 @@ export function LodgeCard({
   }
 
   return (
-    <View className="relative overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+    <View
+      style={design.shadows.card}
+      className="relative overflow-hidden rounded-3xl border border-warm-100 bg-white"
+    >
       <Pressable accessibilityRole="button" onPress={onPress}>
         <View className="relative h-48">
-          <Image className="h-full w-full" resizeMode="cover" source={{ uri: lodge.hero }} />
+          <StayImage className="h-full w-full" uri={lodge.hero} label={lodge.name} />
           <View className="absolute bottom-3 left-3 flex-row gap-2">
             <Text className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-extrabold text-templeGreen-700">
               ✓ {t('Verified stay', 'सत्यापित निवास')}
@@ -423,7 +497,7 @@ export function LodgeCard({
                 {lodge.type} · {lodge.location}
               </Text>
             </View>
-            <Rating rating={lodge.rating} />
+            <Rating rating={lodge.rating} reviewCount={lodge.reviewCount} />
           </View>
           <View className="flex-row items-center justify-between gap-3 border-t border-warm-100 pt-3">
             <View className="flex-row items-center gap-1.5">
@@ -469,13 +543,38 @@ function FavoriteButton({ favorite, onPress }: { favorite: boolean; onPress: () 
   );
 }
 
-export function Rating({ rating }: { rating: number }) {
+export function Rating({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
   return (
     <View className="flex-row items-center gap-1 rounded-full bg-bell-50 px-2.5 py-1.5">
       <MaterialCommunityIcons color={ui.bell} name="star" size={15} />
-      <Text className="text-xs font-extrabold text-warm-900">{rating.toFixed(1)}</Text>
+      <Text className="text-xs font-extrabold text-warm-900">
+        {reviewCount === 0 ? 'New' : rating.toFixed(1)}
+        {reviewCount ? ` (${reviewCount})` : ''}
+      </Text>
     </View>
   );
+}
+
+export function PaymentStatusBadge({ status }: { status: PilgrimBooking['paymentStatus'] }) {
+  const { t } = usePilgrimApp();
+  const labels: Record<PilgrimBooking['paymentStatus'], string> = {
+    Paid: t('Paid', 'भरले'),
+    'Partially paid': t('Partially paid', 'अंशतः भरले'),
+    'Pay at lodge': t('Pay at lodge', 'लॉजवर पैसे भरा'),
+    'Payment pending': t('Payment pending', 'पेमेंट प्रलंबित'),
+    'Payment failed': t('Payment failed', 'पेमेंट अयशस्वी'),
+    Refunded: t('Refunded', 'परतावा दिला'),
+    'Not required': t('No payment required', 'पेमेंट आवश्यक नाही'),
+  };
+  const color =
+    status === 'Paid' || status === 'Partially paid'
+      ? 'text-templeGreen-700'
+      : status === 'Payment failed'
+        ? 'text-danger-700'
+        : status === 'Payment pending'
+          ? 'text-bell-700'
+          : 'text-warm-600';
+  return <Text className={`text-xs font-bold ${color}`}>{labels[status]}</Text>;
 }
 
 export function StatusBadge({ status }: { status: BookingStatus }) {
@@ -510,7 +609,7 @@ export function StatusBadge({ status }: { status: BookingStatus }) {
     },
     pending: {
       icon: 'clock-outline',
-      label: t('Awaiting lodge', 'लॉजच्या प्रतीक्षेत'),
+      label: t('Pending confirmation', 'पुष्टीकरण प्रलंबित'),
       shell: 'bg-bell-50',
       text: 'text-bell-700',
     },
@@ -830,7 +929,10 @@ function ShimmerBlock({ className }: { className: string }) {
 export function LodgeCardSkeleton({ horizontal = false }: { horizontal?: boolean }) {
   if (horizontal) {
     return (
-      <View className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10">
+      <View
+        style={design.shadows.card}
+        className="relative mr-4 w-72 overflow-hidden rounded-3xl border border-warm-100 bg-white"
+      >
         <ShimmerBlock className="h-44 rounded-none" />
         <View className="gap-3 p-4">
           <ShimmerBlock className="h-4 w-3/4 rounded-full" />

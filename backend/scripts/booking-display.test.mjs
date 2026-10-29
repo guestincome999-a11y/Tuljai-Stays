@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
 const require = createRequire(import.meta.url);
@@ -84,12 +84,40 @@ test('booking refresh uses joined lodge and room names without any catalogue req
   }
 });
 
-test('summary prices survive a failed detail request, and pagination respects the server limit', async () => {
+test('a historical booking outside the public page keeps its actual authorized cover photo', async () => {
+  const calls = [];
+  const sync = load(`${app}pilgrim-ui/backend-sync.ts`, {
+    '../api/client': {
+      apiClient: {
+        get: async (path) => {
+          calls.push(path);
+          assert.equal(path, '/catalog/my-bookings');
+          return [{ id: record.id, coverUrl: 'actual-booking-cover.jpg' }];
+        },
+      },
+    },
+    '../features/bookings/api/bookings-api': {
+      listMyBookings: async () => [
+        { booking: { ...record, status: 'COMPLETED' }, coverPhotoUrl: null },
+      ],
+    },
+    '../features/notifications/api/notifications-api': {},
+    './mock-data': {},
+  });
+  const [history] = await sync.loadBackendBookings([]);
+  assert.equal(history.image, 'actual-booking-cover.jpg');
+  assert.equal(history.lodgeName, record.lodgeName);
+  assert.equal(history.status, 'completed');
+  assert.deepEqual(calls, ['/catalog/my-bookings']);
+});
+
+test('home requests one small page, retains summary prices on failed hydration, and leaves later pages lazy', async () => {
   const requests = [];
   const sync = syncWith(async (path, options) => {
     requests.push(path);
     if (path !== '/catalog/lodges') throw new Error('Temporary connection failure');
-    assert.equal(options.params.pageSize, 50);
+    assert.equal(options.params.pageSize, 6);
+    assert.equal(options.params.page, 1);
     return {
       totalPages: 2,
       items: [
@@ -105,12 +133,44 @@ test('summary prices survive a failed detail request, and pagination respects th
     };
   });
   const summaries = await sync.loadLodgeSummaries();
-  assert.equal(summaries.length, 2);
+  assert.equal(summaries.length, 1);
   assert.equal(summaries[0].price, 899.5);
   const retained = await sync.hydrateBackendLodge(summaries[0]);
   assert.equal(retained.price, 899.5);
   assert.equal(retained.hero, 'cover.jpg');
-  assert.equal(requests.length, 3);
+  assert.equal(requests.length, 2);
+});
+
+test('simultaneous views coalesce a lodge detail request and later refreshes remain fresh', async () => {
+  let calls = 0;
+  let resolveRead;
+  const sync = syncWith(() => {
+    calls += 1;
+    return new Promise((resolve) => {
+      resolveRead = resolve;
+    });
+  });
+  const view = {
+    lodge: {
+      id: 'same-lodge',
+      name: 'Real Lodge',
+      amenities: [],
+      propertyType: 'HOTEL',
+      reviewCount: 0,
+    },
+    photos: [],
+    roomTypes: [],
+  };
+  const first = sync.loadLodgeById('same-lodge');
+  const second = sync.loadLodgeById('same-lodge');
+  assert.equal(calls, 1);
+  resolveRead(view);
+  assert.equal((await first).name, 'Real Lodge');
+  assert.equal((await second).name, 'Real Lodge');
+  const refreshed = sync.loadLodgeById('same-lodge');
+  assert.equal(calls, 2);
+  resolveRead(view);
+  await refreshed;
 });
 
 test('one detail request provides the actual price and rooms even without lodge photos', async () => {

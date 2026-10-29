@@ -1,9 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { PromotionalBanner } from '@tuljai/types';
+import type { PaginatedResponse, PromotionalBanner, PublicLodge } from '@tuljai/types';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
+  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -12,11 +13,13 @@ import {
   View,
 } from 'react-native';
 
+import { apiClient } from '../../api/client';
 import { useAuth } from '../../auth/auth-context';
 import { usePublicSettings } from '../../settings/usePublicSettings';
 import {
   AppScreen,
   BrandMark,
+  EmptyState,
   IconButton,
   LodgeCard,
   LodgeCardSkeleton,
@@ -25,7 +28,8 @@ import {
   StatusBadge,
   ui,
 } from '../components';
-import { formatRupees, type PilgrimLodge } from '../mock-data';
+import { DevotionalHero } from '../DevotionalHero';
+import { type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 const categories = [
@@ -84,9 +88,14 @@ export function PilgrimHomeScreen() {
   }, [ensureLodgesHydrated, featuredLodgeIdsKey]);
 
   return (
-    <AppScreen className="gap-7 pt-2">
+    <AppScreen className="gap-7 pt-2" refreshing={isSyncing} onRefresh={() => void refresh()}>
       <View className="flex-row items-center justify-between">
-        <BrandMark compact />
+        <View className="gap-1">
+          <BrandMark compact />
+          <Text className="ml-1 text-xs text-warm-500">
+            {t('Tuljapur, Maharashtra', 'तुळजापूर, महाराष्ट्र')}
+          </Text>
+        </View>
         <View className="relative">
           <IconButton
             accessibilityLabel="Open notifications"
@@ -149,41 +158,7 @@ export function PilgrimHomeScreen() {
       {publicSettings.promotionalBanners.length > 0 ? (
         <PromotionalBannerCarousel banners={publicSettings.promotionalBanners} lodges={lodges} />
       ) : (
-        <View className="overflow-hidden rounded-3xl bg-maroon-700 p-5">
-          <View className="absolute -right-8 -top-7 h-32 w-32 rounded-full bg-saffron-500/20" />
-          <View className="absolute -bottom-12 right-12 h-28 w-28 rounded-full bg-white/5" />
-          <View className="flex-row items-start gap-4">
-            <View className="min-w-0 flex-1">
-              <View className="self-start rounded-full bg-white/10 px-3 py-1.5">
-                <Text className="text-xs font-bold text-orange-100">
-                  NAVRATRI 2026 · EARLY ACCESS
-                </Text>
-              </View>
-              <Text className="mt-3 text-2xl font-extrabold leading-8 text-white">
-                {t('Book early. Travel with peace of mind.', 'लवकर बुक करा. निश्चिंत प्रवास करा.')}
-              </Text>
-              <Text className="mt-2 text-sm leading-5 text-orange-100">
-                {t(
-                  'Free cancellation on selected stays until 30 September.',
-                  'निवडक निवासांवर ३० सप्टेंबरपर्यंत मोफत रद्दीकरण.',
-                )}
-              </Text>
-              <Pressable
-                className="mt-4 min-h-11 self-start justify-center rounded-xl bg-white px-4"
-                onPress={() =>
-                  router.push({ pathname: '/(app)/lodges', params: { quick: 'family' } })
-                }
-              >
-                <Text className="text-sm font-extrabold text-maroon-700">
-                  {t('Explore Navratri stays', 'नवरात्र निवास पहा')}
-                </Text>
-              </Pressable>
-            </View>
-            <View className="h-20 w-20 items-center justify-center rounded-full bg-white/10">
-              <MaterialCommunityIcons color="#FFE8C8" name="temple-hindu" size={47} />
-            </View>
-          </View>
-        </View>
+        <DevotionalHero compact />
       )}
 
       <View className="gap-4">
@@ -252,11 +227,23 @@ export function PilgrimHomeScreen() {
           action={t('View all', 'सर्व पहा')}
           onAction={() => router.push('/(app)/lodges')}
           subtitle={t(
-            'Handpicked for comfort, location and trust',
+            'Find a comfortable base for your darshan',
             'आराम, स्थान आणि विश्वासासाठी निवडलेले',
           )}
-          title={t('Loved by pilgrims', 'भाविकांची आवड')}
+          title={t('Discover your stay', 'तुमचा निवास शोधा')}
         />
+        {featuredLodges.length === 0 && !isSyncing ? (
+          <EmptyState
+            icon="home-search-outline"
+            title={t('No stays to show yet', 'अद्याप निवास उपलब्ध नाहीत')}
+            body={t(
+              'Refresh to check the latest listings.',
+              'नवीन निवास पाहण्यासाठी पुन्हा लोड करा.',
+            )}
+            action={t('Refresh', 'पुन्हा लोड करा')}
+            onAction={() => void refresh()}
+          />
+        ) : null}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -298,12 +285,6 @@ export function PilgrimHomeScreen() {
             </View>
           ))}
         </View>
-        <Text className="text-center text-xs text-warm-500">
-          {t(
-            `Rooms from ${formatRupees(699)} per night · No hidden platform fees`,
-            `${formatRupees(699)} प्रति रात्र पासून · कोणतेही लपलेले शुल्क नाही`,
-          )}
-        </Text>
       </View>
     </AppScreen>
   );
@@ -317,10 +298,12 @@ function PromotionalBannerCarousel({
   lodges: PilgrimLodge[];
 }) {
   const router = useRouter();
+  const { t } = usePilgrimApp();
+  const [opening, setOpening] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const { width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
-  const cardWidth = Math.max(width - 40, 280);
+  const cardWidth = Math.max(width - 40, 1);
 
   useEffect(() => {
     if (banners.length < 2) return undefined;
@@ -335,16 +318,29 @@ function PromotionalBannerCarousel({
   }, [banners.length, cardWidth]);
 
   async function openBanner(banner: PromotionalBanner) {
-    if (banner.category === 'LODGE_PROMOTION' && banner.lodgeSlug) {
-      const lodge = lodges.find((item) => item.slug === banner.lodgeSlug);
-      if (lodge) {
-        router.push({ pathname: '/(app)/lodges/[id]', params: { id: lodge.id } });
-      }
-      return;
-    }
-
-    if (banner.linkUrl) {
-      await Linking.openURL(banner.linkUrl).catch(() => undefined);
+    if (opening) return;
+    setOpening(true);
+    try {
+      if (banner.category === 'LODGE_PROMOTION' && banner.lodgeSlug) {
+        let id = lodges.find((item) => item.slug === banner.lodgeSlug)?.id;
+        if (!id) {
+          // Resolve just this promoted lodge through the existing public search;
+          // it need not be on the small home page or in the current browse cache.
+          const matches = await apiClient.get<PaginatedResponse<PublicLodge>>('/lodges', {
+            params: { citySlug: 'tuljapur', search: banner.lodgeSlug, page: 1, pageSize: 50 },
+          });
+          id = matches.items.find((item) => item.slug === banner.lodgeSlug)?.id;
+        }
+        if (!id) throw new Error('Promoted stay unavailable');
+        router.push({ pathname: '/(app)/lodges/[id]', params: { id } });
+      } else if (banner.linkUrl) await Linking.openURL(banner.linkUrl);
+    } catch {
+      Alert.alert(
+        t('Could not open this update', 'ही माहिती उघडता आली नाही'),
+        t('Please try again shortly.', 'थोड्या वेळाने पुन्हा प्रयत्न करा.'),
+      );
+    } finally {
+      setOpening(false);
     }
   }
 
@@ -368,7 +364,7 @@ function PromotionalBannerCarousel({
             <Pressable
               accessibilityRole={clickable ? 'button' : undefined}
               className="overflow-hidden rounded-3xl bg-maroon-800"
-              disabled={!clickable}
+              disabled={!clickable || opening}
               key={banner.id}
               style={{ height: 210, width: cardWidth }}
               onPress={() => void openBanner(banner)}
@@ -382,7 +378,11 @@ function PromotionalBannerCarousel({
               <View className="flex-1 justify-end p-5">
                 <View className="self-start rounded-full bg-white/90 px-3 py-1.5">
                   <Text className="text-[11px] font-extrabold text-maroon-700">
-                    {banner.category.replace('_', ' ')}
+                    {banner.category === 'FESTIVAL'
+                      ? t('Festival update', 'उत्सव माहिती')
+                      : banner.category === 'LODGE_PROMOTION'
+                        ? t('Featured stay', 'विशेष निवास')
+                        : t('Travel update', 'प्रवास माहिती')}
                   </Text>
                 </View>
                 <Text className="mt-3 text-2xl font-extrabold leading-8 text-white">

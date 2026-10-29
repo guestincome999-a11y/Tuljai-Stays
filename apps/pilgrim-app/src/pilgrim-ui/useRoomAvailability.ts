@@ -18,6 +18,8 @@ interface RoomAvailabilityInput {
   checkInDate: string;
   checkOutDate: string;
   enabled?: boolean;
+  /** Caller-controlled invalidation for focus, foreground and pull-to-refresh. */
+  refreshKey?: number;
   lodgeId?: string;
   roomTypeIds: string[];
   /**
@@ -50,7 +52,7 @@ export function useRoomAvailability(input: RoomAvailabilityInput): RoomAvailabil
     discardRef.current = shouldDiscard;
   });
   const roomKey = input.roomTypeIds.join('|');
-  const requestKey = `${lodgeId ?? ''}#${roomKey}#${checkInDate}#${checkOutDate}`;
+  const requestKey = `${lodgeId ?? ''}#${roomKey}#${checkInDate}#${checkOutDate}#${input.refreshKey ?? 0}`;
   const active = enabled && Boolean(lodgeId) && roomKey !== '';
   const [completed, setCompleted] = useState<CompletedCheck | null>(null);
 

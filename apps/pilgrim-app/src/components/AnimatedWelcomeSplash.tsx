@@ -1,192 +1,67 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { palette } from '@tuljai/ui';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import splashArtwork from '../../assets/splash-screen.png';
+import goddess from '../../assets/splash-goddess-cutout.png';
+import { useConnectivity } from '../connectivity/connectivity-context';
+import tokens from '../pilgrim-ui/design-tokens.json';
 
 export function AnimatedWelcomeSplash() {
-  const welcomeOpacity = useRef(new Animated.Value(0)).current;
-  const welcomeTranslateY = useRef(new Animated.Value(18)).current;
-  const handsOpacity = useRef(new Animated.Value(0)).current;
-  const handsScale = useRef(new Animated.Value(0.72)).current;
-  const handsTranslateY = useRef(new Animated.Value(10)).current;
-
+  const { isOffline } = useConnectivity();
+  const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    let prayerPulse: Animated.CompositeAnimation | undefined;
-    const entrance = Animated.sequence([
-      Animated.delay(250),
-      Animated.parallel([
-        Animated.timing(welcomeOpacity, {
-          duration: 430,
-          easing: Easing.out(Easing.cubic),
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(welcomeTranslateY, {
-          duration: 430,
-          easing: Easing.out(Easing.cubic),
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(handsOpacity, {
-          duration: 320,
-          easing: Easing.out(Easing.cubic),
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.spring(handsScale, {
-          damping: 9,
-          mass: 0.7,
-          stiffness: 150,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(handsTranslateY, {
-          duration: 360,
-          easing: Easing.out(Easing.cubic),
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]);
-
-    entrance.start(({ finished }) => {
-      if (!finished) {
-        return;
-      }
-
-      prayerPulse = Animated.loop(
-        Animated.sequence([
-          Animated.parallel([
-            Animated.timing(handsScale, {
-              duration: 430,
-              easing: Easing.inOut(Easing.sin),
-              toValue: 1.08,
-              useNativeDriver: true,
-            }),
-            Animated.timing(handsTranslateY, {
-              duration: 430,
-              easing: Easing.inOut(Easing.sin),
-              toValue: -4,
-              useNativeDriver: true,
-            }),
-          ]),
-          Animated.parallel([
-            Animated.timing(handsScale, {
-              duration: 430,
-              easing: Easing.inOut(Easing.sin),
-              toValue: 1,
-              useNativeDriver: true,
-            }),
-            Animated.timing(handsTranslateY, {
-              duration: 430,
-              easing: Easing.inOut(Easing.sin),
-              toValue: 0,
-              useNativeDriver: true,
-            }),
-          ]),
-        ]),
-      );
-      prayerPulse.start();
-    });
-
-    return () => {
-      entrance.stop();
-      prayerPulse?.stop();
-    };
-  }, [handsOpacity, handsScale, handsTranslateY, welcomeOpacity, welcomeTranslateY]);
-
+    const entrance = Animated.timing(opacity, { toValue: 1, duration: 450, useNativeDriver: true });
+    entrance.start();
+    return () => entrance.stop();
+  }, [opacity]);
   return (
-    <View
-      accessibilityLabel="Tuljai Stays splash screen"
-      accessible
-      pointerEvents="none"
-      style={styles.container}
-    >
-      <StatusBar hidden />
-      <Image resizeMode="cover" source={splashArtwork} style={styles.artwork} />
-
-      <View style={styles.welcomeStage}>
-        <Animated.View
-          style={{
-            opacity: welcomeOpacity,
-            transform: [{ translateY: welcomeTranslateY }],
-          }}
-        >
-          <Text style={styles.welcome}>Welcome</Text>
-          <Text style={styles.brand}>Tuljai Stays</Text>
-        </Animated.View>
-
-        <Animated.View
-          style={[
-            styles.prayerBadge,
-            {
-              opacity: handsOpacity,
-              transform: [{ translateY: handsTranslateY }, { scale: handsScale }],
-            },
-          ]}
-        >
-          <MaterialCommunityIcons color="#FFFFFF" name="hands-pray" size={39} />
-        </Animated.View>
-      </View>
-    </View>
+    <SafeAreaView style={styles.screen}>
+      <StatusBar style={isOffline ? 'dark' : 'light'} />
+      <Animated.View style={[styles.content, { opacity }]}>
+        <Text style={styles.devotion}>श्री तुळजाभवानी प्रसन्न</Text>
+        <View style={styles.arch}>
+          <Image
+            source={goddess}
+            resizeMode="contain"
+            style={styles.art}
+            accessibilityLabel="Shri Tulja Bhavani"
+          />
+        </View>
+        <MaterialCommunityIcons name="temple-hindu" size={30} color={tokens.colors.bell[500]} />
+        <Text style={styles.brand}>Tuljai Stays</Text>
+        <View style={styles.rule} />
+        <Text style={styles.tagline}>Book Your Peaceful Stay</Text>
+        <Text style={styles.place}>तुळजापूर · Tuljapur, Maharashtra</Text>
+        <ActivityIndicator
+          accessibilityLabel="Loading Tuljai Stays"
+          color={tokens.colors.bell[500]}
+          style={{ marginTop: 24 }}
+        />
+      </Animated.View>
+    </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
-  artwork: {
-    height: '100%',
-    width: '100%',
-  },
-  brand: {
-    color: '#FFFFFF',
-    fontSize: 31,
-    fontWeight: '900',
-    letterSpacing: -0.7,
-    lineHeight: 38,
-    textAlign: 'center',
-    textShadowColor: 'rgba(91, 14, 0, 0.9)',
-    textShadowOffset: { height: 2, width: 0 },
-    textShadowRadius: 6,
-  },
-  container: {
-    backgroundColor: palette.saffron[600],
-    flex: 1,
+  screen: { flex: 1, backgroundColor: tokens.colors.maroon[800] },
+  content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  devotion: { color: '#F1E1C2', fontSize: 15, marginBottom: 24 },
+  arch: {
+    width: '76%',
+    maxWidth: 260,
+    height: '42%',
+    borderTopLeftRadius: 140,
+    borderTopRightRadius: 140,
     overflow: 'hidden',
-  },
-  prayerBadge: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(116, 24, 0, 0.58)',
-    borderColor: 'rgba(255, 229, 169, 0.8)',
-    borderRadius: 22,
     borderWidth: 1,
-    height: 62,
-    justifyContent: 'center',
-    marginTop: 12,
-    width: 62,
+    borderColor: '#C49A5066',
+    backgroundColor: tokens.colors.maroon[700],
+    marginBottom: 24,
   },
-  welcome: {
-    color: palette.bell[200],
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 3.2,
-    lineHeight: 21,
-    textAlign: 'center',
-    textShadowColor: 'rgba(91, 14, 0, 0.95)',
-    textShadowOffset: { height: 1, width: 0 },
-    textShadowRadius: 5,
-    textTransform: 'uppercase',
-  },
-  welcomeStage: {
-    alignItems: 'center',
-    bottom: 44,
-    left: 24,
-    position: 'absolute',
-    right: 24,
-  },
+  art: { width: '100%', height: '100%' },
+  brand: { color: '#FFFFFF', fontSize: 34, fontWeight: '700', marginTop: 8 },
+  rule: { width: 48, height: 1, backgroundColor: tokens.colors.bell[500], marginVertical: 16 },
+  tagline: { color: '#FFFFFF', fontSize: 17, textAlign: 'center' },
+  place: { color: '#F1E1C2', fontSize: 12, marginTop: 10, textAlign: 'center' },
 });

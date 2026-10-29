@@ -56,7 +56,15 @@ export interface PilgrimBooking {
   image: string;
   lodgeId: string;
   lodgeName: string;
-  paymentStatus: 'Paid' | 'Pay at lodge' | 'Refunded';
+  paymentStatus:
+    | 'Paid'
+    | 'Partially paid'
+    | 'Pay at lodge'
+    | 'Payment pending'
+    | 'Payment failed'
+    | 'Not required'
+    | 'Refunded';
+  paidAmount?: number;
   qrReady?: boolean;
   roomName: string;
   status: BookingStatus;
