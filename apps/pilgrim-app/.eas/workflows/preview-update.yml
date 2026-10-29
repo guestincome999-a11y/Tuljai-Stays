@@ -1,0 +1,31 @@
+name: Publish pilgrim preview update
+
+on:
+  push:
+    branches: ['fix/price-availability-sync', 'main']
+    paths:
+      - 'apps/pilgrim-app/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  publish_preview:
+    name: Check and publish Android preview update
+    type: update
+    environment: preview
+    env:
+      EXPO_PUBLIC_API_BASE_URL: https://tuljai-stays-backend.onrender.com/api
+      EXPO_PUBLIC_USE_MOCKS: 'false'
+    params:
+      channel: preview
+      platform: android
+    hooks:
+      after_install_node_modules:
+        - name: Ensure Linux CSS bundler dependency
+          run: node scripts/ensure-lightningcss-linux.mjs
+      before_update:
+        - name: Typecheck pilgrim app
+          run: npm run typecheck
+        - name: Test update lifecycle
+          run: node --test scripts/app-updates.test.mjs

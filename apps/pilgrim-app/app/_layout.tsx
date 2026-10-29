@@ -12,6 +12,7 @@ import { PilgrimAppProvider } from '../src/pilgrim-ui/PilgrimAppProvider';
 import { RealtimeProvider } from '../src/realtime/realtime-provider';
 import { pilgrimLightTheme } from '../src/theme/pilgrim-theme';
 import { PilgrimFontSwitcher } from '../src/theme/PilgrimFontSwitcher';
+import { PilgrimAppUpdates } from '../src/updates/PilgrimAppUpdates';
 
 import '../global.css';
 
@@ -42,6 +43,7 @@ export default function RootLayout() {
                     <Stack.Screen name="(app)" />
                     <Stack.Screen name="auth/google" />
                   </Stack>
+                  <PilgrimAppUpdates />
                 </PilgrimFontSwitcher>
               </PilgrimAppProvider>
             </RealtimeProvider>

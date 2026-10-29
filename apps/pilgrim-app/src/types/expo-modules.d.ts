@@ -41,6 +41,7 @@ declare module 'expo-router' {
   }
   export const router: Router;
   export function useRouter(): Router;
+  export function usePathname(): string;
   export function useLocalSearchParams<
     T extends Record<string, string | string[] | undefined> = Record<
       string,
