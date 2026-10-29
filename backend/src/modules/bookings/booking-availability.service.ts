@@ -4,6 +4,8 @@ import type { AvailabilityResponse } from '@tuljai/types';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { calculateStayPrice } from './booking-pricing';
+
 export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   'PENDING_OWNER_APPROVAL',
   'ACCEPTED',
@@ -18,6 +20,7 @@ interface AvailabilityOptions {
   // not block its own date change.
   excludeBookingId?: string;
   excludeLockId?: string;
+  db?: Prisma.TransactionClient;
 }
 
 @Injectable()
@@ -32,7 +35,7 @@ export class BookingAvailabilityService {
     options: AvailabilityOptions = {},
   ): Promise<AvailabilityResponse> {
     const { checkInDate, checkOutDate } = this.parseDateRange(checkInDateValue, checkOutDateValue);
-    const roomType = await this.prisma.roomType.findFirst({
+    const roomType = await (options.db ?? this.prisma).roomType.findFirst({
       include: {
         lodge: true,
       },
@@ -53,6 +56,7 @@ export class BookingAvailabilityService {
     }
 
     const availableRoomCount = await this.countAvailableRooms({
+      db: options.db,
       checkInDate,
       checkOutDate,
       excludeBookingId: options.excludeBookingId,
@@ -66,6 +70,16 @@ export class BookingAvailabilityService {
       availableRoomCount,
       lodgeId,
       priceSummary: {
+        totalAmount: (
+          await calculateStayPrice(
+            options.db ?? this.prisma,
+            roomTypeId,
+            roomType.basePrice,
+            checkInDate,
+            checkOutDate,
+            roomType.festivalPrice,
+          )
+        ).toString(),
         basePrice: roomType.basePrice.toString(),
         currency: 'INR',
         festivalPrice: roomType.festivalPrice?.toString() ?? null,
@@ -75,35 +89,18 @@ export class BookingAvailabilityService {
   }
 
   public async findAvailableRoom(input: {
+    db?: Prisma.TransactionClient;
+    excludeBookingId?: string;
     checkInDate: Date;
     checkOutDate: Date;
     lodgeId: string;
     roomTypeId: string;
   }): Promise<{ id: string; status: RoomStatus } | null> {
-    const rooms = await this.prisma.room.findMany({
+    return (input.db ?? this.prisma).room.findFirst({
+      select: { id: true, status: true },
       orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
-      where: {
-        deletedAt: null,
-        isActive: true,
-        lodgeId: input.lodgeId,
-        roomTypeId: input.roomTypeId,
-        status: { notIn: BLOCKING_ROOM_STATUSES },
-      },
+      where: this.availableRoomWhere(input),
     });
-
-    for (const room of rooms) {
-      const hasConflict = await this.hasRoomConflict({
-        checkInDate: input.checkInDate,
-        checkOutDate: input.checkOutDate,
-        roomId: room.id,
-      });
-
-      if (!hasConflict) {
-        return { id: room.id, status: room.status };
-      }
-    }
-
-    return null;
   }
 
   public parseDateRange(
@@ -131,6 +128,7 @@ export class BookingAvailabilityService {
   }
 
   public async isRoomAvailable(input: {
+    db?: Prisma.TransactionClient;
     checkInDate: Date;
     checkOutDate: Date;
     excludeBookingId?: string;
@@ -140,6 +138,7 @@ export class BookingAvailabilityService {
   }
 
   private async countAvailableRooms(input: {
+    db?: Prisma.TransactionClient;
     checkInDate: Date;
     checkOutDate: Date;
     excludeBookingId?: string;
@@ -147,103 +146,95 @@ export class BookingAvailabilityService {
     lodgeId: string;
     roomTypeId: string;
   }): Promise<number> {
-    const rooms = await this.prisma.room.findMany({
-      select: { id: true },
-      where: {
-        deletedAt: null,
-        isActive: true,
-        lodgeId: input.lodgeId,
-        roomTypeId: input.roomTypeId,
-        status: { notIn: BLOCKING_ROOM_STATUSES },
-      },
+    const availableRoomCount = await (input.db ?? this.prisma).room.count({
+      where: this.availableRoomWhere(input),
     });
 
-    let availableRoomCount = 0;
-
-    for (const room of rooms) {
-      const hasConflict = await this.hasRoomConflict({
-        checkInDate: input.checkInDate,
-        checkOutDate: input.checkOutDate,
-        excludeBookingId: input.excludeBookingId,
-        excludeLockId: input.excludeLockId,
-        roomId: room.id,
-      });
-
-      if (!hasConflict) {
-        availableRoomCount += 1;
-      }
-    }
-
-    const [unassignedBookings, unassignedLocks] = await this.prisma.$transaction([
-      this.prisma.booking.count({
-        where: {
-          checkInDate: { lt: input.checkOutDate },
-          checkOutDate: { gt: input.checkInDate },
-          deletedAt: null,
-          id: input.excludeBookingId ? { not: input.excludeBookingId } : undefined,
-          lodgeId: input.lodgeId,
-          roomId: null,
-          roomTypeId: input.roomTypeId,
-          status: { in: ACTIVE_BOOKING_STATUSES },
-        },
-      }),
-      this.prisma.bookingLock.count({
-        where: {
-          checkInDate: { lt: input.checkOutDate },
-          checkOutDate: { gt: input.checkInDate },
-          expiresAt: { gt: new Date() },
-          id: input.excludeLockId ? { not: input.excludeLockId } : undefined,
-          lodgeId: input.lodgeId,
-          roomId: null,
-          roomTypeId: input.roomTypeId,
-          status: 'ACTIVE',
-        },
-      }),
-    ]);
+    const unassignedBookings = await (input.db ?? this.prisma).booking.count({
+      where: {
+        checkInDate: { lt: input.checkOutDate },
+        checkOutDate: { gt: input.checkInDate },
+        deletedAt: null,
+        id: input.excludeBookingId ? { not: input.excludeBookingId } : undefined,
+        lodgeId: input.lodgeId,
+        roomId: null,
+        roomTypeId: input.roomTypeId,
+        status: { in: ACTIVE_BOOKING_STATUSES },
+      },
+    });
+    const unassignedLocks = await (input.db ?? this.prisma).bookingLock.count({
+      where: {
+        checkInDate: { lt: input.checkOutDate },
+        checkOutDate: { gt: input.checkInDate },
+        expiresAt: { gt: new Date() },
+        id: input.excludeLockId ? { not: input.excludeLockId } : undefined,
+        lodgeId: input.lodgeId,
+        roomId: null,
+        roomTypeId: input.roomTypeId,
+        status: 'ACTIVE',
+      },
+    });
 
     return Math.max(availableRoomCount - unassignedBookings - unassignedLocks, 0);
   }
 
+  private availableRoomWhere(input: {
+    checkInDate: Date;
+    checkOutDate: Date;
+    lodgeId?: string;
+    roomTypeId?: string;
+    roomId?: string;
+    excludeBookingId?: string;
+    excludeLockId?: string;
+  }): Prisma.RoomWhereInput {
+    const overlap = {
+      checkInDate: { lt: input.checkOutDate },
+      checkOutDate: { gt: input.checkInDate },
+    };
+    return {
+      id: input.roomId,
+      lodgeId: input.lodgeId,
+      roomTypeId: input.roomTypeId,
+      deletedAt: null,
+      isActive: true,
+      status: { notIn: BLOCKING_ROOM_STATUSES },
+      bookings: {
+        none: {
+          ...overlap,
+          deletedAt: null,
+          id: input.excludeBookingId ? { not: input.excludeBookingId } : undefined,
+          status: { in: ACTIVE_BOOKING_STATUSES },
+        },
+      },
+      bookingLocks: {
+        none: {
+          ...overlap,
+          id: input.excludeLockId ? { not: input.excludeLockId } : undefined,
+          status: 'ACTIVE',
+          expiresAt: { gt: new Date() },
+        },
+      },
+      availability: {
+        none: {
+          date: { gte: input.checkInDate, lt: input.checkOutDate },
+          status: { not: 'AVAILABLE' },
+        },
+      },
+    };
+  }
+
   private async hasRoomConflict(input: {
+    db?: Prisma.TransactionClient;
     checkInDate: Date;
     checkOutDate: Date;
     excludeBookingId?: string;
     excludeLockId?: string;
     roomId: string;
   }): Promise<boolean> {
-    const overlapWhere = {
-      checkInDate: { lt: input.checkOutDate },
-      checkOutDate: { gt: input.checkInDate },
-    };
-    const now = new Date();
-    const [booking, lock, availabilityOverride] = await this.prisma.$transaction([
-      this.prisma.booking.findFirst({
-        where: {
-          ...overlapWhere,
-          deletedAt: null,
-          id: input.excludeBookingId ? { not: input.excludeBookingId } : undefined,
-          roomId: input.roomId,
-          status: { in: ACTIVE_BOOKING_STATUSES },
-        },
-      }),
-      this.prisma.bookingLock.findFirst({
-        where: {
-          ...overlapWhere,
-          expiresAt: { gt: now },
-          id: input.excludeLockId ? { not: input.excludeLockId } : undefined,
-          roomId: input.roomId,
-          status: 'ACTIVE',
-        } satisfies Prisma.BookingLockWhereInput,
-      }),
-      this.prisma.roomAvailability.findFirst({
-        where: {
-          date: { gte: input.checkInDate, lt: input.checkOutDate },
-          roomId: input.roomId,
-          status: { not: 'AVAILABLE' },
-        },
-      }),
-    ]);
-
-    return Boolean(booking || lock || availabilityOverride);
+    const room = await (input.db ?? this.prisma).room.findFirst({
+      select: { id: true },
+      where: this.availableRoomWhere(input),
+    });
+    return !room;
   }
 }

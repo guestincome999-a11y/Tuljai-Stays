@@ -5,7 +5,14 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppScreen, LodgeCard, LodgeCardSkeleton, PrimaryButton, SearchBox, ui } from '../components';
+import {
+  AppScreen,
+  LodgeCard,
+  LodgeCardSkeleton,
+  PrimaryButton,
+  SearchBox,
+  ui,
+} from '../components';
 import { formatRupees, type PilgrimLodge } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 import { PriceRangeSlider } from '../PriceRangeSlider';
@@ -109,8 +116,7 @@ export function PilgrimLodgesScreen() {
       return matchesSearch && matchesFilter && matchesPrice;
     });
     if (sort === 'price') items = [...items].sort((a, b) => sortablePrice(a) - sortablePrice(b));
-    if (sort === 'rating')
-      items = [...items].sort((a, b) => sortableRating(b) - sortableRating(a));
+    if (sort === 'rating') items = [...items].sort((a, b) => sortableRating(b) - sortableRating(a));
     if (sort === 'distance')
       items = [...items].sort(
         (a, b) => distanceInMeters(a.distance) - distanceInMeters(b.distance),
@@ -144,8 +150,7 @@ export function PilgrimLodgesScreen() {
   function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (!hasMoreToShow) return;
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const distanceFromBottom =
-      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     if (distanceFromBottom < SCROLL_LOAD_MORE_THRESHOLD_PX) {
       setVisibleCount((current) => Math.min(current + RESULTS_PAGE_SIZE, results.length));
     }

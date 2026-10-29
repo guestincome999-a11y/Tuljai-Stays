@@ -7,7 +7,10 @@ import { useAuth } from '../auth/auth-context';
 import { refreshNotificationUnreadCount } from '../features/notifications/notification-count-store';
 import { usePilgrimApp } from '../pilgrim-ui/PilgrimAppProvider';
 
-import { registerExistingPilgrimPushToken, registerRotatedPilgrimPushToken } from './push-registration';
+import {
+  registerExistingPilgrimPushToken,
+  registerRotatedPilgrimPushToken,
+} from './push-registration';
 
 // The OS app-icon badge is written only by `PilgrimAppProvider`, from the
 // shared unread-count store. This component never writes it: marking a tapped
@@ -24,74 +27,81 @@ export function PilgrimPushNotifications() {
   const markNotificationReadRef = useRef(markNotificationRead);
   markNotificationReadRef.current = markNotificationRead;
 
-  const handleResponse = useCallback(async (response: Notifications.NotificationResponse) => {
-    const responseId = `${response.notification.request.identifier}:${response.actionIdentifier}`;
-    if (handledResponseId.current === responseId) {
-      return;
-    }
+  const handleResponse = useCallback(
+    async (response: Notifications.NotificationResponse) => {
+      const responseId = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      if (handledResponseId.current === responseId) {
+        return;
+      }
 
-    handledResponseId.current = responseId;
-    await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
-    const data = response.notification.request.content.data ?? {};
-    const notificationId = readString(data.notificationId);
+      handledResponseId.current = responseId;
+      await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+      const data = response.notification.request.content.data ?? {};
+      const notificationId = readString(data.notificationId);
 
-    if (notificationId) {
-      await markNotificationReadRef.current(notificationId).catch(() => undefined);
-    }
+      if (notificationId) {
+        await markNotificationReadRef.current(notificationId).catch(() => undefined);
+      }
 
-    const type = readString(data.type);
-    const bookingId = readString(data.bookingId);
-    const announcementId = readString(data.announcementId);
-    const lodgeId = readString(data.lodgeId);
-    const roomId = readString(data.roomId);
-    const roomTypeId = readString(data.roomTypeId);
+      const type = readString(data.type);
+      const bookingId = readString(data.bookingId);
+      const announcementId = readString(data.announcementId);
+      const lodgeId = readString(data.lodgeId);
+      const roomId = readString(data.roomId);
+      const roomTypeId = readString(data.roomTypeId);
 
-    if (announcementId || type === 'ADMIN_ANNOUNCEMENT' || type === 'EMERGENCY_ALERT') {
-      router.push({
-        pathname: '/(app)/announcements',
-        params: announcementId ? { announcementId } : {},
-      });
-      return;
-    }
+      if (announcementId || type === 'ADMIN_ANNOUNCEMENT' || type === 'EMERGENCY_ALERT') {
+        router.push({
+          pathname: '/(app)/announcements',
+          params: announcementId ? { announcementId } : {},
+        });
+        return;
+      }
 
-    if (type === 'QR_GENERATED' && bookingId) {
-      router.push({
-        pathname: '/(app)/pass',
-        params: { bookingId },
-      });
-      return;
-    }
+      if (type === 'QR_GENERATED' && bookingId) {
+        router.push({
+          pathname: '/(app)/pass',
+          params: { bookingId },
+        });
+        return;
+      }
 
-    if (type === 'CHECKOUT_COMPLETED' && readString(data.action) === 'RATE_AND_REVIEW' && bookingId) {
-      router.push({
-        pathname: '/(app)/notifications',
-        params: { feedbackBookingId: bookingId },
-      });
-      return;
-    }
+      if (
+        type === 'CHECKOUT_COMPLETED' &&
+        readString(data.action) === 'RATE_AND_REVIEW' &&
+        bookingId
+      ) {
+        router.push({
+          pathname: '/(app)/notifications',
+          params: { feedbackBookingId: bookingId },
+        });
+        return;
+      }
 
-    if (bookingId) {
-      router.push({
-        pathname: '/(app)/bookings/[id]',
-        params: { id: bookingId },
-      });
-      return;
-    }
+      if (bookingId) {
+        router.push({
+          pathname: '/(app)/bookings/[id]',
+          params: { id: bookingId },
+        });
+        return;
+      }
 
-    if (lodgeId && (roomId || roomTypeId)) {
-      router.push({
-        pathname: '/(app)/lodges/[id]',
-        params: {
-          id: lodgeId,
-          ...(roomId ? { roomId } : {}),
-          ...(roomTypeId ? { roomTypeId } : {}),
-        },
-      });
-      return;
-    }
+      if (lodgeId && (roomId || roomTypeId)) {
+        router.push({
+          pathname: '/(app)/lodges/[id]',
+          params: {
+            id: lodgeId,
+            ...(roomId ? { roomId } : {}),
+            ...(roomTypeId ? { roomTypeId } : {}),
+          },
+        });
+        return;
+      }
 
-    router.push('/(app)/notifications');
-  }, [router]);
+      router.push('/(app)/notifications');
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (!auth.isAuthenticated) {

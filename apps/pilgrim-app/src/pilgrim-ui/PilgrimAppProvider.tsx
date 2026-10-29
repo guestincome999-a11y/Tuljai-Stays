@@ -30,7 +30,7 @@ import {
   subscribeNotificationUnreadCount,
 } from '../features/notifications/notification-count-store';
 import { syncPilgrimNotificationBadge } from '../notifications/push-registration';
-import { getEventBookingId, type PilgrimRealtimeEvent } from '../realtime/realtime-events';
+import { getEventBookingId } from '../realtime/realtime-events';
 import { useRealtime } from '../realtime/realtime-provider';
 
 import {
@@ -43,6 +43,7 @@ import {
   mapBooking,
   synthesizeEnrichedBooking,
 } from './backend-sync';
+import { applyRealtimeBookingEvent, mergeBackendBookingSnapshot } from './booking-state';
 import {
   initialPilgrimBookings,
   pilgrimLodges,
@@ -171,8 +172,10 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         );
       toHydrate.forEach((lodge) => {
         hydratingIdsRef.current.add(lodge.id);
+        const revision = lodgeLoadVersionRef.current;
         void hydrateBackendLodge(lodge)
           .then((hydratedLodge) => {
+            if (revision !== lodgeLoadVersionRef.current) return;
             setLodges((prev) =>
               prev.map((item) => (item.id === hydratedLodge.id ? hydratedLodge : item)),
             );
@@ -255,13 +258,14 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         loadBackendBookings(availableLodges),
         loadBackendNotifications(),
       ]);
+      if (notificationsVersion !== notificationsVersionRef.current) return backendBookings;
       setBookings((current) => mergeBackendBookingSnapshot(current, backendBookings));
       if (notificationsVersion === notificationsVersionRef.current) {
         setNotifications(backendNotifications);
       }
       return backendBookings;
     },
-    [auth.isAuthenticated],
+    [auth.isAuthenticated, auth.user?.id],
   );
 
   const reloadNotifications = useCallback(async () => {
@@ -378,6 +382,17 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     const nextCount = event.payload.unreadCount;
     if (typeof nextCount === 'number') setNotificationUnreadCount(nextCount);
   }, [auth.isAuthenticated, realtime.lastEvent]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void loadLodges().catch(() => undefined);
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [loadLodges]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) void loadLodges().catch(() => undefined);
+  }, [loadLodges, realtime.connectionRevision]);
 
   useEffect(() => {
     if (realtime.lastEvent?.name !== 'lodge:catalog-updated') return;
@@ -582,45 +597,4 @@ export function usePilgrimApp(): PilgrimAppContextValue {
   const context = useContext(PilgrimAppContext);
   if (!context) throw new Error('usePilgrimApp must be used inside PilgrimAppProvider');
   return context;
-}
-
-function applyRealtimeBookingEvent(
-  booking: PilgrimBooking,
-  event: PilgrimRealtimeEvent,
-): PilgrimBooking {
-  const updatedAt =
-    typeof event.payload.updatedAt === 'string'
-      ? event.payload.updatedAt
-      : new Date(event.receivedAt).toISOString();
-  if (event.name === 'booking:accepted' || event.name === 'qr:generated')
-    return { ...booking, qrReady: true, status: 'confirmed', updatedAt };
-  if (
-    event.name === 'booking:cancelled' ||
-    event.name === 'booking:rejected' ||
-    event.name === 'booking:expired'
-  )
-    return { ...booking, qrReady: false, status: 'cancelled', updatedAt };
-  if (event.name === 'checkin:completed')
-    return { ...booking, qrReady: false, status: 'checked-in', updatedAt };
-  if (event.name === 'checkout:completed')
-    return { ...booking, qrReady: false, status: 'completed', updatedAt };
-  return booking;
-}
-
-function mergeBackendBookingSnapshot(
-  current: PilgrimBooking[],
-  backend: PilgrimBooking[],
-): PilgrimBooking[] {
-  const currentById = new Map(current.map((booking) => [booking.id, booking]));
-  return backend.map((booking) => {
-    const existing = currentById.get(booking.id);
-    if (!existing) return booking;
-    const existingUpdatedAt = Date.parse(existing.updatedAt);
-    const backendUpdatedAt = Date.parse(booking.updatedAt);
-    return Number.isFinite(existingUpdatedAt) &&
-      Number.isFinite(backendUpdatedAt) &&
-      existingUpdatedAt > backendUpdatedAt
-      ? existing
-      : booking;
-  });
 }

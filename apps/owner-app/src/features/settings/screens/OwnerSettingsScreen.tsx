@@ -232,7 +232,10 @@ export function OwnerSettingsScreen() {
             <LegalDocument kind={legalKind} />
           </View>
           <View className="border-t border-warm-100 bg-white px-5 py-3">
-            <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }} variant="bodySmall">
+            <Text
+              style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}
+              variant="bodySmall"
+            >
               {tr('Questions or privacy requests?')} {SUPPORT_EMAIL}
             </Text>
           </View>

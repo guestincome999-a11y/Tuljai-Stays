@@ -60,7 +60,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             <p className="eyebrow">User Profile</p>
             <h2>{user.displayName ?? 'Unnamed user'}</h2>
             <p className="muted-copy">
-              {user.roles.join(', ')} · Joined {new Date(user.createdAt).toLocaleDateString('en-IN')}
+              {user.roles.join(', ')} · Joined{' '}
+              {new Date(user.createdAt).toLocaleDateString('en-IN')}
             </p>
           </div>
           <span className={user.isActive ? 'status-card' : 'priority priority-high'}>
@@ -81,7 +82,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               <Field label="Roles" value={user.roles.join(', ')} />
               <Field
                 label="Last login"
-                value={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-IN') : 'Never logged in'}
+                value={
+                  user.lastLoginAt
+                    ? new Date(user.lastLoginAt).toLocaleString('en-IN')
+                    : 'Never logged in'
+                }
               />
               <Field label="Created" value={new Date(user.createdAt).toLocaleString('en-IN')} />
               <Field label="Updated" value={new Date(user.updatedAt).toLocaleString('en-IN')} />
@@ -120,8 +125,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             <p className="eyebrow">Manage account</p>
             <h3>Activate or suspend this account</h3>
             <p className="muted-copy">
-              Suspending immediately revokes active sessions and login tokens. A reason is
-              required and is recorded in the audit log.
+              Suspending immediately revokes active sessions and login tokens. A reason is required
+              and is recorded in the audit log.
             </p>
             <div className="form-stack">
               <label className="form-field">
@@ -188,10 +193,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         <section className="table-panel">
           <p className="eyebrow">Future bookings</p>
           <h3>Upcoming stays</h3>
-          <BookingTable
-            bookings={user.upcomingBookings}
-            emptyLabel="No upcoming bookings."
-          />
+          <BookingTable bookings={user.upcomingBookings} emptyLabel="No upcoming bookings." />
         </section>
 
         <section className="table-panel">

@@ -105,7 +105,9 @@ function PrivacyContent() {
         To protect the platform, guests and participating properties against fraud, abuse and
         unauthorised access.
       </Bullet>
-      <Bullet>To comply with applicable Indian law, lawful requests and record-keeping obligations.</Bullet>
+      <Bullet>
+        To comply with applicable Indian law, lawful requests and record-keeping obligations.
+      </Bullet>
 
       <Heading>4. Legal framework</Heading>
       <Para>
@@ -206,8 +208,8 @@ function TermsContent() {
         a clear reason when it is not.
       </Bullet>
       <Bullet>
-        Honour an accepted booking except where a lawful exception, safety issue, force majeure event
-        or other disclosed booking term applies.
+        Honour an accepted booking except where a lawful exception, safety issue, force majeure
+        event or other disclosed booking term applies.
       </Bullet>
       <Bullet>
         Keep the Owner App reachable during operating hours so booking alerts can be actioned
@@ -216,10 +218,10 @@ function TermsContent() {
 
       <Heading>4. Guest check-in and QR scanning</Heading>
       <Para>
-        Scan a pilgrim&apos;s booking QR code only after a booking has been approved, and rely on the
-        app&apos;s backend verification result rather than the raw QR content. Complete the guest
-        register after a successful QR check-in. Guest contact details made available to you through
-        check-in must be used only for that stay.
+        Scan a pilgrim&apos;s booking QR code only after a booking has been approved, and rely on
+        the app&apos;s backend verification result rather than the raw QR content. Complete the
+        guest register after a successful QR check-in. Guest contact details made available to you
+        through check-in must be used only for that stay.
       </Para>
 
       <Heading>5. Pricing, commission and pay-at-lodge amounts</Heading>
@@ -232,8 +234,8 @@ function TermsContent() {
 
       <Heading>6. Property standards and compliance</Heading>
       <Bullet>
-        You are responsible for the actual accommodation, room condition and lawful operation of your
-        property.
+        You are responsible for the actual accommodation, room condition and lawful operation of
+        your property.
       </Bullet>
       <Bullet>
         You are responsible for complying with applicable local laws, licences, safety requirements
@@ -243,8 +245,8 @@ function TermsContent() {
       <Heading>7. Platform role and limits</Heading>
       <Para>
         Tuljai Stays provides the booking platform connecting your lodge with pilgrims and visitors.
-        We do not guarantee uninterrupted availability of the app, network or payment gateway. We are
-        not responsible for matters exclusively within your control, such as on-site conduct or
+        We do not guarantee uninterrupted availability of the app, network or payment gateway. We
+        are not responsible for matters exclusively within your control, such as on-site conduct or
         facilities, except to the extent applicable law or an express Tuljai Stays commitment makes
         us responsible.
       </Para>

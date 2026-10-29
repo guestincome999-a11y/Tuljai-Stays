@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AuthenticatedUser, BookingLock } from '@tuljai/types';
 
@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { BookingAvailabilityService } from './booking-availability.service';
 import type { CreateBookingLockDto } from './dto/booking.dto';
+import { lockInventory } from './inventory-lock';
 
 @Injectable()
 export class BookingLocksService {
@@ -22,41 +23,83 @@ export class BookingLocksService {
   public async createLock(
     dto: CreateBookingLockDto,
     user: AuthenticatedUser,
+    checkoutAttemptKey?: string,
   ): Promise<BookingLock> {
-    const availability = await this.availabilityService.getAvailability(
-      dto.lodgeId,
-      dto.roomTypeId,
-      dto.checkInDate,
-      dto.checkOutDate,
-    );
-
-    if (!availability.available) {
-      throw new ConflictException('Room type is not available for the selected dates');
+    if (checkoutAttemptKey !== undefined && !/^[a-zA-Z0-9_-]{16,128}$/.test(checkoutAttemptKey)) {
+      throw new BadRequestException(
+        'Idempotency-Key must contain 16–128 letters, numbers, hyphens or underscores',
+      );
     }
-
     const { checkInDate, checkOutDate } = this.availabilityService.parseDateRange(
       dto.checkInDate,
       dto.checkOutDate,
     );
     const ttlSeconds = this.configService.get<number>('api.booking.lockTtlSeconds', 300);
-    const lock = await this.prisma.bookingLock.create({
-      data: {
-        checkInDate,
-        checkOutDate,
-        expiresAt: new Date(Date.now() + ttlSeconds * 1000),
-        lockCode: await this.generateLockCode(),
-        lodgeId: dto.lodgeId,
-        pilgrimUserId: user.id,
-        roomTypeId: dto.roomTypeId,
-      },
-    });
+    const lock = await this.prisma.$transaction(async (tx) => {
+      if (checkoutAttemptKey) {
+        const scope = `checkout:${user.id}:${checkoutAttemptKey}`;
+        await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${scope}, 0))`;
+      }
+      await lockInventory(tx, dto.roomTypeId);
+      if (checkoutAttemptKey) {
+        const existing = await tx.bookingLock.findUnique({
+          where: {
+            pilgrimUserId_checkoutAttemptKey: { pilgrimUserId: user.id, checkoutAttemptKey },
+          },
+        });
+        if (existing) {
+          if (
+            existing.lodgeId !== dto.lodgeId ||
+            existing.roomTypeId !== dto.roomTypeId ||
+            existing.checkInDate.getTime() !== checkInDate.getTime() ||
+            existing.checkOutDate.getTime() !== checkOutDate.getTime()
+          ) {
+            throw new ConflictException(
+              'Idempotency-Key was already used for different booking details',
+            );
+          }
+          if (existing.status !== 'ACTIVE' || existing.expiresAt <= new Date()) {
+            throw new ConflictException(
+              'This checkout attempt ended. Check payment status before starting again.',
+            );
+          }
+          return existing;
+        }
+      }
+      const availability = await this.availabilityService.getAvailability(
+        dto.lodgeId,
+        dto.roomTypeId,
+        dto.checkInDate,
+        dto.checkOutDate,
+        { db: tx },
+      );
 
-    await this.auditLogService.create({
-      action: 'BOOKING_LOCK_CREATED',
-      actorUserId: user.id,
-      entityId: lock.id,
-      entityType: 'booking_lock',
-      metadata: { expiresAt: lock.expiresAt.toISOString() },
+      if (!availability.available) {
+        throw new ConflictException('Room type is not available for the selected dates');
+      }
+
+      const created = await tx.bookingLock.create({
+        data: {
+          checkInDate,
+          checkOutDate,
+          checkoutAttemptKey,
+          expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+          lockCode: this.generateLockCode(),
+          lodgeId: dto.lodgeId,
+          pilgrimUserId: user.id,
+          roomTypeId: dto.roomTypeId,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: 'BOOKING_LOCK_CREATED',
+          actorUserId: user.id,
+          entityId: created.id,
+          entityType: 'booking_lock',
+          metadata: { expiresAt: created.expiresAt.toISOString() },
+        },
+      });
+      return created;
     });
 
     return {
@@ -89,15 +132,12 @@ export class BookingLocksService {
     providerOrderId: string,
     orderAmount: number,
   ): Promise<void> {
-    const holdSeconds = this.configService.get<number>('api.booking.prepaidOrderHoldSeconds', 900);
-    await this.prisma.bookingLock.update({
-      data: {
-        expiresAt: new Date(Date.now() + holdSeconds * 1000),
-        orderAmount,
-        providerOrderId,
-      },
-      where: { id: lockId },
+    const result = await this.prisma.bookingLock.updateMany({
+      data: { expiresAt: this.prepaidOrderExpiry(), orderAmount, providerOrderId },
+      where: { id: lockId, status: 'ACTIVE', expiresAt: { gt: new Date() }, providerOrderId: null },
     });
+    if (result.count !== 1)
+      throw new ConflictException('Payment order is already attached or hold expired');
   }
 
   /**
@@ -126,16 +166,12 @@ export class BookingLocksService {
     return result.count;
   }
 
-  private async generateLockCode(): Promise<string> {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const lockCode = `TJS-LOCK-${randomBytes(4).toString('hex').toUpperCase()}`;
-      const existing = await this.prisma.bookingLock.findUnique({ where: { lockCode } });
+  public prepaidOrderExpiry(): Date {
+    const seconds = this.configService.get<number>('api.booking.prepaidOrderHoldSeconds', 900);
+    return new Date(Date.now() + seconds * 1000);
+  }
 
-      if (!existing) {
-        return lockCode;
-      }
-    }
-
-    return `TJS-LOCK-${Date.now()}`;
+  private generateLockCode(): string {
+    return `TJS-LOCK-${randomBytes(16).toString('hex').toUpperCase()}`;
   }
 }

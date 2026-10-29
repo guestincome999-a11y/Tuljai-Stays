@@ -127,7 +127,10 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
     setIsSavingLocation(true);
     try {
       await runAction(
-        () => updateGovernanceLodge(lodgeId, { googleMapsLink: googleMapsLinkDraft.trim() || undefined }),
+        () =>
+          updateGovernanceLodge(lodgeId, {
+            googleMapsLink: googleMapsLinkDraft.trim() || undefined,
+          }),
         'Google Maps link updated.',
       );
     } finally {

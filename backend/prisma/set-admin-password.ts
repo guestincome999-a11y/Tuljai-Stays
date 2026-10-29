@@ -80,10 +80,11 @@ async function main(): Promise<void> {
       roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
     let user = await prisma.user.findUnique({ where: { email: emailArg } });
     if (user) {
-      if (!isAdminRole(user.roles)) throw new Error('That email belongs to a non-admin account. Aborting.');
+      if (!isAdminRole(user.roles))
+        throw new Error('That email belongs to a non-admin account. Aborting.');
     } else {
-      const admins = (await prisma.user.findMany({ where: { deletedAt: null } })).filter((candidate) =>
-        isAdminRole(candidate.roles),
+      const admins = (await prisma.user.findMany({ where: { deletedAt: null } })).filter(
+        (candidate) => isAdminRole(candidate.roles),
       );
       if (admins.length !== 1 || !admins[0]) {
         throw new Error(
@@ -121,7 +122,9 @@ async function main(): Promise<void> {
       }),
       prisma.userSession.updateMany({ data: { isActive: false }, where: { userId: user.id } }),
     ]);
-    console.log(`Done. ${emailArg} can now sign in to the admin panel with the password you entered.`);
+    console.log(
+      `Done. ${emailArg} can now sign in to the admin panel with the password you entered.`,
+    );
   } finally {
     await prisma.$disconnect();
   }

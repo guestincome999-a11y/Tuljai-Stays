@@ -9,7 +9,17 @@ type Settlement = LodgeCommissionFinanceReport['settlements'][number];
 type Setting = LodgeCommissionFinanceReport['setting'];
 
 export type FinTone = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'gray';
-export type FinIconName = 'bank' | 'calendar' | 'card' | 'chart' | 'check' | 'clock' | 'lodge' | 'money' | 'percent' | 'receipt';
+export type FinIconName =
+  | 'bank'
+  | 'calendar'
+  | 'card'
+  | 'chart'
+  | 'check'
+  | 'clock'
+  | 'lodge'
+  | 'money'
+  | 'percent'
+  | 'receipt';
 
 /* ------------------------------------------------------------ formatting */
 
@@ -68,7 +78,17 @@ const ICONS: Record<FinIconName, ReactNode> = {
 export function FinIcon({ name, tone }: { name: FinIconName; tone?: FinTone }) {
   return (
     <span className={tone ? `fin-ico fin-ico-${tone}` : 'fin-ico'}>
-      <svg aria-hidden="true" fill="none" height="20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24" width="20">
+      <svg
+        aria-hidden="true"
+        fill="none"
+        height="20"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        viewBox="0 0 24 24"
+        width="20"
+      >
         {ICONS[name]}
       </svg>
     </span>
@@ -77,7 +97,17 @@ export function FinIcon({ name, tone }: { name: FinIconName; tone?: FinTone }) {
 
 /* ------------------------------------------------------------ primitives */
 
-export function FinHeader({ actions, description, eyebrow, title }: { actions?: ReactNode; description: string; eyebrow: string; title: ReactNode }) {
+export function FinHeader({
+  actions,
+  description,
+  eyebrow,
+  title,
+}: {
+  actions?: ReactNode;
+  description: string;
+  eyebrow: string;
+  title: ReactNode;
+}) {
   return (
     <header className="fin-head">
       <div className="fin-head-text">
@@ -90,7 +120,19 @@ export function FinHeader({ actions, description, eyebrow, title }: { actions?: 
   );
 }
 
-export function FinKpi({ icon, label, meta, tone, value }: { icon: FinIconName; label: string; meta?: ReactNode; tone: Exclude<FinTone, 'gray'>; value: ReactNode }) {
+export function FinKpi({
+  icon,
+  label,
+  meta,
+  tone,
+  value,
+}: {
+  icon: FinIconName;
+  label: string;
+  meta?: ReactNode;
+  tone: Exclude<FinTone, 'gray'>;
+  value: ReactNode;
+}) {
   return (
     <article className={`fin-kpi fin-kpi-${tone}`}>
       <FinIcon name={icon} />
@@ -101,7 +143,17 @@ export function FinKpi({ icon, label, meta, tone, value }: { icon: FinIconName; 
   );
 }
 
-export function FinPanel({ action, children, sub, title }: { action?: ReactNode; children: ReactNode; sub?: ReactNode; title: string }) {
+export function FinPanel({
+  action,
+  children,
+  sub,
+  title,
+}: {
+  action?: ReactNode;
+  children: ReactNode;
+  sub?: ReactNode;
+  title: string;
+}) {
   return (
     <section className="fin-panel">
       <div className="fin-panel-head">
@@ -116,7 +168,13 @@ export function FinPanel({ action, children, sub, title }: { action?: ReactNode;
   );
 }
 
-export function FinKv({ rows, twoColumns }: { rows: Array<{ label: string; value: ReactNode }>; twoColumns?: boolean }) {
+export function FinKv({
+  rows,
+  twoColumns,
+}: {
+  rows: Array<{ label: string; value: ReactNode }>;
+  twoColumns?: boolean;
+}) {
   return (
     <div className={twoColumns ? 'fin-kv fin-kv-2' : 'fin-kv'}>
       {rows.map((row) => (
@@ -136,8 +194,16 @@ export function FinPill({ children, tone }: { children: ReactNode; tone: FinTone
 export function FinBanners({ error, message }: { error?: string | null; message?: string | null }) {
   return (
     <>
-      {error ? <p className="error-banner" role="alert">{error}</p> : null}
-      {message ? <p className="success-banner" role="status">{message}</p> : null}
+      {error ? (
+        <p className="error-banner" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {message ? (
+        <p className="success-banner" role="status">
+          {message}
+        </p>
+      ) : null}
     </>
   );
 }
@@ -149,7 +215,14 @@ export function RuleSummary({ setting }: { setting: Setting }) {
   return (
     <FinKv
       rows={[
-        { label: 'Status', value: <FinPill tone={setting.commissionEnabled ? 'green' : 'gray'}>{setting.commissionEnabled ? 'Enabled' : 'Disabled'}</FinPill> },
+        {
+          label: 'Status',
+          value: (
+            <FinPill tone={setting.commissionEnabled ? 'green' : 'gray'}>
+              {setting.commissionEnabled ? 'Enabled' : 'Disabled'}
+            </FinPill>
+          ),
+        },
         { label: 'Method', value: fixed ? 'Fixed per booking' : 'Percentage' },
         { label: 'Rate', value: fixed ? '—' : `${setting.commissionRatePercent}%` },
         { label: 'Fixed amount', value: fixed ? formatMoney(setting.commissionFixedAmount) : '—' },
@@ -167,7 +240,11 @@ export interface SettlementFormValues {
 }
 
 /** Settlement entry form. `onSubmit` resolves true when the settlement was recorded, which clears the form. */
-export function SettlementForm({ onSubmit }: { onSubmit: (values: SettlementFormValues) => Promise<boolean> }) {
+export function SettlementForm({
+  onSubmit,
+}: {
+  onSubmit: (values: SettlementFormValues) => Promise<boolean>;
+}) {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('BANK_TRANSFER');
   const [reference, setReference] = useState('');
@@ -205,7 +282,12 @@ export function SettlementForm({ onSubmit }: { onSubmit: (values: SettlementForm
       <div className="fin-form">
         <label className="fin-field">
           <span>Amount</span>
-          <input inputMode="decimal" onChange={(event) => setAmount(event.target.value)} placeholder="0.00" value={amount} />
+          <input
+            inputMode="decimal"
+            onChange={(event) => setAmount(event.target.value)}
+            placeholder="0.00"
+            value={amount}
+          />
         </label>
         <label className="fin-field">
           <span>Payment method</span>
@@ -218,16 +300,34 @@ export function SettlementForm({ onSubmit }: { onSubmit: (values: SettlementForm
         </label>
         <label className="fin-field fin-field-wide">
           <span>Reference</span>
-          <input onChange={(event) => setReference(event.target.value)} placeholder="Receipt / transaction reference" value={reference} />
+          <input
+            onChange={(event) => setReference(event.target.value)}
+            placeholder="Receipt / transaction reference"
+            value={reference}
+          />
         </label>
         <label className="fin-field fin-field-wide">
           <span>Notes</span>
-          <textarea onChange={(event) => setNotes(event.target.value)} placeholder="Optional accounting note" rows={3} value={notes} />
+          <textarea
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Optional accounting note"
+            rows={3}
+            value={notes}
+          />
         </label>
-        {problem ? <p className="fin-field-error" role="alert">{problem}</p> : null}
+        {problem ? (
+          <p className="fin-field-error" role="alert">
+            {problem}
+          </p>
+        ) : null}
       </div>
       <div className="fin-actions fin-actions-end">
-        <button className="fin-btn fin-btn-violet" disabled={busy} onClick={() => void submit()} type="button">
+        <button
+          className="fin-btn fin-btn-violet"
+          disabled={busy}
+          onClick={() => void submit()}
+          type="button"
+        >
           {busy ? 'Recording…' : 'Record settlement'}
         </button>
       </div>
@@ -235,9 +335,20 @@ export function SettlementForm({ onSubmit }: { onSubmit: (values: SettlementForm
   );
 }
 
-export function LedgerTable({ onVoid, transactions }: { onVoid: (id: string) => void; transactions: Transaction[] }) {
+export function LedgerTable({
+  onVoid,
+  transactions,
+}: {
+  onVoid: (id: string) => void;
+  transactions: Transaction[];
+}) {
   if (transactions.length === 0) {
-    return <p className="fin-empty">No payable commission transactions yet. Completed eligible bookings will appear here automatically.</p>;
+    return (
+      <p className="fin-empty">
+        No payable commission transactions yet. Completed eligible bookings will appear here
+        automatically.
+      </p>
+    );
   }
   return (
     <div className="fin-scroll">
@@ -258,16 +369,30 @@ export function LedgerTable({ onVoid, transactions }: { onVoid: (id: string) => 
             <tr key={row.id}>
               <td>
                 <b>{row.bookingCode}</b>
-                <span className="fin-cell-sub">{row.checkInDate} → {row.checkOutDate}</span>
+                <span className="fin-cell-sub">
+                  {row.checkInDate} → {row.checkOutDate}
+                </span>
               </td>
               <td className="fin-num">{formatMoney(row.baseAmount)}</td>
-              <td>{row.commissionType === 'FIXED_PER_BOOKING' ? `Fixed ${formatMoney(row.commissionFixedAmount)}` : `${row.commissionRatePercent}%`}</td>
+              <td>
+                {row.commissionType === 'FIXED_PER_BOOKING'
+                  ? `Fixed ${formatMoney(row.commissionFixedAmount)}`
+                  : `${row.commissionRatePercent}%`}
+              </td>
               <td className="fin-num">{formatMoney(row.commissionAmount)}</td>
               <td>{new Date(row.eligibleAt).toLocaleDateString('en-IN')}</td>
-              <td><FinPill tone={ledgerTone(row.status)}>{formatLabel(row.status)}</FinPill></td>
+              <td>
+                <FinPill tone={ledgerTone(row.status)}>{formatLabel(row.status)}</FinPill>
+              </td>
               <td className="fin-num">
                 {row.status === 'OUTSTANDING' ? (
-                  <button className="fin-btn fin-btn-sm fin-btn-danger" onClick={() => onVoid(row.id)} type="button">Void</button>
+                  <button
+                    className="fin-btn fin-btn-sm fin-btn-danger"
+                    onClick={() => onVoid(row.id)}
+                    type="button"
+                  >
+                    Void
+                  </button>
                 ) : (
                   '—'
                 )}

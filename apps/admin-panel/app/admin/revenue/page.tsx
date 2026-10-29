@@ -129,7 +129,11 @@ export default function AdminRevenuePage() {
       <div className="fin-stack">
         <FinanceStyles />
         <FinHeader
-          actions={<button className="fin-btn fin-btn-soft" onClick={() => void load()} type="button">Refresh</button>}
+          actions={
+            <button className="fin-btn fin-btn-soft" onClick={() => void load()} type="button">
+              Refresh
+            </button>
+          }
           description="Revenue estimates, commission estimates, and lodge-level receivable/payable views with detailed transaction and settlement accounting."
           eyebrow="Revenue Intelligence"
           title="Revenue dashboard"
@@ -137,10 +141,34 @@ export default function AdminRevenuePage() {
         <FinBanners error={errorMessage} message={actionMessage} />
 
         <section aria-label="Revenue totals" className="fin-kpis">
-          <FinKpi icon="money" label="Revenue estimate" meta={`${rows.length} bookings in report`} tone="blue" value={toCurrency(revenue)} />
-          <FinKpi icon="percent" label="Commission earned" meta="Estimated from bookings" tone="green" value={toCurrency(commission)} />
-          <FinKpi icon="receipt" label="Average booking value" meta="Revenue per booking" tone="orange" value={toCurrency(rows.length ? revenue / rows.length : 0)} />
-          <FinKpi icon="bank" label="Commission receivable" meta="Owed by lodges" tone="purple" value={toCurrency(commission)} />
+          <FinKpi
+            icon="money"
+            label="Revenue estimate"
+            meta={`${rows.length} bookings in report`}
+            tone="blue"
+            value={toCurrency(revenue)}
+          />
+          <FinKpi
+            icon="percent"
+            label="Commission earned"
+            meta="Estimated from bookings"
+            tone="green"
+            value={toCurrency(commission)}
+          />
+          <FinKpi
+            icon="receipt"
+            label="Average booking value"
+            meta="Revenue per booking"
+            tone="orange"
+            value={toCurrency(rows.length ? revenue / rows.length : 0)}
+          />
+          <FinKpi
+            icon="bank"
+            label="Commission receivable"
+            meta="Owed by lodges"
+            tone="purple"
+            value={toCurrency(commission)}
+          />
         </section>
 
         <section className="fin-split">
@@ -152,7 +180,9 @@ export default function AdminRevenuePage() {
                 {dailyRows.map(([date, value]) => (
                   <div className="fin-bar-row" key={date}>
                     <span>{date}</span>
-                    <div className="fin-bar-track"><i style={{ width: `${Math.min((value / maxDaily) * 100, 100)}%` }} /></div>
+                    <div className="fin-bar-track">
+                      <i style={{ width: `${Math.min((value / maxDaily) * 100, 100)}%` }} />
+                    </div>
                     <strong>{toCurrency(value)}</strong>
                   </div>
                 ))}
@@ -174,7 +204,10 @@ export default function AdminRevenuePage() {
           </FinPanel>
         </section>
 
-        <FinPanel sub="Open a lodge to see booking revenue, commission rule, receivable, outstanding payable, settlements, and every ledger transaction." title="Lodge commission report">
+        <FinPanel
+          sub="Open a lodge to see booking revenue, commission rule, receivable, outstanding payable, settlements, and every ledger transaction."
+          title="Lodge commission report"
+        >
           {rankings.length === 0 ? (
             <p className="fin-empty">No lodge revenue to report yet.</p>
           ) : (
@@ -192,12 +225,20 @@ export default function AdminRevenuePage() {
                 <tbody>
                   {rankings.slice(0, 50).map((row) => (
                     <tr key={row.lodgeId}>
-                      <td><b>{lodgeLabel(row.lodgeId)}</b></td>
+                      <td>
+                        <b>{lodgeLabel(row.lodgeId)}</b>
+                      </td>
                       <td className="fin-num">{row.bookings}</td>
                       <td className="fin-num">{toCurrency(row.revenue)}</td>
                       <td className="fin-num">{toCurrency(row.commission)}</td>
                       <td className="fin-num">
-                        <button className="fin-btn fin-btn-sm fin-btn-soft" onClick={() => void openReport(row.lodgeId)} type="button">View report</button>
+                        <button
+                          className="fin-btn fin-btn-sm fin-btn-soft"
+                          onClick={() => void openReport(row.lodgeId)}
+                          type="button"
+                        >
+                          View report
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -213,30 +254,64 @@ export default function AdminRevenuePage() {
             {selectedReport ? (
               <>
                 <FinHeader
-                  actions={<button className="fin-btn fin-btn-outline" onClick={() => setSelectedLodgeId(null)} type="button">Close</button>}
+                  actions={
+                    <button
+                      className="fin-btn fin-btn-outline"
+                      onClick={() => setSelectedLodgeId(null)}
+                      type="button"
+                    >
+                      Close
+                    </button>
+                  }
                   description={`Lodge ID: ${selectedReport.lodgeId}`}
                   eyebrow="Lodge Finance Report"
                   title={selectedReport.lodgeName}
                 />
 
                 <section aria-label="Lodge totals" className="fin-kpis">
-                  <FinKpi icon="receipt" label="Booking revenue" tone="blue" value={toCurrency(Number(selectedReport.summary.bookingRevenue))} />
-                  <FinKpi icon="percent" label="Commission earned" tone="green" value={toCurrency(Number(selectedReport.summary.commissionReceivable))} />
-                  <FinKpi icon="clock" label="Outstanding / payable" tone="orange" value={toCurrency(Number(selectedReport.summary.outstanding))} />
-                  <FinKpi icon="check" label="Settled" tone="purple" value={toCurrency(Number(selectedReport.summary.settled))} />
+                  <FinKpi
+                    icon="receipt"
+                    label="Booking revenue"
+                    tone="blue"
+                    value={toCurrency(Number(selectedReport.summary.bookingRevenue))}
+                  />
+                  <FinKpi
+                    icon="percent"
+                    label="Commission earned"
+                    tone="green"
+                    value={toCurrency(Number(selectedReport.summary.commissionReceivable))}
+                  />
+                  <FinKpi
+                    icon="clock"
+                    label="Outstanding / payable"
+                    tone="orange"
+                    value={toCurrency(Number(selectedReport.summary.outstanding))}
+                  />
+                  <FinKpi
+                    icon="check"
+                    label="Settled"
+                    tone="purple"
+                    value={toCurrency(Number(selectedReport.summary.settled))}
+                  />
                 </section>
 
                 <section className="fin-split">
                   <FinPanel sub="Active accounting rule" title="Commission rule">
                     <RuleSummary setting={selectedReport.setting} />
                   </FinPanel>
-                  <FinPanel sub="Allocated against the oldest outstanding commission first" title="Record settlement">
+                  <FinPanel
+                    sub="Allocated against the oldest outstanding commission first"
+                    title="Record settlement"
+                  >
                     <SettlementForm onSubmit={submitSettlement} />
                   </FinPanel>
                 </section>
 
                 <FinPanel title="Commission ledger">
-                  <LedgerTable onVoid={(id) => void voidTransaction(id)} transactions={selectedReport.transactions} />
+                  <LedgerTable
+                    onVoid={(id) => void voidTransaction(id)}
+                    transactions={selectedReport.transactions}
+                  />
                 </FinPanel>
 
                 <FinPanel title="Settlement history">
@@ -265,7 +340,9 @@ export default function AdminRevenuePage() {
                 <tbody>
                   {rankings.slice(0, 10).map((row) => (
                     <tr key={row.lodgeId}>
-                      <td><b>{lodgeLabel(row.lodgeId)}</b></td>
+                      <td>
+                        <b>{lodgeLabel(row.lodgeId)}</b>
+                      </td>
                       <td className="fin-num">{row.bookings}</td>
                       <td className="fin-num">{toCurrency(row.revenue)}</td>
                       <td className="fin-num">{toCurrency(row.commission)}</td>

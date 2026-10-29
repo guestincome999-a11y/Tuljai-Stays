@@ -35,7 +35,9 @@ export async function fetchPlatformStatus(
     return { maintenanceActive: false, maintenanceMessage: null };
   }
 
-  const perAppMessage = settings.find((setting) => setting.key === `${appKey}_app_maintenance_message`);
+  const perAppMessage = settings.find(
+    (setting) => setting.key === `${appKey}_app_maintenance_message`,
+  );
   const generalMessage = settings.find((setting) => setting.key === 'app_maintenance_message');
   const message = firstNonEmptyString(perAppMessage?.value, generalMessage?.value);
 

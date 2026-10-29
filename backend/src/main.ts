@@ -14,6 +14,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ bodyLimit }),
+    { rawBody: true },
   );
   const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('api.port');

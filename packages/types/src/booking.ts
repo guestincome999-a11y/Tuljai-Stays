@@ -140,6 +140,7 @@ export interface AvailabilityResponse {
   availableRoomCount: number;
   lodgeId: UUID;
   priceSummary: {
+    totalAmount?: string;
     basePrice: string;
     currency: 'INR';
     festivalPrice: string | null;
@@ -252,6 +253,7 @@ export interface CheckoutResponse {
 }
 
 export interface QrScanLogEntry {
+  lodgeName?: string | null;
   bookingCode: string | null;
   bookingId: UUID | null;
   createdAt: ISODateTime;

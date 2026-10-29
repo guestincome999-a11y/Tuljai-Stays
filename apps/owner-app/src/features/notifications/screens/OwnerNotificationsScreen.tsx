@@ -305,9 +305,7 @@ export function OwnerNotificationsScreen() {
             onViewReview={() => {
               void notifications.markRead(notification.id);
               const reviewId =
-                typeof notification.data?.reviewId === 'string'
-                  ? notification.data.reviewId
-                  : null;
+                typeof notification.data?.reviewId === 'string' ? notification.data.reviewId : null;
               router.push({
                 pathname: '/(app)/reviews',
                 params: reviewId ? { reviewId } : undefined,

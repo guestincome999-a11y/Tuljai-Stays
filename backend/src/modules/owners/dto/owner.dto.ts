@@ -50,8 +50,7 @@ export class CreateTeamMemberDto {
   name!: string;
 
   @Matches(passwordPattern, {
-    message:
-      'Password must be 8-72 characters and include at least one letter and one number.',
+    message: 'Password must be 8-72 characters and include at least one letter and one number.',
   })
   password!: string;
 

@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import type {
   CreatePaymentInput,
@@ -15,7 +20,11 @@ interface RazorpayOrderResponse {
   amount: number;
   currency: string;
   status: string;
+  receipt: string;
 }
+
+/** An explicit 4xx rejection, unlike an unknown network/5xx outcome. */
+export class RazorpayOrderRejectedException extends BadRequestException {}
 
 interface RazorpayPaymentResponse {
   id: string;
@@ -28,6 +37,7 @@ interface RazorpayPaymentResponse {
 
 @Injectable()
 export class RazorpayProvider implements PaymentProvider {
+  private readonly logger = new Logger(RazorpayProvider.name);
   public readonly name = 'RAZORPAY' as const;
 
   private get keyId(): string {
@@ -43,35 +53,50 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetch(`https://api.razorpay.com/v1${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64')}`,
-        'Content-Type': 'application/json',
-        ...(init.headers ?? {}),
-      },
-    });
-
-    const body = await response.text();
-    let parsed: unknown = null;
+    const started = performance.now();
     try {
-      parsed = body ? JSON.parse(body) : null;
-    } catch {
-      parsed = null;
-    }
+      const response = await fetch(`https://api.razorpay.com/v1${path}`, {
+        ...init,
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64')}`,
+          'Content-Type': 'application/json',
+          ...(init.headers ?? {}),
+        },
+      });
 
-    if (!response.ok) {
-      const message =
-        typeof parsed === 'object' && parsed && 'error' in parsed
-          ? String(
-              (parsed as { error?: { description?: string } }).error?.description ??
-                'Razorpay request failed',
-            )
-          : 'Razorpay request failed';
-      throw new BadRequestException(message);
-    }
+      const body = await response.text();
+      let parsed: unknown = null;
+      try {
+        parsed = body ? JSON.parse(body) : null;
+      } catch {
+        parsed = null;
+      }
 
-    return parsed as T;
+      if (!response.ok) {
+        const message =
+          typeof parsed === 'object' && parsed && 'error' in parsed
+            ? String(
+                (parsed as { error?: { description?: string } }).error?.description ??
+                  'Razorpay request failed',
+              )
+            : 'Razorpay request failed';
+        if ([400, 401, 403, 404, 422, 429].includes(response.status)) {
+          throw new RazorpayOrderRejectedException(message);
+        }
+        throw new ServiceUnavailableException(
+          'Razorpay request outcome is uncertain; check payment status',
+        );
+      }
+
+      return parsed as T;
+    } finally {
+      // Operation and elapsed time only; never log gateway bodies or credentials.
+      this.logger.log({
+        operation: init.method === 'POST' ? 'gateway_write' : 'gateway_read',
+        durationMs: Math.round(performance.now() - started),
+      });
+    }
   }
 
   public async createPayment(input: CreatePaymentInput): Promise<PaymentOrder> {
@@ -102,7 +127,7 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   public async verifyPayment(input: PaymentVerificationInput): Promise<PaymentVerificationResult> {
-    if (!input.signature) {
+    if (!input.signature || !/^[a-f0-9]{64}$/i.test(input.signature)) {
       throw new BadRequestException('Razorpay payment signature is required');
     }
 
@@ -127,6 +152,30 @@ export class RazorpayProvider implements PaymentProvider {
     return this.request<RazorpayPaymentResponse>(`/payments/${encodeURIComponent(paymentId)}`, {
       method: 'GET',
     });
+  }
+
+  public async getOrdersByReceipt(receipt: string): Promise<RazorpayOrderResponse[]> {
+    const result = await this.request<{ items: RazorpayOrderResponse[] }>(
+      `/orders?receipt=${encodeURIComponent(receipt)}&count=2`,
+      { method: 'GET' },
+    );
+    return result.items;
+  }
+
+  public async getOrderPayments(orderId: string): Promise<RazorpayPaymentResponse[]> {
+    const result = await this.request<{ items: RazorpayPaymentResponse[] }>(
+      `/orders/${encodeURIComponent(orderId)}/payments`,
+      { method: 'GET' },
+    );
+    return result.items;
+  }
+
+  public verifyWebhook(body: Buffer, signature: string | undefined): boolean {
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim();
+    if (!secret) throw new ServiceUnavailableException('Razorpay webhook secret is not configured');
+    if (!signature || !/^[a-f0-9]{64}$/i.test(signature)) return false;
+    const expected = createHmac('sha256', secret).update(body).digest();
+    return timingSafeEqual(expected, Buffer.from(signature, 'hex'));
   }
 
   public async refundPayment(paymentId: string, amount?: number): Promise<{ refundId: string }> {

@@ -13,10 +13,18 @@ import {
   getWaitingTime,
   maskPhone,
 } from '../../../src/bookings/booking-operations';
-import { bookingPriorityTone, bookingStatusTone } from '../../../src/components/bookings/booking-tone';
+import {
+  bookingPriorityTone,
+  bookingStatusTone,
+} from '../../../src/components/bookings/booking-tone';
 import { BookingViewsStyles } from '../../../src/components/bookings/BookingViewsStyles';
 import { FinanceStyles } from '../../../src/components/finance/FinanceStyles';
-import { FinBanners, FinHeader, FinPanel, FinPill } from '../../../src/components/finance/FinanceUi';
+import {
+  FinBanners,
+  FinHeader,
+  FinPanel,
+  FinPill,
+} from '../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import { useAdminBookings, type AdminBookingFilters } from '../../../src/hooks/useAdminBookings';
 import { hasPermission } from '../../../src/permissions/permissions';
@@ -43,7 +51,12 @@ export default function AdminBookingsPage() {
         <BookingViewsStyles />
         <FinHeader
           actions={
-            <button className="fin-btn" disabled={bookings.isRefreshing} onClick={() => void bookings.refresh()} type="button">
+            <button
+              className="fin-btn"
+              disabled={bookings.isRefreshing}
+              onClick={() => void bookings.refresh()}
+              type="button"
+            >
               {bookings.isRefreshing ? 'Refreshing…' : 'Refresh'}
             </button>
           }
@@ -57,7 +70,9 @@ export default function AdminBookingsPage() {
             <label className="fin-field">
               <span>Search</span>
               <input
-                onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, query: event.target.value }))
+                }
                 placeholder="Booking code, guest, phone, lodge, room"
                 value={filters.query}
               />
@@ -85,7 +100,9 @@ export default function AdminBookingsPage() {
             <label className="fin-field">
               <span>From</span>
               <input
-                onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value }))}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, fromDate: event.target.value }))
+                }
                 type="date"
                 value={filters.fromDate}
               />
@@ -93,7 +110,9 @@ export default function AdminBookingsPage() {
             <label className="fin-field">
               <span>To</span>
               <input
-                onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value }))}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, toDate: event.target.value }))
+                }
                 type="date"
                 value={filters.toDate}
               />
@@ -103,8 +122,13 @@ export default function AdminBookingsPage() {
 
         <FinBanners error={bookings.errorMessage} />
 
-        <FinPanel sub={`Page ${bookings.data?.page ?? page} of ${bookings.data?.totalPages ?? 1}`} title="Bookings">
-          {bookings.isLoading && !bookings.data ? <div aria-label="Loading" className="fin-skeleton" /> : null}
+        <FinPanel
+          sub={`Page ${bookings.data?.page ?? page} of ${bookings.data?.totalPages ?? 1}`}
+          title="Bookings"
+        >
+          {bookings.isLoading && !bookings.data ? (
+            <div aria-label="Loading" className="fin-skeleton" />
+          ) : null}
           {!bookings.isLoading && bookings.filteredItems.length === 0 ? (
             <p className="fin-empty">No bookings match these filters.</p>
           ) : null}
@@ -138,7 +162,9 @@ export default function AdminBookingsPage() {
           ) : null}
 
           <div className="fin-pager">
-            <span>Page {bookings.data?.page ?? page} of {bookings.data?.totalPages ?? 1}</span>
+            <span>
+              Page {bookings.data?.page ?? page} of {bookings.data?.totalPages ?? 1}
+            </span>
             <button
               className="fin-btn fin-btn-sm fin-btn-soft"
               disabled={page <= 1}
@@ -177,7 +203,9 @@ function BookingRow({
   return (
     <tr>
       <td>
-        <Link className="fin-link" href={`/admin/bookings/${booking.id}`}>{booking.bookingCode}</Link>
+        <Link className="fin-link" href={`/admin/bookings/${booking.id}`}>
+          {booking.bookingCode}
+        </Link>
         <span className="fin-cell-sub">{new Date(booking.createdAt).toLocaleString('en-IN')}</span>
       </td>
       <td>
@@ -227,10 +255,16 @@ function BookingRow({
               >
                 Call Pilgrim
               </a>
-              <Link className="fin-btn fin-btn-sm fin-btn-outline" href={`/admin/bookings/${booking.id}#notes`}>
+              <Link
+                className="fin-btn fin-btn-sm fin-btn-outline"
+                href={`/admin/bookings/${booking.id}#notes`}
+              >
                 Add Note
               </Link>
-              <Link className="fin-btn fin-btn-sm fin-btn-violet" href={`/admin/bookings/${booking.id}#escalation`}>
+              <Link
+                className="fin-btn fin-btn-sm fin-btn-violet"
+                href={`/admin/bookings/${booking.id}#escalation`}
+              >
                 Escalate
               </Link>
             </>

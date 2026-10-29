@@ -9,6 +9,7 @@ import { ActivityIndicator, Alert, Image, Pressable, Text, View } from 'react-na
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 
+import appIcon from '../../../assets/icon.png';
 import { useAuth } from '../../auth/auth-context';
 import { getBookingQrMetadata } from '../../features/bookings/api/booking-qr-api';
 import { isActionablePassBooking, selectCurrentPassBooking } from '../booking-selection';
@@ -209,11 +210,7 @@ export function PilgrimPassScreen() {
               <View className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-saffron-500/20" />
               <View className="absolute -bottom-16 -left-12 h-44 w-44 rounded-full bg-white/5" />
               <View className="mb-5 flex-row items-center gap-2.5">
-                <Image
-                  className="h-9 w-9 rounded-xl"
-                  resizeMode="cover"
-                  source={require('../../../assets/icon.png')}
-                />
+                <Image className="h-9 w-9 rounded-xl" resizeMode="cover" source={appIcon} />
                 <Text className="text-base font-extrabold tracking-tight text-white">
                   Tuljai Stays
                 </Text>

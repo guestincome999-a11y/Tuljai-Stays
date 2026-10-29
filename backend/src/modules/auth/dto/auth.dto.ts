@@ -207,8 +207,7 @@ export class OwnerForgotPasswordDto {
 
 export class OwnerResetPasswordDto {
   @Matches(passwordPattern, {
-    message:
-      'Password must be 8-72 characters and include at least one letter and one number.',
+    message: 'Password must be 8-72 characters and include at least one letter and one number.',
   })
   newPassword!: string;
 
@@ -220,8 +219,7 @@ export class OwnerResetPasswordDto {
 
 export class AdminSetPasswordDto {
   @Matches(passwordPattern, {
-    message:
-      'Password must be 8-72 characters and include at least one letter and one number.',
+    message: 'Password must be 8-72 characters and include at least one letter and one number.',
   })
   newPassword!: string;
 }

@@ -6,6 +6,8 @@ export type ReviewReportReason = 'FAKE' | 'ABUSIVE' | 'MISLEADING' | 'SPAM' | 'O
 export type ReviewReportStatus = 'PENDING' | 'REVIEWED' | 'DISMISSED' | 'ACTION_TAKEN';
 
 export interface Review {
+  lodgeName?: string;
+  guestDisplayName?: string;
   cleanlinessRating: number | null;
   comment: string | null;
   createdAt: ISODateTime;
@@ -221,6 +223,7 @@ export interface PilgrimProfileSummary {
 }
 
 export interface BookingReportRow {
+  lodgeName?: string;
   bookingCode: string;
   checkInDate: string;
   checkOutDate: string;
@@ -232,6 +235,7 @@ export interface BookingReportRow {
 }
 
 export interface CommissionSummary {
+  lodgeName?: string;
   bookingCount: number;
   commissionTotal: string;
   lodgeId: UUID | null;

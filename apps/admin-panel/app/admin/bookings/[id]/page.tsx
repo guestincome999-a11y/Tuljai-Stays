@@ -57,10 +57,26 @@ const statusChoices: Array<{ label: string; needsOverride: boolean; value: Booki
 ];
 
 const upcomingTools = [
-  { id: 'notes', text: 'Private admin-only notes and call outcomes for this booking.', title: 'Internal notes' },
-  { id: 'escalation', text: 'Assign this booking to operations and track its escalation level.', title: 'Escalation' },
-  { id: 'transfer', text: 'Move the guest to another lodge or room type with suggested alternatives.', title: 'Transfer booking' },
-  { id: 'override', text: 'Force accept or reject, reassign the lodge, change the room, regenerate the QR.', title: 'Admin overrides' },
+  {
+    id: 'notes',
+    text: 'Private admin-only notes and call outcomes for this booking.',
+    title: 'Internal notes',
+  },
+  {
+    id: 'escalation',
+    text: 'Assign this booking to operations and track its escalation level.',
+    title: 'Escalation',
+  },
+  {
+    id: 'transfer',
+    text: 'Move the guest to another lodge or room type with suggested alternatives.',
+    title: 'Transfer booking',
+  },
+  {
+    id: 'override',
+    text: 'Force accept or reject, reassign the lodge, change the room, regenerate the QR.',
+    title: 'Admin overrides',
+  },
 ];
 
 export default function AdminBookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -81,7 +97,11 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
       <PermissionGate permission="bookings.view">
         <div className="fin-stack">
           <FinanceStyles />
-          <FinHeader description="Fetching the latest booking record." eyebrow="Booking Detail" title="Loading booking" />
+          <FinHeader
+            description="Fetching the latest booking record."
+            eyebrow="Booking Detail"
+            title="Loading booking"
+          />
           <div aria-label="Loading" className="fin-skeleton" />
         </div>
       </PermissionGate>
@@ -129,10 +149,13 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
     proofWindow.document.title = 'Opening ID proof...';
     setIsOpeningProof(true);
     try {
-      const blob = await apiClient.request<Blob>(`/admin/bookings/${bookingIdForProof}/guest-id-proof`, {
-        method: 'GET',
-        responseType: 'blob',
-      });
+      const blob = await apiClient.request<Blob>(
+        `/admin/bookings/${bookingIdForProof}/guest-id-proof`,
+        {
+          method: 'GET',
+          responseType: 'blob',
+        },
+      );
       if (!(blob instanceof Blob) || blob.size === 0) {
         throw new Error('The ID proof is empty');
       }
@@ -157,8 +180,12 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
         <FinHeader
           actions={
             <>
-              <FinPill tone={bookingStatusTone(booking.status)}>{formatStatus(booking.status)}</FinPill>
-              <FinPill tone={bookingPriorityTone(priority)}>{formatStatus(priority)} priority</FinPill>
+              <FinPill tone={bookingStatusTone(booking.status)}>
+                {formatStatus(booking.status)}
+              </FinPill>
+              <FinPill tone={bookingPriorityTone(priority)}>
+                {formatStatus(priority)} priority
+              </FinPill>
               <Link className="fin-btn fin-btn-outline" href="/admin/bookings">
                 Back to bookings
               </Link>
@@ -244,7 +271,13 @@ function SummaryCards({ booking }: { booking: AdminBookingSummary }) {
       <FinKpi
         icon="receipt"
         label="Balance at lodge"
-        meta={booking.advanceAmount ? <>Advance {formatAmount(booking.advanceAmount)}</> : <>No advance recorded</>}
+        meta={
+          booking.advanceAmount ? (
+            <>Advance {formatAmount(booking.advanceAmount)}</>
+          ) : (
+            <>No advance recorded</>
+          )
+        }
         tone="orange"
         value={formatAmount(booking.balanceAmount)}
       />
@@ -252,9 +285,13 @@ function SummaryCards({ booking }: { booking: AdminBookingSummary }) {
         icon="calendar"
         label="Stay"
         meta={
-          booking.checkoutDateFlexible
-            ? <>{formatDate(booking.checkInDate)} · checkout not fixed</>
-            : <>{formatDate(booking.checkInDate)} to {formatDate(booking.checkOutDate)}</>
+          booking.checkoutDateFlexible ? (
+            <>{formatDate(booking.checkInDate)} · checkout not fixed</>
+          ) : (
+            <>
+              {formatDate(booking.checkInDate)} to {formatDate(booking.checkOutDate)}
+            </>
+          )
         }
         tone="purple"
         value={nights}
@@ -262,7 +299,11 @@ function SummaryCards({ booking }: { booking: AdminBookingSummary }) {
       <FinKpi
         icon="lodge"
         label="Guests"
-        meta={<>{booking.numberOfAdults} adults · {booking.numberOfChildren} children</>}
+        meta={
+          <>
+            {booking.numberOfAdults} adults · {booking.numberOfChildren} children
+          </>
+        }
         tone="green"
         value={booking.totalGuests}
       />
@@ -281,7 +322,10 @@ function StayPanel({ booking }: { booking: AdminBookingSummary }) {
           { label: 'City', value: booking.cityName },
           { label: 'Room type', value: booking.roomTypeName },
           { label: 'Room number', value: booking.roomNumber ?? 'Not assigned yet' },
-          { label: 'Check-in', value: withTime(formatDate(booking.checkInDate), booking.expectedCheckInTime) },
+          {
+            label: 'Check-in',
+            value: withTime(formatDate(booking.checkInDate), booking.expectedCheckInTime),
+          },
           {
             label: 'Check-out',
             value: booking.checkoutDateFlexible
@@ -290,7 +334,10 @@ function StayPanel({ booking }: { booking: AdminBookingSummary }) {
           },
           { label: 'Checked in at', value: formatDateTime(booking.checkedInAt) },
           { label: 'Checked out at', value: formatDateTime(booking.checkedOutAt) },
-          { label: 'QR code', value: booking.status === 'QR_GENERATED' ? 'Generated' : 'Not active' },
+          {
+            label: 'QR code',
+            value: booking.status === 'QR_GENERATED' ? 'Generated' : 'Not active',
+          },
           { label: 'Special request', value: booking.specialRequest ?? 'None' },
         ]}
         twoColumns
@@ -318,7 +365,12 @@ function GuestsPanel({
     <FinPanel
       action={
         canOpenProof ? (
-          <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={isOpeningProof} onClick={onOpenProof} type="button">
+          <button
+            className="fin-btn fin-btn-sm fin-btn-soft"
+            disabled={isOpeningProof}
+            onClick={onOpenProof}
+            type="button"
+          >
             {isOpeningProof ? 'Opening…' : 'View ID proof'}
           </button>
         ) : undefined
@@ -329,9 +381,20 @@ function GuestsPanel({
       <FinKv
         rows={[
           { label: 'Lead guest', value: booking.guestName },
-          { label: 'Email', value: canSeeContact ? (booking.guestEmail ?? 'Not provided') : 'Hidden for your role' },
-          { label: 'Address', value: canSeeContact ? (booking.guestAddress ?? 'Not provided') : 'Hidden for your role' },
-          { label: 'ID proof file', value: canSeeContact ? describeIdProof(primaryGuest) : 'Hidden for your role' },
+          {
+            label: 'Email',
+            value: canSeeContact ? (booking.guestEmail ?? 'Not provided') : 'Hidden for your role',
+          },
+          {
+            label: 'Address',
+            value: canSeeContact
+              ? (booking.guestAddress ?? 'Not provided')
+              : 'Hidden for your role',
+          },
+          {
+            label: 'ID proof file',
+            value: canSeeContact ? describeIdProof(primaryGuest) : 'Hidden for your role',
+          },
         ]}
       />
       {booking.guests.length > 0 ? (
@@ -350,14 +413,18 @@ function GuestsPanel({
                 <tr key={guest.id}>
                   <td>
                     {guest.fullName}
-                    {guest.isPrimaryGuest ? (
-                      <span className="fin-cell-sub">Lead guest</span>
-                    ) : null}
+                    {guest.isPrimaryGuest ? <span className="fin-cell-sub">Lead guest</span> : null}
                   </td>
-                  <td>{[guest.age, guest.gender ? formatStatus(guest.gender) : null].filter(Boolean).join(' · ') || '—'}</td>
+                  <td>
+                    {[guest.age, guest.gender ? formatStatus(guest.gender) : null]
+                      .filter(Boolean)
+                      .join(' · ') || '—'}
+                  </td>
                   <td>
                     {guest.idType ? formatStatus(guest.idType) : '—'}
-                    <span className="fin-cell-sub">{canSeeContact ? (guest.idNumber ?? '—') : 'Hidden'}</span>
+                    <span className="fin-cell-sub">
+                      {canSeeContact ? (guest.idNumber ?? '—') : 'Hidden'}
+                    </span>
                   </td>
                   <td>{canSeeContact ? (guest.phone ?? '—') : maskPhone(guest.phone)}</td>
                 </tr>
@@ -378,7 +445,9 @@ function PaymentPanel({ booking }: { booking: AdminBookingSummary }) {
           {
             label: 'Payment status',
             value: (
-              <FinPill tone={paymentStatusTone(booking.paymentStatus)}>{formatStatus(booking.paymentStatus)}</FinPill>
+              <FinPill tone={paymentStatusTone(booking.paymentStatus)}>
+                {formatStatus(booking.paymentStatus)}
+              </FinPill>
             ),
           },
           { label: 'Total amount', value: formatAmount(booking.totalAmount) },
@@ -417,7 +486,11 @@ function OwnerResponsePanel({ booking }: { booking: AdminBookingSummary }) {
   const pending = booking.status === 'PENDING_OWNER_APPROVAL';
   let stateValue: ReactNode = <FinPill tone="green">Responded</FinPill>;
   if (pending) {
-    stateValue = <FinPill tone={state.overdue ? 'red' : 'orange'}>{state.overdue ? 'Overdue' : 'Awaiting owner'}</FinPill>;
+    stateValue = (
+      <FinPill tone={state.overdue ? 'red' : 'orange'}>
+        {state.overdue ? 'Overdue' : 'Awaiting owner'}
+      </FinPill>
+    );
   } else if (booking.status === 'EXPIRED') {
     stateValue = <FinPill tone="red">No response</FinPill>;
   }
@@ -428,7 +501,10 @@ function OwnerResponsePanel({ booking }: { booking: AdminBookingSummary }) {
         rows={[
           { label: 'State', value: stateValue },
           ...(pending ? [{ label: 'Timer', value: state.message }] : []),
-          { label: 'Deadline', value: formatDateTime(booking.ownerResponseDeadline, 'No deadline recorded') },
+          {
+            label: 'Deadline',
+            value: formatDateTime(booking.ownerResponseDeadline, 'No deadline recorded'),
+          },
           { label: 'Booked on', value: formatDateTime(booking.createdAt) },
         ]}
       />
@@ -457,7 +533,11 @@ function StatusPanel({
 }) {
   const choice = statusChoices.find((item) => item.value === selectedStatus);
   const quickReasons =
-    selectedStatus === 'ACCEPTED' ? acceptReasons : selectedStatus === 'REJECTED' ? rejectReasons : [];
+    selectedStatus === 'ACCEPTED'
+      ? acceptReasons
+      : selectedStatus === 'REJECTED'
+        ? rejectReasons
+        : [];
   const allowed = canManage && (!choice?.needsOverride || canOverride);
   const destructive = selectedStatus !== 'ACCEPTED';
 
@@ -467,7 +547,9 @@ function StatusPanel({
         {statusChoices.map((item) => (
           <button
             aria-pressed={selectedStatus === item.value}
-            className={selectedStatus === item.value ? 'fin-filter fin-filter-active' : 'fin-filter'}
+            className={
+              selectedStatus === item.value ? 'fin-filter fin-filter-active' : 'fin-filter'
+            }
             disabled={!canManage || (item.needsOverride && !canOverride)}
             key={item.value}
             onClick={() => onStatusChange(item.value)}
@@ -532,7 +614,13 @@ function StatusPanel({
   );
 }
 
-function ContactPanel({ booking, canSeeContact }: { booking: AdminBookingSummary; canSeeContact: boolean }) {
+function ContactPanel({
+  booking,
+  canSeeContact,
+}: {
+  booking: AdminBookingSummary;
+  canSeeContact: boolean;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
 
   async function copy(label: string, value: string) {
@@ -566,7 +654,11 @@ function ContactPanel({ booking, canSeeContact }: { booking: AdminBookingSummary
                 <a className="fin-btn fin-btn-sm fin-btn-soft" href={`tel:${value}`}>
                   Call
                 </a>
-                <button className="fin-btn fin-btn-sm fin-btn-outline" onClick={() => void copy(item.label, value)} type="button">
+                <button
+                  className="fin-btn fin-btn-sm fin-btn-outline"
+                  onClick={() => void copy(item.label, value)}
+                  type="button"
+                >
                   {copied === item.label ? 'Copied' : 'Copy'}
                 </button>
               </div>
@@ -614,7 +706,8 @@ function countNights(booking: AdminBookingSummary): string {
   }
 
   const nights = Math.round(
-    (new Date(booking.checkOutDate).getTime() - new Date(booking.checkInDate).getTime()) / 86_400_000,
+    (new Date(booking.checkOutDate).getTime() - new Date(booking.checkInDate).getTime()) /
+      86_400_000,
   );
   if (!Number.isFinite(nights) || nights < 0) {
     return '—';

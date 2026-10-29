@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { getEventBookingId } from '../../../realtime/realtime-events';
 import { useRealtime } from '../../../realtime/realtime-provider';
-import { acceptOwnerBooking, listOwnerBookings, rejectOwnerBooking } from '../api/owner-bookings-api';
+import {
+  acceptOwnerBooking,
+  listOwnerBookings,
+  rejectOwnerBooking,
+} from '../api/owner-bookings-api';
 import type { OwnerBookingsQuery } from '../api/owner-bookings-api';
 
 const PAGE_SIZE = 30;

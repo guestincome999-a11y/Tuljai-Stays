@@ -655,8 +655,7 @@ export class LodgesService {
       rows.map((row) => [
         row.lodgeId,
         {
-          averageRating:
-            row._avg.rating !== null ? Math.round(row._avg.rating * 10) / 10 : null,
+          averageRating: row._avg.rating !== null ? Math.round(row._avg.rating * 10) / 10 : null,
           reviewCount: row._count.rating,
         },
       ]),
@@ -764,7 +763,13 @@ export class LodgesService {
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): PublicLodgeDetails {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripping direct-contact fields from the public shape, see method doc above
-    const { primaryPhone: _primaryPhone, email: _email, secondaryPhone: _secondaryPhone, whatsappNumber: _whatsappNumber, ...publicLodgeDetails } = this.toLodgeDetails(lodge, reviewAggregate);
+    const {
+      primaryPhone: _primaryPhone,
+      email: _email,
+      secondaryPhone: _secondaryPhone,
+      whatsappNumber: _whatsappNumber,
+      ...publicLodgeDetails
+    } = this.toLodgeDetails(lodge, reviewAggregate);
     return publicLodgeDetails;
   }
 }

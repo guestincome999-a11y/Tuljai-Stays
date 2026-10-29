@@ -293,7 +293,10 @@ export class AuthService {
    * two-factor enabled, a valid authenticator code is also required. Repeated
    * failures for the same email or IP are throttled.
    */
-  public async adminLogin(dto: AdminLoginDto, context: RequestContext): Promise<OwnerLoginResponse> {
+  public async adminLogin(
+    dto: AdminLoginDto,
+    context: RequestContext,
+  ): Promise<OwnerLoginResponse> {
     const email = this.normalizeEmail(dto.email);
     const throttleKeys = [`email:${email}`, `ip:${context.ipAddress ?? 'unknown'}`];
     this.assertAdminLoginNotThrottled(throttleKeys);
@@ -592,7 +595,13 @@ export class AuthService {
     const passwordHash = this.hashSecret(newPassword);
     await this.prisma.$transaction([
       this.prisma.authIdentity.upsert({
-        create: { email, passwordHash, provider: AuthProvider.PASSWORD, providerSubject: email, userId },
+        create: {
+          email,
+          passwordHash,
+          provider: AuthProvider.PASSWORD,
+          providerSubject: email,
+          userId,
+        },
         update: { passwordHash },
         where: {
           provider_providerSubject: { provider: AuthProvider.PASSWORD, providerSubject: email },

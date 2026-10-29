@@ -16,8 +16,8 @@ export function LegalDocument({ kind }: { kind: LegalDocumentKind }) {
             {isPrivacy ? 'Privacy Policy' : 'Terms & Conditions'}
           </Text>
           <Text className="mt-1 text-xs font-semibold text-warm-500">
-            Tuljai Stays is operated by Shri Tuljabhavani Technologies, Tuljapur, Maharashtra,
-            India · Effective date: 29 August 2026
+            Tuljai Stays is operated by Shri Tuljabhavani Technologies, Tuljapur, Maharashtra, India
+            · Effective date: 29 August 2026
           </Text>
         </View>
 
@@ -225,10 +225,10 @@ function PrivacyContent() {
 
       <Heading>14. Grievance and contact</Heading>
       <Para>
-        Privacy or data-related concerns can be raised at tuljaistays@gmail.com. We typically
-        reply within 4 to 24 hours. If a matter remains unresolved, you retain any rights and
-        remedies available under applicable Indian law, including applicable consumer or
-        data-protection mechanisms.
+        Privacy or data-related concerns can be raised at tuljaistays@gmail.com. We typically reply
+        within 4 to 24 hours. If a matter remains unresolved, you retain any rights and remedies
+        available under applicable Indian law, including applicable consumer or data-protection
+        mechanisms.
       </Para>
 
       <Para>

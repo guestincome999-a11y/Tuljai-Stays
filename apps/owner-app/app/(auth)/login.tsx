@@ -1,7 +1,15 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../src/auth/auth-context';
@@ -103,9 +111,7 @@ export default function LoginScreen() {
           </View>
 
           <View className="gap-2">
-            <Text className="font-body text-sm font-bold text-warm-700">
-              {t('Email', 'ईमेल')}
-            </Text>
+            <Text className="font-body text-sm font-bold text-warm-700">{t('Email', 'ईमेल')}</Text>
             <View className="min-h-14 flex-row items-center rounded-xl border border-warm-300 bg-warm-50 px-4">
               <TextInput
                 accessibilityLabel="Email"

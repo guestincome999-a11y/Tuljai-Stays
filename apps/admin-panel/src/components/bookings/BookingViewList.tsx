@@ -64,7 +64,14 @@ export function BookingViewList({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    listBookingView({ from, page, range: view === 'upcoming' ? range : undefined, search, to, view })
+    listBookingView({
+      from,
+      page,
+      range: view === 'upcoming' ? range : undefined,
+      search,
+      to,
+      view,
+    })
       .then((result) => {
         if (!active) return;
         setData(result);
@@ -88,7 +95,9 @@ export function BookingViewList({
       <FinHeader description={note} eyebrow="Bookings" title={VIEW_TITLES[view] ?? 'Bookings'} />
 
       <FinPanel
-        sub={data ? `${data.totalItems} ${data.totalItems === 1 ? 'booking' : 'bookings'}` : undefined}
+        sub={
+          data ? `${data.totalItems} ${data.totalItems === 1 ? 'booking' : 'bookings'}` : undefined
+        }
         title="Booking list"
       >
         <div className="fin-toolbar">
@@ -113,10 +122,28 @@ export function BookingViewList({
           {view === 'upcoming' && range === 'custom' ? (
             <>
               <label className="bk-date-label">
-                From <input className="bk-date" onChange={(event) => { setFrom(event.target.value); setPage(1); }} type="date" value={from} />
+                From{' '}
+                <input
+                  className="bk-date"
+                  onChange={(event) => {
+                    setFrom(event.target.value);
+                    setPage(1);
+                  }}
+                  type="date"
+                  value={from}
+                />
               </label>
               <label className="bk-date-label">
-                To <input className="bk-date" onChange={(event) => { setTo(event.target.value); setPage(1); }} type="date" value={to} />
+                To{' '}
+                <input
+                  className="bk-date"
+                  onChange={(event) => {
+                    setTo(event.target.value);
+                    setPage(1);
+                  }}
+                  type="date"
+                  value={to}
+                />
               </label>
             </>
           ) : null}
@@ -151,14 +178,41 @@ export function BookingViewList({
               <tbody>
                 {data.items.map((row: AdminBookingViewRow) => (
                   <tr key={row.id}>
-                    <td><Link className="fin-link" href={`/admin/bookings/${row.id}`}>{row.bookingCode}</Link></td>
+                    <td>
+                      <Link className="fin-link" href={`/admin/bookings/${row.id}`}>
+                        {row.bookingCode}
+                      </Link>
+                    </td>
                     <td>{row.guestName}</td>
-                    <td>{row.lodgeName}<span className="fin-cell-sub">{row.roomTypeName}</span></td>
-                    <td>{formatDate(row.checkInDate)}<span className="fin-cell-sub">to {formatDate(row.checkOutDate)}</span></td>
-                    <td><FinPill tone={bookingStatusTone(row.status)}>{statusLabel(row.status)}</FinPill></td>
-                    <td><FinPill tone={paymentStatusTone(row.paymentStatus)}>{statusLabel(row.paymentStatus)}</FinPill></td>
-                    <td className="fin-num">{row.totalAmount ? formatInr(Number(row.totalAmount)) : '—'}</td>
-                    <td className="fin-num"><Link className="fin-btn fin-btn-sm fin-btn-soft" href={`/admin/bookings/${row.id}`}>View</Link></td>
+                    <td>
+                      {row.lodgeName}
+                      <span className="fin-cell-sub">{row.roomTypeName}</span>
+                    </td>
+                    <td>
+                      {formatDate(row.checkInDate)}
+                      <span className="fin-cell-sub">to {formatDate(row.checkOutDate)}</span>
+                    </td>
+                    <td>
+                      <FinPill tone={bookingStatusTone(row.status)}>
+                        {statusLabel(row.status)}
+                      </FinPill>
+                    </td>
+                    <td>
+                      <FinPill tone={paymentStatusTone(row.paymentStatus)}>
+                        {statusLabel(row.paymentStatus)}
+                      </FinPill>
+                    </td>
+                    <td className="fin-num">
+                      {row.totalAmount ? formatInr(Number(row.totalAmount)) : '—'}
+                    </td>
+                    <td className="fin-num">
+                      <Link
+                        className="fin-btn fin-btn-sm fin-btn-soft"
+                        href={`/admin/bookings/${row.id}`}
+                      >
+                        View
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -168,9 +222,26 @@ export function BookingViewList({
 
         {data ? (
           <div className="fin-pager">
-            <span>Page {data.page} of {data.totalPages} · {data.totalItems} {data.totalItems === 1 ? 'booking' : 'bookings'}</span>
-            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
-            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page >= data.totalPages || loading} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+            <span>
+              Page {data.page} of {data.totalPages} · {data.totalItems}{' '}
+              {data.totalItems === 1 ? 'booking' : 'bookings'}
+            </span>
+            <button
+              className="fin-btn fin-btn-sm fin-btn-soft"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((current) => current - 1)}
+              type="button"
+            >
+              Previous
+            </button>
+            <button
+              className="fin-btn fin-btn-sm fin-btn-soft"
+              disabled={page >= data.totalPages || loading}
+              onClick={() => setPage((current) => current + 1)}
+              type="button"
+            >
+              Next
+            </button>
           </div>
         ) : null}
       </FinPanel>

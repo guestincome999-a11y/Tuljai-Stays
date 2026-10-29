@@ -44,7 +44,14 @@ function plural(count: number): string {
   return `${count} ${count === 1 ? 'payment' : 'payments'}`;
 }
 
-const FILTERS: Array<PaymentCollectionStatus | 'ALL'> = ['ALL', 'PAID', 'PENDING', 'FAILED', 'CANCELLED', 'REFUNDED'];
+const FILTERS: Array<PaymentCollectionStatus | 'ALL'> = [
+  'ALL',
+  'PAID',
+  'PENDING',
+  'FAILED',
+  'CANCELLED',
+  'REFUNDED',
+];
 
 export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
   const [filter, setFilter] = useState<PaymentCollectionStatus | 'ALL'>('ALL');
@@ -87,7 +94,8 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
 
   const counts = new Map((data?.statusCounts ?? []).map((item) => [item.status, item]));
   const total = (data?.statusCounts ?? []).reduce((sum, item) => sum + item.count, 0);
-  const notCollected = Number(counts.get('FAILED')?.amount ?? 0) + Number(counts.get('CANCELLED')?.amount ?? 0);
+  const notCollected =
+    Number(counts.get('FAILED')?.amount ?? 0) + Number(counts.get('CANCELLED')?.amount ?? 0);
 
   return (
     <div className="fin-stack">
@@ -95,10 +103,34 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
       <p className="fin-note">{preset.note}</p>
 
       <section aria-label="Payment totals" className="fin-kpis">
-        <FinKpi icon="check" label="Successful" meta={plural(counts.get('PAID')?.count ?? 0)} tone="green" value={formatInr(Number(counts.get('PAID')?.amount ?? 0))} />
-        <FinKpi icon="clock" label="Pending" meta={plural(counts.get('PENDING')?.count ?? 0)} tone="orange" value={formatInr(Number(counts.get('PENDING')?.amount ?? 0))} />
-        <FinKpi icon="card" label="Failed or cancelled" meta={`${formatInr(notCollected)} not collected`} tone="red" value={(counts.get('FAILED')?.count ?? 0) + (counts.get('CANCELLED')?.count ?? 0)} />
-        <FinKpi icon="receipt" label="Refunded" meta={plural(counts.get('REFUNDED')?.count ?? 0)} tone="purple" value={formatInr(Number(counts.get('REFUNDED')?.amount ?? 0))} />
+        <FinKpi
+          icon="check"
+          label="Successful"
+          meta={plural(counts.get('PAID')?.count ?? 0)}
+          tone="green"
+          value={formatInr(Number(counts.get('PAID')?.amount ?? 0))}
+        />
+        <FinKpi
+          icon="clock"
+          label="Pending"
+          meta={plural(counts.get('PENDING')?.count ?? 0)}
+          tone="orange"
+          value={formatInr(Number(counts.get('PENDING')?.amount ?? 0))}
+        />
+        <FinKpi
+          icon="card"
+          label="Failed or cancelled"
+          meta={`${formatInr(notCollected)} not collected`}
+          tone="red"
+          value={(counts.get('FAILED')?.count ?? 0) + (counts.get('CANCELLED')?.count ?? 0)}
+        />
+        <FinKpi
+          icon="receipt"
+          label="Refunded"
+          meta={plural(counts.get('REFUNDED')?.count ?? 0)}
+          tone="purple"
+          value={formatInr(Number(counts.get('REFUNDED')?.amount ?? 0))}
+        />
       </section>
 
       <FinPanel sub={data ? plural(data.totalItems) : undefined} title="Payment records">
@@ -132,9 +164,15 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
           />
         </div>
 
-        {error ? <p className="error-banner" role="alert">{error}</p> : null}
+        {error ? (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        ) : null}
         {loading && !data ? <div aria-label="Loading" className="fin-skeleton" /> : null}
-        {data && data.items.length === 0 ? <p className="fin-empty">No payments match these filters.</p> : null}
+        {data && data.items.length === 0 ? (
+          <p className="fin-empty">No payments match these filters.</p>
+        ) : null}
         {data && data.items.length > 0 ? (
           <div className="fin-scroll">
             <table className="fin-table">
@@ -153,12 +191,26 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
               <tbody>
                 {data.items.map((row: AdminPaymentRow) => (
                   <tr key={row.id}>
-                    <td><Link className="fin-link" href={`/admin/bookings/${row.bookingId}`}>{row.bookingCode}</Link></td>
+                    <td>
+                      <Link className="fin-link" href={`/admin/bookings/${row.bookingId}`}>
+                        {row.bookingCode}
+                      </Link>
+                    </td>
                     <td>{row.guestName}</td>
                     <td>{row.lodgeName}</td>
-                    <td>{row.method === 'ONLINE' ? (row.provider ? `Online · ${row.provider}` : 'Online') : 'Pay at lodge'}</td>
-                    <td><FinPill tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</FinPill></td>
-                    <td className="fin-mono">{row.providerPaymentId ?? row.providerOrderId ?? '—'}</td>
+                    <td>
+                      {row.method === 'ONLINE'
+                        ? row.provider
+                          ? `Online · ${row.provider}`
+                          : 'Online'
+                        : 'Pay at lodge'}
+                    </td>
+                    <td>
+                      <FinPill tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</FinPill>
+                    </td>
+                    <td className="fin-mono">
+                      {row.providerPaymentId ?? row.providerOrderId ?? '—'}
+                    </td>
                     <td>{formatDate(row.paidAt ?? row.createdAt)}</td>
                     <td className="fin-num">{formatInr(Number(row.amount))}</td>
                   </tr>
@@ -170,9 +222,25 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
 
         {data ? (
           <div className="fin-pager">
-            <span>Page {data.page} of {data.totalPages} · {plural(data.totalItems)}</span>
-            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
-            <button className="fin-btn fin-btn-sm fin-btn-soft" disabled={page >= data.totalPages || loading} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+            <span>
+              Page {data.page} of {data.totalPages} · {plural(data.totalItems)}
+            </span>
+            <button
+              className="fin-btn fin-btn-sm fin-btn-soft"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((current) => current - 1)}
+              type="button"
+            >
+              Previous
+            </button>
+            <button
+              className="fin-btn fin-btn-sm fin-btn-soft"
+              disabled={page >= data.totalPages || loading}
+              onClick={() => setPage((current) => current + 1)}
+              type="button"
+            >
+              Next
+            </button>
           </div>
         ) : null}
       </FinPanel>

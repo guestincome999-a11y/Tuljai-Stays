@@ -4,10 +4,7 @@ import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 
 import type { AdminUserBooking, AdminUserDetail } from '../../../../src/api/admin-support-api';
-import {
-  getAdminUser,
-  updateAdminUserBooking,
-} from '../../../../src/api/admin-support-api';
+import { getAdminUser, updateAdminUserBooking } from '../../../../src/api/admin-support-api';
 import { PermissionGate } from '../../../../src/components/PermissionGate';
 
 const TERMINAL_STATUSES = new Set([
@@ -24,11 +21,7 @@ function money(value: string | number | null) {
   return `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
-export default function AdminSupportUserPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function AdminSupportUserPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [editing, setEditing] = useState<AdminUserBooking | null>(null);
@@ -92,8 +85,8 @@ export default function AdminSupportUserPage({
             <p className="eyebrow">Operations · Pilgrim Profile</p>
             <h2>{loading ? 'Loading…' : user?.displayName || 'Pilgrim'}</h2>
             <p className="muted-copy">
-              Complete support profile, booking history, payment status, stay details, and controlled
-              booking-resolution actions.
+              Complete support profile, booking history, payment status, stay details, and
+              controlled booking-resolution actions.
             </p>
           </div>
           <div className="row-actions">
@@ -126,10 +119,17 @@ export default function AdminSupportUserPage({
                   <Insight label="Name" value={user.displayName || 'Not provided'} />
                   <Insight label="Mobile" value={user.phoneNumber || 'Not provided'} />
                   <Insight label="Email" value={user.email || 'Not provided'} />
-                  <Insight label="Account created" value={new Date(user.createdAt).toLocaleString('en-IN')} />
+                  <Insight
+                    label="Account created"
+                    value={new Date(user.createdAt).toLocaleString('en-IN')}
+                  />
                   <Insight
                     label="Last login"
-                    value={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-IN') : 'Not available'}
+                    value={
+                      user.lastLoginAt
+                        ? new Date(user.lastLoginAt).toLocaleString('en-IN')
+                        : 'Not available'
+                    }
                   />
                 </div>
               </section>
@@ -168,7 +168,10 @@ export default function AdminSupportUserPage({
                     </span>
                     <span>
                       {booking.lodge.name}
-                      <small>{booking.roomType.name}{booking.roomNumber ? ` · Room ${booking.roomNumber}` : ''}</small>
+                      <small>
+                        {booking.roomType.name}
+                        {booking.roomNumber ? ` · Room ${booking.roomNumber}` : ''}
+                      </small>
                     </span>
                     <span>
                       {booking.guestName}
@@ -214,38 +217,82 @@ export default function AdminSupportUserPage({
                 <div className="form-grid">
                   <label className="form-field">
                     <span>Check-in</span>
-                    <input type="date" value={editing.checkInDate} onChange={(e) => setEditing({ ...editing, checkInDate: e.target.value })} />
+                    <input
+                      type="date"
+                      value={editing.checkInDate}
+                      onChange={(e) => setEditing({ ...editing, checkInDate: e.target.value })}
+                    />
                   </label>
                   <label className="form-field">
                     <span>Check-out</span>
-                    <input type="date" value={editing.checkOutDate} onChange={(e) => setEditing({ ...editing, checkOutDate: e.target.value })} />
+                    <input
+                      type="date"
+                      value={editing.checkOutDate}
+                      onChange={(e) => setEditing({ ...editing, checkOutDate: e.target.value })}
+                    />
                   </label>
                   <label className="form-field">
                     <span>Guest name</span>
-                    <input value={editing.guestName} onChange={(e) => setEditing({ ...editing, guestName: e.target.value })} />
+                    <input
+                      value={editing.guestName}
+                      onChange={(e) => setEditing({ ...editing, guestName: e.target.value })}
+                    />
                   </label>
                   <label className="form-field">
                     <span>Guest mobile</span>
-                    <input value={editing.guestPhone} onChange={(e) => setEditing({ ...editing, guestPhone: e.target.value })} />
+                    <input
+                      value={editing.guestPhone}
+                      onChange={(e) => setEditing({ ...editing, guestPhone: e.target.value })}
+                    />
                   </label>
                   <label className="form-field">
                     <span>Adults</span>
-                    <input type="number" min={1} max={50} value={editing.numberOfAdults} onChange={(e) => setEditing({ ...editing, numberOfAdults: Number(e.target.value) })} />
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={editing.numberOfAdults}
+                      onChange={(e) =>
+                        setEditing({ ...editing, numberOfAdults: Number(e.target.value) })
+                      }
+                    />
                   </label>
                   <label className="form-field">
                     <span>Children</span>
-                    <input type="number" min={0} max={50} value={editing.numberOfChildren} onChange={(e) => setEditing({ ...editing, numberOfChildren: Number(e.target.value) })} />
+                    <input
+                      type="number"
+                      min={0}
+                      max={50}
+                      value={editing.numberOfChildren}
+                      onChange={(e) =>
+                        setEditing({ ...editing, numberOfChildren: Number(e.target.value) })
+                      }
+                    />
                   </label>
                 </div>
                 <label className="form-field">
                   <span>Mandatory support notes</span>
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Record why the customer requested the change and what was verified." />
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={4}
+                    placeholder="Record why the customer requested the change and what was verified."
+                  />
                 </label>
                 <div className="row-actions">
-                  <button className="button button-secondary" type="button" onClick={() => setEditing(null)}>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() => setEditing(null)}
+                  >
                     Cancel
                   </button>
-                  <button className="button button-primary" type="button" disabled={saving || !notes.trim()} onClick={() => void saveBooking()}>
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={saving || !notes.trim()}
+                    onClick={() => void saveBooking()}
+                  >
                     {saving ? 'Saving…' : 'Save & notify'}
                   </button>
                 </div>
