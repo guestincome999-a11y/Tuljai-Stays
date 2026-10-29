@@ -95,6 +95,12 @@ export interface Booking {
   guests: BookingGuest[];
   id: UUID;
   lodgeId: UUID;
+  /** Joined display details, available even when the public lodge is no longer listed. */
+  lodgeName?: string;
+  lodgeGoogleMapsLink?: string | null;
+  lodgeCheckInTime?: string | null;
+  lodgeCheckOutTime?: string | null;
+  roomTypeName?: string;
   numberOfAdults: number;
   numberOfChildren: number;
   ownerResponseDeadline: ISODateTime | null;

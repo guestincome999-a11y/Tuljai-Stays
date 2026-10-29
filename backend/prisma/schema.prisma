@@ -551,7 +551,7 @@ model LodgeAmenity {
   id        String   @id @default(uuid()) @db.Uuid
   lodgeId   String   @map("lodge_id") @db.Uuid
   amenityId String   @map("amenity_id") @db.Uuid
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
   lodge     Lodge    @relation(fields: [lodgeId], references: [id], onDelete: Cascade)
   amenity   Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
 
