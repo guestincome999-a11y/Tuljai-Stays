@@ -33,7 +33,7 @@ export async function loadLodgeSummaries(): Promise<PilgrimLodge[]> {
     pageSize: 100,
   });
   const summaries = response.items.map(toSummaryLodge);
-  return summaries.length > 0 ? summaries : pilgrimLodges.map((lodge) => ({ ...lodge, hydrated: true }));
+  return summaries;
 }
 
 /**
@@ -175,7 +175,10 @@ export function mapBooking(enriched: EnrichedBooking, lodges: PilgrimLodge[]): P
  * id. loadPrivateData() still runs afterwards in the background to reconcile
  * the authoritative list.
  */
-export function synthesizeEnrichedBooking(booking: Booking, lodges: PilgrimLodge[]): EnrichedBooking {
+export function synthesizeEnrichedBooking(
+  booking: Booking,
+  lodges: PilgrimLodge[],
+): EnrichedBooking {
   const lodge = lodges.find((item) => item.id === booking.lodgeId);
   const room = lodge?.rooms.find((item) => item.id === booking.roomTypeId);
   return {

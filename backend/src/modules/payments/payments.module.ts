@@ -6,6 +6,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { FinanceAdminController } from './finance-admin.controller';
 import { FinanceAdminService } from './finance-admin.service';
 import { PaymentNotificationsService } from './payment-notifications.service';
+import { PaymentRecoverySchedulerService } from './payment-recovery-scheduler.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { PaymentProvidersModule } from './providers/providers.module';
@@ -13,7 +14,12 @@ import { PaymentProvidersModule } from './providers/providers.module';
 @Module({
   imports: [BookingsModule, NotificationsModule, PaymentProvidersModule],
   controllers: [FinanceAdminController, PaymentsController],
-  providers: [FinanceAdminService, PaymentsService, PaymentNotificationsService],
+  providers: [
+    FinanceAdminService,
+    PaymentsService,
+    PaymentNotificationsService,
+    PaymentRecoverySchedulerService,
+  ],
   exports: [PaymentsService, PaymentNotificationsService, PaymentProvidersModule],
 })
 export class PaymentsModule {}

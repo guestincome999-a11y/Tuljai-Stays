@@ -684,6 +684,7 @@ model LodgePhoto {
 model Booking {
   id                    String              @id @default(uuid()) @db.Uuid
   bookingCode           String              @unique @map("booking_code")
+  sourceLockId          String?             @unique @map("source_lock_id") @db.Uuid
   pilgrimUserId         String              @map("pilgrim_user_id") @db.Uuid
   lodgeId               String              @map("lodge_id") @db.Uuid
   roomTypeId            String              @map("room_type_id") @db.Uuid
@@ -791,6 +792,7 @@ model GuestIdProofUpload {
 model BookingLock {
   id            String            @id @default(uuid()) @db.Uuid
   lockCode      String            @unique @map("lock_code")
+  checkoutAttemptKey String?      @map("checkout_attempt_key")
   pilgrimUserId String?           @map("pilgrim_user_id") @db.Uuid
   lodgeId       String            @map("lodge_id") @db.Uuid
   roomTypeId    String            @map("room_type_id") @db.Uuid
@@ -816,6 +818,7 @@ model BookingLock {
   room          Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
 
   @@index([pilgrimUserId])
+  @@unique([pilgrimUserId, checkoutAttemptKey])
   @@index([lodgeId, roomTypeId])
   @@index([roomId])
   @@index([checkInDate, checkOutDate])
@@ -1341,4 +1344,50 @@ model AuditLog {
   @@index([createdAt])
   @@index([action])
   @@map("audit_logs")
+}
+
+// No client/owner access: guestDetails has the same privacy requirements as booking_guests.
+model PaymentIntent {
+  id                String   @id @default(uuid()) @db.Uuid
+  lockCode          String   @unique @map("lock_code")
+  pilgrimUserId     String   @map("pilgrim_user_id") @db.Uuid
+  providerOrderId   String   @unique @map("provider_order_id")
+  providerPaymentId String?  @unique @map("provider_payment_id")
+  amount            Decimal  @db.Decimal(10, 2)
+  currency          String   @default("INR")
+  guestDetails      Json?    @map("guest_details")
+  bookingId         String?  @unique @map("booking_id") @db.Uuid
+  status            String   @default("PENDING")
+  lastError         String?  @map("last_error")
+  attempts          Int      @default(0)
+  nextCheckAt       DateTime @default(now()) @map("next_check_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([status, nextCheckAt])
+  @@map("payment_intents")
+}
+
+model PaymentWebhookEvent {
+  id                String   @id
+  eventType         String   @map("event_type")
+  providerOrderId   String   @map("provider_order_id")
+  providerPaymentId String   @map("provider_payment_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@map("payment_webhook_events")
+}
+
+// Written before the external order POST, independently of the booking transaction.
+model PaymentOrderRequest {
+  reference       String   @id
+  receipt         String   @unique
+  amount          Int
+  currency        String
+  status          String   @default("NEW")
+  providerOrderId String?  @unique @map("provider_order_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_order_requests")
 }

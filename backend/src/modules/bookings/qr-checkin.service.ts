@@ -435,7 +435,7 @@ export class QrCheckinService {
     };
     const [items, totalItems] = await this.prisma.$transaction([
       this.prisma.qrScanLog.findMany({
-        include: { booking: true },
+        include: { booking: true, lodge: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         skip: pagination.skip,
         take: pagination.take,
@@ -453,6 +453,7 @@ export class QrCheckinService {
         guestName: item.booking?.guestName ?? null,
         id: item.id,
         lodgeId: item.lodgeId,
+        lodgeName: item.lodge?.name ?? null,
         result: item.result,
       })),
       page: pagination.page,

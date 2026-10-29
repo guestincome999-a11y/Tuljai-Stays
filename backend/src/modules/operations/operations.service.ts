@@ -166,8 +166,12 @@ export class OperationsService {
         take: 5,
         where: { ...alive, approvalStatus: 'PENDING' },
       }),
-      this.prisma.booking.count({ where: { ...alive, paymentStatus: 'FAILED', updatedAt: { gte: dayAgo } } }),
-      this.prisma.notificationDeliveryLog.count({ where: { createdAt: { gte: dayAgo }, status: 'FAILED' } }),
+      this.prisma.booking.count({
+        where: { ...alive, paymentStatus: 'FAILED', updatedAt: { gte: dayAgo } },
+      }),
+      this.prisma.notificationDeliveryLog.count({
+        where: { createdAt: { gte: dayAgo }, status: 'FAILED' },
+      }),
       this.prisma.booking.count({
         where: { ...alive, createdAt: { lt: staleBefore }, status: 'PENDING_OWNER_APPROVAL' },
       }),
@@ -300,7 +304,11 @@ export class OperationsService {
         new Date(Date.now() - offsetDays * 24 * 60 * 60 * 1000),
       );
     const key =
-      period === 'today' ? istDay(0) : period === 'week' ? istDay(6) : `${istDay(0).slice(0, 7)}-01`;
+      period === 'today'
+        ? istDay(0)
+        : period === 'week'
+          ? istDay(6)
+          : `${istDay(0).slice(0, 7)}-01`;
     return new Date(`${key}T00:00:00+05:30`);
   }
 
@@ -543,10 +551,16 @@ export class OperationsService {
       where: { AND: [where, this.commissionEligibleWhere] },
     });
 
+    const lodges = await this.prisma.lodge.findMany({
+      where: { id: { in: bookings.map((item) => item.lodgeId) } },
+      select: { id: true, name: true },
+    });
+    const names = new Map(lodges.map((lodge) => [lodge.id, lodge.name]));
     return bookings.map((item) => ({
       bookingCount: item._count.id,
       commissionTotal: item._sum.commissionAmount?.toString() ?? '0',
       lodgeId: item.lodgeId,
+      lodgeName: names.get(item.lodgeId) ?? 'Lodge unavailable',
     }));
   }
 
@@ -597,7 +611,11 @@ export class OperationsService {
       deletedAt: null,
       ...(query.cityId ? { cityId: query.cityId } : {}),
       ...(query.lodgeId
-        ? { lodgeId: query.lodgeId }
+        ? {
+            lodgeId: lodgeIds
+              ? { in: lodgeIds.filter((id) => id === query.lodgeId) }
+              : query.lodgeId,
+          }
         : lodgeIds
           ? { lodgeId: { in: lodgeIds } }
           : {}),
@@ -636,6 +654,7 @@ export class OperationsService {
     const where = this.buildBookingWhere(query, lodgeIds);
     const [items, totalItems] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
+        include: { lodge: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         skip: pagination.skip,
         take: pagination.take,
@@ -652,6 +671,7 @@ export class OperationsService {
         commissionAmount: booking.commissionAmount?.toString() ?? null,
         guestName: booking.guestName,
         lodgeId: booking.lodgeId,
+        lodgeName: booking.lodge.name,
         status: booking.status,
         totalAmount: booking.totalAmount?.toString() ?? null,
       })),

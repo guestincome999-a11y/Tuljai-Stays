@@ -12,6 +12,7 @@ import {
   listLodgePhotos,
   listLodgeRoomTypes,
 } from '../../lodges/api/lodge-discovery-api';
+import { newCheckoutAttemptKey } from '../checkout-attempt';
 
 export interface BookingLockRequest {
   checkInDate: string;
@@ -126,8 +127,15 @@ export async function createPrepaidOrder(lockCode: string): Promise<PrepaidOrder
  * Used in the background as soon as the guest picks dates so the checkout
  * sheet can open instantly when they tap Pay.
  */
-export async function holdPrepaidRoom(input: BookingLockRequest): Promise<PrepaidOrder> {
-  return apiClient.post<PrepaidOrder>('/payments/prepaid/hold', input);
+export async function holdPrepaidRoom(
+  input: BookingLockRequest,
+  idempotencyKey = newCheckoutAttemptKey(),
+): Promise<PrepaidOrder> {
+  return apiClient.request<PrepaidOrder>('/payments/prepaid/hold', {
+    method: 'POST',
+    body: input,
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
 }
 
 /** Frees a hold the guest no longer needs. Best-effort; failures are ignorable. */
@@ -218,4 +226,24 @@ async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {
     lodgeName: lodge?.name ?? 'Tuljai Stays lodge',
     roomTypeName: roomType?.name ?? 'Selected room',
   };
+}
+
+/** Must succeed before checkout opens; required for server-only recovery. */
+export async function preparePrepaidIntent(input: CreateBookingRequest): Promise<void> {
+  await apiClient.post('/payments/prepaid/prepare', { ...input, paymentMethod: 'ONLINE' });
+}
+export interface PaymentRecoveryStatus {
+  status: string;
+  bookingId: string | null;
+  recoveryRequired: boolean;
+  retryCheckout: {
+    lodgeName: string;
+    checkInDate: string;
+    checkOutDate: string;
+    guestDetails: CreateBookingRequest;
+    order: PrepaidOrder;
+  } | null;
+}
+export async function getPaymentStatus(orderId: string): Promise<PaymentRecoveryStatus> {
+  return apiClient.get(`/payments/orders/${encodeURIComponent(orderId)}/status`);
 }

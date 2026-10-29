@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -26,6 +27,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingHistoryService } from './booking-history.service';
+import { calculateStayPrice } from './booking-pricing';
 import type {
   AdminBookingsQueryDto,
   CancelBookingDto,
@@ -35,6 +37,7 @@ import type {
   UpdateBookingStatusDto,
 } from './dto/booking.dto';
 import { GuestIdProofService } from './guest-id-proof.service';
+import { lockInventory } from './inventory-lock';
 
 const OWNER_VISIBLE_CONTACT_STATUSES: BookingStatus[] = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'];
 
@@ -70,6 +73,7 @@ type BookingWithRelations = Prisma.BookingGetPayload<{
 
 @Injectable()
 export class BookingsService {
+  private readonly logger = new Logger(BookingsService.name);
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly availabilityService: BookingAvailabilityService,
@@ -81,6 +85,26 @@ export class BookingsService {
     private readonly prisma: PrismaService,
   ) {}
 
+  public async validatePrepaidGuest(
+    dto: CreateBookingDto,
+    user: AuthenticatedUser,
+    roomTypeId: string,
+  ): Promise<void> {
+    if (dto.paymentMethod !== 'ONLINE') throw new BadRequestException('Online payment is required');
+    const roomType = await this.prisma.roomType.findUniqueOrThrow({ where: { id: roomTypeId } });
+    if (
+      dto.numberOfAdults > roomType.capacityAdults ||
+      dto.numberOfChildren > roomType.capacityChildren
+    ) {
+      throw new BadRequestException('Guest count exceeds room capacity');
+    }
+    await this.guestIdProofService.assertOwnedUpload(
+      user.id,
+      dto.guestIdProofStoragePath,
+      dto.guestIdProofMimeType,
+    );
+  }
+
   public async createBooking(dto: CreateBookingDto, user: AuthenticatedUser): Promise<Booking> {
     const lock = await this.prisma.bookingLock.findFirst({
       include: {
@@ -88,14 +112,23 @@ export class BookingsService {
         roomType: true,
       },
       where: {
-        expiresAt: { gt: new Date() },
         lockCode: dto.lockCode,
         pilgrimUserId: user.id,
-        status: 'ACTIVE',
       },
     });
 
     if (!lock) {
+      throw new BadRequestException('Booking lock is invalid or expired');
+    }
+
+    if (lock.providerOrderId)
+      throw new BadRequestException('This hold requires prepaid payment confirmation');
+    const prior = await this.prisma.booking.findUnique({
+      where: { sourceLockId: lock.id },
+      include: this.bookingInclude,
+    });
+    if (prior) return this.toBooking(prior);
+    if (lock.status !== 'ACTIVE' || lock.expiresAt <= new Date()) {
       throw new BadRequestException('Booking lock is invalid or expired');
     }
 
@@ -115,28 +148,42 @@ export class BookingsService {
       throw new BadRequestException('Child guest count exceeds room capacity');
     }
 
-    const availability = await this.availabilityService.getAvailability(
-      lock.lodgeId,
-      lock.roomTypeId,
-      lock.checkInDate.toISOString().slice(0, 10),
-      lock.checkOutDate.toISOString().slice(0, 10),
-      { excludeLockId: lock.id },
-    );
-
-    if (!availability.available) {
-      throw new ConflictException('Room type is no longer available');
-    }
-
     await this.guestIdProofService.assertOwnedUpload(
       user.id,
       dto.guestIdProofStoragePath,
       dto.guestIdProofMimeType,
     );
 
+    let createdNow = false;
     const booking = await this.prisma.$transaction(async (tx) => {
+      await lockInventory(tx, lock.roomTypeId);
+      const prior = await tx.booking.findUnique({
+        where: { sourceLockId: lock.id },
+        include: this.bookingInclude,
+      });
+      if (prior) return prior;
+      const claimed = await tx.bookingLock.updateMany({
+        where: { id: lock.id, status: 'ACTIVE', expiresAt: { gt: new Date() } },
+        data: { status: 'CONSUMED' },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Booking hold is no longer active');
+
+      const pricedRoomType = await tx.roomType.findUniqueOrThrow({
+        where: { id: lock.roomTypeId },
+      });
+      const freshAvailability = await this.availabilityService.getAvailability(
+        lock.lodgeId,
+        lock.roomTypeId,
+        lock.checkInDate.toISOString().slice(0, 10),
+        lock.checkOutDate.toISOString().slice(0, 10),
+        { db: tx, excludeLockId: lock.id },
+      );
+      if (!freshAvailability.available)
+        throw new ConflictException('Room type is no longer available');
       const created = await tx.booking.create({
         data: {
-          bookingCode: await this.generateBookingCode(),
+          sourceLockId: lock.id,
+          bookingCode: await this.generateBookingCode(tx),
           checkInDate: lock.checkInDate,
           checkOutDate: lock.checkOutDate,
           checkoutDateFlexible: dto.checkoutDateFlexible,
@@ -155,10 +202,13 @@ export class BookingsService {
           pilgrimUserId: user.id,
           roomTypeId: lock.roomTypeId,
           specialRequest: dto.specialRequest,
-          totalAmount: this.calculateBaseTotalAmount(
-            lock.roomType.basePrice,
+          totalAmount: await calculateStayPrice(
+            tx,
+            lock.roomTypeId,
+            pricedRoomType.basePrice,
             lock.checkInDate,
             lock.checkOutDate,
+            pricedRoomType.festivalPrice,
           ),
           totalGuests: dto.numberOfAdults + dto.numberOfChildren,
           guests: {
@@ -188,16 +238,28 @@ export class BookingsService {
         },
       });
 
+      if (dto.paymentMethod === 'ONLINE') {
+        await tx.$executeRaw`INSERT INTO payment_collections (booking_id, method, provider, amount, status)
+          VALUES (${created.id}::uuid, 'ONLINE', 'RAZORPAY', ${Number(created.totalAmount)}, 'PENDING')`;
+      }
+      await tx.auditLog.create({
+        data: {
+          action: 'BOOKING_CREATED',
+          actorUserId: user.id,
+          entityId: created.id,
+          entityType: 'booking',
+        },
+      });
+      createdNow = true;
       return created;
     });
 
-    await this.auditLogService.create({
-      action: 'BOOKING_CREATED',
-      actorUserId: user.id,
-      entityId: booking.id,
-      entityType: 'booking',
-    });
-    await this.notificationEventsService.bookingCreated(booking.id);
+    if (!createdNow) return this.toBooking(booking);
+    await this.notificationEventsService
+      .bookingCreated(booking.id)
+      .catch(() =>
+        this.logger.warn('Booking notification failed; committed state remains available'),
+      );
 
     return this.toBooking(booking);
   }
@@ -212,19 +274,20 @@ export class BookingsService {
   public async resolveLockForPrepay(
     lockCode: string,
     user: AuthenticatedUser,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<{
     amount: number;
     lockId: string;
     orderAmount: number | null;
     providerOrderId: string | null;
   }> {
-    const lock = await this.prisma.bookingLock.findFirst({
+    const lock = await db.bookingLock.findFirst({
       include: { lodge: true, roomType: true },
       where: {
-        expiresAt: { gt: new Date() },
         lockCode,
-        pilgrimUserId: user.id,
         status: 'ACTIVE',
+        expiresAt: { gt: new Date() },
+        pilgrimUserId: user.id,
       },
     });
 
@@ -241,16 +304,21 @@ export class BookingsService {
       lock.roomTypeId,
       lock.checkInDate.toISOString().slice(0, 10),
       lock.checkOutDate.toISOString().slice(0, 10),
-      { excludeLockId: lock.id },
+      { excludeLockId: lock.id, db },
     );
     if (!availability.available) throw new ConflictException('Room type is no longer available');
 
     return {
-      amount: this.calculateBaseTotalAmount(
-        lock.roomType.basePrice,
-        lock.checkInDate,
-        lock.checkOutDate,
-      ),
+      amount: (
+        await calculateStayPrice(
+          db,
+          lock.roomTypeId,
+          lock.roomType.basePrice,
+          lock.checkInDate,
+          lock.checkOutDate,
+          lock.roomType.festivalPrice,
+        )
+      ).toNumber(),
       lockId: lock.id,
       orderAmount: lock.orderAmount?.toNumber() ?? null,
       providerOrderId: lock.providerOrderId,
@@ -267,22 +335,40 @@ export class BookingsService {
   public async createPrepaidBooking(
     dto: CreateBookingDto,
     user: AuthenticatedUser,
-    payment: { providerOrderId: string },
+    payment: {
+      providerOrderId: string;
+      providerPaymentId: string;
+      amount: number;
+      currency: string;
+    },
   ): Promise<Booking> {
     const lock = await this.prisma.bookingLock.findFirst({
       include: { lodge: true, roomType: true },
       where: {
-        expiresAt: { gt: new Date() },
         lockCode: dto.lockCode,
         pilgrimUserId: user.id,
         providerOrderId: payment.providerOrderId,
-        status: 'ACTIVE',
       },
     });
     if (!lock || lock.orderAmount === null) {
       throw new BadRequestException(
         'Booking lock is invalid, expired, or does not match this payment',
       );
+    }
+    const prior = await this.prisma.booking.findUnique({
+      where: { sourceLockId: lock.id },
+      include: this.bookingInclude,
+    });
+    if (prior) return this.toBooking(prior);
+    if (lock.status !== 'ACTIVE' || lock.expiresAt <= new Date()) {
+      throw new BadRequestException('Booking lock is invalid or expired');
+    }
+
+    if (
+      payment.currency !== 'INR' ||
+      payment.amount !== Math.round(lock.orderAmount.toNumber() * 100)
+    ) {
+      throw new BadRequestException('Payment amount or currency does not match the stored order');
     }
     if (lock.lodge.status !== 'VERIFIED' || lock.lodge.verificationStatus !== 'VERIFIED') {
       throw new BadRequestException('Lodge is not available for booking');
@@ -305,7 +391,36 @@ export class BookingsService {
 
     const totalAmount = lock.orderAmount.toNumber();
 
+    let createdNow = false;
     const booking = await this.prisma.$transaction(async (tx) => {
+      await lockInventory(tx, lock.roomTypeId);
+      const prior = await tx.booking.findUnique({
+        where: { sourceLockId: lock.id },
+        include: this.bookingInclude,
+      });
+      if (prior) return prior;
+      const currentType = await tx.roomType.findUniqueOrThrow({
+        where: { id: lock.roomTypeId },
+        include: { lodge: true },
+      });
+      if (
+        !currentType.isActive ||
+        currentType.deletedAt ||
+        !currentType.lodge.isActive ||
+        currentType.lodge.deletedAt ||
+        currentType.lodge.status !== 'VERIFIED' ||
+        currentType.lodge.verificationStatus !== 'VERIFIED' ||
+        dto.numberOfAdults > currentType.capacityAdults ||
+        dto.numberOfChildren > currentType.capacityChildren
+      ) {
+        throw new ConflictException('ROOM_UNAVAILABLE_AFTER_PAYMENT');
+      }
+      const claimed = await tx.bookingLock.updateMany({
+        where: { id: lock.id, status: 'ACTIVE', expiresAt: { gt: new Date() } },
+        data: { status: 'CONSUMED' },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Booking hold is no longer active');
+
       // Same FOR UPDATE SKIP LOCKED room selection used when confirming a
       // legacy (booking-first) prepaid payment: money has already changed
       // hands at this point, so this needs the stronger guarantee than the
@@ -314,11 +429,17 @@ export class BookingsService {
         SELECT r.id FROM rooms r
         WHERE r.lodge_id = ${lock.lodgeId}::uuid
           AND r.room_type_id = ${lock.roomTypeId}::uuid
-          AND r.deleted_at IS NULL AND r.status = 'AVAILABLE'
+          AND r.deleted_at IS NULL AND r.is_active = true
+          AND r.status NOT IN ('OCCUPIED', 'MAINTENANCE', 'BLOCKED')
+          AND NOT EXISTS (SELECT 1 FROM room_availability a WHERE a.room_id = r.id
+            AND a.date >= ${lock.checkInDate} AND a.date < ${lock.checkOutDate} AND a.status <> 'AVAILABLE')
+          AND NOT EXISTS (SELECT 1 FROM booking_locks h WHERE h.room_id = r.id
+            AND h.id <> ${lock.id}::uuid AND h.status = 'ACTIVE' AND h.expires_at > CURRENT_TIMESTAMP
+            AND h.check_in_date < ${lock.checkOutDate} AND h.check_out_date > ${lock.checkInDate})
           AND NOT EXISTS (
             SELECT 1 FROM bookings b
             WHERE b.room_id = r.id AND b.deleted_at IS NULL
-              AND b.status IN ('ACCEPTED', 'QR_GENERATED', 'CHECKED_IN')
+              AND b.status IN ('PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED', 'CHECKED_IN')
               AND b.check_in_date < ${lock.checkOutDate}
               AND b.check_out_date > ${lock.checkInDate}
           )
@@ -330,7 +451,8 @@ export class BookingsService {
       const created = await tx.booking.create({
         data: {
           acceptedByUserId: user.id,
-          bookingCode: await this.generateBookingCode(),
+          sourceLockId: lock.id,
+          bookingCode: await this.generateBookingCode(tx),
           checkInDate: lock.checkInDate,
           checkOutDate: lock.checkOutDate,
           checkoutDateFlexible: dto.checkoutDateFlexible,
@@ -388,17 +510,43 @@ export class BookingsService {
         },
       });
 
+      await tx.$executeRaw`INSERT INTO payment_collections
+        (booking_id, method, provider, amount, status, provider_order_id, provider_payment_id, provider_reference, paid_at)
+        VALUES (${created.id}::uuid, 'ONLINE', 'RAZORPAY', ${totalAmount}, 'PAID',
+          ${payment.providerOrderId}, ${payment.providerPaymentId}, ${payment.providerOrderId}, CURRENT_TIMESTAMP)`;
+      await tx.paymentIntent.updateMany({
+        where: { providerOrderId: payment.providerOrderId },
+        data: {
+          bookingId: created.id,
+          providerPaymentId: payment.providerPaymentId,
+          status: 'CONFIRMED',
+          guestDetails: Prisma.DbNull,
+          lastError: null,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: 'BOOKING_CREATED',
+          actorUserId: user.id,
+          entityId: created.id,
+          entityType: 'booking',
+        },
+      });
+      createdNow = true;
       return created;
     });
 
-    await this.auditLogService.create({
-      action: 'BOOKING_CREATED',
-      actorUserId: user.id,
-      entityId: booking.id,
-      entityType: 'booking',
-    });
-    await this.notificationEventsService.bookingAccepted(booking.id);
-    await this.notificationEventsService.prepaidBookingConfirmed(booking.id);
+    if (!createdNow) return this.toBooking(booking);
+    await this.notificationEventsService
+      .bookingAccepted(booking.id)
+      .catch(() =>
+        this.logger.warn('Booking notification failed; committed state remains available'),
+      );
+    await this.notificationEventsService
+      .prepaidBookingConfirmed(booking.id)
+      .catch(() =>
+        this.logger.warn('Booking notification failed; committed state remains available'),
+      );
 
     return this.toBooking(booking);
   }
@@ -469,18 +617,31 @@ export class BookingsService {
     if (existing.pilgrimUserId !== user.id && !this.lodgeAccessService.isAdmin(user)) {
       throw new ForbiddenException('You cannot cancel this booking');
     }
+    if (existing.status === 'CANCELLED') return this.toBooking(existing);
     if (!['PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED'].includes(existing.status)) {
       throw new BadRequestException('This booking can no longer be cancelled');
     }
 
     const booking = await this.prisma.$transaction(async (tx) => {
+      await lockInventory(tx, existing.roomTypeId);
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${id}::uuid FOR UPDATE`;
+      const fresh = await tx.booking.findUniqueOrThrow({
+        where: { id },
+        include: this.bookingInclude,
+      });
+      if (fresh.status === 'CANCELLED') return fresh;
+      if (!['PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED'].includes(fresh.status))
+        throw new ConflictException('This booking can no longer be cancelled');
       const updated = await tx.booking.update({
         data: { cancellationReason: dto.reason ?? 'Cancelled by pilgrim', status: 'CANCELLED' },
         include: this.bookingInclude,
         where: { id },
       });
-      if (existing.roomId) {
-        await tx.room.update({ data: { status: 'AVAILABLE' }, where: { id: existing.roomId } });
+      if (fresh.roomId) {
+        await tx.room.updateMany({
+          data: { status: 'AVAILABLE' },
+          where: { id: fresh.roomId, status: { in: ['CONFIRMED', 'RESERVED'] } },
+        });
       }
       await tx.bookingHistory.create({
         data: {
@@ -646,20 +807,21 @@ export class BookingsService {
       throw new BadRequestException('Only pay-at-lodge bookings can be accepted by the owner');
     }
 
-    const selectedRoom = existing.room
-      ? { id: existing.room.id, status: existing.room.status }
-      : await this.availabilityService.findAvailableRoom({
-          checkInDate: existing.checkInDate,
-          checkOutDate: existing.checkOutDate,
-          lodgeId: existing.lodgeId,
-          roomTypeId: existing.roomTypeId,
-        });
-
-    if (!selectedRoom) {
-      throw new ConflictException('No physical room is available for this booking');
-    }
-
     const booking = await this.prisma.$transaction(async (tx) => {
+      await lockInventory(tx, existing.roomTypeId);
+      const current = await tx.booking.findUniqueOrThrow({ where: { id } });
+      if (current.status !== 'PENDING_OWNER_APPROVAL')
+        throw new ConflictException('Booking has already changed');
+      const selectedRoom = await this.availabilityService.findAvailableRoom({
+        db: tx,
+        excludeBookingId: id,
+        checkInDate: existing.checkInDate,
+        checkOutDate: existing.checkOutDate,
+        lodgeId: existing.lodgeId,
+        roomTypeId: existing.roomTypeId,
+      });
+      if (!selectedRoom)
+        throw new ConflictException('No physical room is available for this booking');
       const updated = await tx.booking.update({
         data: {
           acceptedByUserId: user.id,
@@ -892,19 +1054,6 @@ export class BookingsService {
     }
   }
 
-  private calculateBaseTotalAmount(
-    basePrice: { toNumber(): number },
-    checkInDate: Date,
-    checkOutDate: Date,
-  ): number {
-    const nights = Math.max(
-      Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / 86_400_000),
-      1,
-    );
-
-    return basePrice.toNumber() * nights;
-  }
-
   private async findBookingOrThrow(id: string): Promise<BookingWithRelations> {
     const booking = await this.prisma.booking.findFirst({
       include: this.bookingInclude,
@@ -921,12 +1070,14 @@ export class BookingsService {
     return booking;
   }
 
-  private async generateBookingCode(): Promise<string> {
+  private async generateBookingCode(
+    db: Pick<Prisma.TransactionClient, 'booking'> = this.prisma,
+  ): Promise<string> {
     const year = new Date().getUTCFullYear();
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const bookingCode = `TJS-${year}-${randomBytes(3).toString('hex').toUpperCase()}`;
-      const existing = await this.prisma.booking.findUnique({ where: { bookingCode } });
+      const existing = await db.booking.findUnique({ where: { bookingCode } });
 
       if (!existing) {
         return bookingCode;

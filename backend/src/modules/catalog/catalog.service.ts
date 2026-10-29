@@ -36,6 +36,7 @@ function toNumber(value: string | null): number | null {
 
 @Injectable()
 export class CatalogService {
+  private cacheGeneration = 0;
   private cache: CatalogCacheEntry | null = null;
 
   public constructor(
@@ -180,6 +181,7 @@ export class CatalogService {
 
   /** Drops the cached catalogue so the next read rebuilds it from the database. */
   public invalidate(): void {
+    this.cacheGeneration += 1;
     this.cache = null;
   }
 
@@ -188,6 +190,7 @@ export class CatalogService {
       return this.cache.cards;
     }
 
+    const generation = this.cacheGeneration;
     const lodges = await this.prisma.lodge.findMany({
       include: {
         amenities: { include: { amenity: true } },
@@ -274,7 +277,8 @@ export class CatalogService {
       };
     });
 
-    this.cache = { cards, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS };
+    if (generation === this.cacheGeneration)
+      this.cache = { cards, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS };
     return cards;
   }
 
