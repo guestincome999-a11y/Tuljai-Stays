@@ -10,11 +10,15 @@ The existing `ON_LOAD` update check downloads compatible releases on launch. The
 
 The EAS workflow at `apps/pilgrim-app/.eas/workflows/preview-update.yml` publishes Android updates to the existing `preview` channel after relevant pushes to `fix/price-availability-sync` or `main`. It typechecks and runs update lifecycle tests before publishing. EAS must have the GitHub repository linked and GitHub workflow triggers enabled for this project. No GitHub `EXPO_TOKEN` secret is needed by the EAS-hosted workflow.
 
+The connected EAS project's GitHub base directory is `/apps/pilgrim-app`, matching the workflow and `eas.json`. Its preview environment has the API URL and mocks flag configured along with its existing Supabase variables.
+
 To publish manually, from `apps/pilgrim-app`:
 
 ```powershell
 eas update --channel preview --environment preview --platform android --message "Describe the UI change" --clear-cache --non-interactive
 ```
+
+Or run `npm run update:preview -- --message "Describe the UI change"`. Run the lifecycle tests with `npm run test:updates`.
 
 Always publish from a tested, committed checkout. EAS Update does not inherit `build.preview.env`; the preview EAS environment must contain the same public API URL, mocks flag, Supabase configuration and payment key as the preview build. The workflow explicitly sets the API URL and mocks flag and loads the remaining values from the `preview` EAS environment.
 

@@ -10,7 +10,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:updates": "node --test scripts/app-updates.test.mjs",
+    "update:preview": "eas update --channel preview --environment preview --platform android --clear-cache --non-interactive"
   },
   "dependencies": {
     "@expo-google-fonts/fraunces": "0.4.1",
