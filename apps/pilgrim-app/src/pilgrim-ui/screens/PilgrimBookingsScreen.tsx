@@ -1,155 +1,188 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
-import { AppScreen, EmptyState, LoadingList, PrimaryButton, StatusBadge, ui } from '../components';
-import { formatRupees, type PilgrimBooking } from '../mock-data';
+import { canViewBookingQr } from '../booking-pass-policy';
+import {
+  AppScreen,
+  EmptyState,
+  LoadingList,
+  PrimaryButton,
+  PaymentStatusBadge,
+  SecondaryButton,
+  StatusBadge,
+  StayImage,
+  ui,
+} from '../components';
+import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
 export function PilgrimBookingsScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { bookings, isSyncing, refresh, syncError, t } = usePilgrimApp();
-  const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [tab, setTab] = useState<'upcoming' | 'completed' | 'cancelled'>('upcoming');
+  const tabs = [
+    { id: 'upcoming' as const, label: t('Upcoming', 'आगामी') },
+    { id: 'completed' as const, label: t('Completed', 'पूर्ण') },
+    { id: 'cancelled' as const, label: t('Cancelled', 'रद्द') },
+  ];
   const visible = bookings
     .filter((booking) =>
       tab === 'upcoming'
         ? ['confirmed', 'checked-in', 'pending'].includes(booking.status)
-        : booking.status === 'completed' || booking.status === 'cancelled',
+        : booking.status === tab,
     )
-    .sort((left, right) => {
-      const difference = left.checkInDate.localeCompare(right.checkInDate);
-      return tab === 'upcoming' ? difference : -difference;
-    });
-
+    .sort((left, right) =>
+      tab === 'upcoming'
+        ? left.checkInDate.localeCompare(right.checkInDate)
+        : right.checkInDate.localeCompare(left.checkInDate),
+    );
   return (
-    <AppScreen className="gap-5 pt-2">
-      <View>
-        <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
-          {t('My bookings', 'माझी बुकिंग')}
+    <AppScreen className="gap-5 pt-3" refreshing={isSyncing} onRefresh={() => void refresh()}>
+      <View className="gap-2">
+        <Text className="text-xs font-bold uppercase tracking-widest text-maroon-700">
+          {t('Your yatra, organised', 'तुमच्या यात्रेचे नियोजन')}
         </Text>
-        <Text className="mt-1 text-sm text-warm-500">
-          {t('Everything for your Tuljapur yatra', 'तुमच्या तुळजापूर यात्रेची सर्व माहिती')}
+        <Text className="text-3xl font-bold tracking-tight text-warm-900">
+          {t('My Bookings', 'माझी बुकिंग')}
+        </Text>
+        <Text className="text-sm text-warm-600">
+          {t(
+            'Your stays, confirmations and check-in QR, together.',
+            'निवास, पुष्टीकरण आणि चेक-इन QR एकाच ठिकाणी.',
+          )}
         </Text>
       </View>
-
-      <View className="flex-row rounded-2xl bg-warm-100 p-1">
-        {(['upcoming', 'past'] as const).map((item) => (
+      <View accessibilityRole="tablist" className="flex-row rounded-2xl bg-warm-100 p-1">
+        {tabs.map((item) => (
           <Pressable
-            className={`min-h-12 flex-1 items-center justify-center rounded-xl ${tab === item ? 'bg-white shadow-sm shadow-warm-900/10' : ''}`}
-            key={item}
-            onPress={() => setTab(item)}
+            key={item.id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === item.id }}
+            className={`min-h-12 flex-1 items-center justify-center rounded-xl px-1 ${tab === item.id ? 'bg-maroon-700' : ''}`}
+            onPress={() => setTab(item.id)}
           >
             <Text
-              className={`text-sm font-extrabold ${tab === item ? 'text-maroon-700' : 'text-warm-500'}`}
+              className={`text-sm font-bold ${tab === item.id ? 'text-white' : 'text-warm-600'}`}
             >
-              {item === 'upcoming' ? t('Upcoming', 'आगामी') : t('Past stays', 'मागील निवास')}
+              {item.label}
             </Text>
           </Pressable>
         ))}
       </View>
-
       {syncError ? (
-        <View className="flex-row items-center gap-3 rounded-2xl bg-danger-50 p-4">
-          <MaterialCommunityIcons color={ui.danger} name="cloud-alert-outline" size={22} />
-          <Text className="flex-1 text-sm font-semibold text-danger-700">
-            {t('Bookings could not be refreshed.', 'बुकिंग अपडेट करता आली नाहीत.')}
+        <View className="gap-3 rounded-2xl bg-danger-50 p-4">
+          <Text accessibilityRole="alert" className="text-sm text-danger-700">
+            {t(
+              'Bookings could not be refreshed. Saved records may have changed.',
+              'बुकिंग अपडेट करता आली नाहीत. जतन केलेली स्थिती बदललेली असू शकते.',
+            )}
           </Text>
-          <Pressable className="min-h-11 justify-center" onPress={() => void refresh()}>
-            <Text className="text-sm font-extrabold text-danger-700">{t('Retry', 'पुन्हा')}</Text>
-          </Pressable>
+          <SecondaryButton icon="refresh" onPress={() => void refresh()}>
+            {t('Retry', 'पुन्हा प्रयत्न करा')}
+          </SecondaryButton>
         </View>
       ) : null}
-
-      <View className="gap-3">
-        {visible.map((booking) => (
-          <BookingCard
-            booking={booking}
-            checkoutFlexibleLabel={t('Checkout not fixed', 'चेक-आउट निश्चित नाही')}
-            key={booking.id}
-            onPress={() =>
-              router.push({ pathname: '/(app)/bookings/[id]', params: { id: booking.id } })
-            }
+      {visible.map((booking) => (
+        <View
+          key={booking.id}
+          className="overflow-hidden rounded-3xl border border-warm-200 bg-white shadow-sm shadow-warm-900/5"
+        >
+          <View className="flex-row gap-3 p-4">
+            <StayImage
+              className="h-24 w-24 rounded-2xl"
+              uri={booking.image}
+              label={booking.lodgeName}
+            />
+            <View className="min-w-0 flex-1 gap-1.5">
+              <Text className="text-lg font-bold text-warm-900" numberOfLines={2}>
+                {booking.lodgeName}
+              </Text>
+              <Text className="text-sm text-warm-600" numberOfLines={2}>
+                {booking.roomName}
+              </Text>
+              <StatusBadge status={booking.status} />
+            </View>
+          </View>
+          <View className="gap-3 px-4 pb-4">
+            <View className="flex-row rounded-2xl bg-warm-50 p-3">
+              <View className="min-w-0 flex-1 gap-1">
+                <Text className="text-xs text-warm-600">{t('CHECK-IN', 'चेक-इन')}</Text>
+                <Text className="text-sm font-bold text-warm-900">{booking.checkIn}</Text>
+              </View>
+              <MaterialCommunityIcons color={ui.bell} name="arrow-right" size={20} />
+              <View className="min-w-0 flex-1 gap-1 pl-3">
+                <Text className="text-xs text-warm-600">{t('CHECK-OUT', 'चेक-आउट')}</Text>
+                <Text className="text-sm font-bold text-warm-900">
+                  {booking.checkoutDateFlexible ? t('Not fixed', 'निश्चित नाही') : booking.checkOut}
+                </Text>
+              </View>
+            </View>
+            <View className="flex-row flex-wrap justify-between gap-2">
+              <Text selectable className="text-xs font-bold text-warm-600">
+                {booking.bookingCode}
+              </Text>
+              <PaymentStatusBadge status={booking.paymentStatus} />
+            </View>
+            <View className="flex-row flex-wrap items-center justify-between gap-2 border-t border-warm-100 pt-3">
+              <Text className="text-xs text-warm-600">{t('Booking total', 'बुकिंग एकूण')}</Text>
+              <Text className="text-xl font-bold text-maroon-700">
+                {formatRupees(booking.amount)}
+              </Text>
+            </View>
+            {booking.paidAmount !== undefined ? (
+              <Text className="text-sm text-templeGreen-700">
+                {t('Amount paid', 'भरलेली रक्कम')}: {formatRupees(booking.paidAmount)}
+              </Text>
+            ) : null}
+            <View className={`${width < 380 ? 'flex-col' : 'flex-row'} gap-2`}>
+              <SecondaryButton
+                className={width < 380 ? '' : 'flex-1'}
+                icon="book-open-outline"
+                onPress={() =>
+                  router.push({ pathname: '/(app)/bookings/[id]', params: { id: booking.id } })
+                }
+              >
+                {t('View Details', 'तपशील पहा')}
+              </SecondaryButton>
+              {canViewBookingQr(booking) ? (
+                <PrimaryButton
+                  className={width < 380 ? '' : 'flex-1'}
+                  icon="qrcode"
+                  onPress={() =>
+                    router.push({ pathname: '/(app)/pass', params: { bookingId: booking.id } })
+                  }
+                >
+                  {t('View Booking QR', 'बुकिंग QR पहा')}
+                </PrimaryButton>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      ))}
+      {visible.length === 0 ? (
+        isSyncing ? (
+          <LoadingList label={t('Loading bookings', 'बुकिंग लोड होत आहेत')} />
+        ) : (
+          <EmptyState
+            action={t('Find a stay', 'निवास शोधा')}
+            title={t('No bookings here yet', 'येथे अद्याप बुकिंग नाही')}
+            body={t(
+              'Your stays will appear in the right tab as their status changes.',
+              'स्थिती बदलल्यावर तुमचे निवास योग्य विभागात दिसतील.',
+            )}
+            icon="calendar-blank-outline"
+            onAction={() => router.push('/(app)/lodges')}
           />
-        ))}
-      </View>
-
-      {visible.length === 0 && isSyncing ? (
-        <LoadingList label={t('Loading bookings', 'बुकिंग लोड होत आहेत')} />
-      ) : visible.length === 0 ? (
-        <EmptyState
-          action={t('Find a stay', 'निवास शोधा')}
-          body={
-            tab === 'upcoming'
-              ? t(
-                  'Your next Tuljapur stay will appear here.',
-                  'तुमचा पुढील तुळजापूर निवास येथे दिसेल.',
-                )
-              : t('You have no past stays yet.', 'अद्याप मागील निवास नाहीत.')
-          }
-          icon="calendar-blank-outline"
-          onAction={() => router.push('/(app)/lodges')}
-          title={
-            tab === 'upcoming'
-              ? t('No upcoming bookings', 'आगामी बुकिंग नाही')
-              : t('No past stays', 'मागील निवास नाही')
-          }
-        />
+        )
       ) : null}
-
       {tab === 'upcoming' ? (
-        <PrimaryButton icon="magnify" onPress={() => router.push('/(app)/lodges')}>
+        <SecondaryButton icon="magnify" onPress={() => router.push('/(app)/lodges')}>
           {t('Book another stay', 'दुसरा निवास बुक करा')}
-        </PrimaryButton>
+        </SecondaryButton>
       ) : null}
     </AppScreen>
-  );
-}
-
-function BookingCard({
-  booking,
-  checkoutFlexibleLabel,
-  onPress,
-}: {
-  booking: PilgrimBooking;
-  checkoutFlexibleLabel: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      className="min-h-[132px] flex-row overflow-hidden rounded-2xl border border-warm-100 bg-white shadow-sm shadow-warm-900/10"
-      onPress={onPress}
-    >
-      <Image
-        className="w-[112px] self-stretch"
-        resizeMode="cover"
-        source={{ uri: booking.image }}
-      />
-      <View className="min-w-0 flex-1 justify-between p-3.5">
-        <View className="flex-row items-start justify-between gap-2">
-          <Text className="min-w-0 flex-1 text-base font-extrabold text-warm-900" numberOfLines={2}>
-            {booking.lodgeName}
-          </Text>
-          <MaterialCommunityIcons color={ui.muted} name="chevron-right" size={22} />
-        </View>
-        <Text className="mt-1 text-xs font-semibold text-warm-500" numberOfLines={1}>
-          {booking.roomName}
-        </Text>
-        <View className="mt-2 flex-row items-center gap-1.5">
-          <MaterialCommunityIcons color={ui.maroon} name="calendar-range" size={17} />
-          <Text className="flex-1 text-xs font-bold text-warm-700" numberOfLines={1}>
-            {booking.checkIn} —{' '}
-            {booking.checkoutDateFlexible ? checkoutFlexibleLabel : booking.checkOut}
-          </Text>
-        </View>
-        <View className="mt-3 flex-row items-center justify-between gap-2">
-          <StatusBadge status={booking.status} />
-          <Text className="text-base font-extrabold text-maroon-700">
-            {formatRupees(booking.amount)}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
   );
 }

@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BookingGuestIdProofUpload } from '@tuljai/types';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, BackHandler, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import { useAuth } from '../../auth/auth-context';
@@ -22,6 +22,7 @@ import {
   PrimaryButton,
   RoomsUnavailableNotice,
   SecondaryButton,
+  StayImage,
   TopBar,
   ui,
 } from '../components';
@@ -92,9 +93,7 @@ export function PilgrimCheckoutScreen() {
   // signature so a change of room or dates immediately drops the old answer.
   // Fed by the live availability check, by the room-hold attempt (409 =
   // full, success = free) and by a failed pay-at-lodge booking request.
-  const [roomStatus, setRoomStatus] = useState<{ full: boolean; signature: string } | null>(
-    null,
-  );
+  const [roomStatus, setRoomStatus] = useState<{ full: boolean; signature: string } | null>(null);
   const prepaidRef = useRef<{ signature: string; promise: Promise<PreparedPrepaid> } | null>(null);
   const refreshDueRef = useRef(false);
   // Once the Razorpay sheet has opened, the hold must never be released or
@@ -104,7 +103,9 @@ export function PilgrimCheckoutScreen() {
   const [request, setRequest] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
   const [agree, setAgree] = useState(true);
+  const submissionLock = useRef(false);
   const [submitting, setSubmitting] = useState(false);
+  const [serverQuote, setServerQuote] = useState<{ key: string; amount: number } | null>(null);
   const [paymentFailure, setPaymentFailure] = useState<string | null>(null);
   const documentPickerActiveRef = useRef(false);
 
@@ -118,7 +119,9 @@ export function PilgrimCheckoutScreen() {
   const subtotal = (room?.price ?? 0) * nights;
   // Room rate only — no taxes or extra charges. Matches what the backend
   // prices the booking and Razorpay order at.
-  const total = subtotal;
+  const quoteKey = `${lodge?.id}|${room?.id}|${checkInDate}|${checkOutDate}`;
+  const quoted = paymentMethod === 'ONLINE' && serverQuote?.key === quoteKey;
+  const total = quoted ? serverQuote.amount : subtotal;
   // The backend requires guestPhone in E.164 form (+91XXXXXXXXXX). The field
   // itself only ever collects a 10-digit national number, so normalize it
   // here once rather than at each call site that needs to send it on.
@@ -197,6 +200,10 @@ export function PilgrimCheckoutScreen() {
           .then((prepared) => {
             if (cancelled) return;
             setRoomStatus({ full: false, signature: prepaidSignature });
+            setServerQuote({
+              key: `${lodge?.id}|${room?.id}|${checkInDate}|${checkOutDate}`,
+              amount: prepared.order.amount / 100,
+            });
             // Keep the prepared order fresh: swap in a new hold before the
             // server-side one can lapse (never once payment has started).
             refreshTimer = setTimeout(
@@ -227,7 +234,17 @@ export function PilgrimCheckoutScreen() {
       clearTimeout(startTimer);
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [holdEnabled, step, preparePrepaid, prepaidRefreshTick, prepaidSignature]);
+  }, [
+    holdEnabled,
+    step,
+    preparePrepaid,
+    prepaidRefreshTick,
+    prepaidSignature,
+    lodge?.id,
+    room?.id,
+    checkInDate,
+    checkOutDate,
+  ]);
 
   // Pay at lodge holds nothing: drop the hold if the guest switches to it.
   useEffect(() => {
@@ -246,6 +263,20 @@ export function PilgrimCheckoutScreen() {
       if (held) void releaseHeld(held.promise);
     },
     [],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (submissionLock.current) return true;
+        if (step > 1) {
+          setStep((current) => Math.max(1, current - 1) as Step);
+          return true;
+        }
+        return false;
+      });
+      return () => subscription.remove();
+    }, [step]),
   );
 
   function validateGuestDetails(): boolean {
@@ -269,7 +300,10 @@ export function PilgrimCheckoutScreen() {
     if (idProofUploading) {
       Alert.alert(
         t('ID proof uploading', 'ओळखपत्र अपलोड होत आहे'),
-        t('Please wait a moment for the ID proof to finish uploading.', 'ओळखपत्र अपलोड होईपर्यंत थोडा वेळ थांबा.'),
+        t(
+          'Please wait a moment for the ID proof to finish uploading.',
+          'ओळखपत्र अपलोड होईपर्यंत थोडा वेळ थांबा.',
+        ),
       );
       return false;
     }
@@ -336,7 +370,10 @@ export function PilgrimCheckoutScreen() {
           t('ID proof', 'ओळखपत्र'),
           uploadError instanceof Error
             ? uploadError.message
-            : t('Could not upload ID proof. Please try again.', 'ओळखपत्र अपलोड करता आले नाही. पुन्हा प्रयत्न करा.'),
+            : t(
+                'Could not upload ID proof. Please try again.',
+                'ओळखपत्र अपलोड करता आले नाही. पुन्हा प्रयत्न करा.',
+              ),
         );
       } finally {
         setIdProofUploading(false);
@@ -349,6 +386,7 @@ export function PilgrimCheckoutScreen() {
   }
 
   async function confirmBooking() {
+    if (submissionLock.current) return;
     if (!lodge || !room) {
       Alert.alert(
         t('Room unavailable', 'खोली उपलब्ध नाही'),
@@ -370,6 +408,7 @@ export function PilgrimCheckoutScreen() {
       return;
     }
 
+    submissionLock.current = true;
     setSubmitting(true);
     setPaymentFailure(null);
     // Once Razorpay has taken the payment, a conflict is no longer a simple
@@ -406,7 +445,7 @@ export function PilgrimCheckoutScreen() {
               email: email.trim() || undefined,
             },
             notes: { lockCode },
-            theme: { color: '#C2410C' },
+            theme: { color: ui.maroon },
           });
         } catch (openError) {
           // Sheet dismissed or failed: the hold is still good for a retry.
@@ -495,6 +534,7 @@ export function PilgrimCheckoutScreen() {
       setPaymentFailure(message);
       Alert.alert(t('Booking could not be completed', 'बुकिंग पूर्ण होऊ शकले नाही'), message);
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   }
@@ -523,9 +563,11 @@ export function PilgrimCheckoutScreen() {
   return (
     <AppScreen className="gap-5 pt-1">
       <TopBar
-        onBack={() =>
-          step === 1 ? router.back() : setStep((current) => Math.max(1, current - 1) as Step)
-        }
+        onBack={() => {
+          if (submissionLock.current) return;
+          if (step === 1) router.back();
+          else setStep((current) => Math.max(1, current - 1) as Step);
+        }}
         subtitle={lodge.name}
         title={t('Complete your booking', 'बुकिंग पूर्ण करा')}
       />
@@ -563,11 +605,14 @@ export function PilgrimCheckoutScreen() {
       {step === 1 ? (
         <View className="gap-5">
           <SectionTitle title={t('Your stay', 'तुमचा निवास')} />
-          <View className="rounded-3xl border border-warm-200 bg-white p-4">
-            <Text className="text-lg font-extrabold text-warm-900">{lodge.name}</Text>
-            <Text className="mt-1 text-sm text-warm-500">
-              {room.name} · {room.bed} · {room.capacity}
-            </Text>
+          <View className="overflow-hidden rounded-3xl border border-warm-200 bg-white">
+            <StayImage className="h-36 w-full" uri={lodge.hero} label={lodge.name} />
+            <View className="gap-1 p-4">
+              <Text className="text-lg font-bold text-warm-900">{lodge.name}</Text>
+              <Text className="text-sm text-warm-600">
+                {room.name} · {room.capacity}
+              </Text>
+            </View>
           </View>
           <SectionTitle title={t('Select room', 'खोली निवडा')} />
           <View className="gap-3">
@@ -796,12 +841,30 @@ export function PilgrimCheckoutScreen() {
             <Text className="text-lg font-extrabold text-warm-900">
               {t('Price details', 'किंमत तपशील')}
             </Text>
+            <Text className="mt-2 text-sm text-warm-600">
+              {lodge.name} · {room.name}
+            </Text>
+            <Text className="mt-1 text-sm text-warm-600">
+              {checkInDate} → {checkOutDate}
+            </Text>
             <PriceRow
-              label={`${formatRupees(room.price)} × ${nights} nights`}
-              value={formatRupees(subtotal)}
+              label={
+                quoted
+                  ? t('Confirmed stay price', 'निश्चित निवास किंमत')
+                  : `${formatRupees(room.price)} × ${nights} ${t('nights', 'रात्री')}`
+              }
+              value={formatRupees(total)}
             />
+            <Text className="mt-2 text-xs leading-5 text-warm-600">
+              {t(
+                'Your final payable amount is shown in secure checkout.',
+                'अंतिम देय रक्कम सुरक्षित पेमेंटमध्ये दाखवली जाते.',
+              )}
+            </Text>
             <View className="mt-4 flex-row items-center justify-between border-t border-warm-100 pt-4">
-              <Text className="text-base font-extrabold text-warm-900">{t('Total', 'एकूण')}</Text>
+              <Text className="text-base font-extrabold text-warm-900">
+                {quoted ? t('Total', 'एकूण') : t('Estimated total', 'अंदाजित एकूण')}
+              </Text>
               <Text className="text-2xl font-extrabold text-maroon-700">{formatRupees(total)}</Text>
             </View>
           </View>
@@ -836,7 +899,7 @@ export function PilgrimCheckoutScreen() {
           onPress={() => void confirmBooking()}
         >
           {paymentMethod === 'ONLINE'
-            ? t(`Pay ${formatRupees(total)}`, `${formatRupees(total)} भरा`)
+            ? t('Pay & Confirm Now', 'आता पैसे भरा आणि निश्चित करा')
             : t('Confirm booking', 'बुकिंग निश्चित करा')}
         </PrimaryButton>
       )}
@@ -856,7 +919,7 @@ export function PilgrimCheckoutScreen() {
           {prepaidPreparing
             ? t('Setting up secure payment…', 'सुरक्षित पेमेंट तयार होत आहे…')
             : t(
-                "Payment will be set up when you tap Pay — it may take a moment longer.",
+                'Payment will be set up when you tap Pay — it may take a moment longer.',
                 'पेमेंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
               )}
         </Text>

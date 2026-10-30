@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
+  AppState,
+  RefreshControl,
   Linking,
   Pressable,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 } from 'react-native';
 
 import { LodgeReviewsSection } from '../../features/reviews/components/LodgeReviewsSection';
+import { loadLodgeById } from '../backend-sync';
 import {
   AppScreen,
   EmptyState,
@@ -21,6 +23,7 @@ import {
   Rating,
   RoomsUnavailableNotice,
   SecondaryButton,
+  StayImage,
   ui,
 } from '../components';
 import { formatRupees, type PilgrimLodge } from '../mock-data';
@@ -31,20 +34,45 @@ export function PilgrimLodgeDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { ensureLodgesHydrated, favoriteIds, isSyncing, lodges, t, toggleFavorite } =
+  const { cacheLodgeSummaries, favoriteIds, isSyncing, lodges, t, toggleFavorite } =
     usePilgrimApp();
   const lodge = lodges.find((item) => item.id === params.id);
+  const [loadingLodge, setLoadingLodge] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [availabilityRevision, setAvailabilityRevision] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      if (!params.id) return;
+      let cancelled = false;
+      setLoadingLodge(true);
+      setAvailabilityRevision((value) => value + 1);
+      void loadLodgeById(params.id)
+        .then((fresh) => {
+          if (!cancelled && fresh.name) cacheLodgeSummaries([fresh]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingLodge(false);
+        });
+      const subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') setReload((value) => value + 1);
+      });
+      return () => {
+        cancelled = true;
+        subscription.remove();
+      };
+    }, [cacheLodgeSummaries, params.id, reload]),
+  );
+
   const [photoIndex, setPhotoIndex] = useState(0);
   const favorite = lodge ? favoriteIds.includes(lodge.id) : false;
-  useEffect(() => {
-    if (params.id) ensureLodgesHydrated([params.id]);
-  }, [ensureLodgesHydrated, params.id]);
+
   // Live check for the same default stay checkout opens with (tomorrow, one
   // night). Only a positive "no rooms free" answer marks the lodge as full;
   // a failed or pending check never blocks booking.
   const stayWindow = useMemo(() => defaultStayWindow(), []);
   const availability = useRoomAvailability({
     ...stayWindow,
+    refreshKey: availabilityRevision,
     enabled: lodge?.hydrated !== false,
     lodgeId: lodge?.id,
     roomTypeIds: lodge?.rooms.map((room) => room.id) ?? [],
@@ -54,12 +82,12 @@ export function PilgrimLodgeDetailScreen() {
     return (
       <AppScreen className="gap-6 pt-1">
         <Pressable
-          className="h-12 w-12 items-center justify-center rounded-full bg-white"
+          className="h-14 w-14 items-center justify-center rounded-full bg-white"
           onPress={() => router.back()}
         >
           <MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} />
         </Pressable>
-        {isSyncing ? (
+        {isSyncing || loadingLodge ? (
           <View className="items-center rounded-3xl border border-warm-100 bg-white py-16">
             <ActivityIndicator color={ui.saffronDeep} size="large" />
             <Text className="mt-4 text-sm font-bold text-warm-500">
@@ -87,6 +115,14 @@ export function PilgrimLodgeDetailScreen() {
       <ScrollView
         className="flex-1"
         contentContainerClassName="pb-32"
+        refreshControl={
+          <RefreshControl
+            refreshing={loadingLodge}
+            onRefresh={() => setReload((value) => value + 1)}
+            tintColor={ui.maroon}
+            colors={[ui.maroon]}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View className="relative">
@@ -98,26 +134,22 @@ export function PilgrimLodgeDetailScreen() {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
           >
-            {lodge.photos.map((photo) => (
-              <Image
-                className="h-80"
-                key={photo}
-                resizeMode="cover"
-                source={{ uri: photo }}
-                style={{ width }}
-              />
+            {(lodge.photos.length ? lodge.photos : ['']).map((photo) => (
+              <View key={photo} style={{ width }}>
+                <StayImage className="h-80 w-full" uri={photo} label={lodge.name} />
+              </View>
             ))}
           </ScrollView>
           <View className="absolute left-5 right-5 top-3 flex-row justify-between">
             <Pressable
-              className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
+              className="h-14 w-14 items-center justify-center rounded-full bg-white/95"
               onPress={() => router.back()}
             >
               <MaterialCommunityIcons color={ui.ink} name="chevron-left" size={27} />
             </Pressable>
             <View className="flex-row gap-2">
               <Pressable
-                className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
+                className="h-14 w-14 items-center justify-center rounded-full bg-white/95"
                 onPress={() =>
                   void openExternalLink(
                     `https://wa.me/?text=${encodeURIComponent(`Take a look at ${lodge.name} on Tuljai Stays`)}`,
@@ -128,7 +160,7 @@ export function PilgrimLodgeDetailScreen() {
                 <MaterialCommunityIcons color={ui.ink} name="share-variant-outline" size={22} />
               </Pressable>
               <Pressable
-                className="h-12 w-12 items-center justify-center rounded-full bg-white/95"
+                className="h-14 w-14 items-center justify-center rounded-full bg-white/95"
                 onPress={() => toggleFavorite(lodge.id)}
               >
                 <MaterialCommunityIcons
@@ -141,7 +173,9 @@ export function PilgrimLodgeDetailScreen() {
           </View>
           <View className="absolute bottom-4 right-5 rounded-full bg-black/60 px-3 py-1.5">
             <Text className="text-xs font-bold text-white">
-              {photoIndex + 1} / {lodge.photos.length}
+              {lodge.photos.length
+                ? `${photoIndex + 1} / ${lodge.photos.length}`
+                : t('No photos yet', 'अद्याप फोटो नाहीत')}
             </Text>
           </View>
         </View>
@@ -166,10 +200,10 @@ export function PilgrimLodgeDetailScreen() {
             <Text className="mt-1 text-sm text-warm-500">
               {lodge.type} · {lodge.location}
             </Text>
-            <View className="mt-4 flex-row items-center gap-3">
-              <Rating rating={lodge.rating} />
+            <View className="mt-4 flex-row flex-wrap items-center gap-3">
+              <Rating rating={lodge.rating} reviewCount={lodge.reviewCount} />
               <Text className="text-sm font-semibold text-warm-700">
-                {lodge.reviewCount} {t('pilgrim reviews', 'भाविक अभिप्राय')}
+                {t('Verified reviews', 'सत्यापित अभिप्राय')}
               </Text>
               <Text className="text-warm-300">•</Text>
               <Text className="text-sm font-semibold text-saffron-700">{lodge.distance}</Text>
@@ -189,7 +223,7 @@ export function PilgrimLodgeDetailScreen() {
             <View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2">
               <MaterialCommunityIcons color={ui.saffronDeep} name="clock-fast" size={24} />
               <Text className="mt-1 text-center text-xs font-extrabold text-warm-700">
-                {t('12 PM check-in', '१२ वा. चेक-इन')}
+                {t('Check-in details at booking', 'बुकिंगमध्ये चेक-इन माहिती')}
               </Text>
             </View>
             <View className="min-h-20 flex-1 items-center justify-center rounded-2xl bg-saffron-50 px-2">
@@ -234,7 +268,10 @@ export function PilgrimLodgeDetailScreen() {
               {t('Choose a room', 'खोली निवडा')}
             </Text>
             <Text className="mt-1 text-sm text-warm-500">
-              {t('Free cancellation on selected rooms', 'निवडक खोल्यांवर मोफत रद्दीकरण')}
+              {t(
+                'Availability below is for tomorrow night. Choose your dates at booking.',
+                'खाली उद्याच्या रात्रीची उपलब्धता आहे. बुकिंगमध्ये तुमच्या तारखा निवडा.',
+              )}
             </Text>
             <View className="mt-4 gap-4">
               {availability.allFull ? (
@@ -271,7 +308,7 @@ export function PilgrimLodgeDetailScreen() {
                   {index === 0 ? (
                     <View className="bg-saffron-500 px-4 py-2">
                       <Text className="text-xs font-extrabold text-white">
-                        {t('BEST VALUE FOR FAMILIES', 'कुटुंबासाठी उत्तम पर्याय')}
+                        {t('ROOM OPTION', 'खोलीचा पर्याय')}
                       </Text>
                     </View>
                   ) : null}
@@ -292,7 +329,12 @@ export function PilgrimLodgeDetailScreen() {
                       ) : (
                         <View className="rounded-xl bg-bell-50 px-2.5 py-1.5">
                           <Text className="text-xs font-extrabold text-bell-700">
-                            {availability.counts[room.id] ?? room.available} left
+                            {availability.counts[room.id] === undefined
+                              ? t('Check dates', 'तारखा तपासा')
+                              : t(
+                                  `${availability.counts[room.id]} available`,
+                                  `${availability.counts[room.id]} उपलब्ध`,
+                                )}
                           </Text>
                         </View>
                       )}

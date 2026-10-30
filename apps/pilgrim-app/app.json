@@ -4,7 +4,7 @@
     "slug": "tuljai-stays-pilgrim",
     "scheme": "tuljai-stays",
     "icon": "./assets/icon.png",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": ["**/*"],
@@ -20,7 +20,7 @@
       "package": "com.tuljaistays.pilgrim",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#C95516",
+        "backgroundColor": "#800D32",
         "foregroundImage": "./assets/adaptive-icon.png"
       }
     },
@@ -34,7 +34,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F24A00",
+          "backgroundColor": "#590923",
           "image": "./assets/splash-screen.png",
           "imageWidth": 288,
           "resizeMode": "cover"
@@ -44,7 +44,7 @@
       [
         "expo-notifications",
         {
-          "color": "#C95516",
+          "color": "#800D32",
           "defaultChannel": "general-v1",
           "icon": "./assets/notification-icon.png"
         }
@@ -55,7 +55,8 @@
         {
           "photosPermission": "Allow Tuljai Stays to save your stay pass to your photos.",
           "savePhotosPermission": "Allow Tuljai Stays to save your stay pass to your photos.",
-          "isAccessMediaLocationEnabled": false
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": ["photo"]
         }
       ]
     ],

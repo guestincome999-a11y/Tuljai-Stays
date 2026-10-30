@@ -9,6 +9,7 @@ import { useAuth } from '../../auth/auth-context';
 import { GoogleLoginCancelledError, startGoogleLogin } from '../../auth/google-auth';
 import { AnimatedWelcomeSplash } from '../../components/AnimatedWelcomeSplash';
 import { AppScreen, BrandMark, Field, LanguageToggle, PrimaryButton, ui } from '../components';
+import { DevotionalHero } from '../DevotionalHero';
 import { LegalDocument, type LegalDocumentKind } from '../legal-documents';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 
@@ -110,22 +111,7 @@ export function PilgrimLoginScreen() {
         <LanguageToggle />
       </View>
 
-      <View className="relative min-h-60 overflow-hidden rounded-3xl bg-maroon-700 p-6">
-        <View className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-saffron-500/20" />
-        <View className="absolute -bottom-14 -left-8 h-36 w-36 rounded-full bg-white/5" />
-        <View className="h-20 w-20 items-center justify-center rounded-3xl bg-white/10">
-          <MaterialCommunityIcons color="#FFE8C8" name="temple-hindu" size={49} />
-        </View>
-        <Text className="mt-5 text-3xl font-extrabold leading-10 text-white">
-          {t('A peaceful stay for your sacred journey', 'तुमच्या पवित्र यात्रेसाठी शांत निवास')}
-        </Text>
-        <Text className="mt-2 text-sm leading-6 text-orange-100">
-          {t(
-            'Verified lodges and Bhakt Niwas near Tulja Bhavani Temple.',
-            'तुळजाभवानी मंदिराजवळील सत्यापित लॉज आणि भक्त निवास.',
-          )}
-        </Text>
-      </View>
+      <DevotionalHero compact />
 
       <View>
         <Text className="text-2xl font-extrabold tracking-tight text-warm-900">
@@ -175,7 +161,7 @@ export function PilgrimLoginScreen() {
         )}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: agreedToTerms }}
-        className="flex-row items-start gap-3"
+        className="min-h-14 flex-row items-center gap-3"
         hitSlop={4}
         onPress={() => {
           setAgreedToTerms((value) => !value);
@@ -448,7 +434,7 @@ export function PilgrimBootstrapScreen() {
   }, []);
 
   if (bootstrapComplete && minimumDisplayComplete) {
-    return <Redirect href={isAuthenticated ? '/(app)/home' : '/(auth)/login'} />;
+    return <Redirect href={isAuthenticated ? '/(app)/home' : '/(auth)/welcome'} />;
   }
 
   return <AnimatedWelcomeSplash />;

@@ -3,7 +3,7 @@ import type { BookingLodgeContact } from '@tuljai/types';
 import { palette } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, Text, View } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import {
@@ -14,14 +14,17 @@ import {
 } from '../../features/bookings/api/bookings-api';
 import { BookingActionButton } from '../../features/bookings/components/BookingActionButton';
 import { usePublicSettings } from '../../settings/usePublicSettings';
+import { canViewBookingQr } from '../booking-pass-policy';
 import {
   AnimatedResultBadge,
   AppScreen,
   EmptyState,
   InfoRow,
   PrimaryButton,
+  PaymentStatusBadge,
   SecondaryButton,
   StatusBadge,
+  StayImage,
   TopBar,
   ui,
 } from '../components';
@@ -48,6 +51,7 @@ export function PilgrimBookingDetailScreen() {
   const [onlinePaymentBusy, setOnlinePaymentBusy] = useState(false);
   const [paymentAttemptFailed, setPaymentAttemptFailed] = useState<string | null>(null);
   const [justPaidOnline, setJustPaidOnline] = useState(false);
+  const [confirmationDismissed, setConfirmationDismissed] = useState(false);
   // Pre-create the Razorpay order as soon as this screen can show "Pay &
   // Confirm Now" / "Retry payment", instead of waiting for the tap — so
   // opening the checkout sheet doesn't wait on that round trip first. Mirrors
@@ -64,7 +68,12 @@ export function PilgrimBookingDetailScreen() {
   // every call; a rejection (booking not yet confirmed, already checked in,
   // or not the requester's own booking) just means the section stays
   // hidden.
-  const [lodgeContact, setLodgeContact] = useState<BookingLodgeContact | null>(null);
+  const [contactRecord, setLodgeContact] = useState<{
+    bookingId: string;
+    contact: BookingLodgeContact;
+  } | null>(null);
+  const lodgeContact = contactRecord?.bookingId === booking?.id ? contactRecord?.contact : null;
+  const onlinePaymentLock = useRef(false);
   const bookingId = booking?.id;
   const bookingStatus = booking?.status;
 
@@ -76,7 +85,7 @@ export function PilgrimBookingDetailScreen() {
     let cancelled = false;
     void getBookingLodgeContact(bookingId)
       .then((contact) => {
-        if (!cancelled) setLodgeContact(contact);
+        if (!cancelled) setLodgeContact({ bookingId, contact });
       })
       .catch(() => {
         if (!cancelled) setLodgeContact(null);
@@ -170,6 +179,8 @@ export function PilgrimBookingDetailScreen() {
   }
 
   async function payAndConfirmNow() {
+    if (onlinePaymentLock.current) return;
+    onlinePaymentLock.current = true;
     setOnlinePaymentBusy(true);
     setPaymentAttemptFailed(null);
     try {
@@ -188,7 +199,7 @@ export function PilgrimBookingDetailScreen() {
         name: 'Tuljai Stays',
         description: `${bookingLodgeName} · ${bookingRoomName}`,
         notes: { bookingId: currentBookingId },
-        theme: { color: '#C2410C' },
+        theme: { color: ui.maroon },
       });
       const verified = await verifyRazorpayPayment(currentBookingId, {
         orderId: result.razorpay_order_id,
@@ -215,6 +226,7 @@ export function PilgrimBookingDetailScreen() {
       preparedOrderBookingIdRef.current = null;
       prepareOrder(currentBookingId);
     } finally {
+      onlinePaymentLock.current = false;
       setOnlinePaymentBusy(false);
     }
   }
@@ -225,7 +237,7 @@ export function PilgrimBookingDetailScreen() {
         onBack={() => router.back()}
         right={
           <Pressable
-            className="h-12 w-12 items-center justify-center rounded-2xl bg-warm-100"
+            className="h-14 w-14 items-center justify-center rounded-2xl bg-warm-100"
             onPress={() =>
               void openExternalLink(
                 `https://wa.me/?text=${encodeURIComponent(`Tuljai Stays booking ${booking.bookingCode}`)}`,
@@ -255,7 +267,7 @@ export function PilgrimBookingDetailScreen() {
         </View>
       ) : null}
 
-      {params.justBooked === '1' ? (
+      {params.justBooked === '1' && booking.status === 'confirmed' && !confirmationDismissed ? (
         <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-7">
           <AnimatedResultBadge tone="success" />
           <Text className="mt-5 text-center text-2xl font-extrabold text-templeGreen-700">
@@ -263,10 +275,17 @@ export function PilgrimBookingDetailScreen() {
           </Text>
           <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
             {t(
-              'A confirmation has been sent to your mobile number.',
-              'तुमच्या मोबाइल क्रमांकावर पुष्टीकरण पाठवले आहे.',
+              'Your lodge has confirmed this booking. Your stay details are below.',
+              'लॉजने बुकिंग निश्चित केले आहे. निवासाची माहिती खाली आहे.',
             )}
           </Text>
+          <SecondaryButton
+            className="mt-4 w-full"
+            icon="book-open-outline"
+            onPress={() => setConfirmationDismissed(true)}
+          >
+            {t('View Booking', 'बुकिंग पहा')}
+          </SecondaryButton>
           <ConfirmedNextSteps
             bookingId={booking.id}
             googleMapsLink={booking.googleMapsLink ?? lodge?.googleMapsLink}
@@ -277,7 +296,7 @@ export function PilgrimBookingDetailScreen() {
         </View>
       ) : null}
 
-      {justPaidOnline ? (
+      {justPaidOnline && booking.status === 'confirmed' && !confirmationDismissed ? (
         <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-7">
           <AnimatedResultBadge tone="success" />
           <Text className="mt-5 text-center text-2xl font-extrabold text-templeGreen-700">
@@ -289,6 +308,13 @@ export function PilgrimBookingDetailScreen() {
               'तुमचा निवास त्वरित निश्चित झाला. लॉजच्या मंजुरीची गरज नाही.',
             )}
           </Text>
+          <SecondaryButton
+            className="mt-4 w-full"
+            icon="book-open-outline"
+            onPress={() => setConfirmationDismissed(true)}
+          >
+            {t('View Booking', 'बुकिंग पहा')}
+          </SecondaryButton>
           <ConfirmedNextSteps
             bookingId={booking.id}
             googleMapsLink={booking.googleMapsLink ?? lodge?.googleMapsLink}
@@ -333,7 +359,7 @@ export function PilgrimBookingDetailScreen() {
       ) : null}
 
       <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white">
-        <Image className="h-44 w-full" resizeMode="cover" source={{ uri: booking.image }} />
+        <StayImage className="h-44 w-full" uri={booking.image} label={booking.lodgeName} />
         <View className="gap-4 p-4">
           <StatusBadge status={booking.status} />
           <View className="flex-row items-center gap-3">
@@ -444,7 +470,7 @@ export function PilgrimBookingDetailScreen() {
         </View>
       </View>
 
-      {lodgeContact ? (
+      {lodgeContact && canViewBookingQr(booking) ? (
         <View className="flex-row gap-3">
           <BookingActionButton
             icon="phone-outline"
@@ -478,24 +504,30 @@ export function PilgrimBookingDetailScreen() {
             subtitle={formatBookingTimestamp(booking.createdAt)}
           />
           <TimelineItem
-            active={booking.status !== 'pending'}
+            active={['confirmed', 'checked-in', 'completed'].includes(booking.status)}
             icon="home-heart"
-            label={t('Confirmed by lodge', 'लॉजने पुष्टी केली')}
+            label={t('Booking confirmed', 'बुकिंग निश्चित')}
             subtitle={
               booking.status === 'pending'
                 ? t('Waiting for response', 'प्रतीक्षा')
-                : formatBookingTimestamp(booking.updatedAt)
+                : booking.status === 'cancelled'
+                  ? t('Not active', 'सक्रिय नाही')
+                  : t('Confirmed', 'निश्चित')
             }
           />
           <TimelineItem
-            active={booking.status === 'checked-in'}
+            active={booking.status === 'checked-in' || booking.status === 'completed'}
             icon="qrcode-scan"
             label={
-              booking.status === 'checked-in'
+              booking.status === 'checked-in' || booking.status === 'completed'
                 ? t('Checked in at lodge', 'लॉजवर चेक-इन पूर्ण')
                 : t('Check-in at lodge', 'लॉजवर चेक-इन')
             }
-            subtitle={booking.status === 'checked-in' ? t('Completed', 'पूर्ण') : booking.checkIn}
+            subtitle={
+              booking.status === 'checked-in' || booking.status === 'completed'
+                ? t('Completed', 'पूर्ण')
+                : booking.checkIn
+            }
             last
           />
         </View>
@@ -506,9 +538,7 @@ export function PilgrimBookingDetailScreen() {
           <Text className="text-lg font-extrabold text-warm-900">
             {t('Payment summary', 'पेमेंट सारांश')}
           </Text>
-          <Text className="text-sm font-extrabold text-templeGreen-700">
-            {booking.paymentStatus}
-          </Text>
+          <PaymentStatusBadge status={booking.paymentStatus} />
         </View>
         <View className="mt-4 flex-row items-end justify-between border-t border-warm-100 pt-4">
           <Text className="text-sm text-warm-500">{t('Booking total', 'बुकिंगची एकूण रक्कम')}</Text>
@@ -518,6 +548,26 @@ export function PilgrimBookingDetailScreen() {
         </View>
       </View>
 
+      {canViewBookingQr(booking) ? (
+        <PrimaryButton
+          icon="qrcode"
+          onPress={() =>
+            router.push({ pathname: '/(app)/pass', params: { bookingId: booking.id } })
+          }
+        >
+          {t('View Booking QR', 'बुकिंग QR पहा')}
+        </PrimaryButton>
+      ) : null}
+      <SecondaryButton icon="home-outline" onPress={() => router.replace('/(app)/home')}>
+        {t('Go to Home', 'मुख्यपृष्ठावर जा')}
+      </SecondaryButton>
+      {booking.paidAmount !== undefined ? (
+        <View className="rounded-2xl bg-templeGreen-50 p-4">
+          <Text className="text-sm font-bold text-templeGreen-700">
+            {t('Amount paid', 'भरलेली रक्कम')}: {formatRupees(booking.paidAmount)}
+          </Text>
+        </View>
+      ) : null}
       <View className="gap-3">
         {supportPhone || supportEmail ? (
           <SecondaryButton

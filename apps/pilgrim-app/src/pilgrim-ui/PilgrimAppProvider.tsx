@@ -82,6 +82,8 @@ interface CreateBookingInput {
 }
 
 interface PilgrimAppContextValue {
+  cacheLodgeSummaries: (items: PilgrimLodge[]) => void;
+  catalogRevision: number;
   bookingNotificationsEnabled: boolean;
   bookings: PilgrimBooking[];
   cancelBooking: (id: string, reason?: string) => Promise<void>;
@@ -125,7 +127,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   );
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [loadedPreferencesUserId, setLoadedPreferencesUserId] = useState<string | null>(null);
-  const [lodges, setLodges] = useState<PilgrimLodge[]>(pilgrimLodges);
+  const [lodges, setLodges] = useState<PilgrimLodge[]>(mockMode ? pilgrimLodges : []);
   const [bookings, setBookings] = useState<PilgrimBooking[]>(
     mockMode ? initialPilgrimBookings : [],
   );
@@ -133,6 +135,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     mockMode ? getFallbackNotifications() : [],
   );
   const [isBackendConnected, setIsBackendConnected] = useState(false);
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [isSyncing, setIsSyncing] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
@@ -158,6 +161,29 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   // refreshed lodge details back into state (a slow older one is discarded).
   const lodgeLoadVersionRef = useRef(0);
   const lastLodgeLoadAtRef = useRef(0);
+
+  const cacheLodgeSummaries = useCallback((items: PilgrimLodge[]) => {
+    setLodges((current) => {
+      const byId = new Map(current.map((item) => [item.id, item]));
+      for (const item of items) {
+        const previous = byId.get(item.id);
+        byId.set(
+          item.id,
+          previous?.hydrated && !item.hydrated
+            ? {
+                ...previous,
+                price: item.price,
+                priceAvailable: item.priceAvailable,
+                rating: item.rating,
+                reviewCount: item.reviewCount,
+                hero: item.hero || previous.hero,
+              }
+            : item,
+        );
+      }
+      return [...byId.values()];
+    });
+  }, []);
 
   const ensureLodgesHydrated = useCallback((lodgeIds: string[]) => {
     if (lodgeIds.length === 0) return;
@@ -214,7 +240,10 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     });
 
     lastLodgeLoadAtRef.current = Date.now();
+    // A new authoritative snapshot must not retain lodges that were unlisted.
+    // Browse observes the revision and repopulates its requested pages lazily.
     setLodges(merged);
+    setCatalogRevision((value) => value + 1);
     hydratingIdsRef.current.clear();
     setFavoriteIds((current) =>
       current.map((favoriteId) => {
@@ -476,6 +505,8 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<PilgrimAppContextValue>(
     () => ({
+      cacheLodgeSummaries,
+      catalogRevision,
       bookingNotificationsEnabled,
       bookings,
       cancelBooking: async (id, reason) => {
@@ -558,6 +589,8 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     }),
     [
       auth.isAuthenticated,
+      cacheLodgeSummaries,
+      catalogRevision,
       bookingNotificationsEnabled,
       bookings,
       ensureLodgesHydrated,

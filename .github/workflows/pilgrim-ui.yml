@@ -1,0 +1,32 @@
+name: Verify pilgrim UI and booking QR
+
+on:
+  pull_request:
+    paths:
+      - 'apps/pilgrim-app/**'
+      - 'packages/**'
+      - 'backend/src/modules/bookings/qr-checkin.service.ts'
+      - 'package-lock.json'
+      - '.github/workflows/pilgrim-ui.yml'
+  push:
+    branches: ['codex/pilgrim-premium-qr']
+
+permissions:
+  contents: read
+
+jobs:
+  pilgrim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck --workspace @tuljai/pilgrim-app
+      - run: npm run lint --workspace @tuljai/pilgrim-app
+      - run: npm run test:booking-qr --workspace @tuljai/pilgrim-app
+      - run: npm run test:updates --workspace @tuljai/pilgrim-app
+      - run: npm run build --workspace @tuljai/pilgrim-app
