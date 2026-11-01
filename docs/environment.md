@@ -9,8 +9,9 @@
 - `DATABASE_URL` - PostgreSQL connection string.
 - `JWT_ACCESS_SECRET` - access token signing secret.
 - `JWT_REFRESH_SECRET` - refresh token signing secret.
-- `JWT_ACCESS_TOKEN_TTL` - access token lifetime.
-- `JWT_REFRESH_TOKEN_TTL` - refresh token lifetime.
+- `JWT_ACCESS_EXPIRES_IN` - access token lifetime.
+- `JWT_REFRESH_EXPIRES_IN` - refresh token lifetime (default `180d`).
+- `AUTH_SESSION_MAX_AGE_DAYS` - maximum lifetime from the original login (default `180`).
 - `OTP_TTL_SECONDS` - OTP lifetime in seconds.
 - `OTP_MAX_ATTEMPTS` - maximum OTP verification attempts.
 - `OTP_RATE_LIMIT_WINDOW_SECONDS` - OTP request rate-limit window.

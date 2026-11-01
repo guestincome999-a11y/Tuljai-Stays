@@ -92,7 +92,11 @@ export class ApiClient {
 
       return payload;
     } catch (error) {
-      if (allowTokenRefresh && this.isUnauthorized(error) && !this.isAuthenticationEndpoint(path)) {
+      if (
+        allowTokenRefresh &&
+        this.isUnauthorized(error) &&
+        (!this.isAuthenticationEndpoint(path) || /\/logout$/u.test(path))
+      ) {
         const refreshedToken = this.refreshAccessToken
           ? await this.refreshAfterUnauthorized()
           : null;
@@ -143,7 +147,9 @@ export class ApiClient {
   }
 
   private isAuthenticationEndpoint(path: string): boolean {
-    return /\/(?:auth\/)?(?:logout|refresh-token|request-otp|verify-otp)$/u.test(path);
+    return /\/(?:auth\/)?(?:logout|refresh-token|request-otp|verify-otp|owner-login|admin-login|google)$/u.test(
+      path,
+    );
   }
 
   private async resolveAccessToken(): Promise<string | null> {

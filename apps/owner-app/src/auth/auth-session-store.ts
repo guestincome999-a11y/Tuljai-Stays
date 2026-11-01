@@ -73,7 +73,10 @@ export async function clearAuthSession(): Promise<void> {
   notifySessionListeners();
 }
 
-export async function updateStoredAccessToken(accessToken: string): Promise<void> {
+export async function updateStoredAccessToken(
+  accessToken: string,
+  sessionExpiresAt?: string,
+): Promise<void> {
   if (!cachedSession.tokens) {
     return;
   }
@@ -83,6 +86,7 @@ export async function updateStoredAccessToken(accessToken: string): Promise<void
     tokens: {
       ...cachedSession.tokens,
       accessToken,
+      ...(sessionExpiresAt ? { sessionExpiresAt } : {}),
     },
   };
   await secureTokenStore.setAccessToken(accessToken);
@@ -104,6 +108,11 @@ async function parseStoredSession(storedSession: string | null): Promise<AuthSes
 
   try {
     cachedSession = JSON.parse(storedSession) as AuthSession;
+    const deadline =
+      cachedSession.activeSession?.sessionExpiresAt ?? cachedSession.tokens?.sessionExpiresAt;
+    if (deadline && new Date(deadline).getTime() <= Date.now()) {
+      await clearAuthSession();
+    }
     return cachedSession;
   } catch {
     await clearAuthSession();

@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min, validateSync } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Matches, Min, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
   @IsIn(['development', 'test', 'production'])
@@ -32,11 +32,23 @@ class EnvironmentVariables {
   JWT_REFRESH_SECRET!: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(/^[1-9]\d*[smhd]?$/)
   JWT_ACCESS_TOKEN_TTL?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(/^[1-9]\d*[smhd]?$/)
+  JWT_ACCESS_EXPIRES_IN?: string;
+
+  @IsOptional()
+  @Matches(/^[1-9]\d*[smhd]?$/)
+  JWT_REFRESH_EXPIRES_IN?: string;
+
+  @IsInt()
+  @Min(1)
+  AUTH_SESSION_MAX_AGE_DAYS: number = 180;
+
+  @IsOptional()
+  @Matches(/^[1-9]\d*[smhd]?$/)
   JWT_REFRESH_TOKEN_TTL?: string;
 
   @IsOptional()

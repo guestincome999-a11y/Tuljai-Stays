@@ -54,6 +54,7 @@ interface RequestContext {
   userAgent?: string;
 }
 interface AccessTokenResult {
+  sessionExpiresAt: string;
   accessToken: string;
   expiresInSeconds: number;
 }
@@ -70,6 +71,7 @@ const OWNER_APP_ALLOWED_ROLES: UserRole[] = [
 export class AuthService {
   private readonly accessTokenTtl: string;
   private readonly refreshTokenTtl: string;
+  private readonly sessionMaxAgeDays: number;
   private readonly otpTtlSeconds: number;
   private readonly otpMaxAttempts: number;
   private readonly otpRateLimitWindowSeconds: number;
@@ -93,6 +95,7 @@ export class AuthService {
   ) {
     this.accessTokenTtl = this.configService.getOrThrow<string>('api.jwt.accessTokenTtl');
     this.refreshTokenTtl = this.configService.getOrThrow<string>('api.jwt.refreshTokenTtl');
+    this.sessionMaxAgeDays = this.configService.getOrThrow<number>('api.jwt.sessionMaxAgeDays');
     this.otpTtlSeconds = this.configService.getOrThrow<number>('api.otp.ttlSeconds');
     this.otpMaxAttempts = this.configService.getOrThrow<number>('api.otp.maxAttempts');
     this.otpRateLimitWindowSeconds = this.configService.getOrThrow<number>(
@@ -192,6 +195,7 @@ export class AuthService {
         lastSeenAt: now,
         platform: dto.platform,
         refreshTokenId: tokens.refreshTokenRecord.id,
+        sessionExpiresAt: tokens.sessionExpiresAt,
         userAgent: context.userAgent,
         userId: user.id,
       },
@@ -268,6 +272,7 @@ export class AuthService {
         lastSeenAt: now,
         platform: dto.platform,
         refreshTokenId: tokens.refreshTokenRecord.id,
+        sessionExpiresAt: tokens.sessionExpiresAt,
         userAgent: context.userAgent,
         userId: user.id,
       },
@@ -337,6 +342,7 @@ export class AuthService {
         lastSeenAt: now,
         platform: DevicePlatform.WEB,
         refreshTokenId: tokens.refreshTokenRecord.id,
+        sessionExpiresAt: tokens.sessionExpiresAt,
         userAgent: context.userAgent,
         userId: user.id,
       },
@@ -439,6 +445,7 @@ export class AuthService {
         lastSeenAt: now,
         platform: dto.platform,
         refreshTokenId: tokens.refreshTokenRecord.id,
+        sessionExpiresAt: tokens.sessionExpiresAt,
         userAgent: context.userAgent,
         userId: user.id,
       },
@@ -628,6 +635,8 @@ export class AuthService {
       refreshToken.deviceId !== dto.deviceId ||
       refreshToken.revokedAt ||
       refreshToken.expiresAt <= new Date() ||
+      !refreshToken.userSession?.isActive ||
+      refreshToken.userSession.sessionExpiresAt <= new Date() ||
       !refreshToken.user.isActive ||
       refreshToken.user.deletedAt
     )
@@ -636,7 +645,11 @@ export class AuthService {
       data: { lastSeenAt: new Date() },
       where: { refreshTokenId: refreshToken.id },
     });
-    return this.issueAccessToken(refreshToken.user);
+    return this.issueAccessToken(
+      refreshToken.user,
+      refreshToken.id,
+      refreshToken.userSession.sessionExpiresAt,
+    );
   }
   public async logout(userId: string, dto: LogoutDto): Promise<{ success: true }> {
     const tokenHash = this.hashRefreshToken(dto.refreshToken);
@@ -729,36 +742,53 @@ export class AuthService {
   private async issueTokens(
     user: User,
     deviceId: string,
-  ): Promise<{ refreshTokenRecord: RefreshToken; response: AuthTokens }> {
-    const accessToken = await this.issueAccessToken(user);
+  ): Promise<{ refreshTokenRecord: RefreshToken; response: AuthTokens; sessionExpiresAt: Date }> {
+    const now = new Date();
+    const sessionExpiresAt = this.addSeconds(now, this.sessionMaxAgeDays * 86400);
     const refreshToken = this.generateRefreshToken();
     const refreshTokenRecord = await this.prisma.refreshToken.create({
       data: {
         deviceId,
-        expiresAt: this.addSeconds(new Date(), this.parseDurationSeconds(this.refreshTokenTtl)),
+        expiresAt: new Date(
+          Math.min(
+            sessionExpiresAt.getTime(),
+            this.addSeconds(now, this.parseDurationSeconds(this.refreshTokenTtl)).getTime(),
+          ),
+        ),
         tokenHash: this.hashRefreshToken(refreshToken),
         userId: user.id,
       },
     });
+    const accessToken = await this.issueAccessToken(user, refreshTokenRecord.id, sessionExpiresAt);
     return {
+      sessionExpiresAt,
       refreshTokenRecord,
       response: {
         accessToken: accessToken.accessToken,
         expiresInSeconds: accessToken.expiresInSeconds,
         refreshToken,
+        sessionExpiresAt: sessionExpiresAt.toISOString(),
       },
     };
   }
-  private async issueAccessToken(user: User): Promise<AccessTokenResult> {
-    const expiresInSeconds = this.parseDurationSeconds(this.accessTokenTtl);
+  private async issueAccessToken(
+    user: User,
+    refreshTokenId: string,
+    sessionExpiresAt: Date,
+  ): Promise<AccessTokenResult> {
+    const expiresInSeconds = Math.min(
+      this.parseDurationSeconds(this.accessTokenTtl),
+      Math.floor((sessionExpiresAt.getTime() - Date.now()) / 1000),
+    );
+    if (expiresInSeconds <= 0) throw new UnauthorizedException('Session expired');
     const accessToken = await this.jwtService.signAsync(
-      { phoneNumber: user.phoneNumber, roles: user.roles, sub: user.id },
+      { phoneNumber: user.phoneNumber, roles: user.roles, sub: user.id, sid: refreshTokenId },
       {
         expiresIn: expiresInSeconds,
         secret: this.configService.getOrThrow<string>('api.jwt.accessSecret'),
       },
     );
-    return { accessToken, expiresInSeconds };
+    return { accessToken, expiresInSeconds, sessionExpiresAt: sessionExpiresAt.toISOString() };
   }
   private async saveDeviceToken(userId: string, dto: RegisterDeviceTokenDto): Promise<void> {
     await this.prisma.deviceToken.updateMany({
@@ -817,6 +847,7 @@ export class AuthService {
     id: string;
     isActive: boolean;
     lastSeenAt: Date;
+    sessionExpiresAt: Date;
     platform: DevicePlatform;
     userId: string;
   }): UserSession {
@@ -828,6 +859,7 @@ export class AuthService {
       id: session.id,
       isActive: session.isActive,
       lastSeenAt: session.lastSeenAt.toISOString(),
+      sessionExpiresAt: session.sessionExpiresAt.toISOString(),
       platform: session.platform,
       userId: session.userId,
     };
