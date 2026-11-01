@@ -428,7 +428,7 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
     };
     vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {
       Date: ClockDate,
-      process: { env: { NODE_ENV: 'production' } },
+      process: { env: { NODE_ENV: 'production', ADMIN_PUBLIC_ORIGIN: 'https://admin.invalid' } },
       fetch: backendFetch,
     })(
       (id) =>
@@ -451,6 +451,11 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
+    // Render forwards to an internal HTTP address; the configured public origin remains authoritative.
+    const proxiedRequest = new NextRequest('http://127.0.0.1:10000/api/auth-session', {
+      method: 'PATCH', headers: { origin },
+    });
+    assert.equal((await route.PATCH(proxiedRequest)).status, 401);
     const credentials = { deviceId: 'admin-device', refreshToken: login.tokens.refreshToken };
     const rejected = await route.POST(request('POST', credentials, 'https://attacker.invalid'));
     assert.equal(rejected.status, 403);
