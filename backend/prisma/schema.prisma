@@ -1295,6 +1295,7 @@ model UserSession {
   ipAddress      String?        @map("ip_address")
   userAgent      String?        @map("user_agent")
   isActive       Boolean        @default(true) @map("is_active")
+  sessionExpiresAt DateTime     @default(dbgenerated("(CURRENT_TIMESTAMP + '180 days'::interval)")) @map("session_expires_at")
   lastSeenAt     DateTime       @default(now()) @map("last_seen_at")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")

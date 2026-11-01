@@ -65,10 +65,19 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       const payload = this.jwtService.verify<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('api.jwt.accessSecret'),
       });
-      const activeUser = await this.prisma.user.findFirst({
-        select: { id: true, isActive: true, phoneNumber: true, roles: true },
-        where: { deletedAt: null, id: payload.sub, isActive: true },
+      if (!payload.sid) throw new Error('Session authentication required');
+      const session = await this.prisma.userSession.findFirst({
+        include: { user: true },
+        where: {
+          refreshTokenId: payload.sid,
+          userId: payload.sub,
+          isActive: true,
+          sessionExpiresAt: { gt: new Date() },
+          refreshToken: { revokedAt: null, expiresAt: { gt: new Date() } },
+          user: { deletedAt: null, isActive: true },
+        },
       });
+      const activeUser = session?.user;
 
       if (!activeUser) {
         client.emit('system:error', { message: 'Realtime user is no longer active' });

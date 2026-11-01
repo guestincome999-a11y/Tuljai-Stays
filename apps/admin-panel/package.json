@@ -6,7 +6,7 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "lint": "eslint .",
-    "start": "next start",
+    "start": "node scripts/start.mjs",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

@@ -762,7 +762,7 @@ export class LodgesService {
     lodge: Prisma.LodgeGetPayload<{ include: LodgesService['detailInclude'] }>,
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): PublicLodgeDetails {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripping direct-contact fields from the public shape, see method doc above
+    /* eslint-disable @typescript-eslint/no-unused-vars -- stripping direct-contact fields from the public shape, see method doc above */
     const {
       primaryPhone: _primaryPhone,
       email: _email,
@@ -770,6 +770,7 @@ export class LodgesService {
       whatsappNumber: _whatsappNumber,
       ...publicLodgeDetails
     } = this.toLodgeDetails(lodge, reviewAggregate);
+    /* eslint-enable @typescript-eslint/no-unused-vars */
     return publicLodgeDetails;
   }
 }

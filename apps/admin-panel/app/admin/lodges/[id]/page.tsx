@@ -586,9 +586,7 @@ export default function AdminLodgeDetailPage({ params }: { params: Promise<{ id:
                     ).then(() => setPendingStatus(null))
                   }
                 >
-                  {isBusy
-                    ? 'Updating…'
-                    : `Confirm · ${formatGovernanceStatus(selectedStatus)}`}
+                  {isBusy ? 'Updating…' : `Confirm · ${formatGovernanceStatus(selectedStatus)}`}
                 </button>
               </div>
 

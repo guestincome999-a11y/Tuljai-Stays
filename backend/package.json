@@ -15,7 +15,8 @@
     "db:seed": "ts-node prisma/seed.ts",
     "admin:set-password": "ts-node prisma/set-admin-password.ts",
     "db:studio": "prisma studio",
-    "test": "node --test scripts/payment-regression.test.mjs scripts/payment-idempotency.test.mjs scripts/booking-integration.test.mjs"
+    "test:auth": "node --test scripts/auth-session.test.mjs",
+    "test": "node --test scripts/auth-session.test.mjs scripts/payment-regression.test.mjs scripts/payment-idempotency.test.mjs scripts/booking-integration.test.mjs"
   },
   "dependencies": {
     "@fastify/helmet": "^13.0.2",
