@@ -1,11 +1,17 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { OwnerBookingSummary } from '@tuljai/types';
-import { radius, spacing } from '@tuljai/ui';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Modal, StyleSheet, Vibration, View } from 'react-native';
-import { Button, Text, useTheme } from 'react-native-paper';
+import { Modal, ScrollView, StyleSheet, Vibration, View } from 'react-native';
+import { Button, Text } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { ownerColors, radius, spacing } from '../../../owner-ui/theme';
+import { formatCheckOut, formatDateKey, getRoomRequirement } from '../utils/booking-display';
 
 interface IncomingBookingAlertProps {
   booking: OwnerBookingSummary | null;
+  errorMessage?: string | null;
   isOffline: boolean;
   isSubmitting: boolean;
   onAccept: (booking: OwnerBookingSummary) => void;
@@ -15,128 +21,167 @@ interface IncomingBookingAlertProps {
 
 export function IncomingBookingAlert({
   booking,
+  errorMessage,
   isOffline,
   isSubmitting,
   onAccept,
   onClose,
   onReject,
 }: IncomingBookingAlertProps) {
-  const theme = useTheme();
-
   useEffect(() => {
     if (!booking) {
       Vibration.cancel();
-      return undefined;
+      return;
     }
-
     Vibration.vibrate([0, 700, 600, 700, 600, 700], true);
-
     return () => Vibration.cancel();
   }, [booking]);
-
-  if (!booking) {
-    return null;
-  }
-
+  if (!booking) return null;
+  const details = [
+    {
+      icon: 'calendar-arrow-right' as const,
+      label: 'Check-in',
+      value: `${formatDateKey(booking.checkInDate)}${booking.expectedCheckInTime ? ` · ${booking.expectedCheckInTime}` : ''}`,
+    },
+    {
+      icon: 'calendar-arrow-left' as const,
+      label: 'Check-out',
+      value: `${formatCheckOut(booking)}${!booking.checkoutDateFlexible && booking.expectedCheckOutTime ? ` · ${booking.expectedCheckOutTime}` : ''}`,
+    },
+    { icon: 'bed-outline' as const, label: 'Room type', value: getRoomRequirement(booking) },
+    {
+      icon: 'message-text-outline' as const,
+      label: 'Special request',
+      value: booking.specialRequest || 'No special request',
+    },
+  ];
   return (
-    <Modal animationType="fade" visible onRequestClose={onClose}>
-      <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
-          <Text style={{ color: theme.colors.onPrimary }} variant="labelLarge">
-            NEW BOOKING
-          </Text>
-        </View>
-
-        <View style={styles.details}>
-          <Text style={styles.centerText} variant="headlineMedium">
-            {booking.bookingCode}
-          </Text>
-          <Text style={styles.centerText} variant="titleLarge">
-            Guest: {booking.guestName}
-          </Text>
-          <Text style={styles.centerText} variant="titleMedium">
-            Guests: {booking.totalGuests}
-          </Text>
-          <Text style={styles.centerText} variant="titleMedium">
-            Room: {booking.roomTypeName}
-          </Text>
-          <Text style={styles.centerText} variant="bodyLarge">
-            Check-in: {booking.checkInDate}
-          </Text>
-          <Text style={styles.centerText} variant="bodyLarge">
-            Check-out:{' '}
-            {booking.checkoutDateFlexible
-              ? 'Not fixed — confirm with pilgrim'
-              : booking.checkOutDate}
-          </Text>
-          <Text style={styles.centerText} variant="bodyMedium">
-            Special Request: {booking.specialRequest ?? 'No special request'}
-          </Text>
-          {isOffline ? (
-            <Text style={{ color: theme.colors.error }} variant="bodyMedium">
-              Connect to the internet to complete this action.
+    <Modal
+      animationType="fade"
+      visible
+      onRequestClose={() => {
+        if (!isSubmitting) onClose();
+      }}
+    >
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}>
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.heading}>
+            <View style={styles.bell}>
+              <MaterialCommunityIcons color="#F5D3B0" name="bell-ring-outline" size={44} />
+            </View>
+            <Text style={styles.headingText} variant="titleLarge">
+              New Booking Request!
             </Text>
-          ) : null}
-        </View>
-
-        <View style={styles.actions}>
-          <Button
-            accessibilityHint="Accepts this pending booking request."
-            accessibilityLabel={`Accept booking ${booking.bookingCode}`}
-            disabled={isOffline || isSubmitting}
-            loading={isSubmitting}
-            mode="contained"
-            onPress={() => onAccept(booking)}
-          >
-            Accept
+            <Text style={styles.subtitle}>A guest has booked a room at your lodge.</Text>
+            <Text style={styles.subtitle}>Please review and respond.</Text>
+          </View>
+          <View style={styles.card}>
+            <View style={styles.guest}>
+              <View style={styles.avatar}>
+                <MaterialCommunityIcons color={ownerColors.primary} name="account" size={28} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text variant="titleMedium">{booking.guestName}</Text>
+                <Text style={styles.muted} variant="bodySmall">
+                  {booking.totalGuests} guests · 1 room
+                </Text>
+                <Text style={styles.muted} variant="labelSmall">
+                  {booking.bookingCode}
+                </Text>
+              </View>
+            </View>
+            {details.map((detail) => (
+              <View style={styles.row} key={detail.label}>
+                <MaterialCommunityIcons color={ownerColors.primary} name={detail.icon} size={20} />
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.muted} variant="labelSmall">
+                    {detail.label}
+                  </Text>
+                  <Text variant="bodyMedium">{detail.value}</Text>
+                </View>
+              </View>
+            ))}
+            {booking.ownerResponseDeadline ? (
+              <Text style={styles.muted} variant="bodySmall">
+                Respond by {new Date(booking.ownerResponseDeadline).toLocaleString('en-IN')}
+              </Text>
+            ) : null}
+            {isOffline || errorMessage ? (
+              <Text accessibilityRole="alert" style={{ color: ownerColors.error }}>
+                {isOffline ? 'Connect to the internet to respond.' : errorMessage}
+              </Text>
+            ) : null}
+            <View style={styles.actions}>
+              <Button
+                accessibilityLabel={`Accept booking ${booking.bookingCode}`}
+                contentStyle={styles.button}
+                disabled={isOffline || isSubmitting}
+                loading={isSubmitting}
+                mode="contained"
+                onPress={() => onAccept(booking)}
+                style={styles.buttonShape}
+              >
+                Accept
+              </Button>
+              <Button
+                accessibilityLabel={`Reject booking ${booking.bookingCode}`}
+                contentStyle={styles.button}
+                disabled={isOffline || isSubmitting}
+                mode="outlined"
+                onPress={() => onReject(booking)}
+                style={styles.buttonShape}
+              >
+                Reject
+              </Button>
+              <Text style={[styles.muted, { textAlign: 'center' }]} variant="bodySmall">
+                Your response will be sent to the guest.
+              </Text>
+            </View>
+          </View>
+          <Button disabled={isSubmitting} textColor="#FFFFFF" onPress={onClose}>
+            Review later
           </Button>
-          <Button
-            accessibilityHint="Opens the rejection reason flow for this booking."
-            accessibilityLabel={`Reject booking ${booking.bookingCode}`}
-            disabled={isOffline || isSubmitting}
-            loading={isSubmitting}
-            mode="outlined"
-            onPress={() => onReject(booking)}
-          >
-            Reject
-          </Button>
-          <Button
-            accessibilityHint="Closes this booking alert without responding."
-            accessibilityLabel={`Close booking alert ${booking.bookingCode}`}
-            disabled={isSubmitting}
-            mode="text"
-            onPress={onClose}
-          >
-            Close
-          </Button>
-        </View>
-      </View>
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   );
 }
-
 const styles = StyleSheet.create({
-  actions: {
-    gap: spacing.md,
+  screen: { flex: 1, backgroundColor: ownerColors.deep },
+  content: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg, gap: 18 },
+  heading: { alignItems: 'center', gap: 6, paddingVertical: 12 },
+  headingText: { color: '#FFFFFF', fontWeight: '700', textAlign: 'center' },
+  subtitle: { color: '#F7E2E9', textAlign: 'center' },
+  bell: { padding: 14, borderRadius: 40, backgroundColor: '#78182F', marginBottom: 8 },
+  card: {
+    borderRadius: radius.lg,
+    padding: 20,
+    gap: 20,
+    backgroundColor: '#FFFFFF',
     width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
   },
-  badge: {
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  details: {
+  guest: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 12,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: ownerColors.border,
   },
-  screen: {
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: ownerColors.blush,
     alignItems: 'center',
-    flex: 1,
-    gap: spacing.xl,
     justifyContent: 'center',
-    padding: spacing.lg,
   },
+  row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  muted: { color: ownerColors.muted },
+  actions: { gap: 12, marginTop: 8 },
+  button: { minHeight: 48 },
+  buttonShape: { borderRadius: 12, borderColor: ownerColors.primary },
 });

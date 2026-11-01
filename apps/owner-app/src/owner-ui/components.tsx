@@ -39,7 +39,7 @@ export function PageHeader({
   return (
     <View className="flex-row items-start justify-between gap-4">
       <View className="flex-1 gap-1">
-        <Text className="font-heading text-2xl font-bold text-warm-900">{title}</Text>
+        <Text className="font-heading text-xl font-bold text-warm-900">{title}</Text>
         {subtitle ? (
           <Text className="font-body text-sm leading-5 text-warm-600">{subtitle}</Text>
         ) : null}
@@ -75,11 +75,11 @@ export function PrimaryButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`min-h-[52px] flex-row items-center justify-center gap-2 rounded-xl bg-saffron-500 px-5 active:bg-saffron-600 ${className}`}
+      className={`min-h-[52px] flex-row items-center justify-center gap-2 rounded-xl bg-maroon-700 px-5 active:bg-maroon-800 disabled:opacity-50 ${className}`}
       {...props}
     >
-      {icon ? <MaterialCommunityIcons color="#2B2320" name={icon} size={21} /> : null}
-      <Text className="font-heading text-base font-bold text-warm-900">{label}</Text>
+      {icon ? <MaterialCommunityIcons color="#FFFFFF" name={icon} size={21} /> : null}
+      <Text className="font-heading text-base font-bold text-white">{label}</Text>
     </Pressable>
   );
 }
@@ -91,7 +91,7 @@ export function SecondaryButton({
   className = '',
   ...props
 }: PressableProps & { label: string; icon?: IconName; destructive?: boolean; className?: string }) {
-  const color = destructive ? '#C0392B' : '#7A1F2B';
+  const color = destructive ? '#C0392B' : '#861632';
   return (
     <Pressable
       accessibilityRole="button"
@@ -124,7 +124,7 @@ export function IconButton({
       className="h-12 w-12 items-center justify-center rounded-xl bg-saffron-100"
       onPress={onPress}
     >
-      <MaterialCommunityIcons color="#7A1F2B" name={icon} size={24} />
+      <MaterialCommunityIcons color="#861632" name={icon} size={24} />
     </Pressable>
   );
 }

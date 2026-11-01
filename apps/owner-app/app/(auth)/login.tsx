@@ -1,9 +1,20 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import ownerTempleArtwork from '../../assets/owner-temple-login.png';
 import { useAuth } from '../../src/auth/auth-context';
 import { LanguagePill, PrimaryButton, Screen } from '../../src/owner-ui/components';
 import { LegalDocument, type LegalDocumentKind } from '../../src/owner-ui/legal-documents';
@@ -13,6 +24,7 @@ const SUPPORT_EMAIL = 'tuljaistays@gmail.com';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const auth = useAuth();
   const { t } = useOwnerApp();
   const [email, setEmail] = useState(process.env.EXPO_PUBLIC_OWNER_PREVIEW_EMAIL ?? '');
@@ -71,19 +83,31 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-warm-50"
+      className="flex-1 bg-maroon-800"
+      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
-      <Screen contentContainerClassName="min-h-full justify-between gap-8 px-5 pb-10 pt-16">
+      <StatusBar style="light" />
+      <Image
+        accessibilityIgnoresInvertColors
+        source={ownerTempleArtwork}
+        resizeMode="cover"
+        style={{ position: 'absolute', top: 0, width: '100%', height: 440, opacity: 0.65 }}
+      />
+      <Screen
+        className="flex-1 bg-transparent"
+        contentContainerClassName="min-h-full justify-between gap-6 px-5 pb-8 pt-5"
+      >
         <View className="items-end">
           <LanguagePill />
         </View>
-        <View className="items-center gap-4">
-          <View className="h-20 w-20 items-center justify-center rounded-2xl bg-saffron-500">
-            <MaterialCommunityIcons color="#7A1F2B" name="temple-hindu" size={42} />
+        <View className="min-h-[220px] items-center justify-end gap-4 pb-4">
+          <View className="h-20 w-20 items-center justify-center rounded-2xl border border-white/20 bg-maroon-700">
+            <MaterialCommunityIcons color="#F4D9B6" name="temple-hindu" size={42} />
           </View>
           <View className="items-center gap-1">
-            <Text className="font-heading text-3xl font-bold text-maroon-700">Tuljai Stays</Text>
-            <Text className="font-devanagari text-base text-warm-600">
+            <Text className="text-base text-white/80">॥ जय तुळजाभवानी ॥</Text>
+            <Text className="font-heading text-3xl font-bold text-white">Tuljai Stays</Text>
+            <Text className="font-devanagari text-base text-white/80">
               {t('Lodge Owner App', 'लॉज मालक अॅप')}
             </Text>
           </View>
@@ -91,7 +115,7 @@ export default function LoginScreen() {
 
         <View className="gap-5 rounded-2xl border border-warm-200 bg-white p-5">
           <View className="gap-1">
-            <Text className="font-heading text-2xl font-bold text-warm-900">
+            <Text className="font-heading text-xl font-bold text-warm-900">
               {t('Welcome back', 'पुन्हा स्वागत आहे')}
             </Text>
             <Text className="font-body text-base leading-6 text-warm-600">
@@ -103,9 +127,7 @@ export default function LoginScreen() {
           </View>
 
           <View className="gap-2">
-            <Text className="font-body text-sm font-bold text-warm-700">
-              {t('Email', 'ईमेल')}
-            </Text>
+            <Text className="font-body text-sm font-bold text-warm-700">{t('Email', 'ईमेल')}</Text>
             <View className="min-h-14 flex-row items-center rounded-xl border border-warm-300 bg-warm-50 px-4">
               <TextInput
                 accessibilityLabel="Email"
@@ -260,7 +282,7 @@ export default function LoginScreen() {
               hitSlop={8}
               onPress={() => setLegalOpen(false)}
             >
-              <MaterialCommunityIcons color="#7A1F2B" name="close" size={22} />
+              <MaterialCommunityIcons color="#861632" name="close" size={22} />
             </Pressable>
           </View>
           <View className="flex-1 px-5 pt-5">

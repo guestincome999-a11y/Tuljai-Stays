@@ -1,5 +1,5 @@
 import type { Notification, NotificationPriority, NotificationType } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -15,6 +15,7 @@ import {
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { OwnerBookingCard } from '../../bookings/components/OwnerBookingCard';
 import { RejectBookingModal } from '../../bookings/components/RejectBookingModal';
 import { useOwnerBookingActions, useOwnerBookings } from '../../bookings/hooks/useOwnerBookings';
@@ -305,9 +306,7 @@ export function OwnerNotificationsScreen() {
             onViewReview={() => {
               void notifications.markRead(notification.id);
               const reviewId =
-                typeof notification.data?.reviewId === 'string'
-                  ? notification.data.reviewId
-                  : null;
+                typeof notification.data?.reviewId === 'string' ? notification.data.reviewId : null;
               router.push({
                 pathname: '/(app)/reviews',
                 params: reviewId ? { reviewId } : undefined,

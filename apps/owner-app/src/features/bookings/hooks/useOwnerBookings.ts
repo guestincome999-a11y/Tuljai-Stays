@@ -1,10 +1,14 @@
 import type { BookingStatus, OwnerBookingSummary } from '@tuljai/types';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { getEventBookingId } from '../../../realtime/realtime-events';
 import { useRealtime } from '../../../realtime/realtime-provider';
-import { acceptOwnerBooking, listOwnerBookings, rejectOwnerBooking } from '../api/owner-bookings-api';
+import {
+  acceptOwnerBooking,
+  listOwnerBookings,
+  rejectOwnerBooking,
+} from '../api/owner-bookings-api';
 import type { OwnerBookingsQuery } from '../api/owner-bookings-api';
 
 const PAGE_SIZE = 30;
@@ -191,16 +195,19 @@ export function useOwnerBookings(
 
 export function useOwnerBookingActions(onCompleted: () => void) {
   const { isOffline } = useConnectivity();
+  const responseInFlight = useRef(false);
   const [submittingBookingId, setSubmittingBookingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const accept = useCallback(
     async (bookingId: string) => {
+      if (responseInFlight.current) return false;
       if (isOffline) {
         setErrorMessage('Connect to the internet to respond to bookings.');
         return false;
       }
+      responseInFlight.current = true;
       setSubmittingBookingId(bookingId);
       setErrorMessage(null);
       setSuccessMessage(null);
@@ -210,9 +217,12 @@ export function useOwnerBookingActions(onCompleted: () => void) {
         onCompleted();
         return true;
       } catch {
-        setErrorMessage('This room is no longer available. Please refresh bookings.');
+        setErrorMessage(
+          'This request could not be accepted. It may have expired or availability may have changed. Refresh to check its status.',
+        );
         return false;
       } finally {
+        responseInFlight.current = false;
         setSubmittingBookingId(null);
       }
     },
@@ -221,10 +231,12 @@ export function useOwnerBookingActions(onCompleted: () => void) {
 
   const reject = useCallback(
     async (bookingId: string, reason: string) => {
+      if (responseInFlight.current) return false;
       if (isOffline) {
         setErrorMessage('Connect to the internet to respond to bookings.');
         return false;
       }
+      responseInFlight.current = true;
       setSubmittingBookingId(bookingId);
       setErrorMessage(null);
       setSuccessMessage(null);
@@ -237,6 +249,7 @@ export function useOwnerBookingActions(onCompleted: () => void) {
         setErrorMessage('Booking could not be rejected. Please try again.');
         return false;
       } finally {
+        responseInFlight.current = false;
         setSubmittingBookingId(null);
       }
     },

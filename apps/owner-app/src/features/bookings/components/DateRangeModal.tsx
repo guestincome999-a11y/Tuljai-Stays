@@ -1,8 +1,8 @@
-import { radius, spacing } from '@tuljai/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Button, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
+import { radius, spacing } from '../../../owner-ui/theme';
 import { formatDateKey, parseDateKey, toDateKey } from '../utils/booking-display';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -228,7 +228,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 2,
-    width: `${100 / 7}%`,
+    // Keep the row below 100% to avoid Yoga float rounding wrapping column seven.
+    width: '14.28%',
   },
   content: {
     gap: spacing.md,

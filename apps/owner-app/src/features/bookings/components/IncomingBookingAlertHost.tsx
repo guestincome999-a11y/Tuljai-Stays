@@ -12,6 +12,7 @@ import { useRealtime } from '../../../realtime/realtime-provider';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { listOwnerBookings } from '../api/owner-bookings-api';
 import { useOwnerBookingActions } from '../hooks/useOwnerBookings';
+import { isIncomingBookingEligible } from '../utils/booking-display';
 
 import { IncomingBookingAlert } from './IncomingBookingAlert';
 import { RejectBookingModal } from './RejectBookingModal';
@@ -59,7 +60,10 @@ export function IncomingBookingAlertHost() {
         return;
       }
 
-      const nextBooking = response.items.find((booking) => booking.id === bookingId) ?? null;
+      const nextBooking =
+        response.items.find(
+          (booking) => booking.id === bookingId && isIncomingBookingEligible(booking),
+        ) ?? null;
 
       if (!nextBooking) {
         return;
@@ -87,7 +91,10 @@ export function IncomingBookingAlertHost() {
         status: 'PENDING_OWNER_APPROVAL',
       });
       const nextBooking =
-        response.items.find((booking) => !handledBookingIdsRef.current.has(booking.id)) ?? null;
+        response.items.find(
+          (booking) =>
+            !handledBookingIdsRef.current.has(booking.id) && isIncomingBookingEligible(booking),
+        ) ?? null;
 
       if (!nextBooking) {
         return;
@@ -161,10 +168,37 @@ export function IncomingBookingAlertHost() {
     [loadBookingAlert],
   );
 
+  // Deadline timer follows the server's expiry timestamp; no additional polling.
+  useEffect(() => {
+    const booking = alertBooking ?? rejectBooking;
+    if (!booking?.ownerResponseDeadline) return;
+    const remaining = new Date(booking.ownerResponseDeadline).getTime() - Date.now();
+    if (remaining <= 0) {
+      closeAlert();
+      return;
+    }
+    const timeout = setTimeout(closeAlert, Math.min(remaining, 2_147_483_647));
+    return () => clearTimeout(timeout);
+  }, [alertBooking, closeAlert, rejectBooking]);
+
+  useEffect(() => {
+    const event = realtime.lastEvent;
+    const id = getEventBookingId(event);
+    if (
+      id &&
+      (id === alertBooking?.id || id === rejectBooking?.id) &&
+      ['booking:accepted', 'booking:cancelled', 'booking:rejected', 'booking:expired'].includes(
+        event?.name ?? '',
+      )
+    )
+      closeAlert();
+  }, [alertBooking?.id, closeAlert, realtime.lastEvent, rejectBooking?.id]);
+
   return (
     <>
       <IncomingBookingAlert
         booking={alertBooking}
+        errorMessage={actions.errorMessage}
         isOffline={isOffline}
         isSubmitting={Boolean(alertBooking && actions.submittingBookingId === alertBooking.id)}
         onAccept={(booking) => {
@@ -178,6 +212,7 @@ export function IncomingBookingAlertHost() {
       />
       <RejectBookingModal
         bookingCode={rejectBooking?.bookingCode ?? null}
+        errorMessage={actions.errorMessage}
         isSubmitting={Boolean(rejectBooking && actions.submittingBookingId === rejectBooking.id)}
         visible={Boolean(rejectBooking)}
         onCancel={() => setRejectBooking(null)}

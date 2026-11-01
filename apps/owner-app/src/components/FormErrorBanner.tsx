@@ -1,6 +1,8 @@
-import { spacing } from '@tuljai/ui';
+
 import { StyleSheet } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+
+import { spacing } from '../owner-ui/theme';
 
 interface FormErrorBannerProps {
   message: string | null;

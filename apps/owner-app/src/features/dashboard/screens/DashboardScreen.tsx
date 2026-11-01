@@ -1,25 +1,32 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { OwnerDashboardSummary } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
-import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
+import { ownerColors } from '../../../owner-ui/theme';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import { useOwnerAnnouncements } from '../../announcements/hooks/useOwnerAnnouncements';
+import { OwnerBookingCard } from '../../bookings/components/OwnerBookingCard';
+import { useOwnerBookings } from '../../bookings/hooks/useOwnerBookings';
+import { getOwnerLodgeDetails } from '../../lodge-management/api/owner-amenities-api';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { useUnreadNotificationCount } from '../../notifications/hooks/useOwnerNotifications';
+import { useRoomOperations } from '../../rooms/hooks/useRoomOperations';
 import { useOwnerDashboardSummary } from '../hooks/useOwnerDashboardSummary';
 import { useReceptionSnapshot } from '../hooks/useReceptionSnapshot';
 
 export function DashboardScreen() {
-  const auth = useAuth();
   const assignedLodges = useAssignedLodges();
   const dashboard = useOwnerDashboardSummary();
+  const roomBoard = useRoomOperations();
+  const recent = useOwnerBookings(assignedLodges.selectedLodge?.id ?? null, null);
   const reception = useReceptionSnapshot();
   const announcements = useOwnerAnnouncements();
   const notifications = useUnreadNotificationCount();
@@ -28,9 +35,50 @@ export function DashboardScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { tr } = useOwnerApp();
-  const displayName = auth.user?.displayName ?? auth.user?.phoneNumber ?? 'Owner';
   const selectedLodge = assignedLodges.selectedLodge;
+  const lodgeId = selectedLodge?.id ?? null;
+  const [lodgeLocation, setLodgeLocation] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    setLodgeLocation(null);
+    if (!lodgeId || isOffline) return;
+    void getOwnerLodgeDetails(lodgeId)
+      .then((lodge) => {
+        if (current && lodge.address) {
+          setLodgeLocation([lodge.address.city, lodge.address.state].filter(Boolean).join(', '));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [isOffline, lodgeId]);
   const stats = getDashboardStats(dashboard.data, tr);
+  const cover = roomBoard.photos.find(
+    (photo) => photo.isCover && photo.approvalStatus === 'APPROVED',
+  );
+  const overview = [
+    {
+      label: tr("Today's Bookings"),
+      value: dashboard.data ? String(dashboard.data.todayBookings) : '—',
+      icon: 'calendar-check-outline' as const,
+    },
+    {
+      label: tr('Total Rooms'),
+      value: roomBoard.isLoading || roomBoard.errorMessage ? '—' : String(roomBoard.rooms.length),
+      icon: 'bed-outline' as const,
+    },
+    {
+      label: tr('Pending Requests'),
+      value: dashboard.data ? String(dashboard.data.pendingBookings) : '—',
+      icon: 'clock-outline' as const,
+    },
+    {
+      label: tr('Estimated Revenue'),
+      value: dashboard.data ? `₹${formatMoney(dashboard.data.estimatedRevenue)}` : '—',
+      icon: 'cash-multiple' as const,
+    },
+  ];
   // Bell badge must reflect unread notifications only. Pending bookings is a
   // separate operational metric (shown in its own stat card below) and must
   // never be folded into this count — doing so kept the badge "stuck" at the
@@ -72,6 +120,8 @@ export function DashboardScreen() {
             void assignedLodges.refresh();
             void dashboard.refresh();
             void reception.refresh();
+            void recent.refresh();
+            void roomBoard.refresh();
           }}
           refreshing={assignedLodges.isRefreshing || dashboard.isRefreshing || reception.isLoading}
           tintColor={theme.colors.primary}
@@ -79,18 +129,27 @@ export function DashboardScreen() {
       }
     >
       <View style={styles.header}>
+        <View style={styles.lodgeAvatar}>
+          {cover ? (
+            <Image
+              accessibilityLabel={selectedLodge.name}
+              source={{ uri: cover.thumbnailUrl ?? cover.fileUrl }}
+              style={{ width: 48, height: 48, borderRadius: 14 }}
+            />
+          ) : (
+            <MaterialCommunityIcons
+              color={ownerColors.primary}
+              name="home-city-outline"
+              size={28}
+            />
+          )}
+        </View>
         <View style={styles.greeting}>
-          <Text style={{ color: theme.colors.primary }} variant="headlineSmall">
-            {tr('Namaste')}
-          </Text>
           <Text numberOfLines={1} variant="titleMedium">
-            {displayName}
-          </Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
             {selectedLodge.name}
           </Text>
-          <Text style={{ color: theme.colors.primary }} variant="labelLarge">
-            {realtime.connected ? tr('Realtime connected') : tr('Realtime reconnecting')}
+          <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+            {lodgeLocation ?? `${tr('Lodge owner')} · Tuljai Stays`}
           </Text>
         </View>
         <View style={styles.notificationIcon}>
@@ -115,16 +174,128 @@ export function DashboardScreen() {
         </View>
       </View>
 
-      <Button
-        accessibilityHint="Opens all bookings with date and status filters."
-        accessibilityLabel="Open owner bookings"
-        icon="clipboard-list-outline"
-        mode="contained"
-        onPress={() => router.push('/(app)/bookings')}
-      >
-        {tr('View Bookings')}
-      </Button>
+      <View style={styles.welcomeCard}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={{ color: '#F2CCD6' }} variant="labelMedium">
+            तुळजाई · TULJAI STAYS
+          </Text>
+          <Text style={{ color: '#FFFFFF', fontWeight: '700' }} variant="titleLarge">
+            {tr('Welcome, Owner')}
+          </Text>
+          <Text style={{ color: '#F9E5EB' }} variant="bodySmall">
+            {tr('Your lodge, at a glance.')}
+          </Text>
+        </View>
+        <MaterialCommunityIcons color="#E6B8C5" name="temple-hindu" size={48} />
+      </View>
 
+      <View style={styles.statGrid}>
+        {overview.map((item) => (
+          <Card key={item.label} mode="outlined" style={styles.statCard}>
+            <Card.Content style={styles.statContent}>
+              <MaterialCommunityIcons color={ownerColors.primary} name={item.icon} size={23} />
+              <Text style={{ color: ownerColors.text, fontWeight: '700' }} variant="titleLarge">
+                {item.value}
+              </Text>
+              <Text style={{ color: ownerColors.muted }} variant="bodySmall">
+                {item.label}
+              </Text>
+            </Card.Content>
+          </Card>
+        ))}
+      </View>
+      <Text style={{ color: ownerColors.muted }} variant="bodySmall">
+        {tr(
+          assignedLodges.lodges.length > 1
+            ? 'Revenue estimate for all dates. Rooms are for this lodge; other totals include all your lodges.'
+            : 'Revenue estimate for all dates.',
+        )}
+      </Text>
+
+      <Text variant="titleMedium">{tr('Quick Actions')}</Text>
+      <View style={styles.quickGrid}>
+        {(
+          [
+            {
+              label: 'View Bookings',
+              icon: 'calendar-check-outline',
+              action: () => router.push('/(app)/bookings'),
+            },
+            {
+              label: 'Room Availability',
+              icon: 'bed-outline',
+              action: () =>
+                router.push({ pathname: '/(app)/rooms', params: { tab: 'AVAILABILITY' } }),
+            },
+            {
+              label: 'Add Manual Booking',
+              icon: 'calendar-plus',
+              action: () =>
+                router.push({
+                  pathname: '/(app)/rooms',
+                  params: { action: 'manual', tab: 'AVAILABILITY' },
+                }),
+            },
+            {
+              label: 'Lodge Profile',
+              icon: 'home-city-outline',
+              action: () => router.push('/(app)/profile'),
+            },
+          ] as const
+        ).map((item) => (
+          <Pressable
+            accessibilityRole="button"
+            key={item.label}
+            onPress={item.action}
+            android_ripple={{ color: ownerColors.blush }}
+            style={styles.quickAction}
+          >
+            <View style={styles.actionIcon}>
+              <MaterialCommunityIcons color={ownerColors.primary} name={item.icon} size={24} />
+            </View>
+            <Text style={{ textAlign: 'center', width: '100%' }} variant="labelSmall">
+              {tr(item.label)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.header}>
+        <Text style={{ flex: 1 }} variant="titleMedium">
+          {tr('Recent Bookings')}
+        </Text>
+        <Button onPress={() => router.push('/(app)/bookings')}>{tr('View All')}</Button>
+      </View>
+      {recent.isLoading ? <ActivityIndicator /> : null}
+      {recent.errorMessage ? (
+        <Text style={{ color: theme.colors.error }}>{recent.errorMessage}</Text>
+      ) : null}
+      {!recent.isLoading && !recent.errorMessage && recent.data.length === 0 ? (
+        <Text style={{ color: ownerColors.muted }}>{tr('No bookings yet.')}</Text>
+      ) : null}
+      {recent.data.slice(0, 3).map((booking) => (
+        <OwnerBookingCard
+          key={booking.id}
+          booking={booking}
+          onOpen={(item) =>
+            router.push({ pathname: '/(app)/bookings/[id]', params: { id: item.id } })
+          }
+        />
+      ))}
+
+      <Text variant="titleMedium">{tr('Reception & Finances')}</Text>
+      <View style={styles.statusRow}>
+        <Button icon="qrcode-scan" mode="contained" onPress={() => router.push('/(app)/scan')}>
+          {tr('Scan QR')}
+        </Button>
+        <Button
+          icon="calendar-clock-outline"
+          mode="outlined"
+          onPress={() => router.push('/(app)/upcoming')}
+        >
+          {tr('Upcoming Stays')}
+        </Button>
+      </View>
       {announcements.emergencyAnnouncement ? (
         <Card mode="contained" style={styles.card}>
           <Card.Content style={styles.cardContent}>
@@ -157,7 +328,9 @@ export function DashboardScreen() {
             ))}
           </View>
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-            Status is shared through realtime presence. Server-side persistence will be added later.
+            {realtime.connected
+              ? tr('Live presence connected')
+              : tr('Reconnecting to live presence')}
           </Text>
         </Card.Content>
       </Card>
@@ -219,7 +392,7 @@ export function DashboardScreen() {
           label="Total Income"
           onPress={() => router.push('/(app)/bookings')}
           subtitle="Eligible booking income received by your lodge"
-          value={dashboard.data ? formatMoney(dashboard.data.totalIncome) : '0'}
+          value={dashboard.data ? formatMoney(dashboard.data.totalIncome) : '—'}
           variant="income"
         />
         <FinanceCard
@@ -230,7 +403,7 @@ export function DashboardScreen() {
             router.push({ pathname: '/(app)/reports', params: { view: 'settlements' } })
           }
           subtitle="Outstanding until Tuljai Stays records settlement"
-          value={dashboard.data ? formatMoney(dashboard.data.commissionPayable) : '0'}
+          value={dashboard.data ? formatMoney(dashboard.data.commissionPayable) : '—'}
           variant="payable"
         />
       </View>
@@ -363,15 +536,15 @@ function getDashboardStats(
 }> {
   if (!summary) {
     return [
-      { label: tr('Pending Bookings'), value: '0' },
-      { label: tr("Today's Bookings"), value: '0' },
-      { label: tr("Today's Check-ins"), value: '0' },
-      { label: tr("Today's Check-outs"), value: '0' },
-      { label: tr('Available Rooms'), value: '0' },
-      { label: tr('Occupied Rooms'), value: '0' },
-      { label: tr('Maintenance'), value: '0' },
+      { label: tr('Pending Bookings'), value: '—' },
+      { label: tr("Today's Bookings"), value: '—' },
+      { label: tr("Today's Check-ins"), value: '—' },
+      { label: tr("Today's Check-outs"), value: '—' },
+      { label: tr('Available Rooms'), value: '—' },
+      { label: tr('Occupied Rooms'), value: '—' },
+      { label: tr('Maintenance'), value: '—' },
       { label: tr('Average Rating'), value: '-' },
-      { label: tr('Unread Notifications'), value: '0' },
+      { label: tr('Unread Notifications'), value: '—' },
     ];
   }
 
@@ -414,6 +587,37 @@ function formatOwnerStatus(
 }
 
 const styles = StyleSheet.create({
+  lodgeAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: ownerColors.blush,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeCard: {
+    backgroundColor: ownerColors.primary,
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  quickAction: {
+    width: '23%',
+    minWidth: 0,
+    minHeight: 108,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: ownerColors.border,
+    borderRadius: 12,
+    padding: 6,
+  },
+  actionIcon: { backgroundColor: ownerColors.blush, borderRadius: 12, padding: 10 },
   actions: {
     gap: spacing.md,
   },
@@ -436,14 +640,15 @@ const styles = StyleSheet.create({
   financeCard: {
     borderRadius: radius.lg,
     flex: 1,
-    minWidth: 156,
+    minWidth: 130,
   },
   financeContent: {
     gap: spacing.xs,
-    minHeight: 192,
+    minHeight: 160,
   },
   financeGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
   financeIcon: {
@@ -464,7 +669,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   financeValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     letterSpacing: -0.5,
     lineHeight: 31,
@@ -529,19 +734,19 @@ const styles = StyleSheet.create({
 
 const financeColors = {
   income: {
-    background: '#E3F8FA',
-    icon: '#047C91',
-    iconBackground: '#C4F0F5',
-    label: '#075B6A',
-    subtitle: '#397481',
-    value: '#023E4A',
+    background: '#FFFFFF',
+    icon: ownerColors.primary,
+    iconBackground: ownerColors.blush,
+    label: ownerColors.text,
+    subtitle: ownerColors.muted,
+    value: ownerColors.deep,
   },
   payable: {
-    background: '#D3F3F7',
-    icon: '#006E83',
-    iconBackground: '#B4EAF1',
-    label: '#075B6A',
-    subtitle: '#397481',
-    value: '#023E4A',
+    background: ownerColors.blush,
+    icon: ownerColors.primary,
+    iconBackground: '#FFFFFF',
+    label: ownerColors.text,
+    subtitle: ownerColors.muted,
+    value: ownerColors.deep,
   },
 } as const;

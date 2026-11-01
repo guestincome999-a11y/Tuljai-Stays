@@ -1,5 +1,5 @@
 import type { Announcement, AnnouncementCategory } from '@tuljai/types';
-import { EmptyState, palette, radius, spacing } from '@tuljai/ui';
+import { EmptyState, palette } from '@tuljai/ui';
 import { useLocalSearchParams } from 'expo-router';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -7,6 +7,7 @@ import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-nat
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useOwnerAnnouncements } from '../hooks/useOwnerAnnouncements';
 
 const categories: Array<{ label: string; value: AnnouncementCategory | null }> = [

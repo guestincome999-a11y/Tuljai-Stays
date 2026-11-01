@@ -1,5 +1,5 @@
 import type { GuestRegister } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import { memo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -14,6 +14,7 @@ import {
 } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { type RegisterQuickFilter, useRegisterDashboard } from '../hooks/useRegisterDashboard';
 
 const filters: Array<{ label: string; value: RegisterQuickFilter }> = [
@@ -88,6 +89,7 @@ export function RegisterDashboardScreen() {
       </Card>
 
       <TextInput
+        outlineStyle={{ borderRadius: radius.md }}
         accessibilityLabel="Search guest register"
         label="Search booking, guest, phone, room, date, status"
         mode="outlined"

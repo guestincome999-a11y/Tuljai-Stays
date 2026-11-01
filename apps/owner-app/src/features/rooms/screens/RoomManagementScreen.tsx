@@ -6,12 +6,23 @@ import type {
   RoomStatus,
   RoomType,
 } from '@tuljai/types';
-import { EmptyState, palette, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import * as ImagePicker from 'expo-image-picker';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { PropsWithChildren } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import {
   ActivityIndicator,
   Button,
@@ -25,18 +36,24 @@ import {
 } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { StatusBadge } from '../../../owner-ui/components';
+import { ownerColors } from '../../../owner-ui/theme';
+import { radius, spacing } from '../../../owner-ui/theme';
+import { DateRangeModal } from '../../bookings/components/DateRangeModal';
+import { addDays, formatDateKey, toDateKey } from '../../bookings/utils/booking-display';
 import { useOwnerAmenities } from '../../lodge-management/hooks/useOwnerAmenities';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import type { PickedPhoto } from '../api/owner-rooms-api';
+import { useDateAvailability } from '../hooks/useDateAvailability';
 import { useRoomOperations } from '../hooks/useRoomOperations';
 
 type RoomTab = 'AMENITIES' | 'ROOM_TYPES' | 'ROOMS' | 'AVAILABILITY' | 'GALLERY';
 
 const tabs: Array<{ label: string; value: RoomTab }> = [
-  { label: 'Amenities', value: 'AMENITIES' },
-  { label: 'Room Types', value: 'ROOM_TYPES' },
-  { label: 'Rooms', value: 'ROOMS' },
   { label: 'Availability', value: 'AVAILABILITY' },
+  { label: 'Rooms', value: 'ROOMS' },
+  { label: 'Room Types', value: 'ROOM_TYPES' },
+  { label: 'Amenities', value: 'AMENITIES' },
   { label: 'Gallery', value: 'GALLERY' },
 ];
 
@@ -59,17 +76,40 @@ const photoCategories: PhotoCategory[] = [
 ];
 
 export function RoomManagementScreen() {
-  const params = useLocalSearchParams<{ roomId?: string; roomTypeId?: string }>();
+  const params = useLocalSearchParams<{
+    roomId?: string;
+    roomTypeId?: string;
+    tab?: string;
+    action?: string;
+  }>();
+  const router = useRouter();
   const assignedLodges = useAssignedLodges();
   const amenities = useOwnerAmenities();
   const rooms = useRoomOperations();
   const theme = useTheme();
-  const [activeTab, setActiveTab] = useState<RoomTab>('AMENITIES');
+  const [activeTab, setActiveTab] = useState<RoomTab>('AVAILABILITY');
+  const [editingRoomType, setEditingRoomType] = useState<RoomType | null>(null);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [roomTypeFormVisible, setRoomTypeFormVisible] = useState(false);
   const [roomFormVisible, setRoomFormVisible] = useState(false);
   const [manualBookingFormVisible, setManualBookingFormVisible] = useState(false);
   const [photoFormVisible, setPhotoFormVisible] = useState(false);
-  const selectedLodgeName = assignedLodges.selectedLodge?.name ?? 'No lodge selected';
+  const [stay, setStay] = useState(() => ({
+    from: toDateKey(new Date()),
+    to: toDateKey(addDays(new Date(), 1)),
+  }));
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const availability = useDateAvailability(
+    assignedLodges.selectedLodge?.id ?? null,
+    rooms.roomTypes,
+    stay.from,
+    stay.to,
+    activeTab === 'AVAILABILITY',
+    rooms.isOffline,
+  );
+  const selectedLodgeName =
+    assignedLodges.selectedLodge?.name ??
+    (assignedLodges.isLoading ? 'Loading lodge…' : 'No lodge selected');
   const statusCounts = getRoomStatusCounts(rooms.rooms);
   const focusedRoomId = typeof params.roomId === 'string' ? params.roomId : null;
   const focusedRoomTypeId = typeof params.roomTypeId === 'string' ? params.roomTypeId : null;
@@ -92,6 +132,16 @@ export function RoomManagementScreen() {
     }
   }, [focusedRoomId, focusedRoomTypeId]);
 
+  useEffect(() => {
+    if (params.tab && tabs.some((tab) => tab.value === params.tab)) {
+      setActiveTab(params.tab as RoomTab);
+    }
+    if (params.action === 'manual') {
+      setManualBookingFormVisible(true);
+      router.setParams({ action: undefined });
+    }
+  }, [params.action, params.tab, router]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
@@ -108,20 +158,53 @@ export function RoomManagementScreen() {
         }
       >
         <View style={styles.header}>
-          <Text variant="headlineSmall">Lodge Management</Text>
+          <Text variant="headlineSmall">Room Availability</Text>
           <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
-            {selectedLodgeName} · amenities, rooms, pricing and availability
+            {selectedLodgeName}
           </Text>
         </View>
 
+        <View style={styles.dateRow}>
+          {[
+            { label: 'Check-in', value: stay.from },
+            { label: 'Check-out', value: stay.to },
+          ].map((date) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Choose ${date.label} date, ${formatDateKey(date.value)}`}
+              key={date.label}
+              onPress={() => setDatePickerVisible(true)}
+              style={styles.dateCard}
+            >
+              <Text style={{ color: ownerColors.muted }} variant="labelSmall">
+                {date.label}
+              </Text>
+              <Text variant="titleSmall">{formatDateKey(date.value)}</Text>
+            </Pressable>
+          ))}
+        </View>
         <View style={styles.summaryGrid}>
-          <SummaryCard label="Room Types" value={rooms.roomTypes.length.toString()} />
-          <SummaryCard label="Total Rooms" value={rooms.rooms.length.toString()} />
-          <SummaryCard label="Available" value={(statusCounts.AVAILABLE ?? 0).toString()} />
-          <SummaryCard label="Amenities" value={amenities.selectedAmenities.length.toString()} />
           <SummaryCard
-            label="Maintenance/Blocked"
-            value={`${statusCounts.MAINTENANCE ?? 0}/${statusCounts.BLOCKED ?? 0}`}
+            label="All Rooms"
+            value={
+              rooms.isLoading || assignedLodges.isLoading ? '—' : rooms.rooms.length.toString()
+            }
+          />
+          <SummaryCard
+            label="Available now"
+            value={
+              rooms.isLoading || assignedLodges.isLoading
+                ? '—'
+                : (statusCounts.AVAILABLE ?? 0).toString()
+            }
+          />
+          <SummaryCard
+            label="Occupied now"
+            value={
+              rooms.isLoading || assignedLodges.isLoading
+                ? '—'
+                : (statusCounts.OCCUPIED ?? 0).toString()
+            }
           />
         </View>
 
@@ -141,13 +224,15 @@ export function RoomManagementScreen() {
 
         <FormErrorBanner
           message={
-            rooms.errorMessage ??
-            amenities.errorMessage ??
-            (rooms.isOffline ? 'Connect to the internet to update rooms.' : null)
+            assignedLodges.isLoading
+              ? null
+              : (rooms.errorMessage ??
+                amenities.errorMessage ??
+                (rooms.isOffline ? 'Connect to the internet to update rooms.' : null))
           }
         />
 
-        {rooms.isLoading || amenities.isLoading ? (
+        {rooms.isLoading || assignedLodges.isLoading || amenities.isLoading ? (
           <ActivityIndicator animating size="large" />
         ) : null}
 
@@ -167,7 +252,14 @@ export function RoomManagementScreen() {
           <RoomTypesTab
             isSubmitting={rooms.isSubmitting}
             roomTypes={rooms.roomTypes}
-            onAdd={() => setRoomTypeFormVisible(true)}
+            onAdd={() => {
+              setEditingRoomType(null);
+              setRoomTypeFormVisible(true);
+            }}
+            onEdit={(type) => {
+              setEditingRoomType(type);
+              setRoomTypeFormVisible(true);
+            }}
             onToggle={(roomType) => {
               void rooms.updateRoomType(roomType.id, { isActive: !roomType.isActive });
             }}
@@ -182,7 +274,14 @@ export function RoomManagementScreen() {
             focusedRoomTypeId={focusedRoomTypeId}
             roomTypeById={rooms.roomTypeById}
             rooms={displayedRooms}
-            onAdd={() => setRoomFormVisible(true)}
+            onAdd={() => {
+              setEditingRoom(null);
+              setRoomFormVisible(true);
+            }}
+            onEdit={(room) => {
+              setEditingRoom(room);
+              setRoomFormVisible(true);
+            }}
             onSaveNote={(roomId, note) => {
               void rooms.saveHousekeepingNote(roomId, note);
             }}
@@ -211,9 +310,10 @@ export function RoomManagementScreen() {
 
         {activeTab === 'AVAILABILITY' ? (
           <AvailabilityTab
+            availability={availability}
+            roomTypes={rooms.roomTypes}
             isSubmitting={rooms.isSubmitting}
             manualBookings={rooms.manualBookings}
-            roomTypeById={rooms.roomTypeById}
             rooms={rooms.rooms}
             onAdd={() => setManualBookingFormVisible(true)}
             onRemove={(booking) => {
@@ -240,12 +340,30 @@ export function RoomManagementScreen() {
         ) : null}
       </ScrollView>
 
+      <DateRangeModal
+        initialFrom={stay.from}
+        initialTo={stay.to}
+        requireRange
+        title="Choose stay dates"
+        hint="Choose check-in and a later check-out to check live availability."
+        visible={datePickerVisible}
+        onCancel={() => setDatePickerVisible(false)}
+        onApply={(from, to) => {
+          setStay({ from, to });
+          setDatePickerVisible(false);
+        }}
+      />
       <RoomTypeModal
+        errorMessage={rooms.errorMessage}
+        initial={editingRoomType}
         isSubmitting={rooms.isSubmitting}
         visible={roomTypeFormVisible}
         onClose={() => setRoomTypeFormVisible(false)}
         onSubmit={(input) => {
-          void rooms.createRoomType(input).then((saved) => {
+          const operation = editingRoomType
+            ? rooms.updateRoomType(editingRoomType.id, { ...input, slug: editingRoomType.slug })
+            : rooms.createRoomType(input);
+          void operation.then((saved) => {
             if (saved) {
               setRoomTypeFormVisible(false);
             }
@@ -253,12 +371,17 @@ export function RoomManagementScreen() {
         }}
       />
       <RoomModal
+        errorMessage={rooms.errorMessage}
+        initial={editingRoom}
         isSubmitting={rooms.isSubmitting}
         roomTypes={rooms.roomTypes}
         visible={roomFormVisible}
         onClose={() => setRoomFormVisible(false)}
         onSubmit={(roomTypeId, input) => {
-          void rooms.createRoom(roomTypeId, input).then((saved) => {
+          const operation = editingRoom
+            ? rooms.updateRoom(editingRoom.id, input)
+            : rooms.createRoom(roomTypeId, input);
+          void operation.then((saved) => {
             if (saved) {
               setRoomFormVisible(false);
             }
@@ -266,6 +389,7 @@ export function RoomManagementScreen() {
         }}
       />
       <ManualBookingModal
+        errorMessage={rooms.errorMessage}
         isSubmitting={rooms.isSubmitting}
         rooms={rooms.rooms}
         visible={manualBookingFormVisible}
@@ -279,6 +403,7 @@ export function RoomManagementScreen() {
         }}
       />
       <PhotoMetadataModal
+        errorMessage={rooms.errorMessage}
         isSubmitting={rooms.isSubmitting}
         visible={photoFormVisible}
         onClose={() => setPhotoFormVisible(false)}
@@ -382,11 +507,13 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function RoomTypesTab({
   isSubmitting,
   onAdd,
+  onEdit,
   onToggle,
   roomTypes,
 }: {
   isSubmitting: boolean;
   onAdd: () => void;
+  onEdit: (type: RoomType) => void;
   onToggle: (roomType: RoomType) => void;
   roomTypes: RoomType[];
 }) {
@@ -407,7 +534,7 @@ function RoomTypesTab({
             <View style={styles.cardHeader}>
               <View style={styles.titleBlock}>
                 <Text variant="titleMedium">{roomType.name}</Text>
-                <Text variant="bodySmall">{roomType.description ?? 'No description'}</Text>
+                <Text variant="bodySmall">{roomType.description || 'No description'}</Text>
               </View>
               <Chip>{roomType.isActive ? 'Active' : 'Inactive'}</Chip>
             </View>
@@ -420,6 +547,14 @@ function RoomTypesTab({
               {roomType.festivalPrice ? `Rs. ${formatMoney(roomType.festivalPrice)}` : 'Not set'}
             </Text>
             <Text variant="bodyMedium">Total rooms: {roomType.totalRooms}</Text>
+            <Button
+              icon="pencil-outline"
+              disabled={isSubmitting}
+              mode="outlined"
+              onPress={() => onEdit(roomType)}
+            >
+              Edit category & pricing
+            </Button>
             <Button
               disabled={isSubmitting}
               mode="contained-tonal"
@@ -440,6 +575,7 @@ function RoomsTab({
   housekeepingNotes,
   isSubmitting,
   onAdd,
+  onEdit,
   onSaveNote,
   onStatusChange,
   roomTypeById,
@@ -450,6 +586,7 @@ function RoomsTab({
   housekeepingNotes: Record<string, string>;
   isSubmitting: boolean;
   onAdd: () => void;
+  onEdit: (room: Room) => void;
   onSaveNote: (roomId: string, note: string) => void;
   onStatusChange: (room: Room, status: RoomStatus) => void;
   roomTypeById: Map<string, RoomType>;
@@ -468,6 +605,7 @@ function RoomsTab({
           key={room.id}
           room={room}
           roomType={roomTypeById.get(room.roomTypeId)}
+          onEdit={onEdit}
           onSaveNote={onSaveNote}
           onStatusChange={onStatusChange}
         />
@@ -478,6 +616,7 @@ function RoomsTab({
 
 function RoomCard({
   focused,
+  onEdit,
   housekeepingNote,
   isSubmitting,
   onSaveNote,
@@ -486,6 +625,7 @@ function RoomCard({
   roomType,
 }: {
   focused: boolean;
+  onEdit: (room: Room) => void;
   housekeepingNote: string;
   isSubmitting: boolean;
   onSaveNote: (roomId: string, note: string) => void;
@@ -502,11 +642,28 @@ function RoomCard({
           <View style={styles.titleBlock}>
             <Text variant="titleMedium">Room {room.roomNumber}</Text>
             <Text variant="bodySmall">
-              {roomType?.name ?? 'Room type'} - Floor {room.floor ?? 'Not set'}
+              {roomType?.name ?? 'Room type'} - Floor {room.floor || 'Not set'}
             </Text>
           </View>
-          <Chip>{formatStatus(room.status)}</Chip>
+          <StatusBadge
+            label={formatStatus(room.status)}
+            tone={
+              room.status === 'AVAILABLE'
+                ? 'success'
+                : room.status === 'OCCUPIED'
+                  ? 'danger'
+                  : 'warning'
+            }
+          />
         </View>
+        <Button
+          icon="pencil-outline"
+          disabled={isSubmitting}
+          mode="outlined"
+          onPress={() => onEdit(room)}
+        >
+          Edit room details
+        </Button>
         <View style={styles.quickActions}>
           {quickStatuses.map((item) => (
             <Button
@@ -521,6 +678,8 @@ function RoomCard({
           ))}
         </View>
         <TextInput
+          accessibilityLabel="Housekeeping note"
+          outlineStyle={{ borderRadius: radius.md }}
           label="Housekeeping note"
           mode="outlined"
           placeholder="Needs cleaning, linen changed, ready for guest"
@@ -536,24 +695,69 @@ function RoomCard({
 }
 
 function AvailabilityTab({
+  availability,
+  roomTypes,
   isSubmitting,
   manualBookings,
   onAdd,
   onRemove,
-  roomTypeById,
   rooms,
 }: {
+  availability: ReturnType<typeof useDateAvailability>;
+  roomTypes: RoomType[];
   isSubmitting: boolean;
   manualBookings: ManualBookingBlock[];
   onAdd: () => void;
   onRemove: (booking: ManualBookingBlock) => void;
-  roomTypeById: Map<string, RoomType>;
   rooms: Room[];
 }) {
   return (
     <View style={styles.section}>
+      <Text variant="titleMedium">Rooms by category</Text>
+      <Text style={{ color: ownerColors.muted }} variant="bodySmall">
+        Available for your selected dates is checked with live inventory. Room badges show current
+        physical status.
+      </Text>
+      {availability.isLoading ? <ActivityIndicator /> : null}
+      <FormErrorBanner message={availability.errorMessage} />
+      {roomTypes.map((type) => (
+        <Card key={type.id} mode="outlined" style={styles.card}>
+          <Card.Content style={styles.cardContent}>
+            <Text variant="titleMedium">{type.name}</Text>
+            <Text style={{ color: ownerColors.muted }} variant="bodySmall">
+              Total: {rooms.filter((room) => room.roomTypeId === type.id).length} ·{' '}
+              {type.isActive
+                ? `Available for selected dates: ${availability.isLoading ? 'Checking…' : (availability.data[type.id]?.availableRoomCount ?? 'Not verified')}`
+                : 'Inactive category'}
+            </Text>
+            {rooms
+              .filter((room) => room.roomTypeId === type.id)
+              .map((room) => (
+                <View key={room.id} style={styles.roomRow}>
+                  <Text style={{ flex: 1 }} variant="bodyMedium">
+                    Room {room.roomNumber}
+                  </Text>
+                  <StatusBadge
+                    label={formatStatus(room.status)}
+                    tone={
+                      room.status === 'AVAILABLE'
+                        ? 'success'
+                        : room.status === 'OCCUPIED'
+                          ? 'danger'
+                          : 'warning'
+                    }
+                  />
+                </View>
+              ))}
+          </Card.Content>
+        </Card>
+      ))}
+      <Text variant="titleMedium">Current room status</Text>
+      <Text style={{ color: ownerColors.muted }} variant="bodySmall">
+        Open the Rooms tab above to update a room, housekeeping note or maintenance status.
+      </Text>
       <Button disabled={rooms.length === 0} icon="calendar-plus" mode="contained" onPress={onAdd}>
-        Add Offline Booking
+        Add Manual Booking
       </Button>
       <Text variant="bodyMedium">
         Record phone or walk-in bookings here. The selected room is blocked for those nights in live
@@ -590,20 +794,6 @@ function AvailabilityTab({
             >
               Remove and release room
             </Button>
-          </Card.Content>
-        </Card>
-      ))}
-      <Text variant="titleMedium">Room Board</Text>
-      {rooms.map((room) => (
-        <Card key={room.id} mode="outlined" style={styles.card}>
-          <Card.Content style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <Text variant="titleMedium">Room {room.roomNumber}</Text>
-              <Chip>{formatStatus(room.status)}</Chip>
-            </View>
-            <Text variant="bodySmall">
-              {roomTypeById.get(room.roomTypeId)?.name ?? 'Room type'}
-            </Text>
           </Card.Content>
         </Card>
       ))}
@@ -666,11 +856,15 @@ function GalleryPhotoCard({ photo }: { photo: LodgePhoto }) {
 }
 
 function RoomTypeModal({
+  initial,
+  errorMessage,
   isSubmitting,
   onClose,
   onSubmit,
   visible,
 }: {
+  initial: RoomType | null;
+  errorMessage: string | null;
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (input: {
@@ -693,16 +887,56 @@ function RoomTypeModal({
   const [festivalPrice, setFestivalPrice] = useState('');
   const [totalRooms, setTotalRooms] = useState('1');
 
+  useEffect(() => {
+    if (!visible) return;
+    setName(initial?.name ?? '');
+    setDescription(initial?.description ?? '');
+    setCapacityAdults(String(initial?.capacityAdults ?? 2));
+    setCapacityChildren(String(initial?.capacityChildren ?? 0));
+    setBasePrice(initial?.basePrice ?? '');
+    setFestivalPrice(initial?.festivalPrice ?? '');
+    setTotalRooms(String(initial?.totalRooms ?? 1));
+  }, [initial, visible]);
+  const valid =
+    name.trim().length > 0 &&
+    name.trim().length <= 120 &&
+    basePrice.trim() !== '' &&
+    Number.isFinite(Number(basePrice)) &&
+    Number(basePrice) >= 0 &&
+    Number.isInteger(Number(capacityAdults)) &&
+    Number(capacityAdults) >= 1 &&
+    Number.isInteger(Number(capacityChildren)) &&
+    Number(capacityChildren) >= 0 &&
+    Number.isInteger(Number(totalRooms)) &&
+    Number(totalRooms) >= 1 &&
+    (!festivalPrice || (Number.isFinite(Number(festivalPrice)) && Number(festivalPrice) >= 0));
+
   return (
-    <FormModal title="Room Type" visible={visible} onClose={onClose}>
-      <TextInput label="Name" mode="outlined" value={name} onChangeText={setName} />
+    <FormModal
+      errorMessage={errorMessage}
+      title={initial ? 'Edit room category' : 'Add room category'}
+      visible={visible}
+      onClose={onClose}
+    >
       <TextInput
+        accessibilityLabel="Name"
+        outlineStyle={{ borderRadius: radius.md }}
+        label="Name"
+        mode="outlined"
+        value={name}
+        onChangeText={setName}
+      />
+      <TextInput
+        accessibilityLabel="Description"
+        outlineStyle={{ borderRadius: radius.md }}
         label="Description"
         mode="outlined"
         value={description}
         onChangeText={setDescription}
       />
       <TextInput
+        accessibilityLabel="Adult capacity"
+        outlineStyle={{ borderRadius: radius.md }}
         keyboardType="number-pad"
         label="Adult capacity"
         mode="outlined"
@@ -710,6 +944,8 @@ function RoomTypeModal({
         onChangeText={setCapacityAdults}
       />
       <TextInput
+        accessibilityLabel="Children capacity"
+        outlineStyle={{ borderRadius: radius.md }}
         keyboardType="number-pad"
         label="Children capacity"
         mode="outlined"
@@ -717,6 +953,8 @@ function RoomTypeModal({
         onChangeText={setCapacityChildren}
       />
       <TextInput
+        accessibilityLabel="Base price"
+        outlineStyle={{ borderRadius: radius.md }}
         keyboardType="decimal-pad"
         label="Base price"
         mode="outlined"
@@ -724,6 +962,8 @@ function RoomTypeModal({
         onChangeText={setBasePrice}
       />
       <TextInput
+        accessibilityLabel="Festival price optional"
+        outlineStyle={{ borderRadius: radius.md }}
         keyboardType="decimal-pad"
         label="Festival price optional"
         mode="outlined"
@@ -731,6 +971,8 @@ function RoomTypeModal({
         onChangeText={setFestivalPrice}
       />
       <TextInput
+        accessibilityLabel="Total rooms"
+        outlineStyle={{ borderRadius: radius.md }}
         keyboardType="number-pad"
         label="Total rooms"
         mode="outlined"
@@ -739,9 +981,10 @@ function RoomTypeModal({
       />
       <Text variant="bodySmall">
         Festival pricing affects booking estimates. Confirm before saving.
+        {initial?.festivalPrice ? ' Leaving festival price blank keeps the current rate.' : ''}
       </Text>
       <Button
-        disabled={!name.trim() || !Number(basePrice) || isSubmitting}
+        disabled={!valid || isSubmitting}
         loading={isSubmitting}
         mode="contained"
         onPress={() =>
@@ -749,7 +992,7 @@ function RoomTypeModal({
             basePrice: Number(basePrice),
             capacityAdults: Number(capacityAdults),
             capacityChildren: Number(capacityChildren),
-            description: description || undefined,
+            description: description.trim(),
             festivalPrice: festivalPrice ? Number(festivalPrice) : undefined,
             name: name.trim(),
             slug: slugify(name),
@@ -764,12 +1007,16 @@ function RoomTypeModal({
 }
 
 function RoomModal({
+  initial,
+  errorMessage,
   isSubmitting,
   onClose,
   onSubmit,
   roomTypes,
   visible,
 }: {
+  initial: Room | null;
+  errorMessage: string | null;
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (roomTypeId: string, input: { floor?: string; roomNumber: string }) => void;
@@ -780,11 +1027,26 @@ function RoomModal({
   const [roomNumber, setRoomNumber] = useState('');
   const [floor, setFloor] = useState('');
 
+  useEffect(() => {
+    if (!visible) return;
+    setRoomTypeId(initial?.roomTypeId ?? '');
+    setRoomNumber(initial?.roomNumber ?? '');
+    setFloor(initial?.floor ?? '');
+  }, [initial, visible]);
+  useEffect(() => {
+    if (visible && !roomTypeId && roomTypes[0]) setRoomTypeId(roomTypes[0].id);
+  }, [roomTypeId, roomTypes, visible]);
   return (
-    <FormModal title="Physical Room" visible={visible} onClose={onClose}>
+    <FormModal
+      errorMessage={errorMessage}
+      title={initial ? 'Edit room' : 'Add room'}
+      visible={visible}
+      onClose={onClose}
+    >
       <View style={styles.chips}>
         {roomTypes.map((roomType) => (
           <Chip
+            disabled={Boolean(initial)}
             key={roomType.id}
             selected={roomTypeId === roomType.id}
             onPress={() => setRoomTypeId(roomType.id)}
@@ -794,19 +1056,32 @@ function RoomModal({
         ))}
       </View>
       <TextInput
+        accessibilityLabel="Room number"
+        outlineStyle={{ borderRadius: radius.md }}
         label="Room number"
         mode="outlined"
         value={roomNumber}
         onChangeText={setRoomNumber}
       />
-      <TextInput label="Floor" mode="outlined" value={floor} onChangeText={setFloor} />
+      <TextInput
+        accessibilityLabel="Floor"
+        outlineStyle={{ borderRadius: radius.md }}
+        label="Floor"
+        mode="outlined"
+        value={floor}
+        onChangeText={setFloor}
+      />
       <Button
-        disabled={!roomTypeId || !roomNumber.trim() || isSubmitting}
+        disabled={
+          !roomTypeId ||
+          !roomNumber.trim() ||
+          roomNumber.trim().length > 40 ||
+          floor.length > 40 ||
+          isSubmitting
+        }
         loading={isSubmitting}
         mode="contained"
-        onPress={() =>
-          onSubmit(roomTypeId, { floor: floor || undefined, roomNumber: roomNumber.trim() })
-        }
+        onPress={() => onSubmit(roomTypeId, { floor: floor.trim(), roomNumber: roomNumber.trim() })}
       >
         Save Room
       </Button>
@@ -815,12 +1090,14 @@ function RoomModal({
 }
 
 function ManualBookingModal({
+  errorMessage,
   isSubmitting,
   onClose,
   onSubmit,
   rooms,
   visible,
 }: {
+  errorMessage: string | null;
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (
@@ -855,7 +1132,12 @@ function ManualBookingModal({
   }, [roomId, rooms]);
 
   return (
-    <FormModal title="Offline Booking" visible={visible} onClose={onClose}>
+    <FormModal
+      errorMessage={errorMessage}
+      title="Offline Booking"
+      visible={visible}
+      onClose={onClose}
+    >
       <Text variant="bodySmall">
         Use this for bookings received by phone, at the counter, or through another channel.
       </Text>
@@ -866,8 +1148,17 @@ function ManualBookingModal({
           </Chip>
         ))}
       </View>
-      <TextInput label="Guest name" mode="outlined" value={guestName} onChangeText={setGuestName} />
       <TextInput
+        accessibilityLabel="Guest name"
+        outlineStyle={{ borderRadius: radius.md }}
+        label="Guest name"
+        mode="outlined"
+        value={guestName}
+        onChangeText={setGuestName}
+      />
+      <TextInput
+        accessibilityLabel="Guest mobile number"
+        outlineStyle={{ borderRadius: radius.md }}
         keyboardType="phone-pad"
         label="Guest mobile number"
         mode="outlined"
@@ -876,6 +1167,8 @@ function ManualBookingModal({
         onChangeText={setGuestPhone}
       />
       <TextInput
+        accessibilityLabel="Check-in date (YYYY-MM-DD)"
+        outlineStyle={{ borderRadius: radius.md }}
         autoCapitalize="none"
         label="Check-in date (YYYY-MM-DD)"
         mode="outlined"
@@ -883,6 +1176,8 @@ function ManualBookingModal({
         onChangeText={setCheckInDate}
       />
       <TextInput
+        accessibilityLabel="Check-out date (YYYY-MM-DD)"
+        outlineStyle={{ borderRadius: radius.md }}
         autoCapitalize="none"
         label="Check-out date (YYYY-MM-DD)"
         mode="outlined"
@@ -890,6 +1185,8 @@ function ManualBookingModal({
         onChangeText={setCheckOutDate}
       />
       <TextInput
+        accessibilityLabel="Notes (optional)"
+        outlineStyle={{ borderRadius: radius.md }}
         label="Notes (optional)"
         mode="outlined"
         multiline
@@ -918,12 +1215,14 @@ function ManualBookingModal({
 }
 
 function PhotoMetadataModal({
+  errorMessage,
   isSubmitting,
   onClose,
   onSubmit,
   onUploadPhoto,
   visible,
 }: {
+  errorMessage: string | null;
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (
@@ -1022,7 +1321,12 @@ function PhotoMetadataModal({
   };
 
   return (
-    <FormModal title="Add Photos" visible={visible} onClose={handleClose}>
+    <FormModal
+      errorMessage={errorMessage}
+      title="Add Photos"
+      visible={visible}
+      onClose={handleClose}
+    >
       <View style={styles.chips}>
         {photoCategories.map((item) => (
           <Chip key={item} selected={category === item} onPress={() => setCategory(item)}>
@@ -1097,25 +1401,42 @@ function PhotoMetadataModal({
 
 function FormModal({
   children,
+  errorMessage,
   onClose,
   title,
   visible,
-}: PropsWithChildren<{ onClose: () => void; title: string; visible: boolean }>) {
+}: PropsWithChildren<{
+  errorMessage?: string | null;
+  onClose: () => void;
+  title: string;
+  visible: boolean;
+}>) {
   const theme = useTheme();
 
   return (
-    <Modal animationType="slide" transparent visible={visible}>
-      <View style={styles.modalBackdrop}>
+    <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalBackdrop}
+      >
         <Card mode="elevated" style={[styles.modalCard, { backgroundColor: theme.colors.surface }]}>
-          <Card.Content style={styles.cardContent}>
+          <Card.Content style={[styles.cardContent, { flexShrink: 1 }]}>
             <View style={styles.cardHeader}>
               <Text variant="titleLarge">{title}</Text>
               <Button onPress={onClose}>Close</Button>
             </View>
-            <ScrollView contentContainerStyle={styles.modalContent}>{children}</ScrollView>
+            <FormErrorBanner message={errorMessage ?? null} />
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              style={{ flexGrow: 0, flexShrink: 1 }}
+              contentContainerStyle={styles.modalContent}
+            >
+              {children}
+            </ScrollView>
           </Card.Content>
         </Card>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1186,6 +1507,25 @@ function slugify(value: string): string {
 }
 
 const styles = StyleSheet.create({
+  dateRow: { flexDirection: 'row', gap: 10 },
+  dateCard: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: ownerColors.border,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    gap: 6,
+    minHeight: 72,
+  },
+  roomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: ownerColors.border,
+    paddingTop: 12,
+  },
   card: {
     borderRadius: radius.sm,
   },
@@ -1207,7 +1547,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   focusedCard: {
-    borderColor: palette.saffron[500],
+    borderColor: ownerColors.primary,
     borderWidth: 2,
   },
   header: {
@@ -1254,12 +1594,12 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderRadius: radius.sm,
-    flexBasis: '47%',
-    flexGrow: 1,
+    flex: 1,
+    minWidth: 0,
   },
   summaryContent: {
     gap: spacing.xs,
-    minHeight: 88,
+    minHeight: 70,
   },
   summaryGrid: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { useAuth } from '../auth/auth-context';
 import {
@@ -154,6 +154,10 @@ export function OwnerPushNotifications() {
 
     void registerOwnerPushNotifications().catch(() => false);
     void refreshBadge();
+
+    // Expo's native response/token APIs are unavailable in the web renderer.
+    // API unread counts and realtime still run there; native delivery is unchanged.
+    if (Platform.OS === 'web') return undefined;
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {

@@ -50,7 +50,7 @@ export interface ManualBookingInput {
 }
 
 export async function listRoomTypes(lodgeId: string): Promise<RoomType[]> {
-  return apiClient.get<RoomType[]>(`/lodges/${lodgeId}/room-types`);
+  return apiClient.get<RoomType[]>(`/owner/lodges/${lodgeId}/room-types`);
 }
 
 export async function createRoomType(lodgeId: string, input: RoomTypeInput): Promise<RoomType> {

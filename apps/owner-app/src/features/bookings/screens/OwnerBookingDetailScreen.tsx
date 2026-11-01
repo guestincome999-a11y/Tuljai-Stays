@@ -1,4 +1,4 @@
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -13,6 +13,7 @@ import {
 } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { listGuestRegisters } from '../../checkin/api/checkin-api';
 import { RejectBookingModal } from '../components/RejectBookingModal';
 import { useOwnerBookingDetail } from '../hooks/useOwnerBookingDetail';
@@ -165,8 +166,8 @@ export function OwnerBookingDetailScreen() {
             ) : null}
             {isPrepaid ? (
               <Text variant="bodyMedium">
-                Prepaid booking. A room is assigned automatically based on availability, so it
-                needs no approval and cannot be rejected or cancelled from here.
+                Prepaid booking. A room is assigned automatically based on availability, so it needs
+                no approval and cannot be rejected or cancelled from here.
               </Text>
             ) : null}
             {canRespond ? (

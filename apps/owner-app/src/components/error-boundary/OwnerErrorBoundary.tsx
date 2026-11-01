@@ -1,8 +1,10 @@
-import { radius, spacing } from '@tuljai/ui';
+
 import { router } from 'expo-router';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Card, Text } from 'react-native-paper';
+
+import { radius, spacing } from '../../owner-ui/theme';
 
 interface OwnerErrorBoundaryProps {
   children: ReactNode;

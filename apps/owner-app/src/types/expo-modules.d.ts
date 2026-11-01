@@ -10,6 +10,7 @@ declare module 'expo-router' {
     canGoBack(): boolean;
     push(href: Href): void;
     replace(href: Href): void;
+    setParams(params: RouteParams): void;
   }
 
   interface RedirectProps {
@@ -41,6 +42,7 @@ declare module 'expo-router' {
   }
   export const router: Router;
   export function useRouter(): Router;
+  export function useFocusEffect(effect: () => void | (() => void)): void;
   export function useLocalSearchParams<
     T extends Record<string, string | string[] | undefined> = Record<
       string,

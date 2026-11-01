@@ -1,6 +1,8 @@
 import type { LodgePhoto, ManualBookingBlock, Room, RoomStatus, RoomType } from '@tuljai/types';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useRealtime } from '../../../realtime/realtime-provider';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
@@ -14,6 +16,7 @@ import {
   listOwnerPhotos,
   listRooms,
   listRoomTypes,
+  updateRoom,
   updateRoomStatus,
   updateRoomType,
   uploadLodgePhoto,
@@ -42,6 +45,11 @@ export function useRoomOperations() {
   const lodgeId = assignedLodges.selectedLodge?.id ?? null;
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
+  const auth = useAuth();
+  const cacheScope = `${auth.user?.id ?? 'signed-out'}.${lodgeId ?? 'none'}`;
+  const activeScope = useRef(cacheScope);
+  activeScope.current = cacheScope;
+  const loadRevision = useRef(0);
   const [state, setState] = useState<RoomOperationsState>({
     errorMessage: null,
     housekeepingNotes: {},
@@ -52,12 +60,18 @@ export function useRoomOperations() {
     rooms: [],
     roomTypes: [],
   });
+  const mutationInFlight = useRef(false);
+  const hasFocused = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const load = useCallback(
     async (refreshing = false) => {
+      const revision = ++loadRevision.current;
+      const isCurrent = () =>
+        revision === loadRevision.current && activeScope.current === cacheScope;
       if (!lodgeId) {
+        if (!isCurrent()) return;
         setState((current) => ({
           ...current,
           errorMessage: 'No lodge selected.',
@@ -80,8 +94,10 @@ export function useRoomOperations() {
 
       const notes = await loadHousekeepingNotes().catch(() => ({}));
 
+      if (!isCurrent()) return;
       if (isOffline) {
-        const cached = await loadRoomBoardCache().catch(() => null);
+        const cached = await loadRoomBoardCache(cacheScope).catch(() => null);
+        if (!isCurrent()) return;
         setState((current) => ({
           ...current,
           errorMessage:
@@ -105,6 +121,7 @@ export function useRoomOperations() {
           listOwnerPhotos(lodgeId),
           listManualBookings(lodgeId),
         ]);
+        if (!isCurrent()) return;
         setState({
           errorMessage: null,
           housekeepingNotes: notes,
@@ -115,9 +132,10 @@ export function useRoomOperations() {
           rooms,
           roomTypes,
         });
-        await saveRoomBoardCache({ photos, rooms, roomTypes }).catch(() => undefined);
+        await saveRoomBoardCache(cacheScope, { photos, rooms, roomTypes }).catch(() => undefined);
       } catch {
-        const cached = await loadRoomBoardCache().catch(() => null);
+        const cached = await loadRoomBoardCache(cacheScope).catch(() => null);
+        if (!isCurrent()) return;
         setState((current) => ({
           ...current,
           errorMessage: cached
@@ -134,17 +152,35 @@ export function useRoomOperations() {
         }));
       }
     },
-    [isOffline, lodgeId],
+    [cacheScope, isOffline, lodgeId],
   );
 
   useEffect(() => {
+    setState({
+      errorMessage: null,
+      housekeepingNotes: {},
+      isLoading: true,
+      isRefreshing: false,
+      manualBookings: [],
+      photos: [],
+      rooms: [],
+      roomTypes: [],
+    });
+  }, [cacheScope]);
+
+  useEffect(() => {
     void load();
+    return () => {
+      loadRevision.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
     // 'lodge:catalog-updated' is what an admin (or another owner/staff member) price, capacity
     // or room-type edit produces; without it this board kept showing the old price until the
     // owner pulled to refresh.
+    if (realtime.lastEvent?.payload.lodgeId && realtime.lastEvent.payload.lodgeId !== lodgeId)
+      return;
     if (
       realtime.lastEvent?.name === 'room:availability-updated' ||
       realtime.lastEvent?.name === 'room:status-updated' ||
@@ -152,7 +188,7 @@ export function useRoomOperations() {
     ) {
       void load(true);
     }
-  }, [load, realtime.lastEvent]);
+  }, [load, lodgeId, realtime.lastEvent]);
 
   useEffect(() => {
     if (realtime.connectionRevision === 0) {
@@ -163,13 +199,24 @@ export function useRoomOperations() {
   }, [load, realtime.connectionRevision]);
 
   useEffect(() => {
-    if (realtime.connected || isOffline) {
+    if (isOffline) {
       return undefined;
     }
 
     const interval = setInterval(() => void load(true), 30_000);
     return () => clearInterval(interval);
   }, [isOffline, load, realtime.connected]);
+
+  const focusLoad = useRef(load);
+  useEffect(() => {
+    focusLoad.current = load;
+  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocused.current) void focusLoad.current(true);
+      hasFocused.current = true;
+    }, []),
+  );
 
   const roomTypeById = useMemo(
     () => new Map(state.roomTypes.map((roomType) => [roomType.id, roomType])),
@@ -178,6 +225,7 @@ export function useRoomOperations() {
 
   const runMutation = useCallback(
     async (action: () => Promise<unknown>, success: string) => {
+      if (mutationInFlight.current) return false;
       if (isOffline) {
         setState((current) => ({
           ...current,
@@ -186,6 +234,7 @@ export function useRoomOperations() {
         return false;
       }
 
+      mutationInFlight.current = true;
       setIsSubmitting(true);
       setSuccessMessage(null);
 
@@ -201,6 +250,7 @@ export function useRoomOperations() {
         }));
         return false;
       } finally {
+        mutationInFlight.current = false;
         setIsSubmitting(false);
       }
     },
@@ -214,9 +264,7 @@ export function useRoomOperations() {
         ? runMutation(() => createPhotoMetadata(lodgeId, input), 'Photo metadata submitted.')
         : Promise.resolve(false),
     uploadPhoto: (photo: PickedPhoto) =>
-      lodgeId
-        ? uploadLodgePhoto(lodgeId, photo)
-        : Promise.reject(new Error('No lodge selected.')),
+      lodgeId ? uploadLodgePhoto(lodgeId, photo) : Promise.reject(new Error('No lodge selected.')),
     createManualBooking: (roomId: string, input: ManualBookingInput) =>
       runMutation(
         () => createManualBooking(roomId, input),
@@ -247,6 +295,8 @@ export function useRoomOperations() {
     },
     setSuccessMessage,
     successMessage,
+    updateRoom: (roomId: string, input: Partial<RoomInput>) =>
+      runMutation(() => updateRoom(roomId, input), 'Room details updated.'),
     updateRoomStatus: (roomId: string, status: RoomStatus) =>
       runMutation(() => updateRoomStatus(roomId, status), 'Room status updated.'),
     updateRoomType: (roomTypeId: string, input: Partial<RoomTypeInput> & { isActive?: boolean }) =>

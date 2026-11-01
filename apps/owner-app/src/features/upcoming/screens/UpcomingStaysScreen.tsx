@@ -1,11 +1,12 @@
 import type { GuestRegister, OwnerBookingSummary } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useUpcomingStays } from '../hooks/useUpcomingStays';
 
 type UpcomingSection = 'CHECK_INS' | 'CHECK_OUTS';

@@ -13,20 +13,20 @@ async function isSecureStoreAvailable(): Promise<boolean> {
   return SecureStore.isAvailableAsync();
 }
 
-export async function saveRoomBoardCache(cache: RoomBoardCache): Promise<void> {
+export async function saveRoomBoardCache(scope: string, cache: RoomBoardCache): Promise<void> {
   if (!(await isSecureStoreAvailable())) {
     return;
   }
 
-  await SecureStore.setItemAsync(ROOM_BOARD_CACHE_KEY, JSON.stringify(cache));
+  await SecureStore.setItemAsync(`${ROOM_BOARD_CACHE_KEY}.${scope}`, JSON.stringify(cache));
 }
 
-export async function loadRoomBoardCache(): Promise<RoomBoardCache | null> {
+export async function loadRoomBoardCache(scope: string): Promise<RoomBoardCache | null> {
   if (!(await isSecureStoreAvailable())) {
     return null;
   }
 
-  const stored = await SecureStore.getItemAsync(ROOM_BOARD_CACHE_KEY);
+  const stored = await SecureStore.getItemAsync(`${ROOM_BOARD_CACHE_KEY}.${scope}`);
 
   if (!stored) {
     return null;
@@ -35,7 +35,7 @@ export async function loadRoomBoardCache(): Promise<RoomBoardCache | null> {
   try {
     return JSON.parse(stored) as RoomBoardCache;
   } catch {
-    await SecureStore.deleteItemAsync(ROOM_BOARD_CACHE_KEY);
+    await SecureStore.deleteItemAsync(`${ROOM_BOARD_CACHE_KEY}.${scope}`);
     return null;
   }
 }

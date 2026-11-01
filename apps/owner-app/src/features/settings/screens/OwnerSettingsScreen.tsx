@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { radius, spacing } from '@tuljai/ui';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Modal as RNModal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LegalDocument, type LegalDocumentKind } from '../../../owner-ui/legal-documents';
 import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useOwnerSettings } from '../hooks/useOwnerSettings';
 import {
   type OwnerDashboardTab,
@@ -47,8 +48,18 @@ export function OwnerSettingsScreen() {
   const theme = useTheme();
   const settings = useOwnerSettings();
   const { setLanguage, tr } = useOwnerApp();
+  const params = useLocalSearchParams<{ legal?: string }>();
+  const router = useRouter();
   const [legalOpen, setLegalOpen] = useState(false);
   const [legalKind, setLegalKind] = useState<LegalDocumentKind>('terms');
+
+  useEffect(() => {
+    if (params.legal === 'terms' || params.legal === 'privacy') {
+      setLegalKind(params.legal);
+      setLegalOpen(true);
+      router.setParams({ legal: undefined });
+    }
+  }, [params.legal, router]);
 
   function openLegal(kind: LegalDocumentKind) {
     setLegalKind(kind);
@@ -225,14 +236,17 @@ export function OwnerSettingsScreen() {
               hitSlop={8}
               onPress={() => setLegalOpen(false)}
             >
-              <MaterialCommunityIcons color="#7A1F2B" name="close" size={22} />
+              <MaterialCommunityIcons color="#861632" name="close" size={22} />
             </Pressable>
           </View>
           <View className="flex-1 px-5 pt-5">
             <LegalDocument kind={legalKind} />
           </View>
           <View className="border-t border-warm-100 bg-white px-5 py-3">
-            <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }} variant="bodySmall">
+            <Text
+              style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}
+              variant="bodySmall"
+            >
               {tr('Questions or privacy requests?')} {SUPPORT_EMAIL}
             </Text>
           </View>

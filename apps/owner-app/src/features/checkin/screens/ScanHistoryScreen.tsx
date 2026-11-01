@@ -1,10 +1,11 @@
 import type { QrScanLogEntry } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useScanHistory } from '../hooks/useScanHistory';
 
 type HistoryFilter = 'TODAY' | 'WEEK' | 'SUCCESS' | 'FAILED';

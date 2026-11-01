@@ -1,7 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+import { getWebSessionStorage } from '../auth/web-session-storage';
+
 const DEVICE_ID_KEY = 'tuljai.owner.deviceId';
+let fallbackDeviceId: string | null = null;
 
 export async function getOrCreateDeviceId(): Promise<string> {
   if (await SecureStore.isAvailableAsync()) {
@@ -16,7 +19,18 @@ export async function getOrCreateDeviceId(): Promise<string> {
     return nextId;
   }
 
-  return createDeviceId();
+  // Keep device-bound refresh/logout usable in web review sessions too.
+  // Native devices continue to use the SecureStore branch above.
+  try {
+    const storage = getWebSessionStorage();
+    const existing = storage?.getItem(DEVICE_ID_KEY) ?? fallbackDeviceId;
+    if (existing) return existing;
+    fallbackDeviceId = createDeviceId();
+    storage?.setItem(DEVICE_ID_KEY, fallbackDeviceId);
+  } catch {
+    fallbackDeviceId ??= createDeviceId();
+  }
+  return fallbackDeviceId;
 }
 
 export function getDeviceName(): string {

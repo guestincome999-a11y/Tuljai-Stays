@@ -1,4 +1,5 @@
 import type { OwnerDashboardSummary } from '@tuljai/types';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '../../../auth/auth-context';
@@ -75,9 +76,11 @@ export function useOwnerDashboardSummary() {
     [auth.isAuthenticated, isOffline],
   );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   useEffect(() => {
     const eventName = realtime.lastEvent?.name;

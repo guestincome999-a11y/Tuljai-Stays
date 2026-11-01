@@ -1,9 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { radius, spacing } from '@tuljai/ui';
 import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 
 interface OperationalPlaceholderScreenProps {

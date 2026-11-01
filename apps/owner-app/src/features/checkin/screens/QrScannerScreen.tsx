@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { spacing } from '@tuljai/ui';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { useRouter } from 'expo-router';
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
+
+import { spacing } from '../../../owner-ui/theme';
 
 const LazyCameraScanner = lazy(async () => {
   const scannerModule = await import('./CameraQrScannerScreen');

@@ -42,6 +42,17 @@ export function canOwnerRespond(booking: BookingLike): boolean {
   return booking.status === 'PENDING_OWNER_APPROVAL' && isCashBooking(booking);
 }
 
+/** Display eligibility only. The server remains authoritative for responding. */
+export function isIncomingBookingEligible(
+  booking: BookingLike & Pick<OwnerBookingSummary, 'ownerResponseDeadline'>,
+  now = Date.now(),
+): boolean {
+  return (
+    canOwnerRespond(booking) &&
+    (!booking.ownerResponseDeadline || new Date(booking.ownerResponseDeadline).getTime() > now)
+  );
+}
+
 export function getStatusLabel(booking: BookingLike): string {
   if (isPrepaidBooking(booking) && ['ACCEPTED', 'QR_GENERATED'].includes(booking.status)) {
     return 'Assigned';

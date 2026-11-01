@@ -1,13 +1,15 @@
 import type { OwnerBookingSummary } from '@tuljai/types';
-import { radius, spacing } from '@tuljai/ui';
 import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Card, Chip, Text, useTheme } from 'react-native-paper';
+import { Card, Text, useTheme } from 'react-native-paper';
 
+import { StatusBadge } from '../../../owner-ui/components';
+import { radius, spacing } from '../../../owner-ui/theme';
+import { ownerColors } from '../../../owner-ui/theme';
 import {
   formatCheckOut,
   formatDateKey,
-  getPaymentMethodLabel,
+  getPaymentLabel,
   getRoomRequirement,
   getStatusLabel,
 } from '../utils/booking-display';
@@ -37,16 +39,54 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
           <Text numberOfLines={1} style={styles.name} variant="titleMedium">
             {booking.guestName}
           </Text>
-          <Chip compact>{getStatusLabel(booking)}</Chip>
+          <StatusBadge
+            label={getStatusLabel(booking)}
+            tone={
+              ['CANCELLED', 'REJECTED', 'EXPIRED', 'NO_SHOW'].includes(booking.status)
+                ? 'danger'
+                : booking.status === 'PENDING_OWNER_APPROVAL'
+                  ? 'warning'
+                  : 'success'
+            }
+          />
         </View>
-        <Text variant="bodyMedium">Check-in: {formatDateKey(booking.checkInDate)}</Text>
-        <Text variant="bodyMedium">Check-out: {formatCheckOut(booking)}</Text>
-        <Text style={{ color: theme.colors.primary }} variant="bodyMedium">
-          Payment: {getPaymentMethodLabel(booking.paymentStatus)}
+        <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
+          {booking.bookingCode} · {booking.totalGuests} guests · {getRoomRequirement(booking)}
+          {booking.roomNumber ? ` · Room ${booking.roomNumber}` : ''}
         </Text>
-        <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodyMedium">
-          Requirement: {getRoomRequirement(booking)}
-        </Text>
+        <View style={styles.dates}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={{ color: ownerColors.muted }} variant="labelSmall">
+              CHECK-IN
+            </Text>
+            <Text variant="bodySmall">{formatDateKey(booking.checkInDate)}</Text>
+          </View>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={{ color: ownerColors.muted }} variant="labelSmall">
+              CHECK-OUT
+            </Text>
+            <Text variant="bodySmall">{formatCheckOut(booking)}</Text>
+          </View>
+        </View>
+        <View style={styles.header}>
+          <Text style={{ flex: 1, fontWeight: '700' }} variant="titleMedium">
+            {booking.totalAmount === null
+              ? 'Amount not recorded'
+              : `₹${formatMoney(booking.totalAmount)}`}
+          </Text>
+          <Text
+            style={{
+              color: ['FULLY_PAID', 'ADVANCE_PAID'].includes(booking.paymentStatus)
+                ? ownerColors.success
+                : theme.colors.primary,
+              flexShrink: 1,
+              textAlign: 'right',
+            }}
+            variant="bodySmall"
+          >
+            {getPaymentLabel(booking.paymentStatus)}
+          </Text>
+        </View>
         {Number(booking.commissionOutstandingAmount ?? 0) > 0 ? (
           <Text style={[styles.commission, { color: theme.colors.primary }]} variant="labelMedium">
             Commission due - Rs. {formatMoney(booking.commissionOutstandingAmount ?? null)}
@@ -60,6 +100,16 @@ export const OwnerBookingCard = memo(function OwnerBookingCard({
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius.sm,
+    borderColor: ownerColors.border,
+    backgroundColor: ownerColors.surface,
+  },
+  dates: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: ownerColors.border,
+    paddingVertical: 8,
+    marginBottom: 4,
   },
   content: {
     gap: spacing.xs,
@@ -71,6 +121,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
     justifyContent: 'space-between',
   },

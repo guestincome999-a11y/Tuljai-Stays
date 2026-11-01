@@ -1,5 +1,5 @@
 import type { GuestIdType, GuestRegisterGuest } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { File, Paths } from 'expo-file-system';
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -18,6 +18,7 @@ import {
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { downloadGuestIdProof } from '../api/checkin-api';
 import { useGuestRegister } from '../hooks/useGuestRegister';
 
@@ -287,12 +288,16 @@ export function GuestRegisterScreen() {
               ))}
             </View>
             <TextInput
+              accessibilityLabel="Document holder name"
+              outlineStyle={{ borderRadius: radius.md }}
               label="Document holder name"
               mode="outlined"
               value={documentHolderName}
               onChangeText={setDocumentHolderName}
             />
             <TextInput
+              accessibilityLabel="Government ID number"
+              outlineStyle={{ borderRadius: radius.md }}
               label="Government ID number"
               mode="outlined"
               value={governmentIdNumber}
@@ -333,6 +338,8 @@ export function GuestRegisterScreen() {
               ))}
             </View>
             <TextInput
+              accessibilityLabel="Notes"
+              outlineStyle={{ borderRadius: radius.md }}
               label="Notes"
               mode="outlined"
               multiline

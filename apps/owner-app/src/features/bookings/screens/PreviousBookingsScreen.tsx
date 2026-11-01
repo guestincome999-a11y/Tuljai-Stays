@@ -1,11 +1,12 @@
 import type { BookingStatus, OwnerBookingSummary } from '@tuljai/types';
-import { EmptyState, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Text, useTheme } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { spacing } from '../../../owner-ui/theme';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { OwnerBookingCard } from '../components/OwnerBookingCard';
 import { useOwnerBookings } from '../hooks/useOwnerBookings';

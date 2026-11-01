@@ -1,5 +1,5 @@
-import { tuljaiLightTheme } from '@tuljai/ui';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { PaperProvider } from 'react-native-paper';
 
 import { AuthProvider } from '../src/auth/auth-context';
@@ -9,12 +9,13 @@ import { ConnectivityProvider } from '../src/connectivity/connectivity-context';
 import { useDoubleBackToExit } from '../src/hooks/useDoubleBackToExit';
 import { OwnerPushNotifications } from '../src/notifications/OwnerPushNotifications';
 import { OwnerAppProvider } from '../src/owner-ui/OwnerAppProvider';
+import { ownerTheme } from '../src/owner-ui/theme';
 import { RealtimeProvider } from '../src/realtime/realtime-provider';
 
 import '../global.css';
 
 export default function RootLayout() {
-  const theme = tuljaiLightTheme;
+  const theme = ownerTheme;
 
   useDoubleBackToExit();
 
@@ -25,6 +26,7 @@ export default function RootLayout() {
           <OwnerAppProvider>
             <AuthProvider>
               <RealtimeProvider>
+                <StatusBar style="dark" />
                 <OwnerPushNotifications />
                 <OfflineBanner />
                 <Stack

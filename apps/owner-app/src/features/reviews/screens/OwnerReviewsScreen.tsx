@@ -13,6 +13,7 @@ import {
 } from 'react-native-paper';
 
 import { useOwnerApp } from '../../../owner-ui/OwnerAppProvider';
+import { radius } from '../../../owner-ui/theme';
 import { listOwnerReviews, respondToReview } from '../api/owner-reviews-api';
 
 export function OwnerReviewsScreen() {
@@ -142,6 +143,7 @@ export function OwnerReviewsScreen() {
                 </Text>
 
                 <TextInput
+                  outlineStyle={{ borderRadius: radius.md }}
                   disabled={savingId === review.id}
                   label={tr('Owner response')}
                   maxLength={2000}

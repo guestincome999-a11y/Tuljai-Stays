@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint .",
+    "test": "node --test scripts/owner-ui.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

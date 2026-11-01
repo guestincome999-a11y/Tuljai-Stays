@@ -62,9 +62,7 @@ export default function ForgotPasswordScreen() {
         </View>
         <View className="gap-5 rounded-2xl border border-warm-200 bg-white p-5">
           <View className="gap-2">
-            <Text className="font-body text-sm font-bold text-warm-700">
-              {t('Email', 'ईमेल')}
-            </Text>
+            <Text className="font-body text-sm font-bold text-warm-700">{t('Email', 'ईमेल')}</Text>
             <TextInput
               accessibilityLabel="Email"
               autoCapitalize="none"

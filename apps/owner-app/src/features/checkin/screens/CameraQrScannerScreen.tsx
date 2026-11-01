@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Booking, CheckInResponse, PaymentStatus } from '@tuljai/types';
-import { colors, radius, spacing } from '@tuljai/ui';
+import { colors } from '@tuljai/ui';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -10,6 +10,7 @@ import { Button, Card, Switch, Text, useTheme } from 'react-native-paper';
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { getOrCreateDeviceId } from '../../../device/device-identity';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { scanQrCode } from '../api/checkin-api';
 import { useReceptionMode } from '../hooks/useReceptionMode';
@@ -298,7 +299,9 @@ function PaymentGuidanceBanner({ booking }: { booking: Booking }) {
         : colors.light.textMuted;
 
   return (
-    <View style={[styles.paymentBanner, { backgroundColor: `${toneColor}22`, borderColor: toneColor }]}>
+    <View
+      style={[styles.paymentBanner, { backgroundColor: `${toneColor}22`, borderColor: toneColor }]}
+    >
       <Text style={{ color: toneColor }} variant="titleMedium">
         {guidance.title}
       </Text>

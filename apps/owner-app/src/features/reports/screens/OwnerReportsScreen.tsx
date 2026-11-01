@@ -1,11 +1,12 @@
 import type { BookingReportRow, LodgeCommissionTransaction } from '@tuljai/types';
-import { EmptyState, radius, spacing } from '@tuljai/ui';
+import { EmptyState } from '@tuljai/ui';
 import { useLocalSearchParams } from 'expo-router';
 import { memo } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Card, Chip, Divider, Text, useTheme } from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
+import { radius, spacing } from '../../../owner-ui/theme';
 import { useOwnerReports } from '../hooks/useOwnerReports';
 
 export function OwnerReportsScreen() {
