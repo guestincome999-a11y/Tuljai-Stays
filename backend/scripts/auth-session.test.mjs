@@ -1,21 +1,23 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { readFileSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import vm from 'node:vm';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { clearTimeout } from 'node:timers';
+import { fileURLToPath, URL } from 'node:url';
+import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 require('ts-node').register({
   project: fileURLToPath(new URL('../tsconfig.json', import.meta.url)),
   transpileOnly: true,
 });
-const { AuthService } = require('../src/modules/auth/auth.service.ts');
-const { JwtAuthStrategy } = require('../src/modules/auth/strategies/jwt-auth.strategy.ts');
 const { JwtService } = require('@nestjs/jwt');
 const { AxiosError } = require('axios');
 const ts = require('typescript');
+
+const { AuthService } = require('../src/modules/auth/auth.service.ts');
+const { JwtAuthStrategy } = require('../src/modules/auth/strategies/jwt-auth.strategy.ts');
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const RealDate = Date;
 const start = RealDate.UTC(2026, 0, 1);
@@ -419,9 +421,9 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
         const result = url.endsWith('/auth/logout')
           ? await server.service.logout(server.user.id, input)
           : await server.service.refreshToken(input);
-        return Response.json({ data: result });
+        return globalThis.Response.json({ data: result });
       } catch {
-        return Response.json({ message: 'Unauthorized' }, { status: 401 });
+        return globalThis.Response.json({ message: 'Unauthorized' }, { status: 401 });
       }
     };
     vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {
