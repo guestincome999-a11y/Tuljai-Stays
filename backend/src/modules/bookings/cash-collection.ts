@@ -30,6 +30,8 @@ export async function recordCashCollection(
   assertLodgeAccess: (lodgeId: string) => Promise<void>,
   input: { bookingId: string; actorUserId: string; expectedAmount: string },
 ): Promise<{ changed: boolean; lodgeId: string }> {
+  // Capture the confirmation request time, never the booking/check-in time.
+  const collectedAt = new Date();
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${input.bookingId}::uuid FOR UPDATE`;
     const booking = await tx.booking.findFirst({ where: { id: input.bookingId, deletedAt: null } });
@@ -70,15 +72,23 @@ export async function recordCashCollection(
         'Amount changed. Refresh the booking and confirm the current amount.',
       );
     const reference = `owner-pay-at-lodge:${booking.id}`;
+    const [member, actor] = await Promise.all([
+      tx.lodgeOwner.findUnique({
+        where: { lodgeId_userId: { lodgeId: booking.lodgeId, userId: input.actorUserId } },
+        select: { ownerName: true },
+      }),
+      tx.user.findUnique({ where: { id: input.actorUserId }, select: { displayName: true } }),
+    ]);
+    const collectorName = member?.ownerName.trim() || actor?.displayName?.trim() || null;
     if (rows[0]) {
       await tx.$executeRaw`
-        UPDATE payment_collections SET status = 'PAID', amount = ${due}, paid_at = CURRENT_TIMESTAMP,
+        UPDATE payment_collections SET status = 'PAID', amount = ${due}, paid_at = ${collectedAt},
         provider_reference = ${reference}, updated_at = CURRENT_TIMESTAMP WHERE id = ${rows[0].id}::uuid
       `;
     } else {
       await tx.$executeRaw`
         INSERT INTO payment_collections (booking_id, method, amount, status, provider_reference, paid_at)
-        VALUES (${booking.id}::uuid, 'PAY_AT_LODGE', ${due}, 'PAID', ${reference}, CURRENT_TIMESTAMP)
+        VALUES (${booking.id}::uuid, 'PAY_AT_LODGE', ${due}, 'PAID', ${reference}, ${collectedAt})
       `;
     }
     // Preserve PAY_AT_LODGE: FULLY_PAID denotes prepaid/online bookings elsewhere.
@@ -89,7 +99,13 @@ export async function recordCashCollection(
         actorUserId: input.actorUserId,
         entityId: booking.id,
         entityType: 'booking',
-        metadata: { amount: due.toFixed(2), method: 'PAY_AT_LODGE', reference },
+        metadata: {
+          amount: due.toFixed(2),
+          method: 'PAY_AT_LODGE',
+          reference,
+          collectorName,
+          collectedAt: collectedAt.toISOString(),
+        },
       },
     });
     return { changed: true, lodgeId: booking.lodgeId };

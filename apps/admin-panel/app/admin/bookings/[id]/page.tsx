@@ -462,7 +462,10 @@ function PaymentPanel({ booking }: { booking: AdminBookingSummary }) {
 function TimelinePanel({ booking }: { booking: AdminBookingSummary }) {
   const timeline = buildBookingTimeline(booking);
   return (
-    <FinPanel sub="Recorded events · India Standard Time" title="Booking & payment timeline">
+    <FinPanel
+      sub="Payment step before check-in · Actual recorded times in IST"
+      title="Booking & payment flow"
+    >
       <div className="bk-timeline">
         {timeline.map((item) => (
           <article className="bk-tl-item" key={item.id}>
@@ -476,21 +479,27 @@ function TimelinePanel({ booking }: { booking: AdminBookingSummary }) {
                   {item.paymentMethod === 'ONLINE' ? 'Online payment' : 'Pay at lodge'}
                 </p>
               ) : null}
-              {item.actorName ? <p>Recorded by {item.actorName}</p> : null}
+              {item.actorName && item.paymentMethod !== 'PAY_AT_LODGE' ? (
+                <p>Recorded by {item.actorName}</p>
+              ) : null}
               <small>
-                <time dateTime={item.timestamp}>
-                  {new Date(item.timestamp).toLocaleString('en-IN', {
-                    timeZone: 'Asia/Kolkata',
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: true,
-                  })}{' '}
-                  IST
-                </time>
+                {item.timestamp ? (
+                  <time dateTime={item.timestamp}>
+                    {new Date(item.timestamp).toLocaleString('en-IN', {
+                      timeZone: 'Asia/Kolkata',
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true,
+                    })}{' '}
+                    IST
+                  </time>
+                ) : (
+                  'Awaiting owner confirmation'
+                )}
               </small>
             </div>
           </article>

@@ -30,6 +30,7 @@ const { buildBookingTimeline } = exports;
 const at = (hour) => new Date(`2026-11-03T${String(hour).padStart(2, '0')}:00:00.000Z`);
 const booking = {
   id: '11111111-1111-4111-8111-111111111111',
+  lodgeId: 'lodge',
   createdAt: at(1).toISOString(),
   updatedAt: at(23).toISOString(),
   checkedInAt: at(6).toISOString(),
@@ -105,7 +106,7 @@ test('full booking lifecycle retains acceptance, QR reissues, check-in and payme
   assert.equal(activity.filter((item) => item.title === 'Checked in').length, 1);
   assert.equal(activity.filter((item) => item.title === 'Checked out').length, 1);
   const cash = activity.find((item) => item.paymentMethod === 'PAY_AT_LODGE');
-  assert.equal(cash.title, 'Payment collected at lodge');
+  assert.equal(cash.title, 'Payment Collected by Owner Two');
   assert.equal(cash.amount, '900.00');
   assert.equal(cash.actorName, 'Owner Two');
   assert.equal(cash.timestamp, at(7).toISOString());
@@ -161,4 +162,111 @@ test('legacy admin responses show only known dates and do not mistake the owner 
 });
 test('empty recorded activity remains empty instead of fabricating lifecycle events', () => {
   assert.equal(buildBookingTimeline({ ...booking, activity: [] }).length, 0);
+});
+
+test('pay-at-lodge collection occupies the step before check-in and keeps its true later timestamp', async () => {
+  const f = fixture(
+    [
+      {
+        id: 'in',
+        action: 'BOOKING_CHECKED_IN_BY_QR',
+        toStatus: 'CHECKED_IN',
+        createdAt: at(6),
+        notes: null,
+        actor: null,
+      },
+    ],
+    [],
+    [
+      {
+        id: 'cash',
+        method: 'PAY_AT_LODGE',
+        amount: '1200.00',
+        paidAt: at(7),
+        reference: 'receipt',
+      },
+    ],
+    [
+      {
+        metadata: { reference: 'receipt', collectorName: 'Owner at confirmation' },
+        actor: { displayName: 'New account name', ownedLodges: [{ ownerName: 'Renamed owner' }] },
+      },
+    ],
+  );
+  const activity = await getAdminBookingActivity(f.db, booking);
+  const cash = activity.find((item) => item.paymentMethod === 'PAY_AT_LODGE');
+  assert.equal(cash.title, 'Payment Collected by Owner at confirmation');
+  const timeline = buildBookingTimeline({ ...booking, paymentStatus: 'PAY_AT_LODGE', activity });
+  const cashIndex = timeline.findIndex((item) => item.id === cash.id);
+  assert.equal(timeline[cashIndex + 1].stage, 'CHECKED_IN');
+  assert.equal(timeline[cashIndex].timestamp, at(7).toISOString());
+  assert.equal(timeline[cashIndex + 1].timestamp, at(6).toISOString());
+  assert.equal(timeline.filter((item) => item.pending).length, 0);
+});
+
+test('pay-at-lodge pending step has no fake timestamp and is replaced on confirmation', () => {
+  const active = {
+    ...booking,
+    status: 'CHECKED_IN',
+    paymentStatus: 'PAY_AT_LODGE',
+    activity: [
+      {
+        id: 'in',
+        stage: 'CHECKED_IN',
+        title: 'Checked in',
+        timestamp: at(6).toISOString(),
+        description: 'Checked in',
+      },
+    ],
+  };
+  const pending = buildBookingTimeline(active);
+  assert.equal(pending[0].pending, true);
+  assert.equal(pending[0].timestamp, null);
+  assert.equal(pending[1].id, 'in');
+  const confirmed = buildBookingTimeline({
+    ...active,
+    activity: [
+      ...active.activity,
+      {
+        id: 'cash',
+        title: 'Payment Collected by Owner',
+        description: 'Receipt',
+        paymentMethod: 'PAY_AT_LODGE',
+        timestamp: at(7).toISOString(),
+      },
+    ],
+  });
+  assert.equal(confirmed.length, 2);
+  assert.equal(confirmed[0].id, 'cash');
+  assert.equal(confirmed.filter((item) => item.pending).length, 0);
+  assert.equal(buildBookingTimeline({ ...active, status: 'CANCELLED', activity: [] }).length, 0);
+});
+
+test('legacy collection records fall back to the same lodge membership name', async () => {
+  const activity = await getAdminBookingActivity(
+    fixture(
+      [],
+      [],
+      [
+        {
+          id: 'cash',
+          method: 'PAY_AT_LODGE',
+          amount: '1200.00',
+          paidAt: at(7),
+          reference: 'receipt',
+        },
+      ],
+      [
+        {
+          metadata: { reference: 'receipt' },
+          actor: { displayName: null, ownedLodges: [{ ownerName: 'Registered Lodge Owner' }] },
+        },
+      ],
+    ).db,
+    booking,
+  );
+  assert.equal(
+    activity.find((item) => item.id === 'receipt:cash').title,
+    'Payment Collected by Registered Lodge Owner',
+  );
 });

@@ -37,7 +37,14 @@ export async function getAdminBookingActivity(
       ORDER BY paid_at, id`,
     db.auditLog.findMany({
       where: { entityType: 'booking', entityId: booking.id, action: 'PAY_AT_LODGE_COLLECTED' },
-      include: { actor: { select: { displayName: true } } },
+      include: {
+        actor: {
+          select: {
+            displayName: true,
+            ownedLodges: { where: { lodgeId: booking.lodgeId }, select: { ownerName: true } },
+          },
+        },
+      },
     }),
   ]);
   const items: BookingActivity[] = [
@@ -56,6 +63,7 @@ export async function getAdminBookingActivity(
       continue;
     items.push({
       id: `history:${event.id}`,
+      stage: event.toStatus,
       title: statusTitles[event.toStatus] ?? event.action.replaceAll('_', ' ').toLowerCase(),
       description: event.notes || event.action.replaceAll('_', ' ').toLowerCase(),
       timestamp: event.createdAt.toISOString(),
@@ -83,9 +91,27 @@ export async function getAdminBookingActivity(
           );
         })
       : undefined;
+    const metadata = audit?.metadata;
+    const savedName =
+      metadata &&
+      typeof metadata === 'object' &&
+      !Array.isArray(metadata) &&
+      typeof metadata.collectorName === 'string'
+        ? metadata.collectorName.trim()
+        : null;
+    const collectorName =
+      savedName ||
+      audit?.actor?.ownedLodges?.[0]?.ownerName?.trim() ||
+      audit?.actor?.displayName?.trim() ||
+      null;
     items.push({
       id: `receipt:${receipt.id}`,
-      title: receipt.method === 'ONLINE' ? 'Payment received online' : 'Payment collected at lodge',
+      title:
+        receipt.method === 'ONLINE'
+          ? 'Payment received online'
+          : collectorName
+            ? `Payment Collected by ${collectorName}`
+            : 'Payment Collected at Lodge',
       description:
         receipt.method === 'ONLINE'
           ? 'Online payment confirmed by the payment provider.'
@@ -93,7 +119,7 @@ export async function getAdminBookingActivity(
       timestamp: receipt.paidAt.toISOString(),
       amount: receipt.amount,
       paymentMethod: receipt.method,
-      actorName: audit?.actor?.displayName ?? null,
+      actorName: collectorName,
     });
   }
   // Legacy bookings may predate history logging. Use only their explicit event timestamps.
@@ -104,6 +130,7 @@ export async function getAdminBookingActivity(
     if (timestamp && !history.some((item) => item.toStatus === status))
       items.push({
         id: `${status}:${booking.id}`,
+        stage: status,
         title,
         description: 'Recorded booking milestone.',
         timestamp,

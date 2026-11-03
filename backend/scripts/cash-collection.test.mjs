@@ -34,7 +34,11 @@ function fixture(overrides = {}, existing = []) {
   let writes = 0;
   let tail = Promise.resolve();
   let fail = false;
+  const auditEntries = [];
+  let ownerName = 'Lodge Owner One';
   const db = {
+    lodgeOwner: { findUnique: async () => ({ ownerName }) },
+    user: { findUnique: async () => ({ displayName: 'Account Name' }) },
     booking: {
       findFirst: async () => booking,
       update: async ({ data }) => {
@@ -43,8 +47,9 @@ function fixture(overrides = {}, existing = []) {
       },
     },
     auditLog: {
-      create: async () => {
+      create: async ({ data }) => {
         audits++;
+        auditEntries.push(data);
         return {};
       },
     },
@@ -67,8 +72,15 @@ function fixture(overrides = {}, existing = []) {
       if (fail) throw new Error('Database unavailable');
       writes++;
       if (strings.join('?').includes('INSERT INTO'))
-        rows.push({ id: 'receipt', amount: values[1].toString(), status: 'PAID', provider: null });
-      else Object.assign(rows[0], { amount: values[0].toString(), status: 'PAID' });
+        rows.push({
+          id: 'receipt',
+          amount: values[1].toString(),
+          status: 'PAID',
+          provider: null,
+          paidAt: values[3],
+        });
+      else
+        Object.assign(rows[0], { amount: values[0].toString(), status: 'PAID', paidAt: values[1] });
       return 1;
     },
     $transaction(fn) {
@@ -96,6 +108,10 @@ function fixture(overrides = {}, existing = []) {
     booking: () => booking,
     rows: () => rows,
     audits: () => audits,
+    auditEntries,
+    renameOwner: (value) => {
+      ownerName = value;
+    },
     writes: () => writes,
     fail: () => {
       fail = true;
@@ -123,6 +139,23 @@ test('simultaneous collection requests write one receipt and audit', async () =>
   assert.equal(results.filter((r) => r.changed).length, 1);
   assert.equal(f.rows().length, 1);
   assert.equal(f.audits(), 1);
+});
+
+test('collection confirmation saves the owner name and event time once; retry does not change them', async () => {
+  const f = fixture();
+  const before = Date.now();
+  await recordCashCollection(f.db, f.access, f.input);
+  const metadata = f.auditEntries[0].metadata;
+  assert.equal(metadata.collectorName, 'Lodge Owner One');
+  assert.ok(
+    Date.parse(metadata.collectedAt) >= before && Date.parse(metadata.collectedAt) <= Date.now(),
+  );
+  assert.equal(f.rows()[0].paidAt.toISOString(), metadata.collectedAt);
+  f.renameOwner('Renamed Owner');
+  await recordCashCollection(f.db, f.access, f.input);
+  assert.equal(f.auditEntries.length, 1);
+  assert.equal(f.auditEntries[0].metadata.collectorName, 'Lodge Owner One');
+  assert.equal(f.rows()[0].paidAt.toISOString(), metadata.collectedAt);
 });
 
 test('pending cash receipt is updated rather than duplicated', async () => {
@@ -283,6 +316,7 @@ test(
       );
       const activity = await getAdminBookingActivity(db, {
         id: booking.id,
+        lodgeId: member.lodgeId,
         createdAt: booking.createdAt.toISOString(),
         checkedInAt: null,
         checkedOutAt: null,
@@ -290,7 +324,8 @@ test(
       const cashEvents = activity.filter((item) => item.paymentMethod === 'PAY_AT_LODGE');
       assert.equal(cashEvents.length, 1);
       assert.equal(cashEvents[0].amount, '1200.55');
-      assert.equal(cashEvents[0].title, 'Payment collected at lodge');
+      assert.equal(cashEvents[0].title, `Payment Collected by ${member.ownerName}`);
+      assert.equal(cashEvents[0].actorName, member.ownerName);
       assert.ok(Number.isFinite(Date.parse(cashEvents[0].timestamp)));
     } finally {
       await db.$disconnect();

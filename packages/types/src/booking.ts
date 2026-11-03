@@ -171,6 +171,7 @@ export interface AdminBookingSummary extends OwnerBookingSummary {
 }
 
 export interface BookingActivity {
+  stage?: BookingStatus;
   id: string;
   title: string;
   description: string;

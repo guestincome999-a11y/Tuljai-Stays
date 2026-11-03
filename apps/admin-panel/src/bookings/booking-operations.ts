@@ -8,7 +8,10 @@ import type {
 
 export type BookingPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'NORMAL';
 
-export type BookingTimelineItem = BookingActivity;
+export type BookingTimelineItem = Omit<BookingActivity, 'timestamp'> & {
+  timestamp: string | null;
+  pending?: boolean;
+};
 
 export interface InterventionItem {
   bookingCode: string;
@@ -119,12 +122,14 @@ export function getOwnerResponseState(booking: AdminBookingSummary | Booking): {
 export function buildBookingTimeline(
   booking: Booking & { activity?: BookingActivity[] },
 ): BookingTimelineItem[] {
-  if (Array.isArray(booking.activity))
-    return [...booking.activity].sort(
+  if (Array.isArray(booking.activity)) {
+    const recorded = [...booking.activity].sort(
       (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || a.id.localeCompare(b.id),
     );
+    return placeLodgeCollectionBeforeCheckin(booking, recorded);
+  }
   // Compatibility with older detail responses: never use updatedAt as an event time.
-  const items: BookingTimelineItem[] = [
+  const items: BookingActivity[] = [
     {
       id: 'booked',
       title: 'Booked',
@@ -146,7 +151,38 @@ export function buildBookingTimeline(
       description: 'Recorded checkout.',
       timestamp: booking.checkedOutAt,
     });
-  return items.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  return placeLodgeCollectionBeforeCheckin(
+    booking,
+    items.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)),
+  );
+}
+
+function placeLodgeCollectionBeforeCheckin(
+  booking: Booking,
+  recorded: BookingTimelineItem[],
+): BookingTimelineItem[] {
+  if (booking.paymentStatus !== 'PAY_AT_LODGE') return recorded;
+  const receipts = recorded.filter((item) => item.paymentMethod === 'PAY_AT_LODGE');
+  if (!receipts.length && ['CANCELLED', 'REJECTED', 'EXPIRED', 'NO_SHOW'].includes(booking.status))
+    return recorded;
+  const other = recorded.filter((item) => item.paymentMethod !== 'PAY_AT_LODGE');
+  const checkin = other.findIndex(
+    (item) => item.stage === 'CHECKED_IN' || item.title === 'Checked in',
+  );
+  const collection: BookingTimelineItem[] = receipts.length
+    ? receipts
+    : [
+        {
+          id: `collection-pending:${booking.id}`,
+          title: 'Payment collection pending',
+          description: 'Waiting for the lodge owner to confirm Collected.',
+          timestamp: null,
+          pending: true,
+        },
+      ];
+  // This is a workflow position. Preserve the actual receipt time even if collected after check-in.
+  other.splice(checkin < 0 ? other.length : checkin, 0, ...collection);
+  return other;
 }
 
 export function buildInterventionItems(

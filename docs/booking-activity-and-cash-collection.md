@@ -1,5 +1,13 @@
 # Booking activity and lodge payment collection
 
+## Collection step before check-in
+
+For pay-at-lodge bookings, the admin flow places collection immediately before the check-in step. Until confirmed it says **Payment collection pending**, with no fabricated timestamp. A confirmed receipt replaces that placeholder with **Payment Collected by <collector name>**, the amount and the actual collection confirmation timestamp in IST. This is a workflow display position; if collection happened after check-in, both real timestamps remain unchanged. Online receipt ordering is unchanged.
+
+The authenticated collector's lodge membership name (or account name when no lodge membership exists) is snapshotted in the existing audit metadata with the confirmation request's server time. That same time is written to the receipt. Duplicate requests return the original result without changing its name or time. Legacy receipts use the linked actor's same-lodge membership name when no saved name exists. No client-provided name or time is trusted, and no new migration or APK is needed.
+
+Validation for this update: 23 focused cash/activity/admin-refresh tests passed, 1 optional database case skipped in that run; the separate real PostgreSQL cash suite passed all 14 tests. This covers workflow position, no pending timestamp, confirmation replacement, original timestamps on retries, same-lodge name fallback and stable audit snapshots. Backend and admin production builds, TypeScript checks, scoped lint and whitespace checks passed.
+
 Release scope: the protected owner cash-collection endpoint, its receipt uniqueness migration, and the existing admin booking detail timeline. No owner or pilgrim layout changes are included in this release.
 
 `POST /api/owner/bookings/:id/collect-payment` accepts the confirmed `expectedAmount`. Only an authorized lodge owner/staff/admin may collect an eligible checked-in pay-at-lodge booking. A booking row lock, stable receipt reference and partial unique index serialize simultaneous devices and retries. Receipt, balance and audit changes commit together. The booking retains its PAY_AT_LODGE method; it is never represented as an online payment. Existing adjustments require review.
