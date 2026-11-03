@@ -7,6 +7,12 @@ import { NotificationsService } from './notifications.service';
 
 @Injectable()
 export class NotificationEventsService {
+  public paymentCollected(bookingId: string, lodgeId: string): void {
+    const payload = { bookingId, lodgeId };
+    this.realtimeEventsService.publishToLodge(lodgeId, 'booking:updated', payload);
+    this.realtimeEventsService.publishToLodge(lodgeId, 'dashboard:update', payload);
+    this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', payload);
+  }
   public constructor(
     private readonly notificationsService: NotificationsService,
     private readonly prisma: PrismaService,

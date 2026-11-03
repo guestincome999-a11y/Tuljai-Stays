@@ -462,15 +462,36 @@ function PaymentPanel({ booking }: { booking: AdminBookingSummary }) {
 function TimelinePanel({ booking }: { booking: AdminBookingSummary }) {
   const timeline = buildBookingTimeline(booking);
   return (
-    <FinPanel sub="Booking lifecycle" title="Activity timeline">
+    <FinPanel sub="Recorded events · India Standard Time" title="Booking & payment timeline">
       <div className="bk-timeline">
         {timeline.map((item) => (
-          <article className="bk-tl-item" key={`${item.title}-${item.timestamp}`}>
+          <article className="bk-tl-item" key={item.id}>
             <span className="bk-tl-dot" />
             <div>
               <strong>{item.title}</strong>
               <p>{item.description}</p>
-              <small>{new Date(item.timestamp).toLocaleString('en-IN')}</small>
+              {item.amount ? (
+                <p>
+                  <strong>{formatAmount(item.amount)}</strong> ·{' '}
+                  {item.paymentMethod === 'ONLINE' ? 'Online payment' : 'Pay at lodge'}
+                </p>
+              ) : null}
+              {item.actorName ? <p>Recorded by {item.actorName}</p> : null}
+              <small>
+                <time dateTime={item.timestamp}>
+                  {new Date(item.timestamp).toLocaleString('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                  })}{' '}
+                  IST
+                </time>
+              </small>
             </div>
           </article>
         ))}

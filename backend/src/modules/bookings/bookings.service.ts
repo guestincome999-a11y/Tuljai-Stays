@@ -28,6 +28,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingHistoryService } from './booking-history.service';
 import { calculateStayPrice } from './booking-pricing';
+import { recordCashCollection, withCashCollection } from './cash-collection';
 import type {
   AdminBookingsQueryDto,
   CancelBookingDto,
@@ -677,7 +678,21 @@ export class BookingsService {
     const booking = await this.findBookingOrThrow(id);
     await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
 
-    return this.toBooking(booking);
+    return withCashCollection(this.prisma, this.toBooking(booking));
+  }
+
+  public async collectPayAtLodge(
+    id: string,
+    expectedAmount: string,
+    user: AuthenticatedUser,
+  ): Promise<Booking> {
+    const result = await recordCashCollection(
+      this.prisma,
+      (lodgeId) => this.lodgeAccessService.assertCanManageLodge(user, lodgeId),
+      { bookingId: id, actorUserId: user.id, expectedAmount },
+    );
+    if (result.changed) this.notificationEventsService.paymentCollected(id, result.lodgeId);
+    return this.getOwnerUnlockedBookingView(id, user);
   }
 
   /**
@@ -692,7 +707,7 @@ export class BookingsService {
     const booking = await this.findBookingOrThrow(id);
     await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
 
-    return this.toOwnerBookingSummary(booking);
+    return withCashCollection(this.prisma, this.toOwnerBookingSummary(booking));
   }
 
   public async listOwnerBookings(

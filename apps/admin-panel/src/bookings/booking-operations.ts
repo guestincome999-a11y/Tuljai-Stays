@@ -1,12 +1,14 @@
-import type { AdminBookingSummary, Booking, BookingStatus, QrScanLogEntry } from '@tuljai/types';
+import type {
+  AdminBookingSummary,
+  BookingActivity,
+  Booking,
+  BookingStatus,
+  QrScanLogEntry,
+} from '@tuljai/types';
 
 export type BookingPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'NORMAL';
 
-export interface BookingTimelineItem {
-  description: string;
-  timestamp: string;
-  title: string;
-}
+export type BookingTimelineItem = BookingActivity;
 
 export interface InterventionItem {
   bookingCode: string;
@@ -114,66 +116,37 @@ export function getOwnerResponseState(booking: AdminBookingSummary | Booking): {
   return { message: `${formatDuration(diffMs)} remaining`, overdue: false };
 }
 
-export function buildBookingTimeline(booking: Booking): BookingTimelineItem[] {
+export function buildBookingTimeline(
+  booking: Booking & { activity?: BookingActivity[] },
+): BookingTimelineItem[] {
+  if (Array.isArray(booking.activity))
+    return [...booking.activity].sort(
+      (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || a.id.localeCompare(b.id),
+    );
+  // Compatibility with older detail responses: never use updatedAt as an event time.
   const items: BookingTimelineItem[] = [
     {
-      description: 'Booking was created and sent for owner approval.',
+      id: 'booked',
+      title: 'Booked',
+      description: 'Booking record created.',
       timestamp: booking.createdAt,
-      title: 'Booking created',
     },
   ];
-
-  if (booking.ownerResponseDeadline) {
+  if (booking.checkedInAt)
     items.push({
-      description: 'Owner response timer started.',
-      timestamp: booking.ownerResponseDeadline,
-      title: 'Owner response deadline',
-    });
-  }
-
-  if (booking.status === 'ACCEPTED' || booking.status === 'QR_GENERATED') {
-    items.push({
-      description: 'Owner or admin accepted the booking.',
-      timestamp: booking.updatedAt,
-      title: 'Booking accepted',
-    });
-  }
-
-  if (booking.status === 'REJECTED') {
-    items.push({
-      description: booking.rejectedReason ?? 'Booking rejected.',
-      timestamp: booking.updatedAt,
-      title: 'Booking rejected',
-    });
-  }
-
-  if (booking.status === 'EXPIRED') {
-    items.push({
-      description: 'Booking expired before completion.',
-      timestamp: booking.updatedAt,
-      title: 'Booking expired',
-    });
-  }
-
-  if (booking.checkedInAt) {
-    items.push({
-      description: 'QR was verified and guest checked in.',
+      id: 'checkin',
+      title: 'Checked in',
+      description: 'Recorded check-in.',
       timestamp: booking.checkedInAt,
-      title: 'Check-in completed',
     });
-  }
-
-  if (booking.checkedOutAt) {
+  if (booking.checkedOutAt)
     items.push({
-      description: 'Guest checkout was completed.',
+      id: 'checkout',
+      title: 'Checked out',
+      description: 'Recorded checkout.',
       timestamp: booking.checkedOutAt,
-      title: 'Checkout completed',
     });
-  }
-
-  return items.sort(
-    (first, second) => new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime(),
-  );
+  return items.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
 }
 
 export function buildInterventionItems(

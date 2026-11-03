@@ -76,6 +76,8 @@ export interface Booking {
   advanceAmount: string | null;
   alternatePhone: string | null;
   balanceAmount: string | null;
+  /** Server-confirmed cash receipt; does not imply an online payment. */
+  payAtLodgeCollectedAt?: ISODateTime | null;
   bookingCode: string;
   cancellationReason: string | null;
   checkInDate: string;
@@ -163,7 +165,19 @@ export interface OwnerBookingSummary extends Booking {
 }
 
 export interface AdminBookingSummary extends OwnerBookingSummary {
+  /** Recorded lifecycle and payment events, populated only for admin detail. */
+  activity?: BookingActivity[];
   cityName: string;
+}
+
+export interface BookingActivity {
+  id: string;
+  title: string;
+  description: string;
+  timestamp: ISODateTime;
+  actorName?: string | null;
+  amount?: string | null;
+  paymentMethod?: 'ONLINE' | 'PAY_AT_LODGE' | null;
 }
 
 export interface QrPayload {
