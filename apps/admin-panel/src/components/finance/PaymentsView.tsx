@@ -74,21 +74,29 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    listAdminPayments({ method: preset.method, page, search, status })
-      .then((result) => {
-        if (!active) return;
-        setData(result);
-        setError(null);
-      })
-      .catch(() => {
-        if (active) setError('Could not load payments. Please try again.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    let revision = 0;
+    const refresh = () => {
+      const request = ++revision;
+      setLoading(true);
+      void listAdminPayments({ method: preset.method, page, search, status })
+        .then((result) => {
+          if (!active || request !== revision) return;
+          setData(result);
+          setError(null);
+        })
+        .catch(() => {
+          if (active && request === revision)
+            setError('Could not load payments. Please try again.');
+        })
+        .finally(() => {
+          if (active && request === revision) setLoading(false);
+        });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 30_000);
     return () => {
       active = false;
+      window.clearInterval(timer);
     };
   }, [preset.method, page, search, status]);
 
