@@ -714,6 +714,9 @@ model Booking {
   acceptedByUserId      String?             @map("accepted_by_user_id") @db.Uuid
   rejectedByUserId      String?             @map("rejected_by_user_id") @db.Uuid
   cancellationReason    String?             @map("cancellation_reason")
+  cancelledAt           DateTime?           @map("cancelled_at")
+  cancelledByUserId     String?             @map("cancelled_by_user_id") @db.Uuid
+  cancellationPolicy    Json?               @map("cancellation_policy")
   rejectedReason        String?             @map("rejected_reason")
   checkedInAt           DateTime?           @map("checked_in_at")
   checkedOutAt          DateTime?           @map("checked_out_at")
@@ -734,6 +737,8 @@ model Booking {
   qrScanLogs            QrScanLog[]
   guestRegister         GuestRegister?
   review                Review?
+  refunds               BookingRefund[]
+  collections           PaymentCollection[]
 
   @@index([pilgrimUserId])
   @@index([lodgeId, status])
@@ -1010,6 +1015,7 @@ model RegisterAuditLog {
 
 model Notification {
   id              String                    @id @default(uuid()) @db.Uuid
+  dedupeKey       String?                   @unique @map("dedupe_key")
   recipientUserId String?                   @map("recipient_user_id") @db.Uuid
   recipientRole   UserRole?                 @map("recipient_role")
   lodgeId         String?                   @map("lodge_id") @db.Uuid
@@ -1391,4 +1397,119 @@ model PaymentOrderRequest {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@map("payment_order_requests")
+}
+
+// Existing collection table, now mapped for refund relations. Amount remains INR decimal.
+model PaymentCollection {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId         String          @map("booking_id") @db.Uuid
+  method            String
+  provider          String?
+  amount            Decimal         @db.Decimal(12, 2)
+  status            String          @default("PENDING")
+  providerOrderId   String?         @map("provider_order_id")
+  providerPaymentId String?         @map("provider_payment_id")
+  providerReference String?         @map("provider_reference")
+  paidAt            DateTime?       @map("paid_at") @db.Timestamptz
+  notes             String?
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime        @default(now()) @map("updated_at") @db.Timestamptz
+  booking           Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  refunds           BookingRefund[]
+
+  @@index([bookingId], map: "payment_collections_booking_idx")
+  @@index([method, status], map: "payment_collections_method_status_idx")
+  @@index([paidAt], map: "payment_collections_paid_at_idx")
+  @@map("payment_collections")
+}
+
+enum RefundStatus {
+  NOT_REQUIRED
+  PENDING
+  INITIATED
+  PROCESSED
+  FAILED
+}
+
+model BookingRefund {
+  id                String            @id @default(uuid()) @db.Uuid
+  reference         String            @unique
+  bookingId         String            @map("booking_id") @db.Uuid
+  collectionId      String            @unique @map("collection_id") @db.Uuid
+  providerPaymentId String?           @map("provider_payment_id")
+  capturedAmount    Int?              @map("captured_amount")
+  eligibleAmount    Int?              @map("eligible_amount")
+  amount            Int?
+  percent           Int?
+  currency          String            @default("INR")
+  paymentMethod     String?           @map("payment_method")
+  status            RefundStatus      @default(PENDING)
+  reason            String
+  failureReason     String?           @map("failure_reason")
+  attempts          Int               @default(0)
+  nextCheckAt       DateTime          @default(now()) @map("next_check_at")
+  leaseToken        String?           @map("lease_token")
+  leaseUntil        DateTime?         @map("lease_until")
+  initiatedAt       DateTime?         @map("initiated_at")
+  processedAt       DateTime?         @map("processed_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  booking           Booking           @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  collection        PaymentCollection @relation(fields: [collectionId], references: [id], onDelete: Restrict)
+  history           RefundAttempt[]
+
+  @@index([bookingId])
+  @@index([providerPaymentId])
+  @@index([status, nextCheckAt])
+  @@map("booking_refunds")
+}
+
+model RefundAttempt {
+  id               String        @id @default(uuid()) @db.Uuid
+  refundId         String        @map("refund_id") @db.Uuid
+  receipt          String        @unique
+  providerRefundId String?       @unique @map("provider_refund_id")
+  amount           Int
+  speed            String        @default("normal")
+  status           RefundStatus  @default(PENDING)
+  requestedAt      DateTime?     @map("requested_at")
+  failureReason    String?       @map("failure_reason")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  refund           BookingRefund @relation(fields: [refundId], references: [id], onDelete: Restrict)
+
+  @@index([refundId])
+  @@map("refund_attempts")
+}
+
+model RefundWebhookEvent {
+  id                String    @id
+  eventType         String    @map("event_type")
+  providerRefundId  String    @map("provider_refund_id")
+  providerPaymentId String    @map("provider_payment_id")
+  receipt           String?
+  processedAt       DateTime? @map("processed_at")
+  lastError         String?   @map("last_error")
+  nextCheckAt       DateTime  @default(now()) @map("next_check_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([processedAt, nextCheckAt])
+  @@index([providerRefundId])
+  @@map("refund_webhook_events")
+}
+
+// Durable handoff to the existing notification/push/realtime infrastructure.
+model RefundNotificationOutbox {
+  key         String    @id
+  bookingId   String    @map("booking_id") @db.Uuid
+  refundId    String?   @map("refund_id") @db.Uuid
+  status      String
+  deliveredAt DateTime? @map("delivered_at")
+  leaseUntil  DateTime? @map("lease_until")
+  attempts    Int       @default(0)
+  nextCheckAt DateTime  @default(now()) @map("next_check_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([deliveredAt, nextCheckAt])
+  @@map("refund_notification_outbox")
 }

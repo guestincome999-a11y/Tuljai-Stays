@@ -13,6 +13,7 @@ import {
   getOwnerResponseState,
   maskPhone,
 } from '../../../../src/bookings/booking-operations';
+import { AdminCancellationPanel } from '../../../../src/components/bookings/AdminCancellationPanel';
 import {
   bookingPriorityTone,
   bookingStatusTone,
@@ -52,7 +53,6 @@ const statusChoices: Array<{ label: string; needsOverride: boolean; value: Booki
   { label: 'Accept', needsOverride: false, value: 'ACCEPTED' },
   { label: 'Reject', needsOverride: false, value: 'REJECTED' },
   { label: 'Mark expired', needsOverride: true, value: 'EXPIRED' },
-  { label: 'Mark cancelled', needsOverride: true, value: 'CANCELLED' },
   { label: 'Mark no-show', needsOverride: true, value: 'NO_SHOW' },
 ];
 
@@ -233,6 +233,10 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
 
           <div className="bk-col">
             <OwnerResponsePanel booking={booking} />
+            {canManage &&
+            ['PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED'].includes(booking.status) ? (
+              <AdminCancellationPanel bookingId={booking.id} onCancelled={detail.refresh} />
+            ) : null}
             <StatusPanel
               canManage={canManage}
               canOverride={canOverride}

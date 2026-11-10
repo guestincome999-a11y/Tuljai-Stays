@@ -149,6 +149,12 @@ function BookingCard({
             {formatRupees(booking.amount)}
           </Text>
         </View>
+        {booking.refunds?.map((refund) => (
+          <Text className="mt-2 text-xs font-semibold text-warm-600" key={refund.id}>
+            Refund {refund.status.toLowerCase()}
+            {refund.amount === null ? '' : ` · ${formatRupees(Number(refund.amount))}`}
+          </Text>
+        ))}
       </View>
     </Pressable>
   );

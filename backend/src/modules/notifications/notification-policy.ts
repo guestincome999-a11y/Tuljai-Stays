@@ -39,8 +39,8 @@ export function shouldDeliverPush(type: NotificationType, data: unknown): boolea
   return (
     type === 'SYSTEM' &&
     isRecord(data) &&
-    data.context === 'ROOM_ALERT' &&
-    data.operationallyImportant === true
+    (data.context === 'REFUND' ||
+      (data.context === 'ROOM_ALERT' && data.operationallyImportant === true))
   );
 }
 

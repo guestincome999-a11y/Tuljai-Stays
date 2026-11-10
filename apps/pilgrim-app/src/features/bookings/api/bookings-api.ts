@@ -198,7 +198,15 @@ export async function getBookingLodgeContact(bookingId: string): Promise<Booking
 }
 
 export async function cancelBooking(bookingId: string, reason?: string): Promise<Booking> {
-  return apiClient.post<Booking>(`/bookings/${bookingId}/cancel`, { reason });
+  return apiClient.post<Booking>(`/bookings/${bookingId}/cancel`, { reason, confirmed: true });
+}
+
+export function getCancellationPreview(bookingId: string) {
+  return apiClient.get<{
+    refundPercent: number | null;
+    amountPaise: number | null;
+    message: string;
+  }>(`/bookings/${bookingId}/cancellation-preview`);
 }
 
 async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {

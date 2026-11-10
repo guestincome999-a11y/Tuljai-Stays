@@ -137,6 +137,8 @@ export function mapBooking(enriched: EnrichedBooking, lodges: PilgrimLodge[]): P
   const lodge = lodges.find((item) => item.id === booking.lodgeId);
   return {
     amount: Number(booking.totalAmount ?? 0),
+    cancellationReason: booking.cancellationReason,
+    refunds: booking.refunds,
     bookingCode: booking.bookingCode,
     checkIn: formatBookingDate(booking.checkInDate),
     checkInDate: booking.checkInDate,
@@ -206,6 +208,8 @@ export function applyBackendBookingRecord(
 
   return {
     ...current,
+    cancellationReason: booking.cancellationReason,
+    refunds: booking.refunds,
     checkIn: formatBookingDate(booking.checkInDate),
     checkInDate: booking.checkInDate,
     checkOut: formatBookingDate(booking.checkOutDate),

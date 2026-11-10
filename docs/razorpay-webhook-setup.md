@@ -28,6 +28,15 @@ webhook settings, add the public HTTPS backend URL ending in
 
 - `payment.captured`
 - `order.paid`
+- `refund.created`
+- `refund.processed`
+- `refund.failed`
+- `refund.speed_changed`
+
+Refund handling also requires migration `20261110000000_cancellation_refund_ledger`.
+See [the cancellation/refund delivery report](automated-cancellation-refunds.md) for
+policy settings, safe retries, finance checks, test-mode activation and rollout steps.
+
 - `payment.failed`
 
 The production URL recorded for this project is

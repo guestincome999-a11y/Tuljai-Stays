@@ -1,3 +1,5 @@
+import type { BookingRefundSummary } from '@tuljai/types';
+
 export type BookingStatus = 'confirmed' | 'checked-in' | 'pending' | 'completed' | 'cancelled';
 
 export interface PilgrimRoom {
@@ -39,6 +41,8 @@ export interface PilgrimLodge {
 }
 
 export interface PilgrimBooking {
+  cancellationReason?: string | null;
+  refunds?: BookingRefundSummary[];
   amount: number;
   bookingCode: string;
   checkIn: string;

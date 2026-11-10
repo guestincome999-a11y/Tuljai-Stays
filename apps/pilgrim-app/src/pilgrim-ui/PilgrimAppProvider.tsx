@@ -374,7 +374,8 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!auth.isAuthenticated || realtime.lastEvent?.name !== 'notification:new') return;
     void reconcileNotifications();
-  }, [auth.isAuthenticated, reconcileNotifications, realtime.lastEvent]);
+    void loadPrivateData(lodges).catch(() => undefined);
+  }, [auth.isAuthenticated, reconcileNotifications, realtime.lastEvent, loadPrivateData, lodges]);
 
   useEffect(() => {
     const event = realtime.lastEvent;

@@ -3,12 +3,22 @@ import type { BookingLodgeContact } from '@tuljai/types';
 import { palette } from '@tuljai/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import {
   createRazorpayOrder,
   getBookingLodgeContact,
+  getCancellationPreview,
   verifyRazorpayPayment,
   type RazorpayOrder,
 } from '../../features/bookings/api/bookings-api';
@@ -45,6 +55,8 @@ export function PilgrimBookingDetailScreen() {
   const booking = bookings.find((item) => item.id === params.id);
   const lodge = booking ? lodges.find((item) => item.id === booking.lodgeId) : undefined;
   const [onlinePaymentBusy, setOnlinePaymentBusy] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellationBusy, setCancellationBusy] = useState(false);
   const [paymentAttemptFailed, setPaymentAttemptFailed] = useState<string | null>(null);
   const [justPaidOnline, setJustPaidOnline] = useState(false);
   // Pre-create the Razorpay order as soon as this screen can show "Pay &
@@ -138,21 +150,36 @@ export function PilgrimBookingDetailScreen() {
   const bookingLodgeName = booking.lodgeName;
   const bookingRoomName = booking.roomName;
 
-  function askToCancel() {
+  async function askToCancel() {
+    if (cancellationBusy) return;
+    if (!cancellationReason.trim()) {
+      Alert.alert('Cancellation reason required', 'Please enter a reason before cancelling.');
+      return;
+    }
+    setCancellationBusy(true);
+    let preview;
+    try {
+      preview = await getCancellationPreview(currentBookingId);
+    } catch {
+      setCancellationBusy(false);
+      Alert.alert('Could not load cancellation policy', 'Please try again.');
+      return;
+    }
     Alert.alert(
       t('Cancel this booking?', 'हे बुकिंग रद्द करायचे?'),
-      t(
-        'Your room will be released. Refund eligibility depends on the stay policy.',
-        'तुमची खोली सोडली जाईल. परतावा निवास धोरणानुसार असेल.',
-      ),
+      `Your room will be released. Eligible refund: ${preview.amountPaise === null ? 'Pending review' : formatRupees(preview.amountPaise / 100)} (${preview.refundPercent ?? 0}%). ${preview.message}`,
       [
-        { style: 'cancel', text: t('Keep booking', 'बुकिंग ठेवा') },
+        {
+          style: 'cancel',
+          text: t('Keep booking', 'बुकिंग ठेवा'),
+          onPress: () => setCancellationBusy(false),
+        },
         {
           style: 'destructive',
           text: t('Yes, cancel', 'हो, रद्द करा'),
           onPress: () => {
-            void cancelBooking(currentBookingId, 'Cancelled by pilgrim from mobile app').catch(
-              () => {
+            void cancelBooking(currentBookingId, cancellationReason.trim())
+              .catch(() => {
                 Alert.alert(
                   t('Could not cancel booking', 'बुकिंग रद्द करता आली नाही'),
                   t(
@@ -160,11 +187,12 @@ export function PilgrimBookingDetailScreen() {
                     'कृपया पुन्हा प्रयत्न करा किंवा तुळजाई सहाय्याशी संपर्क साधा.',
                   ),
                 );
-              },
-            );
+              })
+              .finally(() => setCancellationBusy(false));
           },
         },
       ],
+      { cancelable: false },
     );
   }
 
@@ -243,7 +271,7 @@ export function PilgrimBookingDetailScreen() {
         <View className="items-center rounded-3xl bg-danger-50 px-5 py-7">
           <AnimatedResultBadge tone="danger" />
           <Text className="mt-5 text-center text-2xl font-extrabold text-danger-700">
-            {t('Booking not confirmed', 'बुकिंग निश्चित झाले नाही')}
+            {t('Booking status: Cancelled', 'बुकिंग स्थिती: रद्द')}
           </Text>
           <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
             {t(
@@ -251,6 +279,39 @@ export function PilgrimBookingDetailScreen() {
               'हा निवास रद्द झाला आहे किंवा लॉजने स्वीकारला नाही. पात्र परतावा तुमच्या मूळ पेमेंट पद्धतीवर पोहोचेल.',
             )}
           </Text>
+        </View>
+      ) : null}
+
+      {booking.status === 'cancelled' ? (
+        <View className="gap-3 rounded-2xl border border-warm-100 bg-white p-5">
+          <Text className="text-lg font-extrabold text-warm-900">Refund information</Text>
+          <Text className="text-sm text-warm-600">
+            Cancellation reason: {booking.cancellationReason ?? 'See booking history'}
+          </Text>
+          {!booking.refunds?.length ? (
+            <Text className="text-sm text-warm-600">
+              No online refund recorded. Pay-at-Lodge payments are handled by the lodge.
+            </Text>
+          ) : null}
+          {booking.refunds?.map((refund) => (
+            <View className="gap-2" key={refund.id}>
+              <Text className="font-bold text-warm-900">
+                {refund.status} ·{' '}
+                {refund.amount === null
+                  ? 'Amount pending review'
+                  : formatRupees(Number(refund.amount))}
+              </Text>
+              {refund.refundId ? (
+                <Text selectable className="text-xs text-warm-600">
+                  Refund ID: {refund.refundId}
+                </Text>
+              ) : null}
+              <Text className="text-sm text-warm-600">
+                Original payment method: {refund.originalPaymentMethod}
+              </Text>
+              <Text className="text-sm leading-5 text-warm-600">{refund.message}</Text>
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -541,9 +602,25 @@ export function PilgrimBookingDetailScreen() {
           </SecondaryButton>
         ) : null}
         {booking.status === 'confirmed' || booking.status === 'pending' ? (
-          <SecondaryButton destructive icon="calendar-remove-outline" onPress={askToCancel}>
-            {t('Cancel booking', 'बुकिंग रद्द करा')}
-          </SecondaryButton>
+          <View className="gap-3">
+            <TextInput
+              accessibilityLabel="Cancellation reason"
+              maxLength={500}
+              placeholder="Reason for cancellation"
+              value={cancellationReason}
+              onChangeText={setCancellationReason}
+              className="rounded-xl border border-warm-200 bg-white p-3 text-warm-900"
+            />
+            <SecondaryButton
+              destructive
+              icon="calendar-remove-outline"
+              onPress={() => void askToCancel()}
+            >
+              {cancellationBusy
+                ? 'Processing cancellation…'
+                : t('Cancel booking', 'बुकिंग रद्द करा')}
+            </SecondaryButton>
+          </View>
         ) : null}
       </View>
       <PrimaryButton onPress={() => router.push('/(app)/lodges')}>

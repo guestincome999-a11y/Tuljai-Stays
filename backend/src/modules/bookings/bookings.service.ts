@@ -23,6 +23,15 @@ import { normalizePagination } from '@tuljai/utils';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { NotificationEventsService } from '../notifications/notification-events.service';
+import {
+  ADMIN_CANCELLATION_REASONS,
+  CANCELLATION_POLICY_KEY,
+  DEFAULT_CANCELLATION_POLICY,
+  moneyToPaise,
+  parseCancellationPolicy,
+  refundPercent,
+  REFUND_MESSAGES,
+} from '../payments/refund-policy';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { BookingAvailabilityService } from './booking-availability.service';
@@ -615,9 +624,30 @@ export class BookingsService {
     user: AuthenticatedUser,
   ): Promise<Booking> {
     const existing = await this.findBookingOrThrow(id);
-    if (existing.pilgrimUserId !== user.id && !this.lodgeAccessService.isAdmin(user)) {
+    const admin = user.roles.some((role) => role === 'ADMIN' || role === 'SUPER_ADMIN');
+    if (!admin && (!user.roles.includes('PILGRIM') || existing.pilgrimUserId !== user.id)) {
       throw new ForbiddenException('You cannot cancel this booking');
     }
+    // Released pilgrim builds already show a confirmation dialog but do not send a flag.
+    // Retain that flow during OTA rollout; new clients send true and admins must do so.
+    if ((admin ? dto.confirmed !== true : dto.confirmed === false) || !dto.reason?.trim())
+      throw new BadRequestException('Confirm cancellation and provide a reason');
+    if (!admin && (dto.deductionPaise !== undefined || dto.supportTicketId || dto.deductionReason))
+      throw new ForbiddenException('Only administrators can apply support deductions');
+    if (
+      admin &&
+      !(ADMIN_CANCELLATION_REASONS as readonly string[]).includes(dto.reason) &&
+      dto.reason !== 'Pilgrim Support Request'
+    )
+      throw new BadRequestException(
+        'Select an operational cancellation reason or Pilgrim Support Request',
+      );
+    if (
+      admin &&
+      dto.reason !== 'Pilgrim Support Request' &&
+      (dto.deductionPaise || dto.supportTicketId || dto.deductionReason)
+    )
+      throw new BadRequestException('Operational cancellations require a full refund');
     if (existing.status === 'CANCELLED') return this.toBooking(existing);
     if (!['PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED'].includes(existing.status)) {
       throw new BadRequestException('This booking can no longer be cancelled');
@@ -633,38 +663,188 @@ export class BookingsService {
       if (fresh.status === 'CANCELLED') return fresh;
       if (!['PENDING_OWNER_APPROVAL', 'ACCEPTED', 'QR_GENERATED'].includes(fresh.status))
         throw new ConflictException('This booking can no longer be cancelled');
+      const now = new Date();
+      const setting = await tx.systemSetting.findUnique({
+        where: { key: CANCELLATION_POLICY_KEY },
+      });
+      const policy = parseCancellationPolicy(
+        fresh.cancellationPolicy ?? setting?.value ?? DEFAULT_CANCELLATION_POLICY,
+      );
+      const percent = admin ? 100 : refundPercent(policy, fresh.checkInDate, now);
+      const deduction = dto.deductionPaise ?? 0;
+      if (!Number.isSafeInteger(deduction) || deduction < 0)
+        throw new BadRequestException('Invalid deduction amount');
+      if (admin && dto.reason === 'Pilgrim Support Request') {
+        if (!dto.supportTicketId || !dto.deductionReason?.trim())
+          throw new BadRequestException(
+            'Link the pilgrim support ticket and record the deduction reason',
+          );
+        const tickets = await tx.$queryRaw<
+          Array<{ id: string }>
+        >`SELECT id FROM support_tickets WHERE id=${dto.supportTicketId}::uuid AND requester_user_id=${fresh.pilgrimUserId}::uuid AND requester_role='PILGRIM' AND (booking_id=${id}::uuid OR booking_id IS NULL) FOR UPDATE`;
+        if (!tickets.length)
+          throw new BadRequestException('Support ticket must belong to this pilgrim and booking');
+        await tx.$executeRaw`UPDATE support_tickets SET booking_id=${id}::uuid WHERE id=${dto.supportTicketId}::uuid`;
+      }
+      await tx.$queryRaw`SELECT id FROM payment_collections WHERE booking_id=${id}::uuid ORDER BY id FOR UPDATE`;
+      const collections = await tx.paymentCollection.findMany({
+        where: { bookingId: id, method: 'ONLINE', provider: 'RAZORPAY' },
+        orderBy: { id: 'asc' },
+      });
+      if (
+        deduction >
+        collections
+          .filter((c) => c.status === 'PAID')
+          .reduce((sum, c) => sum + moneyToPaise(c.amount), 0)
+      )
+        throw new BadRequestException(
+          'Deduction exceeds captured online collection; reconcile payment first',
+        );
+      let remainingDeduction = deduction;
+      for (const collection of collections) {
+        const collected = moneyToPaise(collection.amount);
+        const appliedDeduction =
+          collection.status === 'PAID' ? Math.min(remainingDeduction, collected) : 0;
+        remainingDeduction -= appliedDeduction;
+        const amount =
+          percent === null
+            ? null
+            : Math.max(0, Math.floor((collected * percent) / 100) - appliedDeduction);
+        const refund = await tx.bookingRefund.create({
+          data: {
+            reference: `cancel:${collection.id}`,
+            bookingId: id,
+            collectionId: collection.id,
+            providerPaymentId: collection.providerPaymentId,
+            percent,
+            amount,
+            eligibleAmount: amount,
+            status: amount === 0 ? 'NOT_REQUIRED' : 'PENDING',
+            reason: dto.reason.trim(),
+          },
+        });
+        if (refund.status === 'PENDING')
+          await tx.refundNotificationOutbox.create({
+            data: {
+              key: `refund:${refund.id}:PENDING`,
+              bookingId: id,
+              refundId: refund.id,
+              status: 'PENDING',
+            },
+          });
+      }
+      const action = admin ? 'BOOKING_CANCELLED_BY_ADMIN' : 'BOOKING_CANCELLED_BY_PILGRIM';
+      const settledCommission = await tx.$queryRaw<
+        Array<{ ledgerId: string; amount: string }>
+      >`SELECT l.id AS "ledgerId",SUM(a.amount)::text AS amount
+        FROM lodge_commission_ledger l INNER JOIN lodge_commission_settlement_allocations a ON a.ledger_id=l.id
+        WHERE l.booking_id=${id}::uuid GROUP BY l.id HAVING SUM(a.amount)>0`;
+      const metadata = {
+        reason: dto.reason.trim(),
+        percent,
+        policy: { configured: policy.configured, tiers: policy.tiers },
+        deductionPaise: deduction,
+        supportTicketId: dto.supportTicketId ?? null,
+        deductionReason: dto.deductionReason ?? null,
+        settledCommissionReview: settledCommission,
+      };
       const updated = await tx.booking.update({
-        data: { cancellationReason: dto.reason ?? 'Cancelled by pilgrim', status: 'CANCELLED' },
+        data: {
+          cancellationReason: dto.reason.trim(),
+          cancelledAt: now,
+          cancelledByUserId: user.id,
+          cancellationPolicy: metadata,
+          status: 'CANCELLED',
+        },
         include: this.bookingInclude,
         where: { id },
       });
       if (fresh.roomId) {
-        await tx.room.updateMany({
+        const released = await tx.room.updateMany({
           data: { status: 'AVAILABLE' },
-          where: { id: fresh.roomId, status: { in: ['CONFIRMED', 'RESERVED'] } },
+          where: {
+            id: fresh.roomId,
+            status: { in: ['CONFIRMED', 'RESERVED'] },
+            bookings: {
+              none: {
+                id: { not: id },
+                deletedAt: null,
+                status: { in: ['ACCEPTED', 'QR_GENERATED', 'CHECKED_IN'] },
+              },
+            },
+          },
         });
+        if (released.count)
+          await tx.roomStatusHistory.create({
+            data: {
+              roomId: fresh.roomId,
+              bookingId: id,
+              actorUserId: user.id,
+              fromStatus: fresh.room?.status ?? 'CONFIRMED',
+              toStatus: 'AVAILABLE',
+              reason: 'Booking cancellation released inventory',
+            },
+          });
       }
+      await tx.bookingQrToken.updateMany({
+        where: { bookingId: id, status: 'ACTIVE' },
+        data: { status: 'REVOKED' },
+      });
       await tx.bookingHistory.create({
         data: {
-          action: 'BOOKING_CANCELLED_BY_PILGRIM',
+          action,
           actorUserId: user.id,
           bookingId: id,
-          fromStatus: existing.status,
+          fromStatus: fresh.status,
           notes: dto.reason,
           toStatus: 'CANCELLED',
         },
       });
+      await tx.auditLog.create({
+        data: { action, actorUserId: user.id, entityId: id, entityType: 'booking', metadata },
+      });
+      await tx.refundNotificationOutbox.create({
+        data: { key: `cancel:${id}`, bookingId: id, status: 'CANCELLED' },
+      });
+      if (settledCommission.length)
+        await tx.refundNotificationOutbox.create({
+          data: { key: `accounting-review:${id}`, bookingId: id, status: 'ACCOUNTING_REVIEW' },
+        });
       return updated;
     });
-    await this.auditLogService.create({
-      action: 'BOOKING_CANCELLED_BY_PILGRIM',
-      actorUserId: user.id,
-      entityId: id,
-      entityType: 'booking',
-    });
-    await this.notificationEventsService.bookingCancelled(id);
 
     return this.toBooking(booking);
+  }
+
+  public async cancellationPreview(id: string, user: AuthenticatedUser) {
+    const booking = await this.findBookingOrThrow(id);
+    if (booking.pilgrimUserId !== user.id)
+      throw new ForbiddenException('You cannot view this cancellation');
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: CANCELLATION_POLICY_KEY },
+    });
+    const policy = parseCancellationPolicy(
+      booking.cancellationPolicy ?? setting?.value ?? DEFAULT_CANCELLATION_POLICY,
+    );
+    const percent = refundPercent(policy, booking.checkInDate, new Date());
+    const collections = await this.prisma.paymentCollection.findMany({
+      where: { bookingId: id, method: 'ONLINE', provider: 'RAZORPAY', status: 'PAID' },
+    });
+    const amountPaise =
+      percent === null
+        ? null
+        : collections.reduce(
+            (sum, c) => sum + Math.floor((moneyToPaise(c.amount) * percent) / 100),
+            0,
+          );
+    return {
+      policy,
+      refundPercent: percent,
+      amountPaise,
+      currency: 'INR',
+      message:
+        'Final refund depends on captured payment and any earlier refunds. Refunds return to the original payment method within 5–7 business days after initiation.',
+    };
   }
 
   public async getOwnerSafeBookingView(id: string, user: AuthenticatedUser): Promise<Booking> {
@@ -973,11 +1153,26 @@ export class BookingsService {
     dto: UpdateBookingStatusDto,
     user: AuthenticatedUser,
   ): Promise<Booking> {
+    if (!user.roles.some((role) => role === 'ADMIN' || role === 'SUPER_ADMIN'))
+      throw new ForbiddenException('Administrator required');
+    if (dto.status === 'CANCELLED')
+      return this.cancelBooking(
+        id,
+        { reason: dto.notes ?? '', confirmed: dto.confirmed === true },
+        user,
+      );
     if (!ADMIN_ALLOWED_STATUS_UPDATES.includes(dto.status)) {
       throw new BadRequestException('This status cannot be set manually');
     }
 
     const existing = await this.findBookingOrThrow(id);
+    if (existing.status === 'CANCELLED')
+      throw new BadRequestException('Cancelled bookings cannot be reactivated');
+    if (
+      ['REJECTED', 'EXPIRED'].includes(dto.status) &&
+      ['FULLY_PAID', 'ADVANCE_PAID'].includes(existing.paymentStatus)
+    )
+      throw new BadRequestException('Use administrative cancellation for paid bookings');
     const booking = await this.prisma.booking.update({
       data: { status: dto.status },
       include: this.bookingInclude,
@@ -1045,6 +1240,7 @@ export class BookingsService {
   }
 
   private readonly bookingInclude = {
+    refunds: { include: { history: { orderBy: { createdAt: 'desc' as const } } } },
     city: true,
     guests: {
       where: { deletedAt: null },
@@ -1172,6 +1368,21 @@ export class BookingsService {
 
   private toBooking(booking: BookingWithRelations, maskContact = false): Booking {
     return {
+      cancelledAt: booking.cancelledAt?.toISOString() ?? null,
+      refunds: ('refunds' in booking
+        ? (booking.refunds as Array<Prisma.BookingRefundGetPayload<{ include: { history: true } }>>)
+        : []
+      ).map((refund) => ({
+        id: refund.id,
+        amount: refund.amount === null ? null : (refund.amount / 100).toFixed(2),
+        currency: refund.currency,
+        status: refund.status,
+        refundId: refund.history.find((a) => a.providerRefundId)?.providerRefundId ?? null,
+        originalPaymentMethod: refund.paymentMethod ?? 'Original online payment method',
+        initiatedAt: refund.initiatedAt?.toISOString() ?? null,
+        processedAt: refund.processedAt?.toISOString() ?? null,
+        message: REFUND_MESSAGES[refund.status],
+      })),
       acceptedByUserId: booking.acceptedByUserId,
       advanceAmount: booking.advanceAmount?.toString() ?? null,
       alternatePhone: maskContact ? null : booking.alternatePhone,

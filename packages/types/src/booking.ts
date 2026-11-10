@@ -72,6 +72,8 @@ export interface BookingGuestIdProofUpload {
 }
 
 export interface Booking {
+  cancelledAt?: ISODateTime | null;
+  refunds?: BookingRefundSummary[];
   acceptedByUserId: UUID | null;
   advanceAmount: string | null;
   alternatePhone: string | null;
@@ -117,6 +119,18 @@ export interface Booking {
   totalAmount: string | null;
   totalGuests: number;
   updatedAt: ISODateTime;
+}
+
+export interface BookingRefundSummary {
+  id: string;
+  amount: string | null;
+  currency: string;
+  status: 'NOT_REQUIRED' | 'PENDING' | 'INITIATED' | 'PROCESSED' | 'FAILED';
+  refundId: string | null;
+  originalPaymentMethod: string;
+  initiatedAt: string | null;
+  processedAt: string | null;
+  message: string;
 }
 
 export interface BookingLock {

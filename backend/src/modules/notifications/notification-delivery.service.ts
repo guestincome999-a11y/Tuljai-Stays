@@ -55,6 +55,11 @@ export class NotificationDeliveryService {
     });
 
     for (const device of devices) {
+      const previous = await this.prisma.notificationDeliveryLog.findFirst({
+        where: { notificationId: notification.id, deviceTokenId: device.id, channel: 'PUSH' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (previous?.status === 'SENT' || (previous?.attemptCount ?? 0) >= 3) continue;
       const data = this.toFcmData(notification);
       const highPriority = ['HIGH', 'CRITICAL'].includes(notification.priority);
       const usesExpoPush = this.expoPushService.isExpoPushToken(device.fcmToken);
@@ -75,8 +80,16 @@ export class NotificationDeliveryService {
             highPriority,
             title: notification.title,
           });
-      await this.prisma.notificationDeliveryLog.create({
-        data: {
+      await this.prisma.notificationDeliveryLog.upsert({
+        where: { id: previous?.id ?? '00000000-0000-0000-0000-000000000000' },
+        update: {
+          attemptCount: { increment: 1 },
+          failureReason: result.error,
+          lastAttemptAt: new Date(),
+          providerMessageId: result.messageId,
+          status: result.success ? 'SENT' : 'FAILED',
+        },
+        create: {
           attemptCount: 1,
           channel: 'PUSH',
           deviceTokenId: device.id,

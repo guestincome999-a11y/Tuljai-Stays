@@ -22,6 +22,7 @@ import { NotificationDeliveryService } from './notification-delivery.service';
 import { resolveNotificationPriority, shouldDeliverPush } from './notification-policy';
 
 export interface CreateNotificationInput {
+  dedupeKey?: string;
   body: string;
   bookingId?: string;
   channel?: NotificationChannel;
@@ -43,6 +44,52 @@ export class NotificationsService {
   ) {}
 
   public async create(input: CreateNotificationInput): Promise<SharedNotification> {
+    if (input.dedupeKey) {
+      const inserted = await this.prisma.notification.createMany({
+        skipDuplicates: true,
+        data: {
+          dedupeKey: input.dedupeKey,
+          body: input.body,
+          bookingId: input.bookingId,
+          channel: input.channel ?? 'IN_APP',
+          data: input.data as Prisma.InputJsonValue | undefined,
+          lodgeId: input.lodgeId,
+          priority: resolveNotificationPriority(input.type, input.priority ?? 'NORMAL'),
+          recipientRole: input.recipientRole,
+          recipientUserId: input.recipientUserId,
+          title: input.title,
+          type: input.type,
+        },
+      });
+      const notification = await this.prisma.notification.findUniqueOrThrow({
+        where: { dedupeKey: input.dedupeKey },
+      });
+      if (inserted.count || notification.deliveredAt === null) {
+        if (notification.recipientUserId) {
+          this.realtimeEventsService.publishToUser(
+            notification.recipientUserId,
+            'notification:new',
+            { notification: this.toNotification(notification) },
+          );
+          this.realtimeEventsService.publishToUser(
+            notification.recipientUserId,
+            'notification:unread-count',
+            { unreadCount: await this.getUnreadCountForUser(notification.recipientUserId) },
+          );
+          if (shouldDeliverPush(notification.type, notification.data))
+            await this.deliveryService.sendPushToUser(notification);
+        } else if (notification.recipientRole) {
+          this.realtimeEventsService.publishToRole(notification.recipientRole, 'notification:new', {
+            notification: this.toNotification(notification),
+          });
+        }
+        await this.prisma.notification.update({
+          where: { id: notification.id },
+          data: { deliveredAt: new Date() },
+        });
+      }
+      return this.toNotification(notification);
+    }
     const dedupeWindowStart = new Date(Date.now() - 120_000);
     const announcementId =
       typeof input.data?.announcementId === 'string' ? input.data.announcementId : null;
@@ -98,7 +145,7 @@ export class NotificationsService {
       }
     }
 
-    if (notification.recipientRole) {
+    if (notification.recipientRole && !notification.recipientUserId) {
       this.realtimeEventsService.publishToRole(notification.recipientRole, 'notification:new', {
         notification: this.toNotification(notification),
       });

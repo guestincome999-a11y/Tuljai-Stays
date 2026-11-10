@@ -20,6 +20,7 @@ import { PaymentNotificationsService } from './payment-notifications.service';
 import { createIdempotentPaymentOrder } from './payment-order-idempotency';
 import type { PaymentProvider } from './payment-provider';
 import { RazorpayProvider } from './providers/razorpay.provider';
+import { RefundsService } from './refunds.service';
 
 @Injectable()
 export class PaymentsService {
@@ -31,6 +32,7 @@ export class PaymentsService {
     private readonly razorpayProvider: RazorpayProvider,
     private readonly paymentNotificationsService: PaymentNotificationsService,
     private readonly notificationEventsService: NotificationEventsService,
+    private readonly refundsService: RefundsService,
   ) {}
 
   public ensureOnlinePaymentsEnabled(enabled: boolean): void {
@@ -375,6 +377,16 @@ export class PaymentsService {
       event?: string;
       payload?: { payment?: { entity?: { id?: string; order_id?: string } } };
     };
+    if (
+      ['refund.created', 'refund.processed', 'refund.failed', 'refund.speed_changed'].includes(
+        event.event ?? '',
+      )
+    ) {
+      return this.refundsService.receiveEvent(
+        eventId,
+        parsed as Parameters<RefundsService['receiveEvent']>[1],
+      );
+    }
     if (!['payment.captured', 'order.paid', 'payment.failed'].includes(event.event ?? ''))
       return { received: true };
     const payment = event.payload?.payment?.entity;
@@ -402,6 +414,17 @@ export class PaymentsService {
         where: { providerOrderId: payment.order_id, status: 'PENDING' },
         data: { nextCheckAt: new Date() },
       });
+      if (event.event === 'payment.captured' || event.event === 'order.paid') {
+        // A new captured attempt can arrive after an earlier failed payment was resolved as NOT_REQUIRED.
+        // Only re-open the durable cancellation request; the refund worker verifies capture itself.
+        await tx.$executeRaw`UPDATE booking_refunds r SET status='PENDING', amount=r.eligible_amount, provider_payment_id=${payment.id},
+          failure_reason=NULL, next_check_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+          FROM payment_collections c, bookings b
+          WHERE r.collection_id=c.id AND r.booking_id=b.id AND b.status='CANCELLED'
+            AND c.provider_order_id=${payment.order_id} AND c.method='ONLINE' AND c.provider='RAZORPAY'
+            AND r.status IN ('NOT_REQUIRED','PENDING') AND r.eligible_amount>0 AND r.captured_amount IS NULL
+            AND NOT EXISTS (SELECT 1 FROM refund_attempts a WHERE a.refund_id=r.id AND a.requested_at IS NOT NULL)`;
+      }
     });
     return { received: true };
   }

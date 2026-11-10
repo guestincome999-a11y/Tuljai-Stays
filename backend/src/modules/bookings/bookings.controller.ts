@@ -117,9 +117,29 @@ export class BookingsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('bookings/:id/cancellation-preview')
+  public cancellationPreview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.cancellationPreview(id, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('bookings/:id/cancel')
   public cancelBooking(
     @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.cancelBooking(id, dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('admin/bookings/:id/cancel')
+  public adminCancelBooking(
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelBookingDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {

@@ -270,6 +270,7 @@ test('duplicate captured and delayed failed webhooks never demote a confirmed in
   const inbox = new Map();
   const intent = { status: 'CONFIRMED' };
   const tx = {
+    $executeRaw: async () => 0,
     paymentWebhookEvent: {
       createMany: async ({ data }) => {
         if (!inbox.has(data.id)) inbox.set(data.id, data);
@@ -368,6 +369,7 @@ test('signed webhook schedules captured payment recovery without an app callback
     paymentIntent,
     $transaction: async (fn) =>
       fn({
+        $executeRaw: async () => 0,
         paymentIntent,
         paymentWebhookEvent: { createMany: async ({ data }) => inbox.set(data.id, data) },
       }),

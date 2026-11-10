@@ -17,7 +17,7 @@ export function LegalDocument({ kind }: { kind: LegalDocumentKind }) {
           </Text>
           <Text className="mt-1 text-xs font-semibold text-warm-500">
             Tuljai Stays is operated by Shri Tuljabhavani Technologies, Tuljapur, Maharashtra, India
-            · Effective date: 29 August 2026
+            · Effective date: {isPrivacy ? '29 August 2026' : '10 November 2026'}
           </Text>
         </View>
 
@@ -324,6 +324,20 @@ function TermsContent() {
       </Para>
 
       <Heading>8. Cancellation, refund and failed payments</Heading>
+      <Para>
+        For pilgrim cancellations, a 20% cancellation fee applies on the check-in day or the day
+        before (80% refund). A 10% fee applies 2–3 calendar days before check-in (90% refund).
+        Cancellations 4 or more calendar days before check-in have no cancellation fee (100%
+        refund). Days are calculated using India Standard Time. The booking’s recorded cancellation
+        policy and the refund preview apply. Refunds cover captured online payments, less prior
+        refunds. Operational cancellations by Tuljai Stays, including room full or unavailable, have
+        no fee. For a pilgrim support-request cancellation, an administrator may record a justified
+        deduction against the linked support request; the deduction and reason remain in the booking
+        audit trail. Eligible refunds return to the original payment method, normally within 5–7
+        business days after initiation. Initiation does not mean that your bank has credited the
+        amount. Pay-at-Lodge bookings do not receive a Razorpay refund because no online payment was
+        collected.
+      </Para>
       <Para>
         Cancellation eligibility, refund amount and timing depend on the cancellation terms shown
         for the booking and applicable law. Where Tuljai Stays or its payment provider processes a

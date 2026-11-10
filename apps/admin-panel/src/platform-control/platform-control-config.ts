@@ -1,6 +1,7 @@
 import type { AdminPermission } from '../permissions/permissions';
 
-export type SettingValueType = 'boolean' | 'date' | 'email' | 'number' | 'phone' | 'text' | 'url';
+export type SettingValueType =
+  'boolean' | 'date' | 'email' | 'number' | 'phone' | 'text' | 'url' | 'json';
 
 export interface SettingDefinition {
   category:
@@ -27,6 +28,15 @@ export interface FeatureFlagDefinition {
 }
 
 export const settingDefinitions: SettingDefinition[] = [
+  {
+    category: 'Booking',
+    key: 'booking_cancellation_policy',
+    type: 'json',
+    critical: true,
+    publicDefault: true,
+    description:
+      'Refund percentages by India calendar days before check-in. Default: 4+ days 100%, 2–3 days 90%, 0–1 days 80%. Applies to new bookings; existing snapshots are preserved.',
+  },
   {
     category: 'Booking',
     description: 'Seconds to hold availability during booking creation.',
@@ -216,6 +226,7 @@ export function formatControlLabel(value: string): string {
 }
 
 export function coerceSettingValue(value: string, type: SettingValueType): unknown {
+  if (type === 'json') return JSON.parse(value);
   if (type === 'boolean') {
     return value === 'true';
   }

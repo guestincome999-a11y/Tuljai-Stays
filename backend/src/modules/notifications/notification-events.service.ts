@@ -176,12 +176,13 @@ export class NotificationEventsService {
       recipientRole: 'PILGRIM',
       recipientUserId: booking.pilgrimUserId,
       title: 'Booking cancelled',
+      dedupeKey: `cancel:${booking.id}:${booking.pilgrimUserId}`,
       type: 'BOOKING_CANCELLED',
     });
     for (const owner of booking.lodge.owners) {
       this.realtimeEventsService.publishToUser(owner.userId, 'booking:cancelled', payload);
       await this.notificationsService.create({
-        body: `Booking ${booking.bookingCode} was cancelled by the pilgrim.`,
+        body: `Booking ${booking.bookingCode} was cancelled.`,
         bookingId: booking.id,
         data: payload,
         lodgeId: booking.lodgeId,
@@ -189,6 +190,7 @@ export class NotificationEventsService {
         recipientRole: 'OWNER',
         recipientUserId: owner.userId,
         title: 'Booking cancelled',
+        dedupeKey: `cancel:${booking.id}:${owner.userId}`,
         type: 'BOOKING_CANCELLED',
       });
     }

@@ -99,7 +99,8 @@ export class OperationsService {
       where: { createdAt: { gte: since }, deletedAt: null },
     });
     const collected = (row: (typeof rows)[number]): boolean =>
-      row.paymentStatus === 'FULLY_PAID' ||
+      (row.paymentStatus === 'FULLY_PAID' &&
+        !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(row.status)) ||
       (row.paymentStatus === 'PAY_AT_LODGE' &&
         ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(row.status));
     for (const row of rows) {
@@ -178,7 +179,8 @@ export class OperationsService {
     ]);
 
     const collected = (row: (typeof rows)[number]): boolean =>
-      row.paymentStatus === 'FULLY_PAID' ||
+      (row.paymentStatus === 'FULLY_PAID' &&
+        !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(row.status)) ||
       (row.paymentStatus === 'PAY_AT_LODGE' &&
         ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(row.status));
     let online = 0;
@@ -396,7 +398,10 @@ export class OperationsService {
     const today = this.todayRange();
     const where = { deletedAt: null, lodgeId: { in: lodgeIds } } satisfies Prisma.BookingWhereInput;
     const [revenue, commission, financeRows, rating, recentNotifications] = await Promise.all([
-      this.prisma.booking.aggregate({ _sum: { totalAmount: true }, where }),
+      this.prisma.booking.aggregate({
+        _sum: { totalAmount: true },
+        where: { ...where, AND: [this.commissionEligibleWhere] },
+      }),
       this.prisma.booking.aggregate({
         _sum: { commissionAmount: true },
         where: { ...where, AND: [this.commissionEligibleWhere] },
@@ -418,6 +423,7 @@ export class OperationsService {
             ) a ON a.ledger_id = l.id
             WHERE l.lodge_id IN (${Prisma.join(lodgeIds.map((id) => Prisma.sql`${id}::uuid`))})
               AND l.status <> 'VOIDED'
+              AND b.deleted_at IS NULL AND public.tuljai_commission_is_eligible(b.status::text,b.payment_status::text)
           `),
       this.prisma.review.aggregate({
         _avg: { rating: true },
