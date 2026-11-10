@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BookingLodgeContact } from '@tuljai/types';
 import { palette } from '@tuljai/ui';
+import { getApiErrorMessage } from '@tuljai/utils';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -179,12 +180,15 @@ export function PilgrimBookingDetailScreen() {
           text: t('Yes, cancel', 'हो, रद्द करा'),
           onPress: () => {
             void cancelBooking(currentBookingId, cancellationReason.trim())
-              .catch(() => {
+              .catch((error: unknown) => {
                 Alert.alert(
                   t('Could not cancel booking', 'बुकिंग रद्द करता आली नाही'),
-                  t(
-                    'Please try again or contact Tuljai support.',
-                    'कृपया पुन्हा प्रयत्न करा किंवा तुळजाई सहाय्याशी संपर्क साधा.',
+                  getApiErrorMessage(
+                    error,
+                    t(
+                      'Please try again or contact Tuljai support.',
+                      'कृपया पुन्हा प्रयत्न करा किंवा तुळजाई सहाय्याशी संपर्क साधा.',
+                    ),
                   ),
                 );
               })

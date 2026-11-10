@@ -495,8 +495,15 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       bookingNotificationsEnabled,
       bookings,
       cancelBooking: async (id, reason) => {
-        await cancelBackendBooking(id, reason);
-        await loadPrivateData(lodges);
+        const cancelled = await cancelBackendBooking(id, reason);
+        setBookings((current) =>
+          current.map((booking) =>
+            booking.id === id ? applyBackendBookingRecord(booking, cancelled) : booking,
+          ),
+        );
+        // Cancellation has committed. A failed list/notification refresh must
+        // not turn that success into a "could not cancel" alert.
+        void loadPrivateData(lodges).catch(() => undefined);
       },
       createBooking: async (input) => {
         const lock = await createBookingLock({

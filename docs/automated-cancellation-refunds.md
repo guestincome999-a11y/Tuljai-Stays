@@ -44,6 +44,18 @@ Authorized payments are not captured just to refund them. They remain under reco
 
 The 30-second recovery cycle survives Render restarts because all work is in PostgreSQL. Temporary provider errors retain pending work. Definitive validation/provider errors surface as failed refunds for attention. A worker lease expires after a crash. Manual reconciliation cannot authorize another POST for a failed refund; the separate audited retry action is required.
 
+### Paid cancellation reliability follow-up
+
+Production inspection confirmed the refund migration and tables exist. No cancellation exception details were available because the global exception filter returned a generic 500 without logging unexpected failures. Production data was inspected read-only; no guest cancellation or real refund was performed during diagnosis.
+
+A new local PostgreSQL regression adds 450 ms of latency to each database operation. The previous cancellation failed with Prisma's expired-transaction error: its default timeout was 5,000 ms and a room update ran after 5,258 ms. Render is in Oregon and the database is in Singapore, so the unbounded number of round trips was a production reliability risk. This reproduced failure is evidence for the timeout fix; the earlier production errors cannot be conclusively attributed without their missing diagnostics.
+
+Cancellation now uses a bounded 25-second transaction with a 10-second acquisition budget, reads only its required room relation under the lock, and loads the full response after commit. Refund work, notifications, QR revocation, inventory and audit records remain atomic. The same latency regression passes for both pilgrim and admin cancellation, with one refund request and room release. Cancellation-specific client requests allow 40 seconds; no Razorpay call is made in the cancellation transaction.
+
+The pilgrim applies the committed cancellation response immediately and refreshes booking/notification lists in the background. The admin also distinguishes a successful cancellation from a subsequent refresh failure. Backend validation messages now reach both clients, with a request reference for support. Unexpected server failures log that reference, route, error class and Prisma error code without exposing SQL, payment details or guest data. No database migration is needed for this follow-up.
+
+Changed-file formatting checks pass. The unmodified repository has 767 pre-existing formatting findings under the local whole-repository check; this patch does not reformat unrelated files. The existing Full Code Review workflow applies formatting in its checkout before its final formatting check.
+
 ## Database changes
 
 Additive migration: `backend/prisma/migrations/20261110000000_cancellation_refund_ledger/migration.sql`.
@@ -122,21 +134,21 @@ Cancelled paid bookings are excluded from successful revenue projections. Owner 
 
 Tests use only loopback PostgreSQL and mocked Razorpay responses. No real refund API call is made in automated tests.
 
-| Check                                                        | Local result                                                      |
-| ------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Clean `npm ci` and repository patches                        | Passed                                                            |
-| All workspace typechecks, including both Expo apps and Admin | Passed                                                            |
-| All workspace lint checks                                    | Passed                                                            |
-| Backend regression suite                                     | Passed; its optional cash DB case was subsequently run explicitly |
-| Final refund suite                                           | 30 passed, none skipped                                           |
-| Explicit cash-collection suite with PostgreSQL fixture       | 14 passed, none skipped                                           |
-| Admin regression tests                                       | 2 passed                                                          |
-| Prisma schema validation                                     | Passed                                                            |
-| Existing-schema upgrade through `prisma migrate deploy`      | New migration applied successfully; all 32 migrations up to date  |
-| Monorepo production build (backend, Admin, shared packages)  | Passed                                                            |
-| Pilgrim and Owner Android production bundle exports          | Passed                                                            |
-| RLS with an ordinary test role granted table SELECT          | All four new tables returned no rows                              |
-| Diff, migration safety and environment/secret review         | Reviewed; no environment file or credential changes               |
+| Check                                                        | Local result                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------- |
+| Clean `npm ci` and repository patches                        | Passed                                                           |
+| All workspace typechecks, including both Expo apps and Admin | Passed                                                           |
+| All workspace lint checks                                    | Passed                                                           |
+| Backend regression suite                                     | 109 passed, one optional cash DB fixture skipped                 |
+| Final refund suite                                           | 31 passed, none skipped                                          |
+| Explicit cash-collection suite with PostgreSQL fixture       | 14 passed, none skipped                                          |
+| Admin regression tests                                       | 4 passed                                                         |
+| Prisma schema validation                                     | Passed                                                           |
+| Existing-schema upgrade through `prisma migrate deploy`      | New migration applied successfully; all 32 migrations up to date |
+| Monorepo production build (backend, Admin, shared packages)  | Passed                                                           |
+| Pilgrim and Owner Android production bundle exports          | Passed                                                           |
+| RLS with an ordinary test role granted table SELECT          | All four new tables returned no rows                             |
+| Diff, migration safety and environment/secret review         | Reviewed; no environment file or credential changes              |
 
 The refund suite includes the 20 requested cases plus raw-body authenticity, IST day boundaries, late captured attempts, authorization reversal, policy snapshots, DB rollback, existing-refund exhaustion, preserved commission eligibility, historical settlement review and RLS isolation. Live push-device delivery, Razorpay test-mode end-to-end execution, webhook dashboard configuration and production deployment remain separate activation checks below.
 

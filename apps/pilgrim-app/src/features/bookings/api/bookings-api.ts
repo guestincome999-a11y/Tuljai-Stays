@@ -198,7 +198,11 @@ export async function getBookingLodgeContact(bookingId: string): Promise<Booking
 }
 
 export async function cancelBooking(bookingId: string, reason?: string): Promise<Booking> {
-  return apiClient.post<Booking>(`/bookings/${bookingId}/cancel`, { reason, confirmed: true });
+  return apiClient.request<Booking>(`/bookings/${bookingId}/cancel`, {
+    method: 'POST',
+    body: { reason, confirmed: true },
+    timeout: 40_000,
+  });
 }
 
 export function getCancellationPreview(bookingId: string) {

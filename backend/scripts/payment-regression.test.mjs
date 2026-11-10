@@ -12,14 +12,77 @@ require('ts-node').register({
 });
 const { Prisma } = require('@prisma/client');
 
+const { ApplicationError, getApiErrorMessage } = require('../../packages/utils/src/errors.ts');
 const { calculateStayPrice } = require('../src/modules/bookings/booking-pricing.ts');
 const { BookingsService } = require('../src/modules/bookings/bookings.service.ts');
 const { OperationsService } = require('../src/modules/operations/operations.service.ts');
 const { PaymentsService } = require('../src/modules/payments/payments.service.ts');
 const { RazorpayProvider } = require('../src/modules/payments/providers/razorpay.provider.ts');
+const { HttpExceptionFilter } = require('../src/shared/filters/http-exception.filter.ts');
 
 const date = (value) => new Date(`${value}T00:00:00.000Z`);
 const user = { id: 'pilgrim', roles: ['PILGRIM'], isActive: true, phoneNumber: null };
+
+test('cancellation validation errors are actionable while internal errors only expose a support reference', () => {
+  assert.equal(
+    getApiErrorMessage(
+      new ApplicationError('This booking can no longer be cancelled', 'REQUEST_FAILED', {
+        statusCode: 400,
+        requestId: 'req-validation',
+      }),
+      'Try again',
+    ),
+    'This booking can no longer be cancelled (Reference: req-validation)',
+  );
+  assert.equal(
+    getApiErrorMessage(
+      new ApplicationError('secret SQL with guest/payment data', 'INTERNAL_SERVER_ERROR', {
+        statusCode: 500,
+        requestId: 'req-timeout',
+      }),
+      'Refresh booking status',
+    ),
+    'Refresh booking status (Reference: req-timeout)',
+  );
+  assert.equal(
+    getApiErrorMessage(new Error('network details'), 'Refresh booking status'),
+    'Refresh booking status',
+  );
+});
+
+test('unexpected cancellation failures log diagnostic codes without guest or payment data', () => {
+  const filter = new HttpExceptionFilter();
+  const logs = [];
+  filter.logger.error = (entry) => logs.push(entry);
+  let status, payload;
+  const response = {
+    status: (value) => {
+      status = value;
+      return response;
+    },
+    send: (value) => {
+      payload = value;
+    },
+  };
+  const failure = Object.assign(new Error('secret SQL with guest/payment data'), { code: 'P2028' });
+  filter.catch(failure, {
+    switchToHttp: () => ({
+      getRequest: () => ({
+        id: 'req-cancel',
+        method: 'POST',
+        routeOptions: { url: '/api/bookings/:id/cancel' },
+        body: { reason: 'private guest reason' },
+      }),
+      getResponse: () => response,
+    }),
+  });
+  assert.equal(status, 500);
+  assert.equal(payload.message, 'Internal server error');
+  assert.equal(payload.requestId, 'req-cancel');
+  assert.equal(logs[0].errorCode, 'P2028');
+  assert.equal(logs[0].requestId, payload.requestId);
+  assert.doesNotMatch(JSON.stringify({ logs, payload }), /secret|guest\/payment|private guest/);
+});
 
 test('pricing sums ordinary and explicit festival/date prices with decimal precision', async () => {
   const db = {

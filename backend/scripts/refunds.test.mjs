@@ -351,6 +351,45 @@ test(
         return f.ledger();
       }
       await t.test(
+        'paid cancellation tolerates database latency beyond the default transaction timeout',
+        async () => {
+          for (const role of ['PILGRIM', 'ADMIN']) {
+            const f = await fixture();
+            let queries = 0;
+            const slow = db.$extends({
+              query: {
+                async $allOperations({ args, query }) {
+                  queries++;
+                  await new Promise((resolve) => setTimeout(resolve, 450));
+                  return query(args);
+                },
+              },
+            });
+            const result = await bookings(slow).cancelBooking(
+              f.booking.id,
+              { reason: role === 'ADMIN' ? 'Room Full' : 'Change of plans', confirmed: true },
+              role === 'ADMIN' ? f.adminActor : f.actor,
+            );
+            assert.equal(result.status, 'CANCELLED');
+            assert.ok(
+              queries >= 12,
+              'Exercise a transaction with more than five seconds of database round trips',
+            );
+            assert.equal((await f.ledger()).status, 'PENDING');
+            assert.equal(
+              (await db.room.findUniqueOrThrow({ where: { id: f.room.id } })).status,
+              'AVAILABLE',
+            );
+            assert.equal(await db.bookingRefund.count({ where: { bookingId: f.booking.id } }), 1);
+            assert.equal(
+              await db.refundNotificationOutbox.count({ where: { bookingId: f.booking.id } }),
+              2,
+            );
+            assert.equal(f.writes(), 0, 'Cancellation persists work without calling Razorpay');
+          }
+        },
+      );
+      await t.test(
         'successful pilgrim full refund; API acceptance does not mark processed',
         async () => {
           const f = await fixture();

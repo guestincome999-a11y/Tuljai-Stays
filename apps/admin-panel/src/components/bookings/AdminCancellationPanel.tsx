@@ -1,5 +1,6 @@
 'use client';
 
+import { getApiErrorMessage } from '@tuljai/utils';
 import { useState } from 'react';
 
 import { cancelAdminBooking } from '../../api/refunds-api';
@@ -18,8 +19,11 @@ export function AdminCancellationPanel({
   const [explanation, setExplanation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [cancelled, setCancelled] = useState(false);
+  const [notice, setNotice] = useState('');
   const support = reason === 'Pilgrim Support Request';
   async function cancel() {
+    if (busy || cancelled) return;
     if (
       support &&
       (!ticket.trim() || !explanation.trim() || !/^\d+(\.\d{1,2})?$/.test(deduction))
@@ -48,10 +52,17 @@ export function AdminCancellationPanel({
             }
           : {}),
       });
-      await onCancelled();
-    } catch {
+      setCancelled(true);
+      setNotice('Booking cancelled. Eligible refund processing has been queued.');
+      await onCancelled().catch(() => {
+        setNotice('Booking cancelled. Refresh the page to see the latest refund status.');
+      });
+    } catch (error: unknown) {
       setError(
-        'Cancellation could not complete. Check the booking and support ticket before retrying.',
+        getApiErrorMessage(
+          error,
+          'Cancellation could not complete. Refresh the booking status before retrying or contact support.',
+        ),
       );
     } finally {
       setBusy(false);
@@ -110,8 +121,9 @@ export function AdminCancellationPanel({
           </p>
         )}
         {error ? <p role="alert">{error}</p> : null}
-        <button className="fin-btn" disabled={busy} onClick={() => void cancel()}>
-          {busy ? 'Cancelling…' : 'Confirm cancellation'}
+        {notice ? <p role="status">{notice}</p> : null}
+        <button className="fin-btn" disabled={busy || cancelled} onClick={() => void cancel()}>
+          {busy ? 'Cancelling…' : cancelled ? 'Booking cancelled' : 'Confirm cancellation'}
         </button>
       </div>
     </FinPanel>

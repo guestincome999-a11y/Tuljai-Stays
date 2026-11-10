@@ -1,4 +1,11 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import type { ApiErrorResponse } from '@tuljai/types';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -10,6 +17,7 @@ interface HttpExceptionBody {
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
   public catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const response = context.getResponse<FastifyReply>();
@@ -19,6 +27,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const exceptionResponse =
       exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
     const body = this.normalizeBody(exceptionResponse);
+
+    if (statusCode >= 500) {
+      // Prisma messages can contain SQL, payment IDs and guest data. Record
+      // diagnostic codes with the request reference, never request bodies,
+      // credentials or raw database error messages.
+      this.logger.error({
+        event: 'request_failed',
+        requestId: request.id,
+        method: request.method,
+        route: request.routeOptions?.url,
+        statusCode,
+        errorName: exception instanceof Error ? exception.name : 'UnknownError',
+        errorCode:
+          typeof exception === 'object' && exception !== null && 'code' in exception
+            ? String(exception.code)
+            : undefined,
+      });
+    }
 
     const payload: ApiErrorResponse = {
       errorCode: body.error ?? this.toErrorCode(statusCode),

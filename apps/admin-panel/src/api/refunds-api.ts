@@ -68,5 +68,9 @@ export function cancelAdminBooking(
     deductionReason?: string;
   },
 ) {
-  return apiClient.post(`/admin/bookings/${id}/cancel`, { ...input, confirmed: true });
+  return apiClient.request(`/admin/bookings/${id}/cancel`, {
+    method: 'POST',
+    body: { ...input, confirmed: true },
+    timeout: 40_000,
+  });
 }
