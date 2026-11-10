@@ -34,6 +34,7 @@ export class JwtAuthStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
     if (!session) throw new UnauthorizedException('Session expired or revoked');
     return {
+      appType: session.appType,
       id: session.user.id,
       isActive: session.user.isActive,
       phoneNumber: session.user.phoneNumber,

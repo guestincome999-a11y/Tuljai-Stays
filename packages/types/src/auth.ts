@@ -1,6 +1,7 @@
 import type { AppType, DevicePlatform, ISODateTime, OtpPurpose, UserRole, UUID } from './common';
 
 export interface AuthenticatedUser {
+  appType?: AppType;
   id: UUID;
   isActive: boolean;
   phoneNumber: string | null;

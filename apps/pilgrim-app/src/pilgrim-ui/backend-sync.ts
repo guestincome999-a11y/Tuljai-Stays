@@ -231,6 +231,8 @@ function mapRoomType(roomType: RoomType, fallback?: PilgrimLodge): PilgrimRoom {
   const descriptionParts = roomType.description?.split(' · ').filter(Boolean) ?? [];
   return {
     available: roomType.totalRooms,
+    capacityAdults: roomType.capacityAdults,
+    capacityChildren: roomType.capacityChildren,
     bed: descriptionParts[0] ?? visualRoom?.bed ?? 'Comfortable bedding',
     capacity: `${roomType.capacityAdults} adults${
       roomType.capacityChildren > 0 ? ` + ${roomType.capacityChildren} child` : ''
@@ -245,7 +247,7 @@ function mapRoomType(roomType: RoomType, fallback?: PilgrimLodge): PilgrimRoom {
   };
 }
 
-function mapNotification(notification: ApiNotification): PilgrimNotification {
+export function mapNotification(notification: ApiNotification): PilgrimNotification {
   const action = notification.data?.action === 'RATE_AND_REVIEW' ? 'RATE_AND_REVIEW' : undefined;
   return {
     action,

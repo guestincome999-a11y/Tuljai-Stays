@@ -12,7 +12,7 @@ import {
   registerRotatedPilgrimPushToken,
 } from './push-registration';
 
-// The OS app-icon badge is written only by `PilgrimAppProvider`, from the
+// The OS app-icon badge is written only by `NotificationSync`, from the
 // shared unread-count store. This component never writes it: marking a tapped
 // push as read goes through the provider (so the list, the bell and the badge
 // all update), and a push arriving while the app is open just refreshes the
@@ -40,7 +40,7 @@ export function PilgrimPushNotifications() {
       const notificationId = readString(data.notificationId);
 
       if (notificationId) {
-        await markNotificationReadRef.current(notificationId).catch(() => undefined);
+        void markNotificationReadRef.current(notificationId);
       }
 
       const type = readString(data.type);

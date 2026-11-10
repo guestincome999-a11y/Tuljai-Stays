@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 
+import { notificationState } from '../../features/notifications/notification-count-store';
 import { extraStrings, realtimeMessages } from '../i18n/extraStrings';
 import { useLang } from '../i18n/language';
 import { useToast } from '../ui/Toast';
@@ -66,13 +67,20 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     }
 
     socket.on('connection:ready', (payload: { authenticated?: boolean }) => {
-      if (payload.authenticated) scheduleRefresh();
+      if (payload.authenticated) {
+        scheduleRefresh();
+        void notificationState.refresh();
+      }
     });
     socket.on('system:error', () => {
       void refreshAccessToken();
     });
     for (const name of EVENT_NAMES) {
       socket.on(name, () => {
+        if (name.startsWith('notification:')) {
+          void notificationState.refresh();
+          return;
+        }
         scheduleRefresh();
         const message = realtimeMessages[name];
         if (message) toastRef.current(translate.current(message));

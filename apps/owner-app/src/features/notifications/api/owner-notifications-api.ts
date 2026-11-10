@@ -6,6 +6,7 @@ import type {
 } from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
+import { notificationState } from '../notification-count-store';
 
 export interface OwnerNotificationQuery {
   limit?: number;
@@ -31,13 +32,9 @@ export async function listNotifications(
   });
 }
 
-export async function markNotificationRead(notificationId: string): Promise<Notification> {
-  return apiClient.post<Notification>(`/notifications/${notificationId}/read`);
-}
+export const markNotificationRead = notificationState.markRead;
 
-export async function markAllNotificationsRead(): Promise<NotificationUnreadCount> {
-  return apiClient.post<NotificationUnreadCount>('/notifications/read-all');
-}
+export const markAllNotificationsRead = notificationState.markAllRead;
 
 export async function deleteNotification(notificationId: string): Promise<{ success: true }> {
   return apiClient.request<{ success: true }>(`/notifications/${notificationId}`, {

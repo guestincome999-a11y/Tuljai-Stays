@@ -166,23 +166,36 @@ export class NotificationsService {
   public async listForUser(
     query: ListNotificationsQueryDto,
     user: AuthenticatedUser,
-  ): Promise<PaginatedResponse<SharedNotification>> {
+  ): Promise<
+    PaginatedResponse<SharedNotification> & {
+      unreadIds: string[];
+      unreadCount: number;
+      userId: string;
+    }
+  > {
     const pagination = normalizePagination(query.page, query.limit);
     const where: Prisma.NotificationWhereInput = {
       deletedAt: null,
-      recipientUserId: user.id,
+      ...this.recipientScope(user),
       ...(query.type ? { type: query.type } : {}),
       ...(query.unreadOnly === 'true' ? { readAt: null } : {}),
     };
-    const [items, totalItems] = await this.prisma.$transaction([
-      this.prisma.notification.findMany({
-        orderBy: { createdAt: 'desc' },
-        skip: pagination.skip,
-        take: pagination.take,
-        where,
-      }),
-      this.prisma.notification.count({ where }),
-    ]);
+    const [items, totalItems, unread] = await this.prisma.$transaction(
+      [
+        this.prisma.notification.findMany({
+          orderBy: { createdAt: 'desc' },
+          skip: pagination.skip,
+          take: pagination.take,
+          where,
+        }),
+        this.prisma.notification.count({ where }),
+        this.prisma.notification.findMany({
+          select: { id: true },
+          where: { deletedAt: null, readAt: null, ...this.recipientScope(user) },
+        }),
+      ],
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
     const bookingStatuses = new Map(
       (
         await this.prisma.booking.findMany({
@@ -209,45 +222,72 @@ export class NotificationsService {
       pageSize: pagination.pageSize,
       totalItems,
       totalPages: Math.ceil(totalItems / pagination.pageSize),
+      unreadIds: unread.map(({ id }) => id),
+      unreadCount: unread.length,
+      userId: user.id,
     };
   }
 
   public async unreadCount(user: AuthenticatedUser): Promise<NotificationUnreadCount> {
-    return { unreadCount: await this.getUnreadCountForUser(user.id) };
+    return {
+      unreadCount: await this.prisma.notification.count({
+        where: { deletedAt: null, readAt: null, ...this.recipientScope(user) },
+      }),
+    };
   }
 
-  public async markRead(id: string, user: AuthenticatedUser): Promise<SharedNotification> {
-    await this.assertCanAccessNotification(id, user.id);
-    const notification = await this.prisma.notification.update({
+  public async markRead(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<SharedNotification & { userId: string }> {
+    await this.assertCanAccessNotification(id, user);
+    await this.prisma.notification.updateMany({
       data: { readAt: new Date() },
-      where: { id },
+      where: { id, ...this.recipientScope(user), deletedAt: null, readAt: null },
+    });
+    const notification = await this.prisma.notification.findFirstOrThrow({
+      where: { id, ...this.recipientScope(user), deletedAt: null },
     });
     await this.publishUnreadCount(user.id);
 
-    return this.toNotification(notification);
+    return { ...this.toNotification(notification), userId: user.id };
   }
 
-  public async markAllRead(user: AuthenticatedUser): Promise<NotificationUnreadCount> {
+  public async markAllRead(
+    user: AuthenticatedUser,
+    ids?: string[],
+  ): Promise<NotificationUnreadCount & { userId: string }> {
+    // Legacy clients omit IDs. Freeze their selection before the write too.
+    // New clients persist this exact selection so retries cannot consume future arrivals.
+    const selectedIds =
+      ids ??
+      (
+        await this.prisma.notification.findMany({
+          select: { id: true },
+          where: { deletedAt: null, readAt: null, ...this.recipientScope(user) },
+        })
+      ).map(({ id }) => id);
     await this.prisma.notification.updateMany({
       data: { readAt: new Date() },
       where: {
         deletedAt: null,
         readAt: null,
-        recipientUserId: user.id,
+        ...this.recipientScope(user),
+        id: { in: selectedIds },
       },
     });
     const result = await this.unreadCount(user);
     this.realtimeEventsService.publishToUser(user.id, 'notification:unread-count', {
       unreadCount: result.unreadCount,
     });
-    return result;
+    return { ...result, userId: user.id };
   }
 
   public async softDelete(id: string, user: AuthenticatedUser): Promise<{ success: true }> {
-    await this.assertCanAccessNotification(id, user.id);
-    await this.prisma.notification.update({
+    await this.assertCanAccessNotification(id, user);
+    await this.prisma.notification.updateMany({
       data: { deletedAt: new Date() },
-      where: { id },
+      where: { ...this.recipientScope(user), id },
     });
     await this.publishUnreadCount(user.id);
 
@@ -260,7 +300,16 @@ export class NotificationsService {
     });
   }
 
-  private async assertCanAccessNotification(id: string, userId: string): Promise<void> {
+  private recipientScope(user: AuthenticatedUser): Prisma.NotificationWhereInput {
+    const role =
+      user.appType === 'PILGRIM_APP' ? 'PILGRIM' : user.appType === 'OWNER_APP' ? 'OWNER' : null;
+    return {
+      recipientUserId: user.id,
+      ...(role ? { OR: [{ recipientRole: null }, { recipientRole: role }] } : {}),
+    };
+  }
+
+  private async assertCanAccessNotification(id: string, user: AuthenticatedUser): Promise<void> {
     const notification = await this.prisma.notification.findFirst({
       where: { deletedAt: null, id },
     });
@@ -269,7 +318,12 @@ export class NotificationsService {
       throw new NotFoundException('Notification not found');
     }
 
-    if (notification.recipientUserId !== userId) {
+    if (
+      notification.recipientUserId !== user.id ||
+      !(await this.prisma.notification.findFirst({
+        where: { id, ...this.recipientScope(user), deletedAt: null },
+      }))
+    ) {
       throw new ForbiddenException('You cannot access this notification');
     }
   }

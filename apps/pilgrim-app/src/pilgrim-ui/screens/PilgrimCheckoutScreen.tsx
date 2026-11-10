@@ -19,6 +19,7 @@ import {
   type PaymentRecoveryStatus,
 } from '../../features/bookings/api/bookings-api';
 import { newCheckoutAttemptKey } from '../../features/bookings/checkout-attempt';
+import { guestCapacityError } from '../../features/bookings/guest-capacity';
 import {
   readPendingPayment,
   rememberPendingPayment,
@@ -26,7 +27,6 @@ import {
 } from '../../features/bookings/payment-recovery-store';
 import { useStayPrice } from '../../features/bookings/useStayPrice';
 import {
-  AnimatedResultBadge,
   AppScreen,
   EmptyState,
   Field,
@@ -36,6 +36,7 @@ import {
   TopBar,
   ui,
 } from '../components';
+import { BookingOutcomeScreen } from '../components/BookingOutcomeScreen';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 import { isRoomFullError, useRoomAvailability } from '../useRoomAvailability';
@@ -115,6 +116,8 @@ export function PilgrimCheckoutScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
   const [agree, setAgree] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [completedBookingId, setCompletedBookingId] = useState<string | null>(null);
+  const [guestLimitError, setGuestLimitError] = useState<string | null>(null);
   const [paymentFailure, setPaymentFailure] = useState<string | null>(null);
   const documentPickerActiveRef = useRef(false);
 
@@ -315,12 +318,30 @@ export function PilgrimCheckoutScreen() {
     return true;
   }
 
+  function validateCapacity() {
+    if (!room) return false;
+    const maxAdults = room.capacityAdults ?? Number(room.capacity.match(/(\d+) adults/)?.[1] ?? 1);
+    const maxChildren =
+      room.capacityChildren ?? Number(room.capacity.match(/(\d+) child/)?.[1] ?? 0);
+    const error = guestCapacityError(adults, children, maxAdults, maxChildren);
+    setGuestLimitError(error);
+    return !error;
+  }
+
   function goToStep(target: Step) {
+    if (target > 1 && !validateCapacity()) {
+      setStep(1);
+      return;
+    }
     if (target === 3 && !validateGuestDetails()) return;
     setStep(target);
   }
 
   function continueFlow() {
+    if (!validateCapacity()) {
+      setStep(1);
+      return;
+    }
     if (step === 2 && !validateGuestDetails()) return;
     setStep((current) => Math.min(3, current + 1) as Step);
   }
@@ -402,10 +423,8 @@ export function PilgrimCheckoutScreen() {
         signature: result.razorpay_signature,
       });
       await clearPendingPayment(auth.user.id);
-      router.replace({
-        pathname: '/(app)/bookings/[id]',
-        params: { id: booking.id, justBooked: '1' },
-      });
+      setPaymentMethod('ONLINE');
+      setCompletedBookingId(booking.id);
     } catch {
       setPaymentFailure(
         'Payment status is uncertain. Retry to check your existing payment; do not start another payment.',
@@ -431,10 +450,8 @@ export function PilgrimCheckoutScreen() {
           const status = await getPaymentStatus(pendingOrder);
           if (status.status === 'CONFIRMED' && status.bookingId) {
             await clearPendingPayment(auth.user.id);
-            router.replace({
-              pathname: '/(app)/bookings/[id]',
-              params: { id: status.bookingId, justBooked: '1' },
-            });
+            setPaymentMethod('ONLINE');
+            setCompletedBookingId(status.bookingId);
           } else if (status.retryCheckout) {
             const previous = status.retryCheckout;
             Alert.alert(
@@ -472,6 +489,10 @@ export function PilgrimCheckoutScreen() {
     if (paymentMethod === 'PAY_AT_LODGE' && priceQuote.amount === null) {
       priceQuote.retry();
       Alert.alert('Price unavailable', 'Please wait for the current room price, then try again.');
+      return;
+    }
+    if (!validateCapacity()) {
+      setStep(1);
       return;
     }
     if (!validateGuestDetails() || !agree) {
@@ -593,24 +614,7 @@ export function PilgrimCheckoutScreen() {
         bookingId = booking.id;
       }
 
-      Alert.alert(
-        paymentMethod === 'ONLINE'
-          ? t('Payment successful', 'पेमेंट यशस्वी')
-          : t('Booking request sent', 'बुकिंग विनंती पाठवली'),
-        paymentMethod === 'ONLINE'
-          ? t(
-              'Your prepaid room is confirmed immediately. No lodge approval is required.',
-              'तुमची प्रीपेड खोली त्वरित निश्चित झाली आहे. लॉजची मंजुरी आवश्यक नाही.',
-            )
-          : t(
-              'The lodge owner will review your request before confirmation.',
-              'पुष्टीकरणापूर्वी लॉज मालक तुमची विनंती तपासतील.',
-            ),
-      );
-      router.replace({
-        pathname: '/(app)/bookings/[id]',
-        params: { id: bookingId, justBooked: '1' },
-      });
+      setCompletedBookingId(bookingId);
     } catch (error) {
       if (!paymentCaptured && isRoomFullError(error)) {
         // The room filled up while the guest was booking: show the sad
@@ -624,10 +628,41 @@ export function PilgrimCheckoutScreen() {
           ? error.message
           : t('Please try again.', 'कृपया पुन्हा प्रयत्न करा.');
       setPaymentFailure(message);
-      Alert.alert(t('Booking could not be completed', 'बुकिंग पूर्ण होऊ शकले नाही'), message);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (completedBookingId || paymentFailure) {
+    return (
+      <BookingOutcomeScreen
+        success={Boolean(completedBookingId)}
+        busy={submitting}
+        title={
+          completedBookingId
+            ? paymentMethod === 'ONLINE'
+              ? 'Booking confirmed!'
+              : 'Booking request sent'
+            : 'Payment needs attention'
+        }
+        message={
+          completedBookingId
+            ? paymentMethod === 'ONLINE'
+              ? 'Your payment is verified and your stay is confirmed. Your booking details are ready.'
+              : 'Your request is with the lodge owner for approval.'
+            : (paymentFailure ?? '')
+        }
+        onContinue={() => {
+          if (completedBookingId)
+            router.replace({
+              pathname: '/(app)/bookings/[id]',
+              params: { id: completedBookingId },
+            });
+          else void confirmBooking();
+        }}
+        onBack={completedBookingId ? undefined : () => setPaymentFailure(null)}
+      />
+    );
   }
 
   if (!lodge || !room) {
@@ -753,19 +788,30 @@ export function PilgrimCheckoutScreen() {
               setCheckOutDate(value);
             }}
           />
+          {guestLimitError ? (
+            <Text accessibilityLiveRegion="polite" className="text-sm font-bold text-danger-700">
+              {guestLimitError}
+            </Text>
+          ) : null}
           <GuestCounter
             label={t('Adults', 'प्रौढ')}
             value={adults}
             min={1}
             max={6}
-            onChange={setAdults}
+            onChange={(value) => {
+              setAdults(value);
+              setGuestLimitError(null);
+            }}
           />
           <GuestCounter
             label={t('Children', 'मुले')}
             value={children}
             min={0}
             max={6}
-            onChange={setChildren}
+            onChange={(value) => {
+              setChildren(value);
+              setGuestLimitError(null);
+            }}
           />
         </View>
       ) : null}
@@ -848,17 +894,6 @@ export function PilgrimCheckoutScreen() {
 
       {step === 3 ? (
         <View className="gap-5">
-          {paymentFailure ? (
-            <View className="items-center rounded-3xl bg-danger-50 px-5 py-6">
-              <AnimatedResultBadge tone="danger" />
-              <Text className="mt-4 text-center text-lg font-extrabold text-danger-700">
-                {t('Payment failed', 'पेमेंट अयशस्वी')}
-              </Text>
-              <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
-                {paymentFailure}
-              </Text>
-            </View>
-          ) : null}
           <SectionTitle title={t('Review guest details', 'पाहुण्यांची माहिती तपासा')} />
           <Pressable
             onPress={() => setStep(2)}

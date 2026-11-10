@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { notificationState } from '../../features/notifications/notification-count-store';
 import { AppScreen, EmptyState, TopBar, ui, type PilgrimIconName } from '../components';
 import { FeedbackPrompt } from '../components/FeedbackPrompt';
 import type { PilgrimNotification } from '../mock-data';
@@ -19,15 +20,19 @@ export function PilgrimNotificationsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ feedbackBookingId?: string }>();
   const { markNotificationRead, markNotificationsRead, notifications, t } = usePilgrimApp();
-  const hasUnread = notifications.some((item) => !item.read);
+  const notificationSync = useSyncExternalStore(
+    notificationState.subscribe,
+    notificationState.getSnapshot,
+  );
+  const hasUnread = notificationSync.unreadCount > 0;
   const [feedbackBookingId, setFeedbackBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.feedbackBookingId) setFeedbackBookingId(params.feedbackBookingId);
   }, [params.feedbackBookingId]);
 
-  async function openNotification(item: PilgrimNotification) {
-    await markNotificationRead(item.id);
+  function openNotification(item: PilgrimNotification) {
+    void markNotificationRead(item.id);
     if (item.action === 'RATE_AND_REVIEW' && item.bookingId) {
       setFeedbackBookingId(item.bookingId);
       return;
@@ -66,6 +71,11 @@ export function PilgrimNotificationsScreen() {
         subtitle={t('Booking and travel updates', 'बुकिंग आणि प्रवास अपडेट')}
         title={t('Notifications', 'सूचना')}
       />
+      {notificationSync.error || notificationSync.pendingCount ? (
+        <Text accessibilityLiveRegion="polite" className="text-sm text-warm-600">
+          {notificationSync.error ?? 'Read changes are waiting to sync.'}
+        </Text>
+      ) : null}
       {notifications.length ? (
         <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white px-4">
           {notifications.map((item, index) => (

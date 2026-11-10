@@ -2,11 +2,10 @@ import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCachedFetch } from '../core/useCachedFetch';
+import { useUnreadNotificationCount } from '../../features/notifications/hooks/useNotifications';
 import { useCurrentPass } from '../core/useCurrentPass';
 import { useColors } from '../design/theme';
 import { elevation, space } from '../design/tokens';
-import { fetchUnreadCount } from '../features/notifications/NotificationsScreen';
 import { extraStrings } from '../i18n/extraStrings';
 import { useLang } from '../i18n/language';
 import { Icon } from '../ui/Icon';
@@ -33,10 +32,7 @@ export function TabBar({ navigation, state }: BottomTabBarProps) {
   const { t } = useLang();
   const { push } = useGo();
   const { currentPass, signedIn } = useCurrentPass();
-  const { data: unread } = useCachedFetch(
-    signedIn ? 'notifications:unread' : 'notifications:none',
-    () => (signedIn ? fetchUnreadCount() : Promise.resolve({ unreadCount: 0 })),
-  );
+  const { unreadCount } = useUnreadNotificationCount();
 
   const activeName = state.routes[state.index]?.name;
   const left = TABS.slice(0, 2);
@@ -44,7 +40,7 @@ export function TabBar({ navigation, state }: BottomTabBarProps) {
 
   function renderTab(tab: (typeof TABS)[number]) {
     const selected = activeName === tab.name;
-    const showDot = tab.name === 'profile' && (unread?.unreadCount ?? 0) > 0;
+    const showDot = tab.name === 'profile' && (signedIn ? unreadCount : 0) > 0;
     return (
       <PressableScale
         accessibilityLabel={t(extraStrings[tab.label])}

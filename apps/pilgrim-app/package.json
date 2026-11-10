@@ -10,7 +10,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:checkout": "node --test scripts/checkout-outcome.test.mjs",
+    "test:notifications": "node --test --test-name-pattern=Pilgrim ../../backend/scripts/notification-sync.test.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/fraunces": "0.4.1",

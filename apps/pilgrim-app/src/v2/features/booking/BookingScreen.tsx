@@ -4,12 +4,14 @@ import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } f
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PaymentRecoveryStatus } from '../../../features/bookings/api/bookings-api';
+import { guestCapacityError } from '../../../features/bookings/guest-capacity';
 import {
   readPendingPayment,
   rememberPendingPayment,
   clearPendingPayment,
 } from '../../../features/bookings/payment-recovery-store';
 import { useStayPrice } from '../../../features/bookings/useStayPrice';
+import { BookingOutcomeScreen } from '../../../pilgrim-ui/components/BookingOutcomeScreen';
 import type { GuestBookingDetails, StayRequest } from '../../core/booking';
 import {
   bookPayAtLodge,
@@ -51,7 +53,7 @@ export interface BookingScreenProps {
   onBooked: (bookingId: string, method: PaymentMethod) => void;
 }
 
-type FieldKey = 'email' | 'id' | 'name' | 'phone' | 'terms';
+type FieldKey = 'guests' | 'email' | 'id' | 'name' | 'phone' | 'terms';
 
 export function BookingScreen({
   initialRoomTypeId,
@@ -85,6 +87,8 @@ export function BookingScreen({
   const [agree, setAgree] = useState(true);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [outcome, setOutcome] = useState<{ id: string; method: PaymentMethod } | null>(null);
+  const complete = (id: string, method: PaymentMethod) => setOutcome({ id, method });
   const [failure, setFailure] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [roomTakenWhileBooking, setRoomTakenWhileBooking] = useState(false);
@@ -132,6 +136,8 @@ export function BookingScreen({
 
   function validate(): boolean {
     const next: Partial<Record<FieldKey, string>> = {};
+    const capacityError = guestCapacityError(adults, children, maxAdults, maxChildren);
+    if (capacityError) next.guests = capacityError;
     if (name.trim().length === 0) next.name = t(bookingStrings.nameInvalid);
     if (phone.replace(/\D/gu, '').length !== 10) next.phone = t(bookingStrings.phoneInvalid);
     if (email.trim().length > 0 && !/^\S+@\S+\.\S+$/u.test(email.trim())) {
@@ -156,7 +162,7 @@ export function BookingScreen({
       });
       const booking = await confirmRecoveredPayment({ ...previous.guestDetails, ...payment });
       await clearPendingPayment(session.user.id);
-      onBooked(booking.id, 'ONLINE');
+      complete(booking.id, 'ONLINE');
     } catch {
       setFailure(
         'Payment status is uncertain. Retry to check your existing payment; do not start another payment.',
@@ -175,7 +181,7 @@ export function BookingScreen({
           const status = await getPrepaidPaymentStatus(pending);
           if (status.status === 'CONFIRMED' && status.bookingId) {
             await clearPendingPayment(session.user.id);
-            onBooked(status.bookingId, 'ONLINE');
+            complete(status.bookingId, 'ONLINE');
           } else if (status.retryCheckout) {
             const previous = status.retryCheckout;
             Alert.alert(
@@ -255,11 +261,11 @@ export function BookingScreen({
         const booking = await confirmPrepaidBooking(prepared.lockCode, details, payment);
         hold.consume();
         await clearPendingPayment(session.user.id);
-        onBooked(booking.id, 'ONLINE');
+        complete(booking.id, 'ONLINE');
       } else {
         await hold.settled();
         const booking = await bookPayAtLodge(stay, details);
-        onBooked(booking.id, 'PAY_AT_LODGE');
+        complete(booking.id, 'PAY_AT_LODGE');
       }
     } catch (cause) {
       if (cause instanceof PaymentDismissedError) return;
@@ -276,6 +282,33 @@ export function BookingScreen({
       setSubmitting(false);
     }
   }
+
+  if (outcome || failure)
+    return (
+      <BookingOutcomeScreen
+        success={Boolean(outcome)}
+        busy={submitting}
+        title={
+          outcome
+            ? outcome.method === 'ONLINE'
+              ? 'Booking confirmed!'
+              : 'Booking request sent'
+            : 'Payment needs attention'
+        }
+        message={
+          outcome
+            ? outcome.method === 'ONLINE'
+              ? 'Your payment is verified and your stay is confirmed.'
+              : 'Your request is with the lodge owner for approval.'
+            : (failure ?? '')
+        }
+        onContinue={() => {
+          if (outcome) onBooked(outcome.id, outcome.method);
+          else void submit();
+        }}
+        onBack={outcome ? undefined : () => setFailure(null)}
+      />
+    );
 
   const header = (
     <View style={[styles.header, { paddingTop: insets.top + space.md }]}>
@@ -432,6 +465,11 @@ export function BookingScreen({
 
         <View style={[styles.card, styles.stack, { backgroundColor: colors.surface }]}>
           <Text variant="heading">{t(bookingStrings.guests)}</Text>
+          {guestCapacityError(adults, children, maxAdults, maxChildren) ? (
+            <Text color="danger">
+              {guestCapacityError(adults, children, maxAdults, maxChildren)}
+            </Text>
+          ) : null}
           <GuestStepper
             label={t(bookingStrings.adults)}
             max={maxAdults}

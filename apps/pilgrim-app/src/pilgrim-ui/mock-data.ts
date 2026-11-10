@@ -6,6 +6,8 @@ export interface PilgrimRoom {
   available: number;
   bed: string;
   capacity: string;
+  capacityAdults?: number;
+  capacityChildren?: number;
   features: string[];
   id: string;
   name: string;

@@ -547,16 +547,19 @@ export class BookingsService {
     });
 
     if (!createdNow) return this.toBooking(booking);
-    await this.notificationEventsService
-      .bookingAccepted(booking.id)
-      .catch(() =>
-        this.logger.warn('Booking notification failed; committed state remains available'),
-      );
-    await this.notificationEventsService
-      .prepaidBookingConfirmed(booking.id)
-      .catch(() =>
-        this.logger.warn('Booking notification failed; committed state remains available'),
-      );
+    // Persist independent post-commit notification streams concurrently.
+    await Promise.all([
+      this.notificationEventsService
+        .bookingAccepted(booking.id)
+        .catch(() =>
+          this.logger.warn('Booking notification failed; committed state remains available'),
+        ),
+      this.notificationEventsService
+        .prepaidBookingConfirmed(booking.id)
+        .catch(() =>
+          this.logger.warn('Booking notification failed; committed state remains available'),
+        ),
+    ]);
 
     return this.toBooking(booking);
   }

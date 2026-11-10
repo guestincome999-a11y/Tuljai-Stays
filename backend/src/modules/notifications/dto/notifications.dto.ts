@@ -6,6 +6,9 @@ import {
 } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsUUID,
   IsBooleanString,
   IsDateString,
   IsEnum,
@@ -16,6 +19,14 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
+export class MarkNotificationsReadDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @IsUUID('all', { each: true })
+  ids?: string[];
+}
 
 export class ListNotificationsQueryDto {
   @IsBooleanString()

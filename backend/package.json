@@ -16,7 +16,8 @@
     "admin:set-password": "ts-node prisma/set-admin-password.ts",
     "db:studio": "prisma studio",
     "test:auth": "node --test scripts/auth-session.test.mjs",
-    "test": "node --test --test-concurrency=1 scripts/auth-session.test.mjs scripts/payment-regression.test.mjs scripts/payment-idempotency.test.mjs scripts/booking-integration.test.mjs scripts/cash-collection.test.mjs scripts/admin-booking-activity.test.mjs scripts/refunds.test.mjs"
+    "test:notifications": "node --test scripts/notification-service.test.mjs scripts/notification-sync.test.mjs",
+    "test": "node --test --test-concurrency=1 scripts/notification-service.test.mjs scripts/notification-sync.test.mjs scripts/auth-session.test.mjs scripts/payment-regression.test.mjs scripts/payment-idempotency.test.mjs scripts/booking-integration.test.mjs scripts/cash-collection.test.mjs scripts/admin-booking-activity.test.mjs scripts/refunds.test.mjs"
   },
   "dependencies": {
     "@fastify/helmet": "^13.0.2",

@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { useCachedFetch } from '../../core/useCachedFetch';
+import { useUnreadNotificationCount } from '../../../features/notifications/hooks/useNotifications';
 import { useCurrentPass } from '../../core/useCurrentPass';
 import { radius, space } from '../../design/tokens';
 import { bilingualProp, useLang } from '../../i18n/language';
@@ -8,7 +8,6 @@ import { useGo } from '../../shell/navigation';
 import { Icon } from '../../ui/Icon';
 import { PressableScale } from '../../ui/PressableScale';
 import { Text } from '../../ui/Text';
-import { fetchUnreadCount } from '../notifications/NotificationsScreen';
 
 const GLASS = 'rgba(30,14,8,0.42)';
 
@@ -20,15 +19,12 @@ export function HeaderActions({ props }: { props: Record<string, unknown> }) {
   const { t } = useLang();
   const { push } = useGo();
   const { currentPass, signedIn } = useCurrentPass();
-  const { data: unread } = useCachedFetch(
-    signedIn ? 'notifications:unread' : 'notifications:none',
-    () => (signedIn ? fetchUnreadCount() : Promise.resolve({ unreadCount: 0 })),
-  );
+  const { unreadCount } = useUnreadNotificationCount();
   const showPass = props['showPass'] !== false;
   const showBell = props['showBell'] !== false;
   const passLabel =
     t(bilingualProp(props, 'passLabel')) || t({ en: 'Darshan Pass', mr: 'दर्शन पास' });
-  const hasUnread = (unread?.unreadCount ?? 0) > 0;
+  const hasUnread = (signedIn ? unreadCount : 0) > 0;
 
   return (
     <View style={styles.row}>

@@ -28,7 +28,6 @@ export class ExpoPushService {
     try {
       const response = await fetch('https://exp.host/--/api/v2/push/send', {
         body: JSON.stringify({
-          badge: input.badge,
           body: input.body,
           categoryId: input.data.type === 'BOOKING_REQUEST' ? 'BOOKING_REQUEST' : undefined,
           channelId: resolveAndroidNotificationChannel(input.data),

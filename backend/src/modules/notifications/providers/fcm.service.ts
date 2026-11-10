@@ -57,17 +57,17 @@ export class FcmService {
         android: {
           notification: {
             channelId: resolveAndroidNotificationChannel(input.data),
-            notificationCount: input.badge,
+            tag: input.data.notificationId,
           },
           priority: input.highPriority ? 'high' : 'normal',
         },
         apns: {
           headers: {
             'apns-priority': input.highPriority ? '10' : '5',
+            ...(input.data.notificationId ? { 'apns-collapse-id': input.data.notificationId } : {}),
           },
           payload: {
             aps: {
-              badge: input.badge,
               sound: 'default',
             },
           },
