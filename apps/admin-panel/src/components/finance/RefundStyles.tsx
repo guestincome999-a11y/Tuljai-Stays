@@ -347,7 +347,7 @@ export function RefundStyles() {
         clip-path: inset(50%);
         white-space: nowrap;
       }
-    @media (max-width: 1440px) {
+      @media (max-width: 1440px) {
         .refund-kpis {
           grid-template-columns: repeat(3, minmax(0, 1fr));
         }
