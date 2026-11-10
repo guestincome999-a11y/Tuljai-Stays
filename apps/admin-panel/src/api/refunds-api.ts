@@ -5,6 +5,8 @@ export interface RefundRow {
   reference: string;
   bookingId: string;
   bookingReference: string;
+  bookingStatus?: string;
+  paymentStatus?: string;
   pilgrimName: string;
   pilgrimUserId: string;
   lodgeName: string;

@@ -128,7 +128,7 @@ Tests use only loopback PostgreSQL and mocked Razorpay responses. No real refund
 | All workspace typechecks, including both Expo apps and Admin | Passed                                                            |
 | All workspace lint checks                                    | Passed                                                            |
 | Backend regression suite                                     | Passed; its optional cash DB case was subsequently run explicitly |
-| Final refund suite                                           | 27 passed, none skipped                                           |
+| Final refund suite                                           | 30 passed, none skipped                                           |
 | Explicit cash-collection suite with PostgreSQL fixture       | 14 passed, none skipped                                           |
 | Admin regression tests                                       | 2 passed                                                          |
 | Prisma schema validation                                     | Passed                                                            |
@@ -152,6 +152,8 @@ Before calling production refunds operational:
 Existing historical cancellations are intentionally not automatically refunded. Review any historical discrepancies and previously settled/refunded bookings separately with explicit audited accounting adjustments.
 
 ## Changed file manifest
+
+The refund records follow-up adds the shared Finance search/filter styling, separate payment and refund badges, readable activity/details, and `RefundRecords.tsx`/`RefundStyles.tsx`. Admin Payments and Razorpay lists use a consistent status projection for table rows, filters and totals: failed attempts and cancelled unpaid bookings no longer remain Pending, while captured and refunded receipts retain their actual status. Provider reconciliation records verified failures and recognizes authorized retries without demoting captured payments. `payment-collection-status.ts` shares that logic; PostgreSQL regression cases cover the labels, filtering/counts, retries and capture protection. This follow-up requires no new migration.
 
 ```text
 .github/workflows/booking-reliability.yml

@@ -16,6 +16,7 @@ import { lockInventory } from '../bookings/inventory-lock';
 import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { recordUncapturedPaymentOutcome } from './payment-collection-status';
 import { PaymentNotificationsService } from './payment-notifications.service';
 import { createIdempotentPaymentOrder } from './payment-order-idempotency';
 import type { PaymentProvider } from './payment-provider';
@@ -437,7 +438,30 @@ export class PaymentsService {
     if (!intent || intent.status === 'CONFIRMED' || intent.status === 'RECOVERY_REQUIRED') return;
     const payments = await this.razorpayProvider.getOrderPayments(orderId);
     const payment = payments.find((item) => item.status === 'captured' && item.captured);
-    if (!payment) return;
+    if (!payment) {
+      if (
+        payments.length &&
+        payments.every(
+          (item) =>
+            item.order_id === orderId &&
+            !item.captured &&
+            ['failed', 'refunded'].includes(item.status),
+        )
+      ) {
+        await recordUncapturedPaymentOutcome(
+          this.prisma,
+          orderId,
+          payments.every((item) => item.status === 'failed') ? 'FAILED' : 'CANCELLED',
+        );
+      } else if (
+        payments.length &&
+        payments.every((item) => item.order_id === orderId && !item.captured) &&
+        payments.some((item) => ['authorized', 'created'].includes(item.status))
+      ) {
+        await recordUncapturedPaymentOutcome(this.prisma, orderId, 'PENDING');
+      }
+      return;
+    }
     if (
       payment.order_id !== orderId ||
       payment.currency !== intent.currency ||

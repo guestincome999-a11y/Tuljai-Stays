@@ -14,6 +14,7 @@ import { NotificationEventsService } from '../notifications/notification-events.
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { resolvePaymentCollectionStatus } from './payment-collection-status';
 import {
   RazorpayProvider,
   RazorpayOrderRejectedException,
@@ -133,7 +134,7 @@ export class RefundsService {
       )
         throw new BadRequestException('Payment ownership, currency or amount mismatch');
       if (!payment.captured || !['captured', 'refunded'].includes(payment.status)) {
-        if (payment.status === 'failed' || (payment.status === 'refunded' && !payment.captured))
+        if (payment.status === 'failed' || (payment.status === 'refunded' && !payment.captured)) {
           await this.prisma.bookingRefund.update({
             where: { id },
             data: {
@@ -143,6 +144,7 @@ export class RefundsService {
                 'Payment failed or authorization was reversed before capture; no online refund required',
             },
           });
+        }
         return;
       }
       row = await this.prisma.bookingRefund.update({
@@ -681,6 +683,8 @@ export class RefundsService {
       reference: row.reference,
       bookingId: row.bookingId,
       bookingReference: row.booking.bookingCode,
+      bookingStatus: row.booking.status,
+      paymentStatus: resolvePaymentCollectionStatus(row.collection, row.booking),
       pilgrimName: row.booking.guestName,
       pilgrimUserId: row.booking.pilgrimUserId,
       lodgeName: row.booking.lodge.name,

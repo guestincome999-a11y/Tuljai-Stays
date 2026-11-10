@@ -195,6 +195,11 @@ export function PaymentsView({ preset }: { preset: PaymentsPreset }) {
                       <Link className="fin-link" href={`/admin/bookings/${row.bookingId}`}>
                         {row.bookingCode}
                       </Link>
+                      {row.bookingStatus ? (
+                        <span className="fin-cell-sub">
+                          Booking {row.bookingStatus.toLowerCase().replaceAll('_', ' ')}
+                        </span>
+                      ) : null}
                     </td>
                     <td>{row.guestName}</td>
                     <td>{row.lodgeName}</td>

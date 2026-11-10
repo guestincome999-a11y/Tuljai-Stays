@@ -23,6 +23,11 @@ const {
   LodgeCommissionFinanceService,
 } = require('../src/modules/lodges/commission-finance.service.ts');
 const { NotificationsService } = require('../src/modules/notifications/notifications.service.ts');
+const { FinanceAdminService } = require('../src/modules/payments/finance-admin.service.ts');
+const {
+  resolvePaymentCollectionStatus,
+  recordUncapturedPaymentOutcome,
+} = require('../src/modules/payments/payment-collection-status.ts');
 const { PaymentsService } = require('../src/modules/payments/payments.service.ts');
 const {
   RazorpayProvider,
@@ -55,6 +60,25 @@ test('India calendar policy, decimal paise and malformed settings', () => {
       tiers: [{ daysBeforeCheckIn: 0, refundPercent: 101 }],
     }),
   );
+});
+
+test('payment labels preserve captured receipts and resolve failed/cancelled pending records', () => {
+  for (const [status, bookingStatus, paymentStatus, expected] of [
+    ['PENDING', 'CANCELLED', 'PENDING', 'CANCELLED'],
+    ['PENDING', 'REJECTED', 'PAY_AT_LODGE', 'CANCELLED'],
+    ['PENDING', 'ACCEPTED', 'FAILED', 'FAILED'],
+    ['FAILED', 'CANCELLED', 'FAILED', 'FAILED'],
+    ['PAID', 'CANCELLED', 'FULLY_PAID', 'PAID'],
+    ['REFUNDED', 'CANCELLED', 'REFUNDED', 'REFUNDED'],
+    ['PENDING', 'PENDING_OWNER_APPROVAL', 'PENDING', 'PENDING'],
+  ])
+    assert.equal(
+      resolvePaymentCollectionStatus(
+        { status, method: 'ONLINE' },
+        { status: bookingStatus, paymentStatus },
+      ),
+      expected,
+    );
 });
 
 test('Razorpay webhook signature uses the exact raw body', () => {
@@ -920,6 +944,120 @@ test(
           g.providerRefunds[0].status = 'failed';
           await g.refunds.reconcile(r.id);
           assert.equal(g.writes(), 1);
+        },
+      );
+      await t.test(
+        'Admin Razorpay rows, status filters and totals agree on actual failed/cancelled payments',
+        async () => {
+          const finance = new FinanceAdminService(db);
+          const cancelled = await fixture({
+            providerStatus: 'authorized',
+            paymentStatus: 'PENDING',
+          });
+          await cancelled.cancel();
+          const failed = await fixture({ providerStatus: 'failed', paymentStatus: 'FAILED' });
+          await db.paymentCollection.update({
+            where: { id: failed.collection.id },
+            data: { status: 'PENDING' },
+          });
+          const paid = await fixture();
+          await paid.cancel();
+          for (const [f, status] of [
+            [cancelled, 'CANCELLED'],
+            [failed, 'FAILED'],
+            [paid, 'PAID'],
+          ]) {
+            const result = await finance.listPayments({
+              page: 1,
+              pageSize: 20,
+              search: f.booking.bookingCode,
+              status,
+              method: 'ONLINE',
+            });
+            assert.equal(result.totalItems, 1);
+            assert.equal(result.items[0].status, status);
+            assert.equal(result.statusCounts.find((s) => s.status === status).count, 1);
+            assert.equal(result.statusCounts.find((s) => s.status === 'PENDING').count, 0);
+            if (status === 'CANCELLED' || status === 'PAID')
+              assert.equal(result.items[0].bookingStatus, 'CANCELLED');
+          }
+          const detail = await paid.refunds.detail((await paid.ledger()).id);
+          assert.equal(detail.paymentStatus, 'PAID');
+          assert.equal(detail.status, 'PENDING');
+          assert.equal(detail.bookingStatus, 'CANCELLED');
+        },
+      );
+      await t.test(
+        'verified failed attempts synchronize collections without demoting captured or authorized payments',
+        async () => {
+          const f = await fixture({ providerStatus: 'failed', paymentStatus: 'PENDING' });
+          await db.paymentCollection.update({
+            where: { id: f.collection.id },
+            data: { status: 'PENDING' },
+          });
+          await db.paymentIntent.create({
+            data: {
+              lockCode: `legacy:${f.booking.id}`,
+              pilgrimUserId: f.user.id,
+              providerOrderId: f.collection.providerOrderId,
+              amount: f.collection.amount,
+              bookingId: f.booking.id,
+            },
+          });
+          const payments = new PaymentsService({}, {}, db, f.provider, {}, {}, f.refunds);
+          const failedPayment = await f.provider.getPayment();
+          f.provider.getOrderPayments = async () => [
+            failedPayment,
+            { ...failedPayment, id: 'pay_authorized', status: 'authorized' },
+          ];
+          await payments.reconcileOrder(f.collection.providerOrderId);
+          assert.equal(
+            (await db.paymentCollection.findUniqueOrThrow({ where: { id: f.collection.id } }))
+              .status,
+            'PENDING',
+          );
+          f.provider.getOrderPayments = async () => [failedPayment];
+          await payments.reconcileOrder(f.collection.providerOrderId);
+          assert.equal(
+            (await db.paymentCollection.findUniqueOrThrow({ where: { id: f.collection.id } }))
+              .status,
+            'FAILED',
+          );
+          assert.equal(
+            (await db.booking.findUniqueOrThrow({ where: { id: f.booking.id } })).paymentStatus,
+            'FAILED',
+          );
+          f.provider.getOrderPayments = async () => [
+            { ...failedPayment, id: 'pay_retry_authorized', status: 'authorized' },
+          ];
+          await payments.reconcileOrder(f.collection.providerOrderId);
+          assert.equal(
+            (await db.paymentCollection.findUniqueOrThrow({ where: { id: f.collection.id } }))
+              .status,
+            'PENDING',
+          );
+          assert.equal(
+            (await db.booking.findUniqueOrThrow({ where: { id: f.booking.id } })).paymentStatus,
+            'PENDING',
+          );
+          await db.paymentCollection.update({
+            where: { id: f.collection.id },
+            data: { status: 'PAID' },
+          });
+          await db.booking.update({
+            where: { id: f.booking.id },
+            data: { paymentStatus: 'FULLY_PAID' },
+          });
+          await recordUncapturedPaymentOutcome(db, f.collection.providerOrderId, 'FAILED');
+          assert.equal(
+            (await db.paymentCollection.findUniqueOrThrow({ where: { id: f.collection.id } }))
+              .status,
+            'PAID',
+          );
+          assert.equal(
+            (await db.booking.findUniqueOrThrow({ where: { id: f.booking.id } })).paymentStatus,
+            'FULLY_PAID',
+          );
         },
       );
     } finally {

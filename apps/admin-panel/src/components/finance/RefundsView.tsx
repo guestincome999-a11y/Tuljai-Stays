@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   getRefund,
@@ -15,7 +14,9 @@ import { useAdminAuth } from '../../auth/AdminAuthProvider';
 import { hasPermission } from '../../permissions/permissions';
 
 import { FinanceStyles } from './FinanceStyles';
-import { FinHeader, FinKpi, FinPanel, FinPill, formatMoney } from './FinanceUi';
+import { FinHeader, FinKpi, FinKv, FinPanel, FinPill, formatMoney } from './FinanceUi';
+import { RefundRecords, refundStatusLabel, refundStatusTone } from './RefundRecords';
+import { RefundStyles } from './RefundStyles';
 
 const statuses = ['PENDING', 'INITIATED', 'PROCESSED', 'FAILED', 'NOT_REQUIRED'];
 const money = (paise: number | null) =>
@@ -33,35 +34,31 @@ export function RefundsView() {
   const [detail, setDetail] = useState<RefundDetail | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const revision = useRef(0);
   const load = useCallback(async () => {
+    const request = ++revision.current;
+    setLoading(true);
     try {
-      setData(await listRefunds(page, search, status));
+      const result = await listRefunds(page, search, status);
+      if (request !== revision.current) return;
+      setData(result);
       setError('');
     } catch {
-      setError('Could not load refunds. Please retry.');
+      if (request === revision.current) setError('Could not load refunds. Please retry.');
+    } finally {
+      if (request === revision.current) setLoading(false);
     }
   }, [page, search, status]);
   useEffect(() => {
-    let active = true;
-    const refresh = async () => {
-      try {
-        const result = await listRefunds(page, search, status);
-        if (active) {
-          setData(result);
-          setError('');
-        }
-      } catch {
-        if (active) setError('Could not load refunds. Please retry.');
-      }
-    };
-    const timer = setTimeout(() => void refresh(), 300);
-    const interval = setInterval(() => void refresh(), 30000);
+    const timer = setTimeout(() => void load(), 300);
+    const interval = setInterval(() => void load(), 30000);
     return () => {
-      active = false;
+      ++revision.current;
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [page, search, status]);
+  }, [load]);
 
   async function action(id: string, operation: 'retry' | 'reconcile') {
     if (
@@ -100,6 +97,8 @@ export function RefundsView() {
           'Pilgrim',
           'Lodge',
           'Cancellation reason',
+          'Booking status',
+          'Payment status',
           'Payment ID',
           'Refund IDs',
           'Original paise',
@@ -114,6 +113,8 @@ export function RefundsView() {
           r.pilgrimName,
           r.lodgeName,
           r.cancellationReason,
+          r.bookingStatus ?? 'Unavailable',
+          r.paymentStatus ?? 'Unavailable',
           r.originalPaymentId,
           r.history
             .map((h) => h.providerRefundId)
@@ -143,9 +144,15 @@ export function RefundsView() {
       setBusy(false);
     }
   }
+  const cancellation = detail?.cancellationDetails;
+  const metadata: Record<string, unknown> =
+    cancellation && typeof cancellation === 'object' && !Array.isArray(cancellation)
+      ? (cancellation as Record<string, unknown>)
+      : {};
   return (
     <div className="fin-stack">
       <FinanceStyles />
+      <RefundStyles />
       <FinHeader
         eyebrow="Finance"
         title="Refund Management"
@@ -170,7 +177,7 @@ export function RefundsView() {
           {error}
         </p>
       ) : null}
-      <section className="fin-kpis">
+      <section className="fin-kpis refund-kpis">
         <FinKpi
           icon="receipt"
           label="Total refunds"
@@ -187,194 +194,173 @@ export function RefundsView() {
           <FinKpi
             key={s}
             icon="clock"
-            label={s}
+            label={refundStatusLabel(s)}
             value={String(data?.summary.find((r) => r.status === s)?.count ?? 0)}
-            tone={s === 'FAILED' ? 'red' : 'orange'}
+            tone={
+              s === 'FAILED'
+                ? 'red'
+                : s === 'PROCESSED'
+                  ? 'green'
+                  : s === 'INITIATED'
+                    ? 'blue'
+                    : 'orange'
+            }
           />
         ))}
       </section>
-      <FinPanel
-        title="Refund records"
-        sub="Amounts are validated against captured payments. Processed means provider confirmation, not confirmation of bank credit."
-      >
-        <div className="fin-filters">
-          <input
-            aria-label="Search refunds"
-            className="fin-input"
-            placeholder="Booking, pilgrim, lodge, payment or refund ID"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-          <select
-            aria-label="Refund status"
-            className="fin-input"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All statuses</option>
-            {statuses.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-        {!data ? (
-          <p className="fin-empty">Loading refunds…</p>
-        ) : !data.items.length ? (
-          <p className="fin-empty">No refunds match these filters.</p>
-        ) : (
-          <div className="fin-scroll">
-            <table className="fin-table">
-              <thead>
-                <tr>
-                  {[
-                    'Booking / Pilgrim',
-                    'Lodge / Reason',
-                    'Payment / Refund ID',
-                    'Original / Refund',
-                    'Status',
-                    'Cancellation / Initiation / Processing',
-                    'Details',
-                  ].map((h) => (
-                    <th key={h}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <Link className="fin-link" href={`/admin/bookings/${row.bookingId}`}>
-                        {row.bookingReference}
-                      </Link>
-                      <div>{row.pilgrimName}</div>
-                    </td>
-                    <td>
-                      {row.lodgeName}
-                      <div>{row.cancellationReason}</div>
-                    </td>
-                    <td>
-                      {row.originalPaymentId ?? 'Awaiting capture'}
-                      <div>{row.history.at(-1)?.providerRefundId ?? '—'}</div>
-                    </td>
-                    <td>
-                      {money(row.originalAmountPaise)}
-                      <div>{money(row.amountPaise)}</div>
-                    </td>
-                    <td>
-                      <FinPill
-                        tone={
-                          row.status === 'FAILED'
-                            ? 'red'
-                            : row.status === 'PROCESSED'
-                              ? 'green'
-                              : 'orange'
-                        }
-                      >
-                        {row.status}
-                      </FinPill>
-                    </td>
-                    <td>
-                      {date(row.cancellationDate)}
-                      <div>{date(row.initiatedAt)}</div>
-                      <div>{date(row.processedAt)}</div>
-                    </td>
-                    <td>
-                      <button
-                        className="fin-btn fin-btn-outline"
-                        onClick={() =>
-                          void getRefund(row.id)
-                            .then(setDetail)
-                            .catch(() => setError('Could not load refund details.'))
-                        }
-                      >
-                        Open details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <div className="fin-filters">
-          <button className="fin-btn" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-            Previous
-          </button>
-          <span>
-            Page {page} · {data?.totalItems ?? 0} records
-          </span>
-          <button
-            className="fin-btn"
-            disabled={!data || page * data.pageSize >= data.totalItems}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </button>
-        </div>
-      </FinPanel>
+      <RefundRecords
+        data={data}
+        loading={loading}
+        page={page}
+        search={search}
+        status={status}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+        onStatus={(value) => {
+          setStatus(value);
+          setPage(1);
+        }}
+        onPage={setPage}
+        onOpen={(row) => {
+          void getRefund(row.id)
+            .then(setDetail)
+            .catch(() => setError('Could not load refund details.'));
+        }}
+      />
       {detail ? (
-        <FinPanel
-          title={`Refund · ${detail.bookingReference}`}
-          action={
-            <button className="fin-btn fin-btn-outline" onClick={() => setDetail(null)}>
-              Close
-            </button>
-          }
-        >
-          <p>
-            {detail.status} · {money(detail.amountPaise)}
-          </p>
-          {detail.failureReason ? <p role="alert">{detail.failureReason}</p> : null}
-          {canManage ? (
-            <div className="fin-filters">
-              <button
-                className="fin-btn"
-                disabled={busy}
-                onClick={() => void action(detail.id, 'reconcile')}
-              >
-                Reconcile provider
+        <div className="refund-details">
+          <FinPanel
+            title={`Refund · ${detail.bookingReference}`}
+            action={
+              <button className="fin-btn fin-btn-outline" onClick={() => setDetail(null)}>
+                Close
               </button>
-              {detail.status === 'FAILED' ? (
+            }
+          >
+            <div className="refund-detail-summary">
+              <div>
+                <FinPill tone={refundStatusTone(detail.status)}>
+                  {refundStatusLabel(detail.status)}
+                </FinPill>
+                <strong>{money(detail.amountPaise)}</strong>
+              </div>
+              <span className="fin-text">Refund to the original payment method</span>
+            </div>
+            <FinKv
+              twoColumns
+              rows={[
+                {
+                  label: 'Booking status',
+                  value: detail.bookingStatus?.toLowerCase().replaceAll('_', ' ') ?? 'Unavailable',
+                },
+                {
+                  label: 'Payment status',
+                  value: detail.paymentStatus ? (
+                    <FinPill tone={refundStatusTone(detail.paymentStatus)}>
+                      {refundStatusLabel(detail.paymentStatus)}
+                    </FinPill>
+                  ) : (
+                    'Unavailable'
+                  ),
+                },
+                { label: 'Original payment', value: money(detail.originalAmountPaise) },
+                {
+                  label: 'Payment reference',
+                  value: <code>{detail.originalPaymentId ?? 'No captured payment ID'}</code>,
+                },
+                { label: 'Cancellation reason', value: detail.cancellationReason },
+                { label: 'Cancelled', value: date(detail.cancellationDate) },
+                { label: 'Refund initiated', value: date(detail.initiatedAt) },
+                { label: 'Refund processed', value: date(detail.processedAt) },
+                ...(typeof metadata.percent === 'number'
+                  ? [{ label: 'Refund policy', value: `${metadata.percent}% eligible` }]
+                  : []),
+                ...(typeof metadata.deductionPaise === 'number' && metadata.deductionPaise > 0
+                  ? [{ label: 'Support deduction', value: money(metadata.deductionPaise) }]
+                  : []),
+                ...(typeof metadata.deductionReason === 'string' && metadata.deductionReason
+                  ? [{ label: 'Deduction reason', value: metadata.deductionReason }]
+                  : []),
+              ]}
+            />
+            {Array.isArray(metadata.settledCommissionReview) &&
+            metadata.settledCommissionReview.length ? (
+              <p className="fin-note">
+                This cancelled booking has existing commission settlement allocations requiring
+                accounting review. Historical settlements have been preserved.
+              </p>
+            ) : null}
+            {detail.failureReason ? (
+              <p className="error-banner" role="alert">
+                {detail.failureReason}
+              </p>
+            ) : null}
+            {canManage ? (
+              <div className="refund-detail-actions">
                 <button
                   className="fin-btn"
                   disabled={busy}
-                  onClick={() => void action(detail.id, 'retry')}
+                  onClick={() => void action(detail.id, 'reconcile')}
                 >
-                  Retry eligible failed refund
+                  Reconcile provider
                 </button>
-              ) : null}
-            </div>
-          ) : null}
-          <h3>Refund history</h3>
-          {detail.history.map((h) => (
-            <p key={h.id}>
-              {date(h.createdAt)} · {h.providerRefundId ?? h.receipt} · {h.status} ·{' '}
-              {money(h.amount)} · {h.speed} {h.failureReason}
-            </p>
-          ))}
-          <h3>Cancellation and deduction details</h3>
-          <pre style={{ whiteSpace: 'pre-wrap' }}>
-            {JSON.stringify(detail.cancellationDetails, null, 2)}
-          </pre>
-          <h3>Audit history</h3>
-          {detail.audits.map((a) => (
-            <p key={a.id}>
-              {date(a.createdAt)} · {a.action} · {a.actorUserId ?? 'System'}
-            </p>
-          ))}
-          <h3>Provider events</h3>
-          {detail.events.map((e) => (
-            <p key={e.id}>
-              {e.eventType} · {e.processedAt ? 'Handled' : 'Awaiting reconciliation'} {e.lastError}
-            </p>
-          ))}
-        </FinPanel>
+                {detail.status === 'FAILED' ? (
+                  <button
+                    className="fin-btn"
+                    disabled={busy}
+                    onClick={() => void action(detail.id, 'retry')}
+                  >
+                    Retry eligible failed refund
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            <h3 className="refund-detail-heading">Refund history</h3>
+            {!detail.history.length ? (
+              <p className="fin-text">No refund has been submitted to the payment provider.</p>
+            ) : null}
+            {detail.history.map((h) => (
+              <div className="refund-history-item" key={h.id}>
+                <FinPill tone={refundStatusTone(h.status)}>{refundStatusLabel(h.status)}</FinPill>
+                <strong>{money(h.amount)}</strong>
+                <code>{h.providerRefundId ?? h.receipt}</code>
+                <time>{date(h.createdAt)}</time>
+                {h.failureReason ? <p>{h.failureReason}</p> : null}
+              </div>
+            ))}
+            <h3 className="refund-detail-heading">Audit history</h3>
+            {!detail.audits.length ? (
+              <p className="fin-text">No additional refund actions recorded.</p>
+            ) : null}
+            {detail.audits.map((a) => (
+              <div className="refund-audit-item" key={a.id}>
+                <span>
+                  {a.action.toLowerCase().replaceAll('_', ' ')}
+                  <small title={a.actorUserId ?? undefined}>
+                    {' '}
+                    · {a.actorUserId ? 'Administrator' : 'System'}
+                  </small>
+                </span>
+                <time>{date(a.createdAt)}</time>
+              </div>
+            ))}
+            <h3 className="refund-detail-heading">Provider updates</h3>
+            {!detail.events.length ? (
+              <p className="fin-text">No provider updates received yet.</p>
+            ) : null}
+            {detail.events.map((e) => (
+              <div className="refund-history-item" key={e.id}>
+                <FinPill tone={e.processedAt ? 'green' : 'orange'}>
+                  {e.processedAt ? 'Synced' : 'Awaiting update'}
+                </FinPill>
+                <span>{e.eventType.replace('refund.', 'Refund ').replaceAll('_', ' ')}</span>
+                {e.lastError ? <p>{e.lastError}</p> : null}
+              </div>
+            ))}
+          </FinPanel>
+        </div>
       ) : null}
     </div>
   );
