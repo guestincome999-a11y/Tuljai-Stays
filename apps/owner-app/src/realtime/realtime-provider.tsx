@@ -10,6 +10,7 @@ import {
 import { Snackbar } from 'react-native-paper';
 
 import { useAuth } from '../auth/auth-context';
+import { CheckinSyncProvider } from '../features/checkin/CheckinSyncProvider';
 
 import { createRealtimeSocket, type RealtimeSocket } from './realtime-client';
 import {
@@ -25,6 +26,7 @@ interface RealtimeContextValue {
   lastBookingRequest: OwnerRealtimeEvent | null;
   lastEvent: OwnerRealtimeEvent | null;
   ownerStatus: OwnerStatus;
+  refreshBookingData(): void;
   setOwnerStatus(status: OwnerStatus): void;
 }
 
@@ -34,6 +36,7 @@ const RealtimeContext = createContext<RealtimeContextValue>({
   lastBookingRequest: null,
   lastEvent: null,
   ownerStatus: 'AVAILABLE',
+  refreshBookingData: () => undefined,
   setOwnerStatus: () => undefined,
 });
 
@@ -62,6 +65,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const [connected, setConnected] = useState(false);
   const [connectionRevision, setConnectionRevision] = useState(0);
+  const refreshBookingData = useCallback(() => setConnectionRevision((current) => current + 1), []);
   const [lastBookingRequest, setLastBookingRequest] = useState<OwnerRealtimeEvent | null>(null);
   const [lastEvent, setLastEvent] = useState<OwnerRealtimeEvent | null>(null);
   const [ownerStatus, setOwnerStatusState] = useState<OwnerStatus>('AVAILABLE');
@@ -136,14 +140,34 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       lastBookingRequest,
       lastEvent,
       ownerStatus,
+      refreshBookingData,
       setOwnerStatus,
     }),
-    [connected, connectionRevision, lastBookingRequest, lastEvent, ownerStatus, setOwnerStatus],
+    [
+      connected,
+      connectionRevision,
+      lastBookingRequest,
+      lastEvent,
+      ownerStatus,
+      refreshBookingData,
+      setOwnerStatus,
+    ],
   );
 
   return (
     <RealtimeContext.Provider value={value}>
-      {children}
+      <CheckinSyncProvider
+        onConfirmed={(response) => {
+          setLastEvent({
+            name: 'checkin:completed',
+            payload: { bookingId: response.booking.id, lodgeId: response.booking.lodgeId },
+            receivedAt: Date.now(),
+          });
+          setConnectionRevision((current) => current + 1);
+        }}
+      >
+        {children}
+      </CheckinSyncProvider>
       <Snackbar onDismiss={() => setSnackbarMessage(null)} visible={Boolean(snackbarMessage)}>
         {snackbarMessage}
       </Snackbar>

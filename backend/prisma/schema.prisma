@@ -736,6 +736,7 @@ model Booking {
   qrTokens              BookingQrToken[]
   qrScanLogs            QrScanLog[]
   guestRegister         GuestRegister?
+  deliveryJobs          BookingDeliveryJob[]
   review                Review?
   refunds               BookingRefund[]
   collections           PaymentCollection[]
@@ -1512,4 +1513,32 @@ model RefundNotificationOutbox {
 
   @@index([deliveredAt, nextCheckAt])
   @@map("refund_notification_outbox")
+}
+
+// Backend-only transactional outbox. No client Data API policies or grants.
+model BookingDeliveryJob {
+  id                  String   @id @default(uuid()) @db.Uuid
+  bookingId           String   @map("booking_id") @db.Uuid
+  type                String
+  operation           String   @default("initial")
+  recipient           String?
+  status              String   @default("PENDING")
+  attempts            Int      @default(0)
+  nextAttemptAt       DateTime @default(now()) @map("next_attempt_at")
+  leaseToken          String?  @map("lease_token") @db.Uuid
+  leaseUntil          DateTime? @map("lease_until")
+  lastAttemptAt       DateTime? @map("last_attempt_at")
+  lastError           String?  @map("last_error")
+  submissionStartedAt DateTime? @map("submission_started_at")
+  providerMessageId   String?  @map("provider_message_id")
+  sentAt              DateTime? @map("sent_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, type, operation])
+  @@index([type, status, nextAttemptAt])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseUntil])
+  @@map("booking_delivery_jobs")
 }

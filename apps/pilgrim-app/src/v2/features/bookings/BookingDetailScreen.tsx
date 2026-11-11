@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { cancelBooking, fetchBooking, fetchMyBookings } from '../../core/bookings';
+import { cancelBooking, fetchBooking } from '../../core/bookings';
 import type { MyBookingCard } from '../../core/bookings';
 import { fetchLodge } from '../../core/catalog';
 import { daysBetween, formatShortDate } from '../../core/dates';
@@ -74,8 +74,14 @@ export function BookingDetailScreen({
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const { data: booking } = useCachedFetch(`booking:${bookingId}`, () => fetchBooking(bookingId));
-  const { data: list } = useCachedFetch('my-bookings', fetchMyBookings);
-  const card: MyBookingCard | undefined = list?.find((item) => item.id === bookingId);
+  const card: MyBookingCard | undefined = booking
+    ? {
+        ...booking,
+        lodgeName: booking.lodgeName ?? '',
+        roomTypeName: booking.roomTypeName ?? '',
+        coverUrl: null,
+      }
+    : undefined;
 
   const status = booking?.status ?? card?.status ?? null;
   const text = status ? bookingStatusText[status] : undefined;

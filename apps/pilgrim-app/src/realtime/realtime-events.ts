@@ -14,6 +14,7 @@ export type PilgrimRealtimeEventName = Extract<
   | 'notification:new'
   | 'notification:unread-count'
   | 'qr:generated'
+  | 'room:availability-updated'
 >;
 
 export interface PilgrimRealtimeEvent {

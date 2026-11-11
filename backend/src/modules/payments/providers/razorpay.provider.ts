@@ -109,7 +109,12 @@ export class RazorpayProvider implements PaymentProvider {
     } finally {
       // Operation and elapsed time only; never log gateway bodies or credentials.
       this.logger.log({
-        operation: init.method === 'POST' ? 'gateway_write' : 'gateway_read',
+        operation:
+          path === '/orders' && init.method === 'POST'
+            ? 'razorpay_order_creation'
+            : init.method === 'POST'
+              ? 'gateway_write'
+              : 'gateway_read',
         durationMs: Math.round(performance.now() - started),
       });
     }

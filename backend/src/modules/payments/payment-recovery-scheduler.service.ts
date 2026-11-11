@@ -24,7 +24,7 @@ export class PaymentRecoverySchedulerService implements OnModuleInit, OnModuleDe
         .finally(() => {
           this.running = false;
         });
-    }, 30_000);
+    }, 5_000);
   }
   public onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);

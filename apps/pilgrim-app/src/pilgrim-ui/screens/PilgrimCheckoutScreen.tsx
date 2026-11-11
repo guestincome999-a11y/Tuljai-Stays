@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { BookingGuestIdProofUpload } from '@tuljai/types';
+import type { Booking, BookingGuestIdProofUpload } from '@tuljai/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -20,11 +20,13 @@ import {
 } from '../../features/bookings/api/bookings-api';
 import { newCheckoutAttemptKey } from '../../features/bookings/checkout-attempt';
 import { guestCapacityError } from '../../features/bookings/guest-capacity';
+import { isExplicitPaymentFailure, paymentTiming } from '../../features/bookings/payment-outcome';
 import {
   readPendingPayment,
   rememberPendingPayment,
   clearPendingPayment,
 } from '../../features/bookings/payment-recovery-store';
+import { usePaymentResolution } from '../../features/bookings/usePaymentResolution';
 import { useStayPrice } from '../../features/bookings/useStayPrice';
 import {
   AppScreen,
@@ -115,11 +117,44 @@ export function PilgrimCheckoutScreen() {
   const [request, setRequest] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
   const [agree, setAgree] = useState(true);
+  const submissionLock = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [completedBookingId, setCompletedBookingId] = useState<string | null>(null);
   const [guestLimitError, setGuestLimitError] = useState<string | null>(null);
   const [paymentFailure, setPaymentFailure] = useState<string | null>(null);
   const documentPickerActiveRef = useRef(false);
+  const activeOrder = useRef<string | null>(null);
+  const [preparationAllowed, setPreparationAllowed] = useState(false);
+  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+  const resolution = usePaymentResolution(getPaymentStatus, (id, booking) => {
+    setCompletedBookingId(id);
+    setConfirmedBooking(booking ?? null);
+    setPaymentMethod('ONLINE');
+    prepaidRef.current = null;
+    if (auth.user?.id) void clearPendingPayment(auth.user.id).catch(() => undefined);
+  });
+  useEffect(() => {
+    let active = true;
+    setPreparationAllowed(false);
+    if (auth.user?.id)
+      void readPendingPayment(auth.user.id)
+        .then((orderId) => {
+          if (!active) return;
+          if (orderId) {
+            activeOrder.current = orderId;
+            resolution.uncertain(orderId);
+          } else setPreparationAllowed(true);
+        })
+        .catch(() => {
+          if (active)
+            setPaymentFailure(
+              'Your saved payment status could not be restored. Reopen checkout before paying.',
+            );
+        });
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id, resolution.uncertain]);
 
   const room = lodge?.rooms.find((item) => item.id === roomId) ?? lodge?.rooms[0];
   const checkInOptions = useMemo(() => buildDateOptions(startOfToday(), 60), []);
@@ -213,7 +248,11 @@ export function PilgrimCheckoutScreen() {
   );
 
   const holdEnabled =
-    paymentMethod === 'ONLINE' && (datesTouched || step >= 2) && Boolean(lodge) && Boolean(room);
+    preparationAllowed &&
+    paymentMethod === 'ONLINE' &&
+    (datesTouched || step >= 2) &&
+    Boolean(lodge) &&
+    Boolean(room);
   useEffect(() => {
     if (!holdEnabled) return;
     let cancelled = false;
@@ -405,8 +444,11 @@ export function PilgrimCheckoutScreen() {
   }
 
   async function resumePayment(previous: NonNullable<PaymentRecoveryStatus['retryCheckout']>) {
-    if (!auth.user?.id) return;
+    if (!auth.user?.id || submissionLock.current) return;
+    submissionLock.current = true;
     setSubmitting(true);
+    activeOrder.current = previous.order.orderId;
+    resolution.clear();
     try {
       const result = await RazorpayCheckout.open({
         key: previous.order.keyId,
@@ -416,25 +458,39 @@ export function PilgrimCheckoutScreen() {
         name: 'Tuljai Stays',
         description: `${previous.lodgeName}: ${previous.checkInDate} to ${previous.checkOutDate}`,
       });
+      paymentTiming('checkout_callback_received', previous.order.orderId);
+      resolution.verifying(previous.order.orderId);
       const booking = await confirmPrepaidBooking({
         ...previous.guestDetails,
         orderId: result.razorpay_order_id,
         paymentId: result.razorpay_payment_id,
         signature: result.razorpay_signature,
       });
-      await clearPendingPayment(auth.user.id);
       setPaymentMethod('ONLINE');
       setCompletedBookingId(booking.id);
-    } catch {
-      setPaymentFailure(
-        'Payment status is uncertain. Retry to check your existing payment; do not start another payment.',
-      );
+      setConfirmedBooking(booking);
+      resolution.clear();
+      void clearPendingPayment(auth.user.id).catch(() => undefined);
+    } catch (error) {
+      if (isExplicitPaymentFailure(error)) resolution.failed(previous.order.orderId);
+      else resolution.uncertain(previous.order.orderId);
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   }
 
   async function confirmBooking() {
+    if (submissionLock.current) return;
+    submissionLock.current = true;
+    try {
+      await performConfirmation();
+    } finally {
+      submissionLock.current = false;
+    }
+  }
+
+  async function performConfirmation() {
     if (!lodge || !room) {
       Alert.alert(
         t('Room unavailable', 'खोली उपलब्ध नाही'),
@@ -447,11 +503,14 @@ export function PilgrimCheckoutScreen() {
       try {
         const pendingOrder = await readPendingPayment(auth.user.id);
         if (pendingOrder) {
+          activeOrder.current = pendingOrder;
           const status = await getPaymentStatus(pendingOrder);
           if (status.status === 'CONFIRMED' && status.bookingId) {
-            await clearPendingPayment(auth.user.id);
             setPaymentMethod('ONLINE');
             setCompletedBookingId(status.bookingId);
+            setConfirmedBooking(status.booking ?? null);
+            resolution.clear();
+            void clearPendingPayment(auth.user.id).catch(() => undefined);
           } else if (status.retryCheckout) {
             const previous = status.retryCheckout;
             Alert.alert(
@@ -467,16 +526,14 @@ export function PilgrimCheckoutScreen() {
                 },
               ],
             );
-          } else {
-            const message = status.recoveryRequired
-              ? 'Payment needs operator review. Do not pay again; contact support.'
-              : 'Payment confirmation is pending. Retry to check status; do not pay again.';
-            setPaymentFailure(message);
-            Alert.alert('Payment status', message);
-          }
+          } else resolution.uncertain(pendingOrder);
           return;
         }
       } catch (error) {
+        if (activeOrder.current) {
+          resolution.uncertain(activeOrder.current);
+          return;
+        }
         Alert.alert(
           'Payment status unavailable',
           error instanceof Error ? error.message : 'Please retry before starting another payment.',
@@ -549,6 +606,8 @@ export function PilgrimCheckoutScreen() {
         if (!auth.user?.id) throw new Error('Please sign in again before payment.');
         await rememberPendingPayment(auth.user.id, order.orderId);
         paymentStartedRef.current = true;
+        activeOrder.current = order.orderId;
+        paymentTiming('payment_initiated', order.orderId);
         const result = await RazorpayCheckout.open({
           key: order.keyId,
           amount: order.amount,
@@ -565,6 +624,8 @@ export function PilgrimCheckoutScreen() {
           theme: { color: '#C2410C' },
         });
 
+        paymentTiming('checkout_callback_received', order.orderId);
+        resolution.verifying(order.orderId);
         paymentCaptured = true;
 
         // Only now — after Razorpay confirms the payment went through — does
@@ -589,9 +650,10 @@ export function PilgrimCheckoutScreen() {
           signature: result.razorpay_signature,
         });
         bookingId = booking.id;
+        setConfirmedBooking(booking);
         // The lock is consumed by the confirmed booking; never reuse it.
         prepaidRef.current = null;
-        await clearPendingPayment(auth.user.id);
+        void clearPendingPayment(auth.user.id).catch(() => undefined);
       } else {
         // Make sure a hold released by switching to pay-at-lodge has landed,
         // since the backend counts the guest's own active holds.
@@ -615,7 +677,13 @@ export function PilgrimCheckoutScreen() {
       }
 
       setCompletedBookingId(bookingId);
+      resolution.clear();
     } catch (error) {
+      if (activeOrder.current) {
+        if (isExplicitPaymentFailure(error)) resolution.failed(activeOrder.current);
+        else resolution.uncertain(activeOrder.current);
+        return;
+      }
       if (!paymentCaptured && isRoomFullError(error)) {
         // The room filled up while the guest was booking: show the sad
         // "not available" state back on the stay step instead of an alert.
@@ -633,24 +701,35 @@ export function PilgrimCheckoutScreen() {
     }
   }
 
-  if (completedBookingId || paymentFailure) {
+  if (completedBookingId || paymentFailure || resolution.state) {
     return (
       <BookingOutcomeScreen
         success={Boolean(completedBookingId)}
-        busy={submitting}
+        busy={submitting && resolution.state?.phase !== 'PENDING'}
+        pending={
+          !completedBookingId && Boolean(resolution.state && resolution.state.phase !== 'FAILED')
+        }
+        booking={confirmedBooking}
+        continueLabel={
+          !completedBookingId && resolution.retryCheckout ? 'Resume previous checkout' : undefined
+        }
         title={
           completedBookingId
             ? paymentMethod === 'ONLINE'
-              ? 'Booking confirmed!'
+              ? 'Payment successful'
               : 'Booking request sent'
-            : 'Payment needs attention'
+            : resolution.state?.phase === 'FAILED'
+              ? 'Payment failed'
+              : resolution.state
+                ? 'Payment verification pending'
+                : 'Booking needs attention'
         }
         message={
           completedBookingId
             ? paymentMethod === 'ONLINE'
               ? 'Your payment is verified and your stay is confirmed. Your booking details are ready.'
               : 'Your request is with the lodge owner for approval.'
-            : (paymentFailure ?? '')
+            : (resolution.state?.message ?? paymentFailure ?? '')
         }
         onContinue={() => {
           if (completedBookingId)
@@ -658,9 +737,19 @@ export function PilgrimCheckoutScreen() {
               pathname: '/(app)/bookings/[id]',
               params: { id: completedBookingId },
             });
+          else if (resolution.retryCheckout) void resumePayment(resolution.retryCheckout);
+          else if (resolution.state?.phase === 'PENDING' || resolution.state?.phase === 'VERIFYING')
+            resolution.retry();
           else void confirmBooking();
         }}
-        onBack={completedBookingId ? undefined : () => setPaymentFailure(null)}
+        onBack={
+          completedBookingId
+            ? undefined
+            : () => {
+                setPaymentFailure(null);
+                resolution.clear();
+              }
+        }
       />
     );
   }

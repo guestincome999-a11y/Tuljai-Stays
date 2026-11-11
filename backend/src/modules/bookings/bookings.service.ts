@@ -38,6 +38,7 @@ import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingHistoryService } from './booking-history.service';
 import { calculateStayPrice } from './booking-pricing';
 import { recordCashCollection, withCashCollection } from './cash-collection';
+import { enqueueBookingConfirmation } from './confirmation-outbox';
 import type {
   AdminBookingsQueryDto,
   CancelBookingDto,
@@ -401,6 +402,7 @@ export class BookingsService {
 
     const totalAmount = lock.orderAmount.toNumber();
 
+    const transactionStarted = performance.now();
     let createdNow = false;
     const booking = await this.prisma.$transaction(async (tx) => {
       await lockInventory(tx, lock.roomTypeId);
@@ -542,25 +544,18 @@ export class BookingsService {
           entityType: 'booking',
         },
       });
+      await enqueueBookingConfirmation(tx, created.id, created.guestEmail);
       createdNow = true;
       return created;
     });
 
-    if (!createdNow) return this.toBooking(booking);
-    // Persist independent post-commit notification streams concurrently.
-    await Promise.all([
-      this.notificationEventsService
-        .bookingAccepted(booking.id)
-        .catch(() =>
-          this.logger.warn('Booking notification failed; committed state remains available'),
-        ),
-      this.notificationEventsService
-        .prepaidBookingConfirmed(booking.id)
-        .catch(() =>
-          this.logger.warn('Booking notification failed; committed state remains available'),
-        ),
-    ]);
-
+    this.logger.log({
+      operation: 'booking_transaction_completed',
+      bookingId: booking.id,
+      durationMs: Math.round(performance.now() - transactionStarted),
+      replayed: !createdNow,
+    });
+    if (createdNow) this.notificationEventsService.bookingCommitted(booking);
     return this.toBooking(booking);
   }
 
@@ -1063,6 +1058,7 @@ export class BookingsService {
         },
       });
 
+      await enqueueBookingConfirmation(tx, updated.id, updated.guestEmail);
       return updated;
     });
 
@@ -1072,7 +1068,7 @@ export class BookingsService {
       entityId: id,
       entityType: 'booking',
     });
-    await this.notificationEventsService.bookingAccepted(id);
+    this.notificationEventsService.bookingCommitted(booking);
 
     return this.toBooking(booking, this.shouldMaskContactForUser(booking, user));
   }
@@ -1178,6 +1174,7 @@ export class BookingsService {
       throw new BadRequestException('This status cannot be set manually');
     }
 
+    if (dto.status === 'ACCEPTED') return this.acceptBooking(id, user);
     const existing = await this.findBookingOrThrow(id);
     if (existing.status === 'CANCELLED')
       throw new BadRequestException('Cancelled bookings cannot be reactivated');

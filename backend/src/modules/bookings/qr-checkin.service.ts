@@ -1,4 +1,11 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto';
 
 import {
   BadRequestException,
@@ -106,6 +113,15 @@ export class QrCheckinService {
           1000,
     );
     const qrToken = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId}::uuid FOR UPDATE`;
+      const current = await tx.booking.findUniqueOrThrow({ where: { id: bookingId } });
+      if (current.deletedAt || current.status !== 'ACCEPTED')
+        throw new ConflictException('Booking changed; use the existing booking pass');
+      const existing = await tx.bookingQrToken.findFirst({
+        where: { bookingId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
+      });
+      if (existing)
+        throw new ConflictException('An active QR token already exists for this booking');
       await tx.bookingQrToken.updateMany({
         data: { status: 'REVOKED' },
         where: {
@@ -158,6 +174,7 @@ export class QrCheckinService {
   public async getQrMetadata(
     bookingId: string,
     user: AuthenticatedUser,
+    opaque = false,
   ): Promise<QrDisplayPayload> {
     const booking = await this.findBookingForQrOrThrow(bookingId);
 
@@ -182,14 +199,17 @@ export class QrCheckinService {
       bookingCode: booking.bookingCode,
       bookingId,
       expiresAt: qrToken.expiresAt.toISOString(),
-      qrPayload: this.signQrDisplayPayload({
-        bookingCode: booking.bookingCode,
-        bookingId,
-        expiresAt: qrToken.expiresAt.toISOString(),
-        qrTokenId: qrToken.id,
-        tokenVersion: qrToken.tokenVersion,
-        version: 1,
-      }),
+      qrPayload: this.signQrDisplayPayload(
+        {
+          bookingCode: booking.bookingCode,
+          bookingId,
+          expiresAt: qrToken.expiresAt.toISOString(),
+          qrTokenId: qrToken.id,
+          tokenVersion: qrToken.tokenVersion,
+          version: 1,
+        },
+        opaque || this.configService.get<boolean>('api.booking.qrOpaqueEnabled', false),
+      ),
       status: qrToken.status,
       tokenVersion: qrToken.tokenVersion,
     };
@@ -222,10 +242,13 @@ export class QrCheckinService {
       throw new BadRequestException('Invalid QR token');
     }
 
-    if (qrToken.status === 'USED' || qrToken.usedAt) {
+    // Authorization precedes replay handling; a used token never grants access.
+    try {
+      await this.lodgeAccessService.assertCanManageLodge(user, qrToken.booking.lodgeId);
+    } catch {
       await this.logScanFailure(
-        'USED',
-        'QR token has already been used',
+        'UNAUTHORIZED',
+        'User cannot scan this lodge QR',
         user,
         context,
         qrToken.bookingId,
@@ -233,7 +256,15 @@ export class QrCheckinService {
         qrToken.booking.lodgeId,
       );
       this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
-      throw new ConflictException('QR token has already been used');
+      throw new ForbiddenException('You cannot scan this QR code');
+    }
+    if (dto.idempotencyKey && dto.idempotencyKey !== `checkin.${qrToken.id}`) {
+      throw new BadRequestException('Invalid check-in idempotency key');
+    }
+    if (qrToken.booking.deletedAt) throw new NotFoundException('Booking not found');
+    if (qrToken.booking.status === 'CANCELLED') throw new BadRequestException('Booking cancelled');
+    if (qrToken.status === 'USED' || qrToken.usedAt) {
+      return this.existingCheckinResult(qrToken, user);
     }
 
     if (qrToken.status !== 'ACTIVE') {
@@ -268,22 +299,6 @@ export class QrCheckinService {
       throw new BadRequestException('QR token has expired');
     }
 
-    try {
-      await this.lodgeAccessService.assertCanManageLodge(user, qrToken.booking.lodgeId);
-    } catch {
-      await this.logScanFailure(
-        'UNAUTHORIZED',
-        'User cannot scan this lodge QR',
-        user,
-        context,
-        qrToken.bookingId,
-        qrToken.id,
-        qrToken.booking.lodgeId,
-      );
-      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
-      throw new ForbiddenException('You cannot scan this QR code');
-    }
-
     if (!['ACCEPTED', 'QR_GENERATED'].includes(qrToken.booking.status)) {
       await this.logScanFailure(
         'INVALID_STATUS',
@@ -316,86 +331,135 @@ export class QrCheckinService {
     const previousBookingStatus = qrToken.booking.status;
     const assignedRoomId = qrToken.booking.roomId;
     const assignedRoomStatus = qrToken.booking.room.status;
-    const updatedBooking = await this.prisma.$transaction(async (tx) => {
-      await tx.bookingQrToken.update({
-        data: {
-          scanIpAddress: context.ipAddress,
-          scanUserAgent: context.userAgent,
-          status: 'USED',
-          usedAt: checkedInAt,
-          usedByUserId: user.id,
-          usedDeviceId: dto.deviceId ?? context.deviceId,
-        },
-        where: { id: qrToken.id },
-      });
-      const booking = await tx.booking.update({
-        data: {
-          checkedInAt,
-          status: 'CHECKED_IN',
-        },
-        include: {
-          city: true,
-          guests: { where: { deletedAt: null } },
-          lodge: true,
-          room: true,
-          roomType: true,
-        },
-        where: { id: qrToken.bookingId },
-      });
-      await tx.room.update({
-        data: { status: 'OCCUPIED' },
-        where: { id: assignedRoomId },
-      });
-      await tx.roomStatusHistory.create({
-        data: {
-          actorUserId: user.id,
-          bookingId: qrToken.bookingId,
-          fromStatus: assignedRoomStatus,
-          reason: 'QR_CHECK_IN',
-          roomId: assignedRoomId,
-          toStatus: 'OCCUPIED',
-        },
-      });
-      await tx.bookingHistory.create({
-        data: {
-          action: 'BOOKING_CHECKED_IN_BY_QR',
-          actorUserId: user.id,
-          bookingId: qrToken.bookingId,
-          fromStatus: previousBookingStatus,
-          metadata: { qrTokenId: qrToken.id },
-          toStatus: 'CHECKED_IN',
-        },
-      });
-      await tx.qrScanLog.create({
-        data: {
-          bookingId: qrToken.bookingId,
-          deviceId: dto.deviceId ?? context.deviceId,
-          ipAddress: context.ipAddress,
-          lodgeId: qrToken.booking.lodgeId,
-          qrTokenId: qrToken.id,
-          result: 'SUCCESS',
-          scannedByUserId: user.id,
-          userAgent: context.userAgent,
-        },
-      });
+    let replayed = false;
+    const register = await this.prisma
+      .$transaction(async (tx) => {
+        const claimed = await tx.bookingQrToken.updateMany({
+          data: {
+            scanIpAddress: context.ipAddress,
+            scanUserAgent: context.userAgent,
+            status: 'USED',
+            usedAt: checkedInAt,
+            usedByUserId: user.id,
+            usedDeviceId: dto.deviceId ?? context.deviceId,
+          },
+          where: { id: qrToken.id, status: 'ACTIVE', usedAt: null, expiresAt: { gt: checkedInAt } },
+        });
+        if (claimed.count !== 1)
+          throw new ConflictException('QR token has already been used or is no longer active');
+        const bookingClaim = await tx.booking.updateMany({
+          data: {
+            checkedInAt,
+            status: 'CHECKED_IN',
+          },
+          where: {
+            id: qrToken.bookingId,
+            status: { in: ['ACCEPTED', 'QR_GENERATED'] },
+            roomId: assignedRoomId,
+            deletedAt: null,
+          },
+        });
+        if (bookingClaim.count !== 1)
+          throw new ConflictException('Booking status or room assignment changed; scan again');
+        const booking = await tx.booking.findUniqueOrThrow({
+          include: {
+            city: true,
+            guests: { where: { deletedAt: null } },
+            lodge: true,
+            room: true,
+            roomType: true,
+          },
+          where: { id: qrToken.bookingId },
+        });
+        await tx.room.update({
+          data: { status: 'OCCUPIED' },
+          where: { id: assignedRoomId },
+        });
+        await tx.roomStatusHistory.create({
+          data: {
+            actorUserId: user.id,
+            bookingId: qrToken.bookingId,
+            fromStatus: assignedRoomStatus,
+            reason: 'QR_CHECK_IN',
+            roomId: assignedRoomId,
+            toStatus: 'OCCUPIED',
+          },
+        });
+        await tx.bookingHistory.create({
+          data: {
+            action: 'BOOKING_CHECKED_IN_BY_QR',
+            actorUserId: user.id,
+            bookingId: qrToken.bookingId,
+            fromStatus: previousBookingStatus,
+            metadata: { qrTokenId: qrToken.id },
+            toStatus: 'CHECKED_IN',
+          },
+        });
+        await tx.qrScanLog.create({
+          data: {
+            bookingId: qrToken.bookingId,
+            deviceId: dto.deviceId ?? context.deviceId,
+            ipAddress: context.ipAddress,
+            lodgeId: qrToken.booking.lodgeId,
+            qrTokenId: qrToken.id,
+            result: 'SUCCESS',
+            scannedByUserId: user.id,
+            userAgent: context.userAgent,
+          },
+        });
 
-      return booking;
-    });
-    const register = await this.guestRegisterService.createFromBooking({
-      actorUserId: user.id,
-      booking: updatedBooking,
-      qrTokenId: qrToken.id,
-    });
-    await this.notificationEventsService.checkinCompleted(
-      qrToken.bookingId,
-      qrToken.booking.lodgeId,
-      user.id,
-    );
+        return this.guestRegisterService.createFromBooking(
+          {
+            actorUserId: user.id,
+            booking,
+            qrTokenId: qrToken.id,
+          },
+          tx,
+        );
+      })
+      .catch(async (error: unknown) => {
+        // A competing device may have committed while our conditional claim waited.
+        // Return the committed register rather than repeating any transition/history.
+        if (error instanceof ConflictException) {
+          const fresh = await this.resolveQrTokenFromScanDto(dto);
+          if (fresh?.status === 'USED' && fresh.booking.status === 'CHECKED_IN') {
+            replayed = true;
+            return (await this.existingCheckinResult(fresh, user)).register;
+          }
+        }
+        throw error;
+      });
+    if (!replayed)
+      await this.notificationEventsService.checkinCompleted(
+        qrToken.bookingId,
+        qrToken.booking.lodgeId,
+        user.id,
+      );
 
     return {
       booking: await this.bookingsService.getOwnerUnlockedBookingView(qrToken.bookingId, user),
       register,
-      scanResult: 'SUCCESS',
+      scanResult: replayed ? 'USED' : 'SUCCESS',
+    };
+  }
+
+  private async existingCheckinResult(
+    qrToken: QrTokenWithBooking,
+    user: AuthenticatedUser,
+  ): Promise<CheckInResponse> {
+    await this.lodgeAccessService.assertCanManageLodge(user, qrToken.booking.lodgeId);
+    if (qrToken.booking.status !== 'CHECKED_IN' || qrToken.booking.deletedAt) {
+      throw new BadRequestException('Booking is not currently checked in');
+    }
+    const register = await this.prisma.guestRegister.findUnique({
+      where: { bookingId: qrToken.bookingId },
+    });
+    if (!register || register.deletedAt)
+      throw new ConflictException('Check-in register is not ready; retry');
+    return {
+      booking: await this.bookingsService.getOwnerUnlockedBookingView(qrToken.bookingId, user),
+      register: await this.guestRegisterService.getRegister(register.id, user, false),
+      scanResult: 'USED',
     };
   }
 
@@ -496,31 +560,37 @@ export class QrCheckinService {
   }
 
   private async ensureActiveQrToken(booking: BookingForQr): Promise<BookingQrToken> {
-    const now = new Date();
-    const activeToken = await this.prisma.bookingQrToken.findFirst({
-      orderBy: { createdAt: 'desc' },
-      where: {
-        bookingId: booking.id,
-        expiresAt: { gt: now },
-        status: 'ACTIVE',
-      },
-    });
+    // Serialize in-app/email requests on the same booking; re-read after taking the lock.
+    let createdNow = false;
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${booking.id}::uuid FOR UPDATE`;
+      const fresh = await tx.booking.findUniqueOrThrow({ where: { id: booking.id } });
+      if (fresh.deletedAt || !['ACCEPTED', 'QR_GENERATED'].includes(fresh.status))
+        throw new BadRequestException('QR is available only for accepted bookings');
+      const now = new Date();
+      const activeToken = await tx.bookingQrToken.findFirst({
+        orderBy: { createdAt: 'desc' },
+        where: {
+          bookingId: booking.id,
+          expiresAt: { gt: now },
+          status: 'ACTIVE',
+        },
+      });
 
-    if (activeToken) return activeToken;
+      if (activeToken) return activeToken;
 
-    const defaultTtlSeconds = this.configService.get<number>(
-      'api.booking.qrTokenTtlSeconds',
-      86400,
-    );
-    const endOfStay = new Date(booking.checkOutDate);
-    endOfStay.setUTCHours(23, 59, 59, 999);
-    const expiresAt = new Date(
-      Math.max(now.getTime() + defaultTtlSeconds * 1000, endOfStay.getTime()),
-    );
-    const rawToken = randomBytes(32).toString('base64url');
-    const action = booking.status === 'ACCEPTED' ? 'QR_GENERATED' : 'QR_REISSUED';
+      const defaultTtlSeconds = this.configService.get<number>(
+        'api.booking.qrTokenTtlSeconds',
+        86400,
+      );
+      const endOfStay = new Date(booking.checkOutDate);
+      endOfStay.setUTCHours(23, 59, 59, 999);
+      const expiresAt = new Date(
+        Math.max(now.getTime() + defaultTtlSeconds * 1000, endOfStay.getTime()),
+      );
+      const rawToken = randomBytes(32).toString('base64url');
+      const action = booking.status === 'ACCEPTED' ? 'QR_GENERATED' : 'QR_REISSUED';
 
-    const created = await this.prisma.$transaction(async (tx) => {
       await tx.bookingQrToken.updateMany({
         data: { status: 'EXPIRED' },
         where: {
@@ -553,18 +623,20 @@ export class QrCheckinService {
         },
       });
 
+      await tx.auditLog.create({
+        data: {
+          action,
+          entityId: booking.id,
+          entityType: 'booking',
+          metadata: { qrTokenId: token.id },
+        },
+      });
+      createdNow = true;
       return token;
     });
-
-    await this.auditLogService.create({
-      action,
-      entityId: booking.id,
-      entityType: 'booking',
-      metadata: { qrTokenId: created.id },
-    });
-    await this.notificationEventsService.qrGenerated(booking.id);
-
-    return created;
+    if (createdNow)
+      void this.notificationEventsService.qrGenerated(booking.id).catch(() => undefined);
+    return result;
   }
 
   private hashToken(token: string): string {
@@ -619,7 +691,18 @@ export class QrCheckinService {
     });
   }
 
-  private signQrDisplayPayload(body: SignedQrPayloadBody): string {
+  private signQrDisplayPayload(body: SignedQrPayloadBody, opaque = false): string {
+    // v1 remains readable during owner-app rollout. v2 hides all internal IDs and PII.
+    if (opaque) {
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', this.qrEncryptionKey(), iv);
+      cipher.setAAD(Buffer.from('tjsqr.v2'));
+      const encrypted = Buffer.concat([
+        cipher.update(JSON.stringify(body), 'utf8'),
+        cipher.final(),
+      ]);
+      return `tjsqr.v2.${iv.toString('base64url')}.${encrypted.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}`;
+    }
     const encodedBody = Buffer.from(JSON.stringify(body), 'utf8').toString('base64url');
     const signature = this.signEncodedQrBody(encodedBody);
 
@@ -627,6 +710,32 @@ export class QrCheckinService {
   }
 
   private verifyQrDisplayPayload(qrPayload: string): SignedQrPayloadBody | null {
+    if (qrPayload.startsWith('tjsqr.v2.')) {
+      if (qrPayload.length > 1800) return null;
+      try {
+        const parts = qrPayload.split('.');
+        if (parts.length !== 5) return null;
+        const decipher = createDecipheriv(
+          'aes-256-gcm',
+          this.qrEncryptionKey(),
+          Buffer.from(parts[2]!, 'base64url'),
+        );
+        decipher.setAAD(Buffer.from('tjsqr.v2'));
+        decipher.setAuthTag(Buffer.from(parts[4]!, 'base64url'));
+        const parsed: unknown = JSON.parse(
+          Buffer.concat([
+            decipher.update(Buffer.from(parts[3]!, 'base64url')),
+            decipher.final(),
+          ]).toString('utf8'),
+        );
+        return this.isSignedQrPayloadBody(parsed) &&
+          new Date(parsed.expiresAt).getTime() > Date.now()
+          ? parsed
+          : null;
+      } catch {
+        return null;
+      }
+    }
     const [prefix, version, encodedBody, signature] = qrPayload.split('.');
 
     if (prefix !== 'tjsqr' || version !== 'v1' || !encodedBody || !signature) {
@@ -658,6 +767,13 @@ export class QrCheckinService {
 
   private signEncodedQrBody(encodedBody: string): string {
     return createHmac('sha256', this.getQrPayloadSecret()).update(encodedBody).digest('base64url');
+  }
+
+  private qrEncryptionKey(): Buffer {
+    return createHash('sha256')
+      .update('tuljai:qr:encryption:v2:')
+      .update(this.getQrPayloadSecret())
+      .digest();
   }
 
   private getQrPayloadSecret(): string {

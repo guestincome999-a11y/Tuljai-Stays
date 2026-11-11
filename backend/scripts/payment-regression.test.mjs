@@ -23,6 +23,153 @@ const { HttpExceptionFilter } = require('../src/shared/filters/http-exception.fi
 const date = (value) => new Date(`${value}T00:00:00.000Z`);
 const user = { id: 'pilgrim', roles: ['PILGRIM'], isActive: true, phoneNumber: null };
 
+test('replaying a captured legacy payment preserves a later cancellation and sends no new alerts', async () => {
+  const booking = {
+    id: 'booking',
+    bookingCode: 'TJS-TEST',
+    cityId: 'city',
+    lodgeId: 'lodge',
+    roomTypeId: 'type',
+    totalAmount: 100,
+    status: 'CANCELLED',
+  };
+  const service = new PaymentsService(
+    {},
+    {},
+    {
+      booking: { findFirst: async () => booking },
+      $queryRaw: async () => [
+        { id: 'collection', status: 'PAID', provider_order_id: 'order_test' },
+      ],
+      $transaction: async (fn) =>
+        fn({
+          $queryRaw: async () => [],
+          booking: {
+            findUniqueOrThrow: async () => ({
+              ...booking,
+              paymentStatus: 'FULLY_PAID',
+              roomId: 'room',
+            }),
+          },
+        }),
+      paymentIntent: { updateMany: async () => ({ count: 1 }) },
+    },
+    {
+      verifyPayment: async () => ({ verified: true }),
+      getPayment: async () => ({
+        id: 'pay_test',
+        order_id: 'order_test',
+        amount: 10000,
+        currency: 'INR',
+        captured: true,
+        status: 'captured',
+      }),
+    },
+    { successful: () => assert.fail('replay must not notify') },
+    { bookingCommitted: () => assert.fail('replay must not publish acceptance') },
+  );
+  assert.equal(
+    (
+      await service.verifyBookingPayment(booking.id, user.id, {
+        orderId: 'order_test',
+        paymentId: 'pay_test',
+        signature: 'synthetic',
+      })
+    ).status,
+    'CANCELLED',
+  );
+});
+
+test(
+  'authoritative confirmation returns without waiting for notification delivery',
+  { timeout: 2000 },
+  async () => {
+    const intent = {
+      id: 'intent',
+      status: 'PENDING',
+      pilgrimUserId: user.id,
+      lockCode: 'lock',
+      guestDetails: { lockCode: 'lock' },
+      amount: 100,
+      currency: 'INR',
+    };
+    let notifications = 0;
+    const service = new PaymentsService(
+      {},
+      { createPrepaidBooking: async () => ({ id: 'confirmed-booking', status: 'ACCEPTED' }) },
+      { paymentIntent: { findUnique: async () => intent } },
+      {
+        verifyPayment: async () => ({ verified: true }),
+        getPayment: async () => ({
+          id: 'pay_test',
+          order_id: 'order_test',
+          amount: 10000,
+          currency: 'INR',
+          captured: true,
+          status: 'captured',
+        }),
+      },
+      {
+        successful: async () => {
+          notifications++;
+          await new Promise(() => {});
+        },
+      },
+      {},
+    );
+    const booking = await service.confirmPrepaidBooking(
+      { lockCode: 'lock', paymentMethod: 'ONLINE' },
+      user,
+      { orderId: 'order_test', paymentId: 'pay_test', signature: 'synthetic' },
+    );
+    assert.equal(booking.id, 'confirmed-booking');
+    assert.equal(notifications, 0);
+  },
+);
+
+test(
+  'webhook acknowledges durable intake while the authoritative gateway read is still pending',
+  { timeout: 2000 },
+  async () => {
+    let persisted = false;
+    const service = new PaymentsService(
+      {},
+      {},
+      {
+        $transaction: async (fn) =>
+          fn({
+            paymentWebhookEvent: {
+              createMany: async () => {
+                persisted = true;
+                return { count: 1 };
+              },
+            },
+            paymentIntent: { updateMany: async () => ({ count: 1 }) },
+          }),
+        paymentIntent: { findUnique: async () => ({ status: 'PENDING' }) },
+      },
+      {
+        verifyWebhook: () => true,
+        getOrderPayments: async () => new Promise(() => {}),
+      },
+      {},
+      {},
+    );
+    const result = await service.receiveWebhook(
+      Buffer.from(
+        JSON.stringify({
+          event: 'payment.authorized',
+          payload: { payment: { entity: { id: 'pay_test', order_id: 'order_test' } } },
+        }),
+      ),
+      'synthetic',
+      'event_authorized',
+    );
+    assert.equal(persisted, true);
+    assert.equal(result.received, true);
+  },
+);
+
 test('cancellation validation errors are actionable while internal errors only expose a support reference', () => {
   assert.equal(
     getApiErrorMessage(
@@ -245,7 +392,16 @@ test('a simultaneous unauthorized callback cannot join another users in-flight w
       return { verified: false };
     },
   };
-  const prisma = { $queryRaw: async () => [{ booking_id: 'original' }] };
+  const prisma = {
+    paymentIntent: {
+      findUnique: async () => ({
+        status: 'CONFIRMED',
+        bookingId: 'original',
+        pilgrimUserId: user.id,
+        providerPaymentId: 'pay_test',
+      }),
+    },
+  };
   const bookings = { getBookingById: async () => ({ id: 'original' }) };
   const service = new PaymentsService({}, bookings, prisma, provider, {}, {});
   const first = service.confirmPrepaidBooking({ paymentMethod: 'ONLINE' }, user, {
@@ -295,7 +451,10 @@ test('confirmation survives another instance committing while the gateway read i
   };
   const prisma = {
     $queryRaw: async () => [],
-    paymentIntent: { findUniqueOrThrow: async () => intent },
+    paymentIntent: {
+      findUnique: async () => ({ ...intent, status: 'PENDING' }),
+      findUniqueOrThrow: async () => ({ ...intent, providerPaymentId: 'pay_test' }),
+    },
   };
   const provider = {
     verifyPayment: async () => ({ verified: true }),

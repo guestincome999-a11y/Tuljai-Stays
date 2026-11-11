@@ -4,6 +4,11 @@ import { AppState } from 'react-native';
 const cache = new Map<string, unknown>();
 const activeRefreshers = new Set<() => Promise<void>>();
 
+/** Prime the detail screen with the authoritative mutation response. */
+export function seedCached<T>(key: string, value: T): void {
+  cache.set(key, value);
+}
+
 /** Refreshes every fetch currently on screen. Used by pull-to-refresh. */
 export async function refreshAllCached(): Promise<void> {
   await Promise.all([...activeRefreshers].map((refresh) => refresh()));

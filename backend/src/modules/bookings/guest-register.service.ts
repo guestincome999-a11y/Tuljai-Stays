@@ -48,12 +48,15 @@ export class GuestRegisterService {
     private readonly prisma: PrismaService,
   ) {}
 
-  public async createFromBooking(input: {
-    actorUserId: string;
-    booking: BookingForRegister;
-    qrTokenId: string;
-  }): Promise<GuestRegister> {
-    const register = await this.prisma.guestRegister.upsert({
+  public async createFromBooking(
+    input: {
+      actorUserId: string;
+      booking: BookingForRegister;
+      qrTokenId: string;
+    },
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<GuestRegister> {
+    const register = await tx.guestRegister.upsert({
       create: {
         alternatePhone: input.booking.alternatePhone,
         bookingCode: input.booking.bookingCode,
@@ -70,7 +73,7 @@ export class GuestRegisterService {
         primaryGuestName: input.booking.guestName,
         primaryGuestPhone: input.booking.guestPhone,
         qrTokenId: input.qrTokenId,
-        registerCode: await this.generateRegisterCode(),
+        registerCode: `REG-${input.booking.id}`,
         roomId: input.booking.roomId,
         roomTypeId: input.booking.roomTypeId,
         totalGuests: input.booking.totalGuests,
@@ -82,7 +85,13 @@ export class GuestRegisterService {
       },
       where: { bookingId: input.booking.id },
     });
-    await this.createRegisterAuditLog(register.id, input.actorUserId, 'REGISTER_CREATED');
+    await tx.registerAuditLog.create({
+      data: {
+        guestRegisterId: register.id,
+        actorUserId: input.actorUserId,
+        action: 'REGISTER_CREATED',
+      },
+    });
 
     return this.toGuestRegister(register);
   }
@@ -104,10 +113,14 @@ export class GuestRegisterService {
     return this.listRegisters(query);
   }
 
-  public async getRegister(id: string, user: AuthenticatedUser): Promise<GuestRegister> {
+  public async getRegister(
+    id: string,
+    user: AuthenticatedUser,
+    auditView = true,
+  ): Promise<GuestRegister> {
     const register = await this.findRegisterOrThrow(id);
     await this.lodgeAccessService.assertCanManageLodge(user, register.lodgeId);
-    await this.createRegisterAuditLog(id, user.id, 'DETAILS_VIEWED');
+    if (auditView) await this.createRegisterAuditLog(id, user.id, 'DETAILS_VIEWED');
 
     return this.toGuestRegister(register);
   }
@@ -291,13 +304,6 @@ export class GuestRegisterService {
     }
 
     return register;
-  }
-
-  private async generateRegisterCode(): Promise<string> {
-    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const count = await this.prisma.guestRegister.count();
-
-    return `REG-${datePart}-${String(count + 1).padStart(6, '0')}`;
   }
 
   private async listRegisters(

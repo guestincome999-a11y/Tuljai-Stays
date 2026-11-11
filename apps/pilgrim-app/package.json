@@ -10,7 +10,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint .",
+    "build": "expo export --platform android --output-dir dist/production",
     "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/*.test.mjs",
     "test:checkout": "node --test scripts/checkout-outcome.test.mjs",
     "test:notifications": "node --test --test-name-pattern=Pilgrim ../../backend/scripts/notification-sync.test.mjs"
   },

@@ -228,6 +228,38 @@ export default function AdminBookingDetailPage({ params }: { params: Promise<{ i
               primaryGuest={primaryGuest}
             />
             <PaymentPanel booking={booking} />
+            <FinPanel
+              title="Booking confirmation email"
+              sub="Sent means accepted by the email provider"
+            >
+              <FinKv
+                rows={[
+                  { label: 'Status', value: booking.emailDelivery?.status ?? 'Not queued' },
+                  {
+                    label: 'Recipient',
+                    value: booking.emailDelivery?.recipient ?? 'No email provided',
+                  },
+                  { label: 'Attempts', value: String(booking.emailDelivery?.attempts ?? 0) },
+                  {
+                    label: 'Last attempt',
+                    value: booking.emailDelivery?.lastAttemptAt
+                      ? formatDate(booking.emailDelivery.lastAttemptAt)
+                      : '—',
+                  },
+                  {
+                    label: 'Accepted at',
+                    value: booking.emailDelivery?.sentAt
+                      ? formatDate(booking.emailDelivery.sentAt)
+                      : '—',
+                  },
+                  { label: 'Last error', value: booking.emailDelivery?.lastError ?? '—' },
+                  {
+                    label: 'Provider reference',
+                    value: booking.emailDelivery?.providerMessageId ?? '—',
+                  },
+                ]}
+              />
+            </FinPanel>
             <TimelinePanel booking={booking} />
           </div>
 

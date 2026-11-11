@@ -11,6 +11,7 @@ import type { AuthenticatedUser, Booking } from '@tuljai/types';
 
 import { BookingLocksService } from '../bookings/booking-locks.service';
 import { BookingsService } from '../bookings/bookings.service';
+import { enqueueBookingConfirmation } from '../bookings/confirmation-outbox';
 import type { CreateBookingDto, CreateBookingLockDto } from '../bookings/dto/booking.dto';
 import { lockInventory } from '../bookings/inventory-lock';
 import { NotificationEventsService } from '../notifications/notification-events.service';
@@ -76,6 +77,31 @@ export class PaymentsService {
   }
 
   public async createBookingOrder(bookingId: string, pilgrimUserId: string) {
+    await this.assertOnlinePaymentsEnabled();
+    const initial = await this.prisma.booking.findFirst({
+      where: { id: bookingId, pilgrimUserId, deletedAt: null },
+      select: { status: true, totalAmount: true, bookingCode: true },
+    });
+    if (!initial) throw new NotFoundException('Booking not found');
+    if (initial.status !== 'PENDING_OWNER_APPROVAL')
+      throw new BadRequestException('This booking is not waiting for online payment');
+    const priorCollections = await this.prisma.$queryRaw<
+      Array<{ provider_order_id: string | null }>
+    >`
+      SELECT provider_order_id FROM payment_collections WHERE booking_id = ${bookingId}::uuid AND method = 'ONLINE' ORDER BY created_at DESC LIMIT 1`;
+    const preparedOrder = priorCollections[0]?.provider_order_id
+      ? null
+      : await createIdempotentPaymentOrder(
+          this.prisma,
+          this.razorpayProvider,
+          `booking:${bookingId}`,
+          {
+            amount: Math.round(Number(initial.totalAmount) * 100),
+            bookingId,
+            currency: 'INR',
+            receipt: initial.bookingCode,
+          },
+        );
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId}::uuid AND pilgrim_user_id = ${pilgrimUserId}::uuid FOR UPDATE`;
@@ -126,17 +152,9 @@ export class PaymentsService {
           };
         }
 
-        const order = await createIdempotentPaymentOrder(
-          this.prisma,
-          this.razorpayProvider,
-          `booking:${bookingId}`,
-          {
-            amount: amountPaise,
-            bookingId,
-            currency: 'INR',
-            receipt: booking.bookingCode,
-          },
-        );
+        const order = preparedOrder;
+        if (!order || order.amount !== amountPaise)
+          throw new ConflictException('Booking price changed; refresh checkout before payment');
 
         if (existing[0]?.id) {
           await tx.$executeRaw`
@@ -259,11 +277,12 @@ export class PaymentsService {
       where: { providerOrderId: orderId, pilgrimUserId: user.id },
     });
     if (!intent) throw new NotFoundException('Payment intent not found');
-    await this.reconcileOrder(orderId);
+    const payments =
+      intent.status === 'PENDING' ? await this.razorpayProvider.getOrderPayments(orderId) : [];
+    await this.reconcileOrder(orderId, payments);
     const latest = await this.prisma.paymentIntent.findUniqueOrThrow({ where: { id: intent.id } });
     let retryCheckout = null;
     if (latest.status === 'PENDING' && latest.guestDetails && !latest.bookingId) {
-      const payments = await this.razorpayProvider.getOrderPayments(orderId);
       const lock = await this.prisma.bookingLock.findFirst({
         where: {
           lockCode: latest.lockCode,
@@ -311,6 +330,14 @@ export class PaymentsService {
     }
     return {
       status: latest.status,
+      gatewayStatus:
+        payments.find((p) => p.status === 'captured')?.status ??
+        payments.find((p) => p.status === 'authorized')?.status ??
+        (payments.length && payments.every((p) => p.status === 'failed') ? 'failed' : 'pending'),
+      booking:
+        latest.status === 'CONFIRMED' && latest.bookingId
+          ? await this.bookingsService.getBookingById(latest.bookingId, user)
+          : null,
       bookingId: latest.bookingId,
       recoveryRequired: latest.status === 'RECOVERY_REQUIRED',
       retryCheckout,
@@ -388,7 +415,11 @@ export class PaymentsService {
         parsed as Parameters<RefundsService['receiveEvent']>[1],
       );
     }
-    if (!['payment.captured', 'order.paid', 'payment.failed'].includes(event.event ?? ''))
+    if (
+      !['payment.authorized', 'payment.captured', 'order.paid', 'payment.failed'].includes(
+        event.event ?? '',
+      )
+    )
       return { received: true };
     const payment = event.payload?.payment?.entity;
     if (
@@ -400,9 +431,15 @@ export class PaymentsService {
       payment.order_id.length > 100
     )
       throw new BadRequestException('Missing payment reference');
+    this.logger.log({
+      operation: 'webhook_received',
+      eventId,
+      event: event.event,
+      orderId: payment.order_id,
+    });
     // Store only references, never the full payload (which contains contact/card data).
-    await this.prisma.$transaction(async (tx) => {
-      await tx.paymentWebhookEvent.createMany({
+    const accepted = await this.prisma.$transaction(async (tx) => {
+      const inserted = await tx.paymentWebhookEvent.createMany({
         skipDuplicates: true,
         data: {
           id: eventId,
@@ -411,6 +448,7 @@ export class PaymentsService {
           providerPaymentId: payment.id!,
         },
       });
+      if (inserted?.count === 0) return false;
       await tx.paymentIntent.updateMany({
         where: { providerOrderId: payment.order_id, status: 'PENDING' },
         data: { nextCheckAt: new Date() },
@@ -426,17 +464,25 @@ export class PaymentsService {
             AND r.status IN ('NOT_REQUIRED','PENDING') AND r.eligible_amount>0 AND r.captured_amount IS NULL
             AND NOT EXISTS (SELECT 1 FROM refund_attempts a WHERE a.refund_id=r.id AND a.requested_at IS NOT NULL)`;
       }
+      return true;
     });
+    if (accepted)
+      void this.reconcileOrder(payment.order_id).catch(() =>
+        this.logger.warn({ operation: 'webhook_reconciliation_failed', eventId }),
+      );
     return { received: true };
   }
 
   /** Gateway reads are authoritative; stale/failed webhooks never demote a confirmed payment. */
-  public async reconcileOrder(orderId: string): Promise<void> {
+  public async reconcileOrder(
+    orderId: string,
+    knownPayments?: Awaited<ReturnType<RazorpayProvider['getOrderPayments']>>,
+  ): Promise<void> {
     const intent = await this.prisma.paymentIntent.findUnique({
       where: { providerOrderId: orderId },
     });
     if (!intent || intent.status === 'CONFIRMED' || intent.status === 'RECOVERY_REQUIRED') return;
-    const payments = await this.razorpayProvider.getOrderPayments(orderId);
+    const payments = knownPayments ?? (await this.razorpayProvider.getOrderPayments(orderId));
     const payment = payments.find((item) => item.status === 'captured' && item.captured);
     if (!payment) {
       if (
@@ -553,6 +599,16 @@ export class PaymentsService {
   ) {
     if (!alreadyAuthorized) await this.assertOnlinePaymentsEnabled();
 
+    const initial = await this.bookingsService.resolveLockForPrepay(lockCode, user);
+    const preparedOrder = initial.providerOrderId
+      ? null
+      : await createIdempotentPaymentOrder(this.prisma, this.razorpayProvider, `hold:${lockCode}`, {
+          amount: Math.round(initial.amount * 100),
+          bookingId: lockCode,
+          currency: 'INR',
+          receipt: lockCode,
+        });
+
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRaw`SELECT id FROM booking_locks WHERE lock_code = ${lockCode} AND pilgrim_user_id = ${user.id}::uuid FOR UPDATE`;
@@ -573,17 +629,9 @@ export class PaymentsService {
           throw new BadRequestException('This booking has an invalid payment amount');
         }
 
-        const order = await createIdempotentPaymentOrder(
-          this.prisma,
-          this.razorpayProvider,
-          `hold:${lockCode}`,
-          {
-            amount: amountPaise,
-            bookingId: lockCode,
-            currency: 'INR',
-            receipt: lockCode,
-          },
-        );
+        const order = preparedOrder;
+        if (!order || order.amount !== amountPaise)
+          throw new ConflictException('Booking price changed; refresh checkout before payment');
 
         await tx.bookingLock.update({
           where: { id: resolved.lockId },
@@ -631,101 +679,77 @@ export class PaymentsService {
     user: AuthenticatedUser,
     input: { orderId: string; paymentId: string; signature: string },
   ): Promise<Booking> {
-    if (dto.paymentMethod !== 'ONLINE') {
-      throw new BadRequestException('This endpoint only confirms prepaid online bookings');
-    }
-
-    const verification = await this.razorpayProvider.verifyPayment(input);
-    if (!verification.verified) {
-      throw new BadRequestException('Razorpay payment verification failed');
-    }
-
-    // Already confirmed by an earlier request for this exact payment? Return that booking.
-    // The signature above has been verified, and getBookingById only returns a booking to
-    // its own pilgrim (or an admin), so this cannot be used to read someone else's booking.
-    const alreadyConfirmed = await this.prisma.$queryRaw<Array<{ booking_id: string }>>`
-      SELECT c.booking_id FROM payment_collections c JOIN bookings b ON b.id = c.booking_id
-      WHERE b.pilgrim_user_id = ${user.id}::uuid AND c.provider_order_id = ${input.orderId}
-        AND c.provider_payment_id = ${input.paymentId}
-        AND c.status = 'PAID'
-      ORDER BY c.created_at ASC LIMIT 1
-    `;
-    if (alreadyConfirmed[0]) {
-      return this.bookingsService.getBookingById(alreadyConfirmed[0].booking_id, user);
-    }
-
-    await this.preparePrepaidIntent(dto, user);
-    const payment = await this.razorpayProvider.getPayment(input.paymentId);
-    if (payment.id !== input.paymentId || payment.order_id !== input.orderId) {
-      throw new BadRequestException('Razorpay payment belongs to a different order');
-    }
-    if (payment.status !== 'captured' || !payment.captured) {
-      throw new BadRequestException('Razorpay payment is not captured yet');
-    }
-
-    const intent = await this.prisma.paymentIntent.findUniqueOrThrow({
-      where: { providerOrderId: input.orderId },
-    });
-    if (intent.pilgrimUserId !== user.id || intent.lockCode !== dto.lockCode)
-      throw new BadRequestException('Payment does not match this hold');
-    if (
-      payment.currency !== intent.currency ||
-      payment.amount !== Math.round(Number(intent.amount) * 100)
-    ) {
-      throw new BadRequestException('Payment amount or currency does not match the stored order');
-    }
-    // Another instance may have committed between the initial replay lookup and
-    // this gateway read. Its transaction clears the temporary guest snapshot.
-    if (intent.status === 'CONFIRMED' && intent.bookingId) {
-      return this.bookingsService.getBookingById(intent.bookingId, user);
-    }
+    const started = performance.now();
+    this.logger.log({ operation: 'payment_verification_started', orderId: input.orderId });
     try {
-      const booking = await this.bookingsService.createPrepaidBooking(
-        intent.guestDetails as unknown as CreateBookingDto,
-        user,
-        {
-          providerOrderId: input.orderId,
-          providerPaymentId: input.paymentId,
-          amount: payment.amount,
-          currency: payment.currency,
-        },
-      );
-
-      await this.paymentNotificationsService
-        .successful({
-          bookingId: booking.id,
-          bookingCode: booking.bookingCode,
-          pilgrimUserId: user.id,
-          lodgeId: booking.lodgeId,
-          amount: Number(booking.totalAmount),
-          paymentId: input.paymentId,
-          roomId: booking.roomId ?? '',
-        })
-        .catch(() =>
-          this.logger.warn('Payment notification failed; committed state remains available'),
-        );
-
-      return booking;
-    } catch (error) {
-      await this.prisma.paymentIntent.updateMany({
-        where: {
-          providerOrderId: input.orderId,
-          pilgrimUserId: user.id,
-          status: { not: 'CONFIRMED' },
-        },
-        data: {
-          providerPaymentId: input.paymentId,
-          status:
-            error instanceof BadRequestException || error instanceof ConflictException
-              ? 'RECOVERY_REQUIRED'
-              : 'PENDING',
-          lastError:
-            error instanceof BadRequestException || error instanceof ConflictException
-              ? 'CONFIRMATION_REQUIRES_REVIEW'
-              : 'CONFIRMATION_RETRY_PENDING',
-        },
+      if (dto.paymentMethod !== 'ONLINE')
+        throw new BadRequestException('This endpoint only confirms prepaid online bookings');
+      const verification = await this.razorpayProvider.verifyPayment(input);
+      if (!verification.verified)
+        throw new BadRequestException('Razorpay payment verification failed');
+      let intent = await this.prisma.paymentIntent.findUnique({
+        where: { providerOrderId: input.orderId },
       });
-      throw error;
+      if (!intent || intent.pilgrimUserId !== user.id || intent.lockCode !== dto.lockCode)
+        throw new BadRequestException('Payment does not match this hold');
+      if (intent.status === 'CONFIRMED' && intent.bookingId) {
+        if (intent.providerPaymentId !== input.paymentId)
+          throw new BadRequestException('Payment reference does not match');
+        return this.bookingsService.getBookingById(intent.bookingId, user);
+      }
+      if (!intent.guestDetails) {
+        await this.preparePrepaidIntent(dto, user);
+        intent = await this.prisma.paymentIntent.findUniqueOrThrow({ where: { id: intent.id } });
+      }
+      const payment = await this.razorpayProvider.getPayment(input.paymentId);
+      if (payment.id !== input.paymentId || payment.order_id !== input.orderId)
+        throw new BadRequestException('Razorpay payment belongs to a different order');
+      if (payment.status !== 'captured' || !payment.captured)
+        throw new ServiceUnavailableException('Payment verification pending. Do not pay again.');
+      if (
+        payment.currency !== intent.currency ||
+        payment.amount !== Math.round(Number(intent.amount) * 100)
+      )
+        throw new BadRequestException('Payment amount or currency does not match the stored order');
+      if (intent.status === 'CONFIRMED' && intent.bookingId)
+        return this.bookingsService.getBookingById(intent.bookingId, user);
+      try {
+        return await this.bookingsService.createPrepaidBooking(
+          intent.guestDetails as unknown as CreateBookingDto,
+          user,
+          {
+            providerOrderId: input.orderId,
+            providerPaymentId: input.paymentId,
+            amount: payment.amount,
+            currency: payment.currency,
+          },
+        );
+      } catch (error) {
+        await this.prisma.paymentIntent.updateMany({
+          where: { id: intent.id, status: { not: 'CONFIRMED' } },
+          data: {
+            providerPaymentId: input.paymentId,
+            status:
+              error instanceof BadRequestException || error instanceof ConflictException
+                ? 'RECOVERY_REQUIRED'
+                : 'PENDING',
+            lastError:
+              error instanceof BadRequestException || error instanceof ConflictException
+                ? 'CONFIRMATION_REQUIRES_REVIEW'
+                : 'CONFIRMATION_RETRY_PENDING',
+            nextCheckAt: new Date(),
+          },
+        });
+        throw new ServiceUnavailableException(
+          'Payment received; booking processing. Do not pay again.',
+        );
+      }
+    } finally {
+      this.logger.log({
+        operation: 'payment_verification_completed',
+        orderId: input.orderId,
+        durationMs: Math.round(performance.now() - started),
+      });
     }
   }
 
@@ -738,6 +762,7 @@ export class PaymentsService {
     const booking = await this.prisma.booking.findFirst({
       select: {
         id: true,
+        cityId: true,
         bookingCode: true,
         lodgeId: true,
         roomTypeId: true,
@@ -781,6 +806,7 @@ export class PaymentsService {
       throw new BadRequestException('Payment amount or currency does not match the stored order');
     }
     let roomId: string;
+    let confirmedBookingStatus: string;
     let replayed = false;
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -789,7 +815,7 @@ export class PaymentsService {
         const fresh = await tx.booking.findUniqueOrThrow({ where: { id: bookingId } });
         if (fresh.paymentStatus === 'FULLY_PAID' && fresh.roomId) {
           replayed = true;
-          return { roomId: fresh.roomId };
+          return { roomId: fresh.roomId, status: fresh.status };
         }
         if (fresh.status !== 'PENDING_OWNER_APPROVAL')
           throw new ConflictException('BOOKING_REQUIRES_REVIEW');
@@ -839,9 +865,15 @@ export class PaymentsService {
             toStatus: 'ACCEPTED',
           },
         });
-        return { roomId: selectedRoomId };
+        await tx.paymentIntent.updateMany({
+          where: { providerOrderId: input.orderId },
+          data: { status: 'CONFIRMED', providerPaymentId: input.paymentId, lastError: null },
+        });
+        await enqueueBookingConfirmation(tx, bookingId, fresh.guestEmail);
+        return { roomId: selectedRoomId, status: 'ACCEPTED' };
       });
       roomId = result.roomId;
+      confirmedBookingStatus = result.status;
     } catch (error) {
       const requiresReview =
         error instanceof ConflictException || error instanceof BadRequestException;
@@ -870,33 +902,16 @@ export class PaymentsService {
       return {
         bookingId,
         bookingCode: booking.bookingCode,
-        status: 'ACCEPTED',
+        status: confirmedBookingStatus,
         paymentStatus: 'PAID',
         roomId,
       };
-    await this.paymentNotificationsService
-      .successful({
-        bookingId,
-        bookingCode: booking.bookingCode,
-        pilgrimUserId,
-        lodgeId: booking.lodgeId,
-        amount: Number(booking.totalAmount),
-        paymentId: input.paymentId,
-        roomId,
-      })
-      .catch(() =>
-        this.logger.warn('Payment notification failed; committed state remains available'),
-      );
-    // The room-assignment transaction above sets the booking to ACCEPTED directly
-    // (it can't call the shared accept-booking flow since a physical room must be
-    // locked first), so the standard booking:accepted realtime push + BOOKING_ACCEPTED
-    // notification that the pilgrim app listens for never fired. Send it explicitly
-    // here so prepaid bookings get the same "booking confirmed" signal as owner-accepted ones.
-    await this.notificationEventsService
-      .bookingAccepted(bookingId)
-      .catch(() =>
-        this.logger.warn('Booking notification failed; committed state remains available'),
-      );
+    this.notificationEventsService.bookingCommitted({
+      ...booking,
+      pilgrimUserId,
+      cityId: booking.cityId,
+      status: 'ACCEPTED',
+    });
 
     return {
       bookingId,

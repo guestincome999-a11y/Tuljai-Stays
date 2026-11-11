@@ -35,6 +35,7 @@ type AdminServerEvents = Record<
   AdminRealtimeEventName,
   (payload: Record<string, unknown>) => void
 > & {
+  'connection:ready': (payload: { authenticated?: boolean }) => void;
   'system:error': (payload: { message?: string }) => void;
 };
 

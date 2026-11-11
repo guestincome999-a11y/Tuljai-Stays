@@ -9,8 +9,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint .",
+    "build": "expo export --platform android --output-dir dist/production",
     "typecheck": "tsc --noEmit",
-    "test:notifications": "node --test --test-name-pattern=Owner ../../backend/scripts/notification-sync.test.mjs"
+    "test:notifications": "node --test --test-name-pattern=Owner ../../backend/scripts/notification-sync.test.mjs",
+    "test": "node --test scripts/checkin.test.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

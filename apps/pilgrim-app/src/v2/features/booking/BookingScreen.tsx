@@ -1,15 +1,20 @@
-import type { BookingGuestIdProofUpload } from '@tuljai/types';
-import { useMemo, useRef, useState } from 'react';
+import type { Booking, BookingGuestIdProofUpload } from '@tuljai/types';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PaymentRecoveryStatus } from '../../../features/bookings/api/bookings-api';
 import { guestCapacityError } from '../../../features/bookings/guest-capacity';
 import {
+  isExplicitPaymentFailure,
+  paymentTiming,
+} from '../../../features/bookings/payment-outcome';
+import {
   readPendingPayment,
   rememberPendingPayment,
   clearPendingPayment,
 } from '../../../features/bookings/payment-recovery-store';
+import { usePaymentResolution } from '../../../features/bookings/usePaymentResolution';
 import { useStayPrice } from '../../../features/bookings/useStayPrice';
 import { BookingOutcomeScreen } from '../../../pilgrim-ui/components/BookingOutcomeScreen';
 import type { GuestBookingDetails, StayRequest } from '../../core/booking';
@@ -23,9 +28,9 @@ import { getPrepaidPaymentStatus, confirmRecoveredPayment } from '../../core/boo
 import { fetchLodge } from '../../core/catalog';
 import { useRemoteConfig } from '../../core/config';
 import { addDays, daysBetween, formatShortDate, startOfToday, toDateOnly } from '../../core/dates';
-import { PaymentDismissedError, openRazorpay } from '../../core/razorpay';
+import { openRazorpay } from '../../core/razorpay';
 import { useAvailability } from '../../core/useAvailability';
-import { useCachedFetch } from '../../core/useCachedFetch';
+import { seedCached, useCachedFetch } from '../../core/useCachedFetch';
 import { usePrepaidHold } from '../../core/usePrepaidHold';
 import { useSession } from '../../core/useSession';
 import { useColors } from '../../design/theme';
@@ -87,8 +92,18 @@ export function BookingScreen({
   const [agree, setAgree] = useState(true);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [outcome, setOutcome] = useState<{ id: string; method: PaymentMethod } | null>(null);
-  const complete = (id: string, method: PaymentMethod) => setOutcome({ id, method });
+  const [outcome, setOutcome] = useState<{
+    id: string;
+    method: PaymentMethod;
+    booking?: Booking | null;
+  } | null>(null);
+  const complete = (id: string, method: PaymentMethod, booking?: Booking | null) => {
+    if (booking) seedCached(`booking:${id}`, booking);
+    setOutcome({ id, method, booking });
+  };
+  const activeOrder = useRef<string | null>(null);
+  const submitLock = useRef(false);
+  const [preparationAllowed, setPreparationAllowed] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [roomTakenWhileBooking, setRoomTakenWhileBooking] = useState(false);
@@ -103,7 +118,10 @@ export function BookingScreen({
     [checkIn, checkOut, lodgeId, room],
   );
 
-  const hold = usePrepaidHold({ enabled: method === 'ONLINE' && stay !== null, stay });
+  const hold = usePrepaidHold({
+    enabled: preparationAllowed && method === 'ONLINE' && stay !== null,
+    stay,
+  });
   const holdActiveRef = useRef(false);
   holdActiveRef.current = method === 'ONLINE' && hold.status !== 'idle';
   const counts = useAvailability({
@@ -123,6 +141,34 @@ export function BookingScreen({
   const total = hold.order && method === 'ONLINE' ? hold.order.amount / 100 : estimate;
   const maxAdults = Math.max(room?.capacityAdults ?? 1, 1);
   const maxChildren = Math.max(room?.capacityChildren ?? 0, 0);
+
+  const resolution = usePaymentResolution(getPrepaidPaymentStatus, (id, booking) => {
+    hold.consume();
+    complete(id, 'ONLINE', booking);
+    if (session.user?.id) void clearPendingPayment(session.user.id).catch(() => undefined);
+  });
+  useEffect(() => {
+    let active = true;
+    setPreparationAllowed(false);
+    if (session.user?.id)
+      void readPendingPayment(session.user.id)
+        .then((orderId) => {
+          if (!active) return;
+          if (orderId) {
+            activeOrder.current = orderId;
+            resolution.uncertain(orderId);
+          } else setPreparationAllowed(true);
+        })
+        .catch(() => {
+          if (active)
+            setFailure(
+              'Your saved payment status could not be restored. Reopen checkout before paying.',
+            );
+        });
+    return () => {
+      active = false;
+    };
+  }, [session.user?.id, resolution.uncertain]);
 
   function chooseRoom(id: string) {
     setRoomTypeId(id);
@@ -151,8 +197,11 @@ export function BookingScreen({
   }
 
   async function resumePayment(previous: NonNullable<PaymentRecoveryStatus['retryCheckout']>) {
-    if (!session.user?.id) return;
+    if (!session.user?.id || submitLock.current) return;
+    submitLock.current = true;
     setSubmitting(true);
+    activeOrder.current = previous.order.orderId;
+    resolution.clear();
     try {
       const payment = await openRazorpay(previous.order, {
         description: `${previous.lodgeName}: ${previous.checkInDate} to ${previous.checkOutDate}`,
@@ -160,28 +209,43 @@ export function BookingScreen({
         phone: previous.guestDetails.guestPhone,
         themeColor: colors.primary,
       });
+      paymentTiming('checkout_callback_received', previous.order.orderId);
+      resolution.verifying(previous.order.orderId);
       const booking = await confirmRecoveredPayment({ ...previous.guestDetails, ...payment });
-      await clearPendingPayment(session.user.id);
-      complete(booking.id, 'ONLINE');
-    } catch {
-      setFailure(
-        'Payment status is uncertain. Retry to check your existing payment; do not start another payment.',
-      );
+      complete(booking.id, 'ONLINE', booking);
+      resolution.clear();
+      void clearPendingPayment(session.user.id).catch(() => undefined);
+    } catch (cause) {
+      if (isExplicitPaymentFailure(cause)) resolution.failed(previous.order.orderId);
+      else resolution.uncertain(previous.order.orderId);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
 
   async function submit() {
+    if (submitLock.current) return;
+    submitLock.current = true;
+    try {
+      await performSubmit();
+    } finally {
+      submitLock.current = false;
+    }
+  }
+
+  async function performSubmit() {
     if (session.user?.id) {
       setSubmitting(true);
       try {
         const pending = await readPendingPayment(session.user.id);
         if (pending) {
+          activeOrder.current = pending;
           const status = await getPrepaidPaymentStatus(pending);
           if (status.status === 'CONFIRMED' && status.bookingId) {
-            await clearPendingPayment(session.user.id);
-            complete(status.bookingId, 'ONLINE');
+            complete(status.bookingId, 'ONLINE', status.booking);
+            resolution.clear();
+            void clearPendingPayment(session.user.id).catch(() => undefined);
           } else if (status.retryCheckout) {
             const previous = status.retryCheckout;
             Alert.alert(
@@ -197,15 +261,14 @@ export function BookingScreen({
                 },
               ],
             );
-          } else
-            setFailure(
-              status.recoveryRequired
-                ? 'Payment needs operator review. Do not pay again; contact support.'
-                : 'Payment is pending. Retry to check status; do not pay again.',
-            );
+          } else resolution.uncertain(pending);
           return;
         }
       } catch (cause) {
+        if (activeOrder.current) {
+          resolution.uncertain(activeOrder.current);
+          return;
+        }
         setFailure(
           cause instanceof Error ? cause.message : 'Payment status unavailable. Please retry.',
         );
@@ -249,6 +312,8 @@ export function BookingScreen({
         if (!session.user?.id) throw new Error('Please sign in again before payment.');
         await rememberPendingPayment(session.user.id, prepared.order.orderId);
         hold.beginPayment();
+        activeOrder.current = prepared.order.orderId;
+        paymentTiming('payment_initiated', prepared.order.orderId);
         const payment = await openRazorpay(prepared.order, {
           description: `${data?.lodge.name ?? ''} · ${room.name}`,
           email: details.guestEmail,
@@ -257,18 +322,25 @@ export function BookingScreen({
           themeColor: colors.primary,
         });
 
+        paymentTiming('checkout_callback_received', prepared.order.orderId);
+        resolution.verifying(prepared.order.orderId);
         captured = payment.paymentId;
         const booking = await confirmPrepaidBooking(prepared.lockCode, details, payment);
         hold.consume();
-        await clearPendingPayment(session.user.id);
-        complete(booking.id, 'ONLINE');
+        complete(booking.id, 'ONLINE', booking);
+        resolution.clear();
+        void clearPendingPayment(session.user.id).catch(() => undefined);
       } else {
         await hold.settled();
         const booking = await bookPayAtLodge(stay, details);
-        complete(booking.id, 'PAY_AT_LODGE');
+        complete(booking.id, 'PAY_AT_LODGE', booking);
       }
     } catch (cause) {
-      if (cause instanceof PaymentDismissedError) return;
+      if (activeOrder.current) {
+        if (isExplicitPaymentFailure(cause)) resolution.failed(activeOrder.current);
+        else resolution.uncertain(activeOrder.current);
+        return;
+      }
       if (captured === null && typeof cause === 'object' && cause !== null && 'details' in cause) {
         const status = (cause as { details?: { statusCode?: number } }).details?.statusCode;
         if (status === 409) {
@@ -283,30 +355,49 @@ export function BookingScreen({
     }
   }
 
-  if (outcome || failure)
+  if (outcome || failure || resolution.state)
     return (
       <BookingOutcomeScreen
         success={Boolean(outcome)}
-        busy={submitting}
+        busy={submitting && resolution.state?.phase !== 'PENDING'}
+        pending={!outcome && Boolean(resolution.state && resolution.state.phase !== 'FAILED')}
+        booking={outcome?.booking}
+        continueLabel={
+          !outcome && resolution.retryCheckout ? 'Resume previous checkout' : undefined
+        }
         title={
           outcome
             ? outcome.method === 'ONLINE'
-              ? 'Booking confirmed!'
+              ? 'Payment successful'
               : 'Booking request sent'
-            : 'Payment needs attention'
+            : resolution.state?.phase === 'FAILED'
+              ? 'Payment failed'
+              : resolution.state
+                ? 'Payment verification pending'
+                : 'Booking needs attention'
         }
         message={
           outcome
             ? outcome.method === 'ONLINE'
               ? 'Your payment is verified and your stay is confirmed.'
               : 'Your request is with the lodge owner for approval.'
-            : (failure ?? '')
+            : (resolution.state?.message ?? failure ?? '')
         }
         onContinue={() => {
           if (outcome) onBooked(outcome.id, outcome.method);
+          else if (resolution.retryCheckout) void resumePayment(resolution.retryCheckout);
+          else if (resolution.state?.phase === 'PENDING' || resolution.state?.phase === 'VERIFYING')
+            resolution.retry();
           else void submit();
         }}
-        onBack={outcome ? undefined : () => setFailure(null)}
+        onBack={
+          outcome
+            ? undefined
+            : () => {
+                setFailure(null);
+                resolution.clear();
+              }
+        }
       />
     );
 

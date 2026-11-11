@@ -411,7 +411,9 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
     const source = ts.transpileModule(readFileSync(filename, 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText;
-    const { NextRequest } = require('next/server');
+    // Resolve Next from its owning workspace; npm may install it without root hoisting.
+    const adminRequire = createRequire(path.join(root, 'apps/admin-panel/package.json'));
+    const { NextRequest } = adminRequire('next/server');
     const mod = { exports: {} };
     let unavailable = false;
     const backendFetch = async (url, options) => {
@@ -434,7 +436,7 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
       (id) =>
         id.includes('config/api-base-url')
           ? { resolveAdminApiBaseUrl: () => 'https://backend.invalid/api' }
-          : require(id),
+          : adminRequire(id),
       mod,
       mod.exports,
     );

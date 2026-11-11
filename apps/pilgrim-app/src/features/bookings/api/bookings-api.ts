@@ -245,6 +245,8 @@ export async function preparePrepaidIntent(input: CreateBookingRequest): Promise
   await apiClient.post('/payments/prepaid/prepare', { ...input, paymentMethod: 'ONLINE' });
 }
 export interface PaymentRecoveryStatus {
+  booking?: Booking | null;
+  gatewayStatus?: string;
   status: string;
   bookingId: string | null;
   recoveryRequired: boolean;

@@ -42,6 +42,7 @@ export const appConfig = registerAs('api', () => ({
       : null,
     schedulerIntervalSeconds: Number(process.env.BOOKING_SCHEDULER_INTERVAL_SECONDS ?? 60),
     qrTokenTtlSeconds: Number(process.env.BOOKING_QR_TOKEN_TTL_SECONDS ?? 86400),
+    qrOpaqueEnabled: process.env.BOOKING_QR_OPAQUE_ENABLED === 'true',
     showOwnerPhoneAfterAccepted: process.env.BOOKING_SHOW_OWNER_PHONE_AFTER_ACCEPTED === 'true',
   },
   fcm: {

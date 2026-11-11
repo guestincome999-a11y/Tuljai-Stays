@@ -182,6 +182,13 @@ test(
           ]);
           assert.equal(first.id, second.id);
           assert.equal(await db.booking.count({ where: { sourceLockId: f.lock.id } }), 1);
+          assert.equal(await db.bookingDeliveryJob.count({ where: { bookingId: first.id } }), 2);
+          assert.equal(
+            await db.bookingDeliveryJob.count({
+              where: { bookingId: first.id, type: 'CONFIRMATION_EMAIL' },
+            }),
+            1,
+          );
           const collections = await connection.query(
             'SELECT count(*)::int AS n FROM payment_collections WHERE booking_id=$1',
             [first.id],
@@ -750,6 +757,7 @@ test(
         async () => {
           const f = await fixture();
           const booking = await a.createPrepaidBooking(f.dto, f.user, f.payment);
+          await db.booking.update({ where: { id: booking.id }, data: { guestName: 'अनघा पाटील' } });
           const owner = await db.user.create({ data: { roles: ['OWNER'] } });
           const view = await a.getBookingById(booking.id, {
             id: owner.id,
@@ -1095,6 +1103,98 @@ test(
           gatewayOrder.id,
         );
       });
+      await t.test(
+        'outbox leases survive restarts, fence concurrent workers, and keep uncertain submissions terminal',
+        async () => {
+          const {
+            BookingDeliveryService,
+          } = require('../src/modules/bookings/booking-delivery.service.ts');
+          const f = await fixture();
+          const booking = await a.createPrepaidBooking(f.dto, f.user, f.payment);
+          await db.bookingDeliveryJob.updateMany({
+            where: { bookingId: booking.id, type: 'CONFIRMATION_EMAIL' },
+            data: { status: 'PENDING', recipient: 'controlled@example.com', lastError: null },
+          });
+          const job = await db.bookingDeliveryJob.findFirstOrThrow({
+            where: { bookingId: booking.id, type: 'CONFIRMATION_EMAIL' },
+          });
+          let submissions = 0;
+          const email = {
+            submit: async ({ attachments }) => {
+              submissions++;
+              assert.equal(attachments[0].content.subarray(0, 5).toString(), '%PDF-');
+              return { messageId: 'local-provider-accepted' };
+            },
+          };
+          const qr = { getQrMetadata: async () => ({ qrPayload: 'synthetic-local-test-pass' }) };
+          const events = {
+            bookingCommitted: () => {},
+            bookingAccepted: async () => {},
+            prepaidBookingConfirmed: async () => {},
+            bookingPaymentConfirmed: async () => {},
+          };
+          const first = new BookingDeliveryService(db, email, qr, events);
+          const second = new BookingDeliveryService(db2, email, qr, events);
+          await Promise.all([first.claimAndProcess(job), second.claimAndProcess(job)]);
+          assert.equal(submissions, 1);
+          assert.equal(
+            (await db.bookingDeliveryJob.findUniqueOrThrow({ where: { id: job.id } })).status,
+            'SENT',
+          );
+          await db.bookingDeliveryJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'PROCESSING',
+              attempts: 1,
+              leaseToken: randomUUID(),
+              leaseUntil: new Date(0),
+            },
+          });
+          await second.claimAndProcess(
+            await db.bookingDeliveryJob.findUniqueOrThrow({ where: { id: job.id } }),
+          );
+          assert.equal(submissions, 2, 'a restart before SMTP submission is recoverable');
+          await db.bookingDeliveryJob.updateMany({
+            where: { id: { not: job.id } },
+            data: { status: 'SENT' },
+          });
+          await db.bookingDeliveryJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'SUBMITTING',
+              leaseToken: randomUUID(),
+              leaseUntil: new Date(0),
+              submissionStartedAt: new Date(),
+            },
+          });
+          await second.drain();
+          const uncertain = await db.bookingDeliveryJob.findUniqueOrThrow({
+            where: { id: job.id },
+          });
+          assert.equal(uncertain.status, 'FAILED');
+          assert.equal(uncertain.lastError, 'SUBMISSION_UNKNOWN');
+          assert.equal(
+            submissions,
+            2,
+            'an unknown accepted submission is not automatically resent',
+          );
+          const security = await connection.query(
+            "SELECT relrowsecurity FROM pg_class WHERE oid='booking_delivery_jobs'::regclass",
+          );
+          assert.equal(security.rows[0].relrowsecurity, true);
+          await connection.query('CREATE ROLE booking_outbox_untrusted NOLOGIN');
+          await connection.query('SET ROLE booking_outbox_untrusted');
+          try {
+            await assert.rejects(
+              connection.query('SELECT * FROM booking_delivery_jobs'),
+              /permission denied/,
+            );
+          } finally {
+            await connection.query('RESET ROLE');
+            await connection.query('DROP ROLE booking_outbox_untrusted');
+          }
+        },
+      );
     } finally {
       await db.$disconnect();
       await db2.$disconnect();

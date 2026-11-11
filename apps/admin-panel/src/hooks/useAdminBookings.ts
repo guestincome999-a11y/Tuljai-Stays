@@ -87,7 +87,10 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
     void tokenStorage.getAccessToken().then((accessToken) => {
       if (!active || !accessToken) return;
       const socket = createAdminRealtimeSocket(accessToken);
-      socket.on('connect', () => setRealtimeConnected(true));
+      socket.on('connection:ready', (payload: { authenticated?: boolean }) => {
+        setRealtimeConnected(Boolean(payload.authenticated));
+        if (payload.authenticated) void load(true);
+      });
       socket.on('disconnect', () => setRealtimeConnected(false));
       subscribeAdminRealtimeSessionRecovery(socket, async () => {
         setRealtimeConnected(false);

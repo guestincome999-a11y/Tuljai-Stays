@@ -179,6 +179,15 @@ export interface OwnerBookingSummary extends Booking {
 }
 
 export interface AdminBookingSummary extends OwnerBookingSummary {
+  emailDelivery?: {
+    status: string;
+    recipient: string | null;
+    attempts: number;
+    lastAttemptAt: ISODateTime | null;
+    lastError: string | null;
+    providerMessageId: string | null;
+    sentAt: ISODateTime | null;
+  } | null;
   /** Recorded lifecycle and payment events, populated only for admin detail. */
   activity?: BookingActivity[];
   cityName: string;
