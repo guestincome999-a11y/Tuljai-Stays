@@ -5,7 +5,7 @@ import type {
   CommissionSummary,
   LodgeCommissionFinanceReport,
 } from '@tuljai/types';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   createLodgeCommissionSettlement,
@@ -29,12 +29,14 @@ import {
   FinKpi,
   FinKv,
   FinPanel,
+  formatMoney,
   LedgerTable,
   RuleSummary,
   SettlementForm,
   SettlementHistoryTable,
 } from '../../../src/components/finance/FinanceUi';
 import type { SettlementFormValues } from '../../../src/components/finance/FinanceUi';
+import { RevenueSettlementPanel } from '../../../src/components/finance/RevenueSettlementPanel';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 
 export default function AdminRevenuePage() {
@@ -46,6 +48,7 @@ export default function AdminRevenuePage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const reportRevision = useRef(0);
 
   const load = useCallback(async () => {
     setErrorMessage(null);
@@ -81,16 +84,19 @@ export default function AdminRevenuePage() {
   const lodgeLabel = (lodgeId: string) => lodgeNames.get(lodgeId) ?? lodgeId;
 
   const openReport = async (lodgeId: string) => {
+    const revision = ++reportRevision.current;
     setSelectedLodgeId(lodgeId);
     setSelectedReport(null);
     setReportLoading(true);
     setActionMessage(null);
     try {
-      setSelectedReport(await getLodgeCommissionFinanceReport(lodgeId));
+      const report = await getLodgeCommissionFinanceReport(lodgeId);
+      if (revision === reportRevision.current) setSelectedReport(report);
     } catch {
-      setErrorMessage('The lodge finance report could not be loaded.');
+      if (revision === reportRevision.current)
+        setErrorMessage('The lodge finance report could not be loaded.');
     } finally {
-      setReportLoading(false);
+      if (revision === reportRevision.current) setReportLoading(false);
     }
   };
 
@@ -100,7 +106,7 @@ export default function AdminRevenuePage() {
     setActionMessage(null);
     try {
       const updated = await createLodgeCommissionSettlement(selectedLodgeId, values);
-      setSelectedReport(updated);
+      setSelectedReport((current) => (current?.lodgeId === updated.lodgeId ? updated : current));
       setActionMessage('Settlement recorded and matching commission transactions were updated.');
       await load();
       return true;
@@ -257,7 +263,11 @@ export default function AdminRevenuePage() {
                   actions={
                     <button
                       className="fin-btn fin-btn-outline"
-                      onClick={() => setSelectedLodgeId(null)}
+                      onClick={() => {
+                        reportRevision.current++;
+                        setSelectedLodgeId(null);
+                        setSelectedReport(null);
+                      }}
                       type="button"
                     >
                       Close
@@ -268,7 +278,18 @@ export default function AdminRevenuePage() {
                   title={selectedReport.lodgeName}
                 />
 
-                <section aria-label="Lodge totals" className="fin-kpis">
+                <section aria-label="Lodge totals" className="fin-kpis fin-kpis-lodge">
+                  <FinKpi
+                    icon="bank"
+                    label="Balance Pay to Lodge"
+                    meta="(Online payments after deducting unpaid commission and previous revenue settlements)"
+                    tone="green"
+                    value={
+                      selectedReport.revenue
+                        ? formatMoney(selectedReport.revenue.balancePayable)
+                        : '—'
+                    }
+                  />
                   <FinKpi
                     icon="receipt"
                     label="Booking revenue"
@@ -294,6 +315,16 @@ export default function AdminRevenuePage() {
                     value={toCurrency(Number(selectedReport.summary.settled))}
                   />
                 </section>
+
+                <RevenueSettlementPanel
+                  key={selectedReport.lodgeId}
+                  onUpdate={(updated) =>
+                    setSelectedReport((current) =>
+                      current?.lodgeId === updated.lodgeId ? updated : current,
+                    )
+                  }
+                  report={selectedReport}
+                />
 
                 <section className="fin-split">
                   <FinPanel sub="Active accounting rule" title="Commission rule">

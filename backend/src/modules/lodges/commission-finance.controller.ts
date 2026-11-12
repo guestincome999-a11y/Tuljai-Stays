@@ -8,6 +8,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 
 import { LodgeCommissionFinanceService } from './commission-finance.service';
 import { CreateCommissionSettlementDto } from './dto/commission-settlement.dto';
+import { CreateRevenueSettlementDto } from './dto/revenue-settlement.dto';
 
 @Controller()
 export class LodgeCommissionFinanceController {
@@ -43,6 +44,17 @@ export class LodgeCommissionFinanceController {
     @Body() dto: CreateCommissionSettlementDto,
   ) {
     return this.financeService.createSettlement(lodgeId, dto, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('admin/lodges/:id/revenue/settlements')
+  public createRevenueSettlement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') lodgeId: string,
+    @Body() dto: CreateRevenueSettlementDto,
+  ) {
+    return this.financeService.createRevenueSettlement(lodgeId, dto, user.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

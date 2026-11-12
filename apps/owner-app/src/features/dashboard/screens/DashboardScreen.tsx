@@ -402,6 +402,18 @@ export function DashboardScreen() {
           value={dashboard.data ? formatMoney(dashboard.data.commissionPayable) : '—'}
           variant="payable"
         />
+        <FinanceCard
+          accessibilityHint="Opens revenue payments from Tuljai Stays to your lodge."
+          icon="bank-transfer-in"
+          label={tr('Revenue Settlements')}
+          onPress={() =>
+            router.push({ pathname: '/(app)/reports', params: { view: 'revenue-settlements' } })
+          }
+          subtitle={tr('View payments received from Tuljai Stays')}
+          value="View"
+          isAmount={false}
+          variant="income"
+        />
       </View>
 
       <View style={styles.statGrid}>
@@ -461,6 +473,7 @@ function FinanceCard({
   subtitle,
   value,
   variant,
+  isAmount = true,
 }: {
   accessibilityHint: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -469,13 +482,14 @@ function FinanceCard({
   subtitle: string;
   value: string;
   variant: 'income' | 'payable';
+  isAmount?: boolean;
 }) {
   const colors = variant === 'income' ? financeColors.income : financeColors.payable;
 
   return (
     <Card
       accessibilityHint={accessibilityHint}
-      accessibilityLabel={`${label}, Rs. ${value}`}
+      accessibilityLabel={`${label}, ${isAmount ? 'Rs. ' : ''}${value}`}
       mode="contained"
       onPress={onPress}
       style={[styles.financeCard, { backgroundColor: colors.background }]}
@@ -485,7 +499,10 @@ function FinanceCard({
           <MaterialCommunityIcons color={colors.icon} name={icon} size={27} />
         </View>
         <Text style={[styles.financeLabel, { color: colors.label }]}>{label}</Text>
-        <Text style={[styles.financeValue, { color: colors.value }]}>Rs. {value}</Text>
+        <Text style={[styles.financeValue, { color: colors.value }]}>
+          {isAmount ? 'Rs. ' : ''}
+          {value}
+        </Text>
         <Text style={[styles.financeSubtitle, { color: colors.subtitle }]}>{subtitle}</Text>
       </Card.Content>
     </Card>

@@ -38,7 +38,8 @@ export function OwnerReportsScreen() {
   const reports = useOwnerReports(applied, applied.reportType);
   const theme = useTheme();
   const { view } = useLocalSearchParams<{ view?: string }>();
-  const settlementsOnly = view === 'settlements';
+  const revenueOnly = view === 'revenue-settlements';
+  const settlementsOnly = view === 'settlements' || revenueOnly;
   const commission = reports.summary.estimatedCommission;
   const finance = reports.commissionFinance;
   const dirty = JSON.stringify(filters) !== JSON.stringify(applied);
@@ -78,12 +79,18 @@ export function OwnerReportsScreen() {
       <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
         <Icon source="chart-box-outline" size={32} color={theme.colors.onPrimary} />
         <Text variant="headlineSmall" style={{ color: theme.colors.onPrimary }}>
-          {settlementsOnly ? 'Commission payment history' : 'Reports & insights'}
+          {revenueOnly
+            ? 'Revenue settlements'
+            : settlementsOnly
+              ? 'Commission payment history'
+              : 'Reports & insights'}
         </Text>
         <Text style={{ color: theme.colors.onPrimary, opacity: 0.85 }} variant="bodyMedium">
-          {settlementsOnly
-            ? 'Payments recorded as settled by Tuljai Stays'
-            : `${reports.selectedLodge?.name ?? 'Your lodge'} · Your business, clearly in view.`}
+          {revenueOnly
+            ? 'Online revenue paid to your lodge by Tuljai Stays'
+            : settlementsOnly
+              ? 'Payments recorded as settled by Tuljai Stays'
+              : `${reports.selectedLodge?.name ?? 'Your lodge'} · Your business, clearly in view.`}
         </Text>
       </View>
 
@@ -238,7 +245,62 @@ export function OwnerReportsScreen() {
         </>
       ) : null}
 
-      {settlementsOnly || tab === 'finance' ? (
+      {revenueOnly || (!settlementsOnly && tab === 'finance') ? (
+        <Card mode="outlined" style={styles.commissionCard}>
+          <Card.Content style={styles.commissionContent}>
+            <Text variant="titleLarge">Revenue settlements</Text>
+            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              Payments from Tuljai Stays to your lodge after deducting unpaid commission from online
+              payments.
+            </Text>
+            {finance?.revenue ? (
+              <View style={styles.commissionGrid}>
+                <CommissionDetail
+                  label="Balance Pay to Lodge"
+                  value={`Rs. ${formatMoney(finance.revenue.balancePayable)}`}
+                />
+                <CommissionDetail
+                  label="Revenue paid to lodge"
+                  value={`Rs. ${formatMoney(finance.revenue.revenueSettled)}`}
+                />
+              </View>
+            ) : null}
+            {finance?.revenueSettlements ? (
+              finance.revenueSettlements.length === 0 ? (
+                <Text variant="bodySmall">No revenue settlements have been recorded yet.</Text>
+              ) : (
+                finance.revenueSettlements.map((settlement) => (
+                  <View key={settlement.id} style={styles.settlementRow}>
+                    <View style={styles.titleBlock}>
+                      <Text variant="titleSmall">Rs. {formatMoney(settlement.amount)}</Text>
+                      <Text variant="bodySmall">{settlement.paymentMethod.replace(/_/g, ' ')}</Text>
+                      <Text variant="bodySmall">
+                        {settlement.reference ?? 'No reference provided'}
+                      </Text>
+                      {settlement.notes ? (
+                        <Text variant="bodySmall">{settlement.notes}</Text>
+                      ) : null}
+                    </View>
+                    <Text variant="bodySmall">{formatDate(settlement.settledAt)}</Text>
+                  </View>
+                ))
+              )
+            ) : (
+              <Text variant="bodySmall">
+                {reports.isLoading
+                  ? 'Loading revenue settlements…'
+                  : 'Revenue settlements are unavailable. Pull down to retry.'}
+              </Text>
+            )}
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              Settlement entries are recorded by Tuljai Stays and are read-only.
+            </Text>
+            <FormErrorBanner message={reports.financeError} />
+          </Card.Content>
+        </Card>
+      ) : null}
+
+      {!revenueOnly && (settlementsOnly || tab === 'finance') ? (
         <>
           <Card mode="outlined" style={styles.commissionCard}>
             <Card.Content style={styles.commissionContent}>

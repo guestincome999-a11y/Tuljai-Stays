@@ -82,6 +82,9 @@ export function FinanceStyles() {
         gap: 14px;
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }
+      .fin-kpis-lodge {
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      }
       .fin-kpi {
         border: 1px solid;
         border-radius: 16px;

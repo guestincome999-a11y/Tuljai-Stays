@@ -103,6 +103,22 @@ export async function voidLodgeCommissionTransaction(ledgerId: string): Promise<
   await apiClient.patch(`/admin/commission/transactions/${ledgerId}/void`);
 }
 
+export async function createLodgeRevenueSettlement(
+  lodgeId: string,
+  payload: {
+    amount: number;
+    idempotencyKey: string;
+    notes?: string;
+    paymentMethod: string;
+    reference?: string;
+  },
+): Promise<LodgeCommissionFinanceReport> {
+  return apiClient.post<LodgeCommissionFinanceReport>(
+    `/admin/lodges/${lodgeId}/revenue/settlements`,
+    payload,
+  );
+}
+
 export async function getBiNotificationMetrics(): Promise<NotificationMetrics> {
   return apiClient.get<NotificationMetrics>('/admin/notifications/metrics');
 }

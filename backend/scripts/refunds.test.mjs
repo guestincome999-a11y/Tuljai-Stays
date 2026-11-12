@@ -847,6 +847,199 @@ test(
         },
       );
       await t.test(
+        'revenue payouts deduct commission once, preserve partial balances and are idempotent',
+        async () => {
+          const f = await fixture({ commission: true });
+          const access = { isAdmin: () => true, assertLodgeExists: async () => undefined };
+          const finance = new LodgeCommissionFinanceService({ create: async () => {} }, access, db);
+          const before = await finance.getReport(f.booking.lodgeId);
+          assert.equal(Number(before.revenue.onlinePayments), 1000.55);
+          assert.equal(Number(before.revenue.commissionToDeduct), 200.11);
+          assert.equal(Number(before.revenue.balancePayable), 800.44);
+          const request = {
+            amount: 300,
+            paymentMethod: 'BANK_TRANSFER',
+            reference: 'payout-1',
+            notes: 'Partial payout',
+            idempotencyKey: randomUUID(),
+          };
+          await Promise.all([
+            finance.createRevenueSettlement(f.booking.lodgeId, request, f.adminActor.id),
+            new LodgeCommissionFinanceService({}, access, db2).createRevenueSettlement(
+              f.booking.lodgeId,
+              request,
+              f.adminActor.id,
+            ),
+          ]);
+          const after = await finance.getReport(f.booking.lodgeId);
+          assert.equal(after.revenueSettlements.length, 1);
+          assert.equal(after.revenueSettlements[0].reference, 'payout-1');
+          assert.equal(Number(after.revenue.revenueSettled), 300);
+          assert.equal(Number(after.revenue.commissionDeducted), 200.11);
+          assert.equal(Number(after.revenue.commissionToDeduct), 0);
+          assert.equal(Number(after.revenue.balancePayable), 500.44);
+          assert.equal(Number(after.summary.outstanding), 0);
+          assert.equal(after.settlements[0].paymentMethod, 'REVENUE_OFFSET');
+          await assert.rejects(
+            finance.createRevenueSettlement(
+              f.booking.lodgeId,
+              { ...request, amount: 301 },
+              f.adminActor.id,
+            ),
+            /different details/,
+          );
+          await assert.rejects(
+            finance.createRevenueSettlement(
+              f.booking.lodgeId,
+              { ...request, amount: 500.45, idempotencyKey: randomUUID() },
+              f.adminActor.id,
+            ),
+            /exceeds/,
+          );
+          const final = await finance.createRevenueSettlement(
+            f.booking.lodgeId,
+            { ...request, amount: 500.44, idempotencyKey: randomUUID() },
+            f.adminActor.id,
+          );
+          assert.equal(Number(final.revenue.balancePayable), 0);
+          assert.equal(Number(final.revenue.commissionDeducted), 200.11);
+          assert.equal(final.revenueSettlements.length, 2);
+          assert.equal(
+            Number(
+              (
+                await sql.query(
+                  "SELECT COUNT(*) FROM audit_logs WHERE action='LODGE_REVENUE_SETTLEMENT_CREATED' AND metadata->>'lodgeId'=$1",
+                  [f.booking.lodgeId],
+                )
+              ).rows[0].count,
+            ),
+            2,
+          );
+        },
+      );
+      await t.test(
+        'concurrent different revenue payouts cannot exceed the available balance',
+        async () => {
+          const f = await fixture({ commission: true });
+          const access = { isAdmin: () => true, assertLodgeExists: async () => undefined };
+          const results = await Promise.allSettled(
+            [db, db2].map((client) =>
+              new LodgeCommissionFinanceService({}, access, client).createRevenueSettlement(
+                f.booking.lodgeId,
+                { amount: 500, paymentMethod: 'UPI', idempotencyKey: randomUUID() },
+                f.adminActor.id,
+              ),
+            ),
+          );
+          assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+          assert.match(results.find((r) => r.status === 'rejected').reason.message, /exceeds/);
+        },
+      );
+      await t.test(
+        'revenue excludes cash, failed/pending payments and cancelled bookings; owners have read-only lodge access',
+        async () => {
+          for (const options of [
+            { method: 'PAY_AT_LODGE', paymentStatus: 'PAY_AT_LODGE' },
+            { providerStatus: 'failed' },
+            { providerStatus: 'authorized' },
+            {},
+          ]) {
+            const f = await fixture({ ...options, commission: true });
+            if (Object.keys(options).length === 0) await f.cancel();
+            const finance = new LodgeCommissionFinanceService(
+              {},
+              { assertLodgeExists: async () => undefined },
+              db,
+            );
+            const report = await finance.getReport(f.booking.lodgeId);
+            assert.equal(Number(report.revenue.balancePayable), 0);
+            assert.equal(Number(report.revenue.onlinePayments), 0);
+            await assert.rejects(
+              finance.createRevenueSettlement(
+                f.booking.lodgeId,
+                { amount: 0.01, paymentMethod: 'UPI', idempotencyKey: randomUUID() },
+                f.adminActor.id,
+              ),
+              /exceeds/,
+            );
+          }
+          const f = await fixture();
+          let checkedLodge;
+          const finance = new LodgeCommissionFinanceService(
+            {},
+            {
+              isAdmin: () => false,
+              assertCanManageLodge: async (_user, id) => {
+                checkedLodge = id;
+              },
+            },
+            db,
+          );
+          await finance.getReport(f.booking.lodgeId, { id: f.user.id, roles: ['OWNER'] });
+          assert.equal(checkedLodge, f.booking.lodgeId);
+          const denied = new LodgeCommissionFinanceService(
+            {},
+            {
+              isAdmin: () => false,
+              assertCanManageLodge: async () => {
+                throw new Error('Forbidden lodge');
+              },
+            },
+            db,
+          );
+          await assert.rejects(
+            denied.getReport(f.booking.lodgeId, { id: f.user.id, roles: ['OWNER'] }),
+            /Forbidden/,
+          );
+          const rls = await sql.query(
+            "SELECT relrowsecurity FROM pg_class WHERE relname='lodge_revenue_settlements'",
+          );
+          assert.equal(rls.rows[0].relrowsecurity, true);
+        },
+      );
+      await t.test(
+        'previously paid commission is not withheld again and payout validation rolls back all accounting',
+        async () => {
+          const f = await fixture({ commission: true });
+          const finance = new LodgeCommissionFinanceService(
+            { create: async () => {} },
+            { assertLodgeExists: async () => undefined },
+            db,
+          );
+          await finance.createSettlement(
+            f.booking.lodgeId,
+            { amount: 200.11, paymentMethod: 'BANK_TRANSFER' },
+            f.adminActor.id,
+          );
+          assert.equal(
+            Number((await finance.getReport(f.booking.lodgeId)).revenue.balancePayable),
+            1000.55,
+          );
+          for (const amount of [NaN, Infinity, 0, -1, 1.001]) {
+            await assert.rejects(
+              finance.createRevenueSettlement(
+                f.booking.lodgeId,
+                { amount, paymentMethod: 'UPI', idempotencyKey: randomUUID() },
+                f.adminActor.id,
+              ),
+              /positive/,
+            );
+          }
+          const unpaid = await fixture({ commission: true });
+          await assert.rejects(
+            finance.createRevenueSettlement(
+              unpaid.booking.lodgeId,
+              { amount: 100, paymentMethod: 'UPI', idempotencyKey: randomUUID() },
+              randomUUID(),
+            ),
+          );
+          const unchanged = await finance.getReport(unpaid.booking.lodgeId);
+          assert.equal(unchanged.revenueSettlements.length, 0);
+          assert.equal(unchanged.settlements.length, 0);
+          assert.equal(Number(unchanged.summary.outstanding), 200.11);
+        },
+      );
+      await t.test(
         'unique provider refund IDs, notification keys, RLS and captured amount database constraint',
         async () => {
           const f = await fixture();

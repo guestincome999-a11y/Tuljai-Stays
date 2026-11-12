@@ -309,6 +309,16 @@ export interface LodgeCommissionFinanceReport {
   };
   transactions: LodgeCommissionTransaction[];
   settlements: LodgeCommissionSettlement[];
+  revenue?: LodgeRevenueSummary;
+  revenueSettlements?: LodgeCommissionSettlement[];
+}
+
+export interface LodgeRevenueSummary {
+  onlinePayments: string;
+  commissionToDeduct: string;
+  commissionDeducted: string;
+  revenueSettled: string;
+  balancePayable: string;
 }
 
 export interface LodgeCommissionOverviewRow {

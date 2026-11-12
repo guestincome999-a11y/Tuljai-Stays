@@ -242,8 +242,12 @@ export interface SettlementFormValues {
 /** Settlement entry form. `onSubmit` resolves true when the settlement was recorded, which clears the form. */
 export function SettlementForm({
   onSubmit,
+  buttonLabel = 'Record settlement',
+  maxAmount,
 }: {
   onSubmit: (values: SettlementFormValues) => Promise<boolean>;
+  buttonLabel?: string;
+  maxAmount?: number;
 }) {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('BANK_TRANSFER');
@@ -256,6 +260,13 @@ export function SettlementForm({
     const numeric = Number(amount);
     if (!Number.isFinite(numeric) || numeric <= 0) {
       setProblem('Enter a valid settlement amount.');
+      return;
+    }
+    if (
+      Math.round(numeric * 100) / 100 !== numeric ||
+      (maxAmount !== undefined && numeric > maxAmount)
+    ) {
+      setProblem('Enter an amount with at most two decimals within the available balance.');
       return;
     }
     setProblem('');
@@ -324,11 +335,11 @@ export function SettlementForm({
       <div className="fin-actions fin-actions-end">
         <button
           className="fin-btn fin-btn-violet"
-          disabled={busy}
+          disabled={busy || (maxAmount !== undefined && maxAmount <= 0)}
           onClick={() => void submit()}
           type="button"
         >
-          {busy ? 'Recording…' : 'Record settlement'}
+          {busy ? 'Recording…' : buttonLabel}
         </button>
       </div>
     </>

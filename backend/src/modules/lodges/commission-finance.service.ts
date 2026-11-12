@@ -10,12 +10,14 @@ import type {
   LodgeCommissionFinanceReport,
   LodgeCommissionSettlement,
   LodgeCommissionTransaction,
+  LodgeRevenueSummary,
 } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateCommissionSettlementDto } from './dto/commission-settlement.dto';
+import { CreateRevenueSettlementDto } from './dto/revenue-settlement.dto';
 import { LodgeAccessService } from './lodge-access.service';
 
 /** Money is kept to 2 decimals so repeated float arithmetic can never leave sub-paisa residue. */
@@ -39,20 +41,27 @@ export class LodgeCommissionFinanceService {
       await this.assertLodge(lodgeId);
     }
 
-    const [lodgeRows, settingRows, transactionRows, settlementRows, summaryRows] =
-      await Promise.all([
-        this.prisma.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
+    const [
+      lodgeRows,
+      settingRows,
+      transactionRows,
+      settlementRows,
+      summaryRows,
+      revenue,
+      revenueSettlements,
+    ] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
           SELECT id, name FROM lodges WHERE id = ${lodgeId}::uuid AND deleted_at IS NULL LIMIT 1
         `),
-        this.prisma.$queryRaw<
-          Array<{
-            commissionEnabled: boolean;
-            commissionFixedAmount: string;
-            commissionRatePercent: string;
-            commissionType: 'PERCENTAGE' | 'FIXED_PER_BOOKING';
-            effectiveFrom: string;
-          }>
-        >(Prisma.sql`
+      this.prisma.$queryRaw<
+        Array<{
+          commissionEnabled: boolean;
+          commissionFixedAmount: string;
+          commissionRatePercent: string;
+          commissionType: 'PERCENTAGE' | 'FIXED_PER_BOOKING';
+          effectiveFrom: string;
+        }>
+      >(Prisma.sql`
           SELECT
             commission_enabled AS "commissionEnabled",
             commission_fixed_amount::text AS "commissionFixedAmount",
@@ -63,7 +72,7 @@ export class LodgeCommissionFinanceService {
           WHERE lodge_id = ${lodgeId}::uuid
           LIMIT 1
         `),
-        this.prisma.$queryRaw<LodgeCommissionTransaction[]>(Prisma.sql`
+      this.prisma.$queryRaw<LodgeCommissionTransaction[]>(Prisma.sql`
           SELECT
             l.id,
             l.booking_id AS "bookingId",
@@ -92,7 +101,7 @@ export class LodgeCommissionFinanceService {
           WHERE l.lodge_id = ${lodgeId}::uuid
           ORDER BY l.created_at DESC
         `),
-        this.prisma.$queryRaw<LodgeCommissionSettlement[]>(Prisma.sql`
+      this.prisma.$queryRaw<LodgeCommissionSettlement[]>(Prisma.sql`
           SELECT
             id,
             amount::text AS amount,
@@ -106,16 +115,16 @@ export class LodgeCommissionFinanceService {
           WHERE lodge_id = ${lodgeId}::uuid
           ORDER BY settled_at DESC
         `),
-        this.prisma.$queryRaw<
-          Array<{
-            bookingRevenue: string;
-            commissionReceivable: string;
-            outstanding: string;
-            settled: string;
-            voided: string;
-            totalSettlements: string;
-          }>
-        >(Prisma.sql`
+      this.prisma.$queryRaw<
+        Array<{
+          bookingRevenue: string;
+          commissionReceivable: string;
+          outstanding: string;
+          settled: string;
+          voided: string;
+          totalSettlements: string;
+        }>
+      >(Prisma.sql`
           SELECT
             COALESCE((SELECT SUM(total_amount) FROM bookings WHERE lodge_id = ${lodgeId}::uuid AND deleted_at IS NULL AND public.tuljai_commission_is_eligible(status::text,payment_status::text)), 0)::text AS "bookingRevenue",
             COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger led WHERE lodge_id = ${lodgeId}::uuid AND status <> 'VOIDED' AND EXISTS (SELECT 1 FROM bookings b WHERE b.id=led.booking_id AND b.deleted_at IS NULL AND public.tuljai_commission_is_eligible(b.status::text,b.payment_status::text))), 0)::text AS "commissionReceivable",
@@ -139,7 +148,15 @@ export class LodgeCommissionFinanceService {
             COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status = 'VOIDED'), 0)::text AS voided,
             COALESCE((SELECT SUM(amount) FROM lodge_commission_settlements WHERE lodge_id = ${lodgeId}::uuid), 0)::text AS "totalSettlements"
         `),
-      ]);
+      this.getRevenueSummary(lodgeId, this.prisma),
+      this.prisma.$queryRaw<LodgeCommissionSettlement[]>(Prisma.sql`
+          SELECT id, amount::text, payment_method AS "paymentMethod", reference, notes,
+            settled_by_user_id AS "settledByUserId", settled_at::text AS "settledAt",
+            created_at::text AS "createdAt"
+          FROM lodge_revenue_settlements WHERE lodge_id = ${lodgeId}::uuid
+          ORDER BY settled_at DESC, id DESC
+        `),
+    ]);
 
     const lodge = lodgeRows[0];
     if (!lodge) throw new NotFoundException('Lodge not found');
@@ -147,6 +164,8 @@ export class LodgeCommissionFinanceService {
     return {
       lodgeId: lodge.id,
       lodgeName: lodge.name,
+      revenue,
+      revenueSettlements,
       setting: settingRows[0] ?? {
         commissionEnabled: false,
         commissionFixedAmount: '0',
@@ -213,6 +232,135 @@ export class LodgeCommissionFinanceService {
       WHERE l.deleted_at IS NULL
       ORDER BY l.name ASC
     `);
+  }
+
+  private async getRevenueSummary(
+    lodgeId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<LodgeRevenueSummary> {
+    const rows = await tx.$queryRaw<LodgeRevenueSummary[]>(Prisma.sql`
+      WITH receipts AS (
+        SELECT COALESCE(SUM(pc.amount), 0) AS amount
+        FROM payment_collections pc JOIN bookings b ON b.id = pc.booking_id
+        WHERE b.lodge_id = ${lodgeId}::uuid AND b.deleted_at IS NULL
+          AND public.tuljai_commission_is_eligible(b.status::text, b.payment_status::text)
+          AND pc.method = 'ONLINE' AND pc.status = 'PAID'
+      ), commission AS (
+        SELECT COALESCE(SUM(GREATEST(l.commission_amount - COALESCE(a.amount, 0), 0)), 0) AS amount
+        FROM lodge_commission_ledger l JOIN bookings b ON b.id = l.booking_id
+        LEFT JOIN (
+          SELECT ledger_id, SUM(amount) AS amount FROM lodge_commission_settlement_allocations GROUP BY ledger_id
+        ) a ON a.ledger_id = l.id
+        WHERE l.lodge_id = ${lodgeId}::uuid AND l.status <> 'VOIDED' AND b.deleted_at IS NULL
+          AND public.tuljai_commission_is_eligible(b.status::text, b.payment_status::text)
+          AND EXISTS (SELECT 1 FROM payment_collections pc WHERE pc.booking_id = b.id AND pc.method = 'ONLINE' AND pc.status = 'PAID')
+      ), paid AS (
+        SELECT COALESCE(SUM(amount), 0) AS amount, COALESCE(SUM(commission_deducted), 0) AS commission
+        FROM lodge_revenue_settlements WHERE lodge_id = ${lodgeId}::uuid
+      )
+      SELECT receipts.amount::text AS "onlinePayments", commission.amount::text AS "commissionToDeduct",
+        paid.commission::text AS "commissionDeducted", paid.amount::text AS "revenueSettled",
+        GREATEST(receipts.amount - commission.amount - paid.amount - paid.commission, 0)::text AS "balancePayable"
+      FROM receipts, commission, paid
+    `);
+    return rows[0]!;
+  }
+
+  public async createRevenueSettlement(
+    lodgeId: string,
+    dto: CreateRevenueSettlementDto,
+    actorUserId: string,
+  ): Promise<LodgeCommissionFinanceReport> {
+    await this.assertLodge(lodgeId);
+    if (!Number.isFinite(dto.amount) || dto.amount <= 0 || toMoney(dto.amount) !== dto.amount)
+      throw new BadRequestException(
+        'Enter a positive settlement amount with at most two decimals.',
+      );
+    if (!dto.paymentMethod.trim()) throw new BadRequestException('Payment method is required.');
+
+    await this.prisma.$transaction(async (tx) => {
+      // Booking-before-ledger order also serializes against cancellation and commission receipts.
+      await tx.$queryRaw`SELECT id FROM bookings WHERE lodge_id = ${lodgeId}::uuid ORDER BY id FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM lodges WHERE id = ${lodgeId}::uuid FOR UPDATE`;
+      const previous = await tx.$queryRaw<
+        Array<{
+          lodgeId: string;
+          amount: string;
+          paymentMethod: string;
+          reference: string | null;
+          notes: string | null;
+        }>
+      >`SELECT lodge_id AS "lodgeId", amount::text, payment_method AS "paymentMethod", reference, notes
+        FROM lodge_revenue_settlements WHERE idempotency_key = ${dto.idempotencyKey}::uuid`;
+      if (previous[0]) {
+        const saved = previous[0];
+        if (
+          saved.lodgeId !== lodgeId ||
+          Number(saved.amount) !== dto.amount ||
+          saved.paymentMethod !== dto.paymentMethod.trim() ||
+          saved.reference !== (dto.reference ?? null) ||
+          saved.notes !== (dto.notes ?? null)
+        )
+          throw new BadRequestException(
+            'This settlement request was already used with different details.',
+          );
+        return;
+      }
+
+      const summary = await this.getRevenueSummary(lodgeId, tx);
+      if (dto.amount > Number(summary.balancePayable))
+        throw new BadRequestException(
+          `Settlement exceeds balance payable of Rs. ${Number(summary.balancePayable).toFixed(2)}.`,
+        );
+
+      const commission = await tx.$queryRaw<Array<{ id: string; due: string }>>`
+        SELECT l.id, GREATEST(l.commission_amount - COALESCE((
+          SELECT SUM(a.amount) FROM lodge_commission_settlement_allocations a WHERE a.ledger_id = l.id
+        ), 0), 0)::text AS due
+        FROM lodge_commission_ledger l JOIN bookings b ON b.id = l.booking_id
+        WHERE l.lodge_id = ${lodgeId}::uuid AND l.status = 'OUTSTANDING' AND b.deleted_at IS NULL
+          AND public.tuljai_commission_is_eligible(b.status::text, b.payment_status::text)
+          AND EXISTS (SELECT 1 FROM payment_collections pc WHERE pc.booking_id = b.id AND pc.method = 'ONLINE' AND pc.status = 'PAID')
+        ORDER BY l.eligible_at, l.id FOR UPDATE OF l`;
+      const deducted = toMoney(commission.reduce((sum, row) => sum + Number(row.due), 0));
+      let commissionSettlementId: string | null = null;
+      if (deducted > 0) {
+        const entries = await tx.$queryRaw<Array<{ id: string }>>`
+          INSERT INTO lodge_commission_settlements (lodge_id, amount, payment_method, reference, notes, settled_by_user_id)
+          VALUES (${lodgeId}::uuid, ${deducted}, 'REVENUE_OFFSET', ${dto.reference ?? null},
+            'Commission deducted from online revenue payment to lodge', ${actorUserId}::uuid) RETURNING id`;
+        commissionSettlementId = entries[0]!.id;
+        for (const row of commission) {
+          if (Number(row.due) <= 0) continue;
+          await tx.$executeRaw`INSERT INTO lodge_commission_settlement_allocations (settlement_id, ledger_id, amount)
+            VALUES (${commissionSettlementId}::uuid, ${row.id}::uuid, ${Number(row.due)})`;
+          await tx.$executeRaw`UPDATE lodge_commission_ledger SET status = 'SETTLED', settled_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP WHERE id = ${row.id}::uuid`;
+        }
+      }
+      const entries = await tx.$queryRaw<Array<{ id: string }>>`
+        INSERT INTO lodge_revenue_settlements (lodge_id, amount, commission_deducted, commission_settlement_id,
+          idempotency_key, payment_method, reference, notes, settled_by_user_id)
+        VALUES (${lodgeId}::uuid, ${dto.amount}, ${deducted}, ${commissionSettlementId}::uuid,
+          ${dto.idempotencyKey}::uuid, ${dto.paymentMethod.trim()}, ${dto.reference ?? null}, ${dto.notes ?? null}, ${actorUserId}::uuid)
+        RETURNING id`;
+      await tx.auditLog.create({
+        data: {
+          action: 'LODGE_REVENUE_SETTLEMENT_CREATED',
+          actorUserId,
+          entityId: entries[0]!.id,
+          entityType: 'lodge_revenue_settlement',
+          metadata: {
+            lodgeId,
+            amount: dto.amount,
+            commissionDeducted: deducted,
+            paymentMethod: dto.paymentMethod,
+            reference: dto.reference ?? null,
+          },
+        },
+      });
+    });
+    return this.getReport(lodgeId);
   }
 
   public async createSettlement(

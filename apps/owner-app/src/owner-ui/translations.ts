@@ -88,6 +88,8 @@ export const marathiTranslations: Record<string, string> = {
   'Occupied Rooms': 'भरलेल्या खोल्या',
   Maintenance: 'देखभाल',
   'Estimated Revenue': 'अंदाजे उत्पन्न',
+  'Revenue Settlements': 'उत्पन्नाची देयके',
+  'View payments received from Tuljai Stays': 'तुळजाई स्टेजकडून मिळालेली देयके पहा',
   'Estimated Commission': 'अंदाजे कमिशन',
   'Average Rating': 'सरासरी रेटिंग',
   'Unread Notifications': 'न वाचलेल्या सूचना',
