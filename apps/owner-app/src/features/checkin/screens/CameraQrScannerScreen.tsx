@@ -75,7 +75,7 @@ export function CameraQrScannerScreen() {
   // Payment guidance must not wait for the check-in request to finish.
   // Use saved details immediately; fetch missing details only after the result paints.
   useEffect(() => {
-    if (!outcome?.qr || cached || isOffline) return;
+    if (!outcome?.qr || !outcome.qr.bookingId || cached || isOffline) return;
     const bookingId = outcome.qr.bookingId;
     let disposed = false;
     requestAnimationFrame(() =>

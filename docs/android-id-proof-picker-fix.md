@@ -1,7 +1,8 @@
 # Android ID proof picker
 
-The installed Expo document picker (57.0.1) launches `ACTION_OPEN_DOCUMENT`.
+The original Expo document picker (57.0.1) launches `ACTION_OPEN_DOCUMENT`.
 On devices without an enabled handler, Android throws `ActivityNotFoundException`.
+The original native patch is archived in `docs/native-patches/expo-document-picker-57.0.1.patch`; it is not applied to the newer dependency installed by the current release. This owner-only release does not rebuild the pilgrim app.
 Expo also leaves its pending promise set after this launch failure, blocking retries.
 
 `patches/expo-document-picker+57.0.1.patch` adds an `ACTION_GET_CONTENT` fallback,

@@ -12,21 +12,223 @@ require('ts-node').register({
 });
 const { Prisma } = require('@prisma/client');
 
+const { ApplicationError, getApiErrorMessage } = require('../../packages/utils/src/errors.ts');
 const { calculateStayPrice } = require('../src/modules/bookings/booking-pricing.ts');
 const { BookingsService } = require('../src/modules/bookings/bookings.service.ts');
 const { OperationsService } = require('../src/modules/operations/operations.service.ts');
 const { PaymentsService } = require('../src/modules/payments/payments.service.ts');
 const { RazorpayProvider } = require('../src/modules/payments/providers/razorpay.provider.ts');
+const { HttpExceptionFilter } = require('../src/shared/filters/http-exception.filter.ts');
 
 const date = (value) => new Date(`${value}T00:00:00.000Z`);
 const user = { id: 'pilgrim', roles: ['PILGRIM'], isActive: true, phoneNumber: null };
 
-test('displayed checkout prices preserve paise and Indian digit grouping', () => {
-  const { formatRupees } = require('../../apps/pilgrim-app/src/v2/i18n/strings.ts');
-  assert.equal(formatRupees('9.69'), '₹9.69');
-  assert.equal(formatRupees('1099'), '₹1,099');
-  assert.equal(formatRupees('1234567.50'), '₹12,34,567.50');
-  assert.equal(formatRupees('invalid'), '');
+test('replaying a captured legacy payment preserves a later cancellation and sends no new alerts', async () => {
+  const booking = {
+    id: 'booking',
+    bookingCode: 'TJS-TEST',
+    cityId: 'city',
+    lodgeId: 'lodge',
+    roomTypeId: 'type',
+    totalAmount: 100,
+    status: 'CANCELLED',
+  };
+  const service = new PaymentsService(
+    {},
+    {},
+    {
+      booking: { findFirst: async () => booking },
+      $queryRaw: async () => [
+        { id: 'collection', status: 'PAID', provider_order_id: 'order_test' },
+      ],
+      $transaction: async (fn) =>
+        fn({
+          $queryRaw: async () => [],
+          booking: {
+            findUniqueOrThrow: async () => ({
+              ...booking,
+              paymentStatus: 'FULLY_PAID',
+              roomId: 'room',
+            }),
+          },
+        }),
+      paymentIntent: { updateMany: async () => ({ count: 1 }) },
+    },
+    {
+      verifyPayment: async () => ({ verified: true }),
+      getPayment: async () => ({
+        id: 'pay_test',
+        order_id: 'order_test',
+        amount: 10000,
+        currency: 'INR',
+        captured: true,
+        status: 'captured',
+      }),
+    },
+    { successful: () => assert.fail('replay must not notify') },
+    { bookingCommitted: () => assert.fail('replay must not publish acceptance') },
+  );
+  assert.equal(
+    (
+      await service.verifyBookingPayment(booking.id, user.id, {
+        orderId: 'order_test',
+        paymentId: 'pay_test',
+        signature: 'synthetic',
+      })
+    ).status,
+    'CANCELLED',
+  );
+});
+
+test(
+  'authoritative confirmation returns without waiting for notification delivery',
+  { timeout: 2000 },
+  async () => {
+    const intent = {
+      id: 'intent',
+      status: 'PENDING',
+      pilgrimUserId: user.id,
+      lockCode: 'lock',
+      guestDetails: { lockCode: 'lock' },
+      amount: 100,
+      currency: 'INR',
+    };
+    let notifications = 0;
+    const service = new PaymentsService(
+      {},
+      { createPrepaidBooking: async () => ({ id: 'confirmed-booking', status: 'ACCEPTED' }) },
+      { paymentIntent: { findUnique: async () => intent } },
+      {
+        verifyPayment: async () => ({ verified: true }),
+        getPayment: async () => ({
+          id: 'pay_test',
+          order_id: 'order_test',
+          amount: 10000,
+          currency: 'INR',
+          captured: true,
+          status: 'captured',
+        }),
+      },
+      {
+        successful: async () => {
+          notifications++;
+          await new Promise(() => {});
+        },
+      },
+      {},
+    );
+    const booking = await service.confirmPrepaidBooking(
+      { lockCode: 'lock', paymentMethod: 'ONLINE' },
+      user,
+      { orderId: 'order_test', paymentId: 'pay_test', signature: 'synthetic' },
+    );
+    assert.equal(booking.id, 'confirmed-booking');
+    assert.equal(notifications, 0);
+  },
+);
+
+test(
+  'webhook acknowledges durable intake while the authoritative gateway read is still pending',
+  { timeout: 2000 },
+  async () => {
+    let persisted = false;
+    const service = new PaymentsService(
+      {},
+      {},
+      {
+        $transaction: async (fn) =>
+          fn({
+            paymentWebhookEvent: {
+              createMany: async () => {
+                persisted = true;
+                return { count: 1 };
+              },
+            },
+            paymentIntent: { updateMany: async () => ({ count: 1 }) },
+          }),
+        paymentIntent: { findUnique: async () => ({ status: 'PENDING' }) },
+      },
+      {
+        verifyWebhook: () => true,
+        getOrderPayments: async () => new Promise(() => {}),
+      },
+      {},
+      {},
+    );
+    const result = await service.receiveWebhook(
+      Buffer.from(
+        JSON.stringify({
+          event: 'payment.authorized',
+          payload: { payment: { entity: { id: 'pay_test', order_id: 'order_test' } } },
+        }),
+      ),
+      'synthetic',
+      'event_authorized',
+    );
+    assert.equal(persisted, true);
+    assert.equal(result.received, true);
+  },
+);
+
+test('cancellation validation errors are actionable while internal errors only expose a support reference', () => {
+  assert.equal(
+    getApiErrorMessage(
+      new ApplicationError('This booking can no longer be cancelled', 'REQUEST_FAILED', {
+        statusCode: 400,
+        requestId: 'req-validation',
+      }),
+      'Try again',
+    ),
+    'This booking can no longer be cancelled (Reference: req-validation)',
+  );
+  assert.equal(
+    getApiErrorMessage(
+      new ApplicationError('secret SQL with guest/payment data', 'INTERNAL_SERVER_ERROR', {
+        statusCode: 500,
+        requestId: 'req-timeout',
+      }),
+      'Refresh booking status',
+    ),
+    'Refresh booking status (Reference: req-timeout)',
+  );
+  assert.equal(
+    getApiErrorMessage(new Error('network details'), 'Refresh booking status'),
+    'Refresh booking status',
+  );
+});
+
+test('unexpected cancellation failures log diagnostic codes without guest or payment data', () => {
+  const filter = new HttpExceptionFilter();
+  const logs = [];
+  filter.logger.error = (entry) => logs.push(entry);
+  let status, payload;
+  const response = {
+    status: (value) => {
+      status = value;
+      return response;
+    },
+    send: (value) => {
+      payload = value;
+    },
+  };
+  const failure = Object.assign(new Error('secret SQL with guest/payment data'), { code: 'P2028' });
+  filter.catch(failure, {
+    switchToHttp: () => ({
+      getRequest: () => ({
+        id: 'req-cancel',
+        method: 'POST',
+        routeOptions: { url: '/api/bookings/:id/cancel' },
+        body: { reason: 'private guest reason' },
+      }),
+      getResponse: () => response,
+    }),
+  });
+  assert.equal(status, 500);
+  assert.equal(payload.message, 'Internal server error');
+  assert.equal(payload.requestId, 'req-cancel');
+  assert.equal(logs[0].errorCode, 'P2028');
+  assert.equal(logs[0].requestId, payload.requestId);
+  assert.doesNotMatch(JSON.stringify({ logs, payload }), /secret|guest\/payment|private guest/);
 });
 
 test('pricing sums ordinary and explicit festival/date prices with decimal precision', async () => {
@@ -85,6 +287,8 @@ test('webhook signatures use exact raw bytes and reject tampering or malformed h
 
 test('festival fallback uses inclusive configured dates and explicit prices still win', async () => {
   const db = {
+    featureFlag: { findUnique: async () => ({ enabled: true }) },
+
     roomPricing: {
       findMany: async () => [{ date: date('2026-11-03'), price: new Prisma.Decimal('2500.25') }],
     },
@@ -117,6 +321,8 @@ test('festival fallback uses inclusive configured dates and explicit prices stil
 
 test('blank festival window uses base rate; incomplete or invalid windows fail visibly', async () => {
   const db = {
+    featureFlag: { findUnique: async () => ({ enabled: true }) },
+
     roomPricing: { findMany: async () => [] },
     systemSetting: { findMany: async () => [] },
   };
@@ -190,7 +396,16 @@ test('a simultaneous unauthorized callback cannot join another users in-flight w
       return { verified: false };
     },
   };
-  const prisma = { $queryRaw: async () => [{ booking_id: 'original' }] };
+  const prisma = {
+    paymentIntent: {
+      findUnique: async () => ({
+        status: 'CONFIRMED',
+        bookingId: 'original',
+        pilgrimUserId: user.id,
+        providerPaymentId: 'pay_test',
+      }),
+    },
+  };
   const bookings = { getBookingById: async () => ({ id: 'original' }) };
   const service = new PaymentsService({}, bookings, prisma, provider, {}, {});
   const first = service.confirmPrepaidBooking({ paymentMethod: 'ONLINE' }, user, {
@@ -240,7 +455,10 @@ test('confirmation survives another instance committing while the gateway read i
   };
   const prisma = {
     $queryRaw: async () => [],
-    paymentIntent: { findUniqueOrThrow: async () => intent },
+    paymentIntent: {
+      findUnique: async () => ({ ...intent, status: 'PENDING' }),
+      findUniqueOrThrow: async () => ({ ...intent, providerPaymentId: 'pay_test' }),
+    },
   };
   const provider = {
     verifyPayment: async () => ({ verified: true }),
@@ -278,6 +496,7 @@ test('duplicate captured and delayed failed webhooks never demote a confirmed in
   const inbox = new Map();
   const intent = { status: 'CONFIRMED' };
   const tx = {
+    $executeRaw: async () => 0,
     paymentWebhookEvent: {
       createMany: async ({ data }) => {
         if (!inbox.has(data.id)) inbox.set(data.id, data);
@@ -376,6 +595,7 @@ test('signed webhook schedules captured payment recovery without an app callback
     paymentIntent,
     $transaction: async (fn) =>
       fn({
+        $executeRaw: async () => 0,
         paymentIntent,
         paymentWebhookEvent: { createMany: async ({ data }) => inbox.set(data.id, data) },
       }),

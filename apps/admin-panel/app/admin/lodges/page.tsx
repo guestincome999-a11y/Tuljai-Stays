@@ -1,32 +1,66 @@
 'use client';
 
-import type { Lodge, PaginatedResponse } from '@tuljai/types';
+import type { Lodge, LodgeStatus, PaginatedResponse, VerificationStatus } from '@tuljai/types';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { listGovernanceLodges } from '../../../src/api/admin-governance-api';
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
+import { FinanceStyles } from '../../../src/components/finance/FinanceStyles';
+import {
+  FinBanners,
+  FinHeader,
+  FinKpi,
+  FinPanel,
+  FinPill,
+} from '../../../src/components/finance/FinanceUi';
+import type { FinTone } from '../../../src/components/finance/FinanceUi';
 import { PermissionGate } from '../../../src/components/PermissionGate';
 import { formatGovernanceStatus } from '../../../src/governance/governance-utils';
 import { hasPermission } from '../../../src/permissions/permissions';
 
+function statusTone(status: LodgeStatus): FinTone {
+  if (status === 'VERIFIED') return 'green';
+  if (status === 'PENDING_VERIFICATION') return 'orange';
+  if (status === 'SUSPENDED' || status === 'REJECTED') return 'red';
+  return 'gray';
+}
+
+function verificationTone(status: VerificationStatus): FinTone {
+  if (status === 'VERIFIED') return 'green';
+  if (status === 'REJECTED') return 'red';
+  return 'orange';
+}
+
 export default function AdminLodgesPage() {
   const auth = useAdminAuth();
+  const canManage = hasPermission(auth.permissions, 'lodges.manage');
   const [data, setData] = useState<PaginatedResponse<Lodge> | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const canManage = hasPermission(auth.permissions, 'lodges.manage');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const load = useCallback(async () => {
     setErrorMessage(null);
     setIsLoading(true);
     try {
-      const response = await listGovernanceLodges({ page, pageSize: 20, search });
-      setData(response);
-    } catch {
-      setErrorMessage('Lodges could not be loaded. Please retry.');
+      setData(await listGovernanceLodges({ page, pageSize: 20, search }));
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error && error.message.trim()
+          ? `Lodges could not be loaded. ${error.message}`
+          : 'Lodges could not be loaded. Please retry.',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -48,139 +82,177 @@ export default function AdminLodgesPage() {
 
   return (
     <PermissionGate permission="lodges.view">
-      <div className="page-stack">
-        <section className="hero-panel command-hero">
-          <div>
-            <p className="eyebrow">Governance Center</p>
-            <h2>Lodges</h2>
-            <p className="muted-copy">
-              Review lodge readiness, verification state, room coverage, and publication health.
-            </p>
-          </div>
-          <div className="row-actions">
-            {canManage ? (
-              <>
-                <Link className="button button-primary" href="/admin/lodges/import">
-                  Import Lodges (Excel)
-                </Link>
-                <Link className="button button-secondary" href="/admin/lodges/new">
-                  Add Lodge
-                </Link>
-              </>
-            ) : null}
-            <button className="button button-secondary" type="button" onClick={() => void load()}>
-              Refresh
-            </button>
-          </div>
-        </section>
-
-        <section className="grid grid-4">
-          <MetricCard label="Total lodges" value={summary.total} />
-          <MetricCard label="Verified on page" value={summary.verified} />
-          <MetricCard label="Pending review" value={summary.pending} />
-          <MetricCard label="Inactive on page" value={summary.inactive} />
-        </section>
-
-        <section className="panel">
-          <div className="control-grid">
-            <label>
-              <span>Search</span>
-              <input
-                placeholder="Lodge name, slug, status"
-                value={search}
-                onChange={(event) => {
-                  setPage(1);
-                  setSearch(event.target.value);
-                }}
-              />
-            </label>
-          </div>
-        </section>
-
-        {errorMessage ? <section className="error-banner">{errorMessage}</section> : null}
-
-        <section className="table-panel">
-          <div className="admin-table governance-lodge-table">
-            <div className="admin-table-row admin-table-head">
-              <span>Lodge</span>
-              <span>Type</span>
-              <span>Visibility</span>
-              <span>Verification</span>
-              <span>Distance</span>
-              <span>Actions</span>
-            </div>
-            {(data?.items ?? []).map((lodge) => (
-              <div className="admin-table-row" key={lodge.id}>
-                <span>
-                  <strong>{lodge.name}</strong>
-                  <small>{lodge.slug}</small>
-                </span>
-                <span>{formatGovernanceStatus(lodge.propertyType)}</span>
-                <span className="status-card">{formatGovernanceStatus(lodge.status)}</span>
-                <span className="status-card">
-                  {formatGovernanceStatus(lodge.verificationStatus)}
-                </span>
-                <span>
-                  {lodge.distanceFromTempleMeters
-                    ? `${lodge.distanceFromTempleMeters} m`
-                    : 'Not set'}
-                </span>
-                <span className="row-actions">
-                  <Link className="ghost-control" href={`/admin/lodges/${lodge.id}`}>
-                    Inspect
+      <div className="fin-stack">
+        <FinanceStyles />
+        <FinHeader
+          actions={
+            <>
+              {canManage ? (
+                <>
+                  <Link className="fin-btn" href="/admin/lodges/new">
+                    Add lodge
                   </Link>
-                  {canManage ? (
-                    <Link
-                      className="ghost-control"
-                      href={`/admin/verification?lodgeId=${lodge.id}`}
-                    >
-                      Verify
-                    </Link>
-                  ) : null}
-                </span>
-              </div>
-            ))}
+                  <Link className="fin-btn fin-btn-outline" href="/admin/lodges/import">
+                    Import lodges (Excel)
+                  </Link>
+                </>
+              ) : null}
+              <button
+                className="fin-btn fin-btn-soft"
+                disabled={isLoading}
+                type="button"
+                onClick={() => void load()}
+              >
+                {isLoading ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </>
+          }
+          description="Review lodge readiness, verification state, room coverage, and publication health."
+          eyebrow="Lodges & Owners"
+          title="Lodges"
+        />
+
+        <section aria-label="Lodge summary" className="fin-kpis">
+          <FinKpi
+            icon="lodge"
+            label="Total lodges"
+            meta="Across the platform"
+            tone="blue"
+            value={summary.total}
+          />
+          <FinKpi
+            icon="check"
+            label="Verified"
+            meta="On this page"
+            tone="green"
+            value={summary.verified}
+          />
+          <FinKpi
+            icon="clock"
+            label="Pending review"
+            meta="On this page"
+            tone="orange"
+            value={summary.pending}
+          />
+          <FinKpi
+            icon="receipt"
+            label="Inactive"
+            meta="On this page"
+            tone="red"
+            value={summary.inactive}
+          />
+        </section>
+
+        <FinPanel
+          sub={
+            data ? `${data.totalItems} ${data.totalItems === 1 ? 'lodge' : 'lodges'}` : undefined
+          }
+          title="Lodge directory"
+        >
+          <div className="fin-toolbar">
+            <input
+              aria-label="Search lodges"
+              className="fin-search"
+              placeholder="Search lodge name, slug or status"
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
           </div>
 
-          {!isLoading && (data?.items.length ?? 0) === 0 ? (
-            <p className="empty-table">No lodges found for the current filters.</p>
+          <FinBanners error={errorMessage} />
+          {isLoading && !data ? <div aria-label="Loading" className="fin-skeleton" /> : null}
+          {data && data.items.length === 0 ? (
+            <p className="fin-empty">No lodges found for the current search.</p>
           ) : null}
 
-          <div className="pagination-row">
-            <button
-              className="button button-secondary"
-              disabled={page <= 1}
-              type="button"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Previous
-            </button>
-            <span>
-              Page {data?.page ?? page} of {data?.totalPages ?? 1}
-            </span>
-            <button
-              className="button button-secondary"
-              disabled={!data || page >= data.totalPages}
-              type="button"
-              onClick={() => setPage((current) => current + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </section>
+          {data && data.items.length > 0 ? (
+            <div className="fin-scroll">
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>Lodge</th>
+                    <th>Type</th>
+                    <th>Visibility</th>
+                    <th>Verification</th>
+                    <th className="fin-num">Distance</th>
+                    <th className="fin-num">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.map((lodge) => (
+                    <tr key={lodge.id}>
+                      <td>
+                        <Link className="fin-link" href={`/admin/lodges/${lodge.id}`}>
+                          {lodge.name}
+                        </Link>
+                        <span className="fin-cell-sub">{lodge.slug}</span>
+                      </td>
+                      <td>{formatGovernanceStatus(lodge.propertyType)}</td>
+                      <td>
+                        <FinPill tone={statusTone(lodge.status)}>
+                          {formatGovernanceStatus(lodge.status)}
+                        </FinPill>
+                      </td>
+                      <td>
+                        <FinPill tone={verificationTone(lodge.verificationStatus)}>
+                          {formatGovernanceStatus(lodge.verificationStatus)}
+                        </FinPill>
+                      </td>
+                      <td className="fin-num">
+                        {lodge.distanceFromTempleMeters
+                          ? `${lodge.distanceFromTempleMeters} m`
+                          : 'Not set'}
+                      </td>
+                      <td className="fin-num">
+                        <Link
+                          className="fin-btn fin-btn-sm fin-btn-soft"
+                          href={`/admin/lodges/${lodge.id}`}
+                        >
+                          Inspect
+                        </Link>{' '}
+                        {canManage ? (
+                          <Link
+                            className="fin-btn fin-btn-sm fin-btn-outline"
+                            href={`/admin/verification?lodgeId=${lodge.id}`}
+                          >
+                            Verify
+                          </Link>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {data ? (
+            <div className="fin-pager">
+              <span>
+                Page {data.page} of {data.totalPages} · {data.totalItems}{' '}
+                {data.totalItems === 1 ? 'lodge' : 'lodges'}
+              </span>
+              <button
+                className="fin-btn fin-btn-sm fin-btn-soft"
+                disabled={page <= 1 || isLoading}
+                type="button"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Previous
+              </button>
+              <button
+                className="fin-btn fin-btn-sm fin-btn-soft"
+                disabled={page >= data.totalPages || isLoading}
+                type="button"
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
+        </FinPanel>
       </div>
     </PermissionGate>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="kpi-card">
-      <span className="kpi-icon">TS</span>
-      <div>
-        <span className="kpi-label">{label}</span>
-        <strong>{value}</strong>
-      </div>
-    </div>
   );
 }

@@ -1,23 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { fetchCatalog } from './catalog';
 import type { CatalogLodgeCard, CatalogPage, CatalogQuery } from './catalog';
 import { catalogErrorKind } from './catalog-request';
+import { subscribeCatalogChanges } from './catalog-sync';
+import { registerCachedRefresher } from './useCachedFetch';
 
 const PAGE_SIZE = 12;
-const firstPageCache = new Map<string, { page: CatalogPage; expires: number }>();
-function cachedPage(key: string): CatalogPage | undefined {
-  const entry = firstPageCache.get(key);
-  if (entry && entry.expires > Date.now()) return entry.page;
-  firstPageCache.delete(key);
-  return undefined;
-}
+const firstPageCache = new Map<string, CatalogPage>();
 
 export type CatalogListQuery = Omit<CatalogQuery, 'page' | 'pageSize'>;
 
 interface ListState {
   error: boolean;
-  errorKind?: 'network' | 'server' | 'request';
   items: CatalogLodgeCard[];
   loading: boolean;
   loadingMore: boolean;
@@ -53,83 +49,85 @@ const EMPTY_STATE: ListState = {
  * remembered, so going back to a search shows results instantly while a fresh copy loads.
  */
 export function useCatalogList(query: CatalogListQuery) {
+  const [errorKind, setErrorKind] = useState<ReturnType<typeof catalogErrorKind> | null>(null);
   const key = JSON.stringify(query);
   const [state, setState] = useState<ListState>(() => {
-    const cached = cachedPage(key);
+    const cached = firstPageCache.get(key);
     return cached ? stateFromPage(cached) : EMPTY_STATE;
   });
   const requestId = useRef(0);
-  const controller = useRef<AbortController | null>(null);
-  const paging = useRef(false);
+  const activeRequest = useRef<{ key: string; request: Promise<void> } | null>(null);
+  const loadingNext = useRef(false);
   const queryRef = useRef(query);
   queryRef.current = query;
 
-  const loadFirstPage = useCallback(async () => {
-    const id = ++requestId.current;
-    controller.current?.abort();
-    const active = new AbortController();
-    controller.current = active;
-    paging.current = false;
-    setState((current) => ({
-      ...current,
-      error: false,
-      errorKind: undefined,
-      loading: true,
-      loadingMore: false,
-    }));
-    try {
-      const page = await fetchCatalog(
-        { ...queryRef.current, page: 1, pageSize: PAGE_SIZE },
-        active.signal,
-      );
-      if (id !== requestId.current) return;
-      firstPageCache.delete(key);
-      firstPageCache.set(key, { page, expires: Date.now() + 15_000 });
-      if (firstPageCache.size > 20) firstPageCache.delete(firstPageCache.keys().next().value!);
-      setState(stateFromPage(page));
-    } catch (error) {
-      if (id === requestId.current)
-        setState((current) => ({
-          ...current,
-          error: true,
-          errorKind: catalogErrorKind(error),
-          loading: false,
-        }));
-    }
+  const loadFirstPage = useCallback((): Promise<void> => {
+    if (activeRequest.current?.key === key) return activeRequest.current.request;
+    const request = (async () => {
+      const id = ++requestId.current;
+      try {
+        setErrorKind(null);
+        const page = await fetchCatalog({ ...queryRef.current, page: 1, pageSize: PAGE_SIZE });
+        if (id !== requestId.current) return;
+        if (firstPageCache.size >= 20) firstPageCache.delete(firstPageCache.keys().next().value!);
+        firstPageCache.set(key, page);
+        setState(stateFromPage(page));
+      } catch (error) {
+        if (id === requestId.current) setErrorKind(catalogErrorKind(error));
+        if (id === requestId.current)
+          setState((current) => ({ ...current, error: true, loading: false }));
+      }
+    })().finally(() => {
+      if (activeRequest.current?.request === request) activeRequest.current = null;
+    });
+    activeRequest.current = { key, request };
+    return request;
   }, [key]);
 
   useEffect(() => {
-    const cached = cachedPage(key);
+    const cached = firstPageCache.get(key);
     setState(cached ? stateFromPage(cached) : EMPTY_STATE);
     void loadFirstPage();
+    const unregister = registerCachedRefresher(loadFirstPage);
+    const unsubscribe = subscribeCatalogChanges((change) => {
+      firstPageCache.clear();
+      requestId.current++;
+      activeRequest.current = null;
+      if (change.lodgeId && change.isActive === false)
+        setState((current) => ({
+          ...current,
+          items: current.items.filter((lodge) => lodge.id !== change.lodgeId),
+        }));
+    });
+    const foreground = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void loadFirstPage();
+    });
+    // Also covers unauthenticated browsing, where no role-authenticated socket exists.
+    const fallback = setInterval(() => {
+      if (AppState.currentState === 'active') void loadFirstPage();
+    }, 60000);
     return () => {
-      requestId.current += 1;
-      controller.current?.abort();
-      paging.current = false;
+      unregister();
+      unsubscribe();
+      foreground.remove();
+      clearInterval(fallback);
+      requestId.current++;
+      activeRequest.current = null;
     };
   }, [key, loadFirstPage]);
 
   const loadMore = useCallback(async () => {
-    if (
-      paging.current ||
-      state.error ||
-      state.loading ||
-      state.loadingMore ||
-      state.page >= state.totalPages
-    )
+    if (loadingNext.current || state.loading || state.loadingMore || state.page >= state.totalPages)
       return;
+    loadingNext.current = true;
     const id = requestId.current;
-    paging.current = true;
-    setState((current) => ({ ...current, loadingMore: true, error: false }));
+    setState((current) => ({ ...current, loadingMore: true }));
     try {
-      const next = await fetchCatalog(
-        {
-          ...queryRef.current,
-          page: state.page + 1,
-          pageSize: PAGE_SIZE,
-        },
-        controller.current?.signal,
-      );
+      const next = await fetchCatalog({
+        ...queryRef.current,
+        page: state.page + 1,
+        pageSize: PAGE_SIZE,
+      });
       if (id !== requestId.current) return;
       setState((current) => {
         const known = new Set(current.items.map((item) => item.id));
@@ -142,18 +140,13 @@ export function useCatalogList(query: CatalogListQuery) {
           totalPages: next.totalPages,
         };
       });
-    } catch (error) {
+    } catch {
       if (id === requestId.current)
-        setState((current) => ({
-          ...current,
-          loadingMore: false,
-          error: true,
-          errorKind: catalogErrorKind(error),
-        }));
+        setState((current) => ({ ...current, error: true, loadingMore: false }));
     } finally {
-      if (id === requestId.current) paging.current = false;
+      loadingNext.current = false;
     }
-  }, [state.error, state.loading, state.loadingMore, state.page, state.totalPages]);
+  }, [state.loading, state.loadingMore, state.page, state.totalPages]);
 
-  return { ...state, loadMore, refresh: loadFirstPage };
+  return { ...state, errorKind, loadMore, refresh: loadFirstPage };
 }

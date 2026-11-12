@@ -72,12 +72,14 @@ export interface BookingGuestIdProofUpload {
 }
 
 export interface Booking {
-  /** Server-confirmed receipt of a pay-at-lodge payment; not an online payment. */
-  payAtLodgeCollectedAt?: ISODateTime | null;
+  cancelledAt?: ISODateTime | null;
+  refunds?: BookingRefundSummary[];
   acceptedByUserId: UUID | null;
   advanceAmount: string | null;
   alternatePhone: string | null;
   balanceAmount: string | null;
+  /** Server-confirmed cash receipt; does not imply an online payment. */
+  payAtLodgeCollectedAt?: ISODateTime | null;
   bookingCode: string;
   cancellationReason: string | null;
   checkInDate: string;
@@ -117,6 +119,18 @@ export interface Booking {
   totalAmount: string | null;
   totalGuests: number;
   updatedAt: ISODateTime;
+}
+
+export interface BookingRefundSummary {
+  id: string;
+  amount: string | null;
+  currency: string;
+  status: 'NOT_REQUIRED' | 'PENDING' | 'INITIATED' | 'PROCESSED' | 'FAILED';
+  refundId: string | null;
+  originalPaymentMethod: string;
+  initiatedAt: string | null;
+  processedAt: string | null;
+  message: string;
 }
 
 export interface BookingLock {
@@ -165,6 +179,15 @@ export interface OwnerBookingSummary extends Booking {
 }
 
 export interface AdminBookingSummary extends OwnerBookingSummary {
+  emailDelivery?: {
+    status: string;
+    recipient: string | null;
+    attempts: number;
+    lastAttemptAt: ISODateTime | null;
+    lastError: string | null;
+    providerMessageId: string | null;
+    sentAt: ISODateTime | null;
+  } | null;
   /** Recorded lifecycle and payment events, populated only for admin detail. */
   activity?: BookingActivity[];
   cityName: string;

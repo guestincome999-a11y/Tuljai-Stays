@@ -5,7 +5,7 @@
     "slug": "tuljai-stays-owner",
     "scheme": "tuljaistays-owner",
     "icon": "./assets/icon.png",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
@@ -31,7 +31,7 @@
         "backgroundColor": "#861632",
         "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "versionCode": 24
+      "versionCode": 25
     },
     "plugins": [
       "expo-router",

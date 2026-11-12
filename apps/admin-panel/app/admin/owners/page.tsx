@@ -160,15 +160,15 @@ export default function AdminOwnersPage() {
       setTeamForm(initialTeamForm);
       await loadTeam(form.selectedLodgeId);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Could not create the account.',
-      );
+      setErrorMessage(error instanceof Error ? error.message : 'Could not create the account.');
     }
   }
 
   async function resetPassword(member: LodgeTeamMember) {
     if (!member.user.email) {
-      setErrorMessage('This account has no login email on file - it cannot use password login yet.');
+      setErrorMessage(
+        'This account has no login email on file - it cannot use password login yet.',
+      );
       return;
     }
     const newPassword = window.prompt(
@@ -214,9 +214,9 @@ export default function AdminOwnersPage() {
             <p className="eyebrow">Owner Governance</p>
             <h2>Lodge owners &amp; staff</h2>
             <p className="muted-copy">
-              Create owner and staff accounts for a lodge, reset their passwords, and manage
-              access. Staff accounts sign in to the Owner App with the same email/password login
-              but are limited to day-to-day operations (check-in/check-out, room status).
+              Create owner and staff accounts for a lodge, reset their passwords, and manage access.
+              Staff accounts sign in to the Owner App with the same email/password login but are
+              limited to day-to-day operations (check-in/check-out, room status).
             </p>
           </div>
           <button className="button button-primary" type="button" onClick={() => void load()}>

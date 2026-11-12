@@ -41,6 +41,17 @@ export class BookingLocksService {
         await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${scope}, 0))`;
       }
       await lockInventory(tx, dto.roomTypeId);
+      const lodge = await tx.lodge.findFirst({
+        where: {
+          id: dto.lodgeId,
+          deletedAt: null,
+          isActive: true,
+          status: 'VERIFIED',
+          verificationStatus: 'VERIFIED',
+        },
+        select: { id: true },
+      });
+      if (!lodge) throw new ConflictException('Lodge is not available for new bookings');
       if (checkoutAttemptKey) {
         const existing = await tx.bookingLock.findUnique({
           where: {

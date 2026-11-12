@@ -1,5 +1,14 @@
 import { plainToInstance } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Matches, Min, validateSync } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 class EnvironmentVariables {
   @IsIn(['development', 'test', 'production'])
@@ -147,6 +156,50 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   SMTP_FROM?: string;
+
+  @IsOptional()
+  @IsIn(['gmail', 'smtp'])
+  EMAIL_PROVIDER?: string;
+
+  @IsOptional()
+  @IsString()
+  GMAIL_CLIENT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  GMAIL_CLIENT_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  GMAIL_REFRESH_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
+  EMAIL_FROM_NAME?: string;
+
+  @IsOptional()
+  @IsEmail()
+  EMAIL_FROM_ADDRESS?: string;
+
+  @IsOptional()
+  @IsEmail()
+  EMAIL_SUPPORT_ADDRESS?: string;
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  BOOKING_EMAIL_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  BOOKING_EMAIL_ALLOWED_RECIPIENTS?: string;
+
+  @IsOptional()
+  @Matches(/^https:\/\//u)
+  BOOKING_WEB_URL_TEMPLATE?: string;
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  BOOKING_QR_OPAQUE_ENABLED?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
@@ -157,6 +210,25 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+  if (validatedConfig.BOOKING_EMAIL_ENABLED === 'true') {
+    if (!validatedConfig.EMAIL_FROM_ADDRESS)
+      throw new Error('Booking email requires EMAIL_FROM_ADDRESS');
+    if (validatedConfig.EMAIL_PROVIDER === 'gmail') {
+      if (
+        !validatedConfig.GMAIL_CLIENT_ID ||
+        !validatedConfig.GMAIL_CLIENT_SECRET ||
+        !validatedConfig.GMAIL_REFRESH_TOKEN
+      )
+        throw new Error(
+          'Gmail API requires GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET and GMAIL_REFRESH_TOKEN',
+        );
+    } else if (
+      !validatedConfig.SMTP_HOST ||
+      !validatedConfig.SMTP_USER ||
+      !validatedConfig.SMTP_PASS
+    )
+      throw new Error('SMTP email requires SMTP_HOST, SMTP_USER and SMTP_PASS');
   }
 
   validateProductionSecurity(validatedConfig);

@@ -10,12 +10,15 @@ import { PaymentRecoverySchedulerService } from './payment-recovery-scheduler.se
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { PaymentProvidersModule } from './providers/providers.module';
+import { RefundsController } from './refunds.controller';
+import { RefundsService } from './refunds.service';
 
 @Module({
   imports: [BookingsModule, NotificationsModule, PaymentProvidersModule],
-  controllers: [FinanceAdminController, PaymentsController],
+  controllers: [FinanceAdminController, PaymentsController, RefundsController],
   providers: [
     FinanceAdminService,
+    RefundsService,
     PaymentsService,
     PaymentNotificationsService,
     PaymentRecoverySchedulerService,

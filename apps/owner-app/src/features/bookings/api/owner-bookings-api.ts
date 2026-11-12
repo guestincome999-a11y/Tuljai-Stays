@@ -19,6 +19,7 @@ export function getCachedScanBooking(bookingId: string) {
 }
 
 export interface OwnerBookingsQuery {
+  search?: string;
   checkInFrom?: string;
   checkInTo?: string;
   checkOutFrom?: string;
@@ -30,6 +31,13 @@ export interface OwnerBookingsQuery {
   page?: number;
   payment?: 'PAY_AT_LODGE' | 'PREPAID';
   status?: BookingStatus;
+}
+
+export function lookupOwnerBookingQr(
+  qrPayload: string,
+  lodgeId: string,
+): Promise<{ bookingCode: string }> {
+  return apiClient.post('/owner/bookings/lookup-qr', { qrPayload, lodgeId });
 }
 
 export async function listOwnerBookings(

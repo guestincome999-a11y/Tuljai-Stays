@@ -9,6 +9,8 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
+  Equals,
   Matches,
   Max,
   MaxLength,
@@ -44,7 +46,11 @@ export class CreateBookingDto {
 }
 
 export class CancelBookingDto {
-  @IsOptional() @IsString() @MaxLength(500) reason?: string;
+  @IsString() @MaxLength(500) reason!: string;
+  @IsOptional() @IsBoolean() @Equals(true) confirmed?: boolean;
+  @IsOptional() @IsInt() @Min(0) @Max(999999999) deductionPaise?: number;
+  @IsOptional() @IsUUID() supportTicketId?: string;
+  @IsOptional() @IsString() @MaxLength(500) deductionReason?: string;
 }
 export class CollectPayAtLodgeDto {
   @IsString()
@@ -58,12 +64,14 @@ export class RejectBookingDto {
 export class UpdateBookingStatusDto {
   @IsEnum(BookingStatus) status!: BookingStatus;
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
+  @IsOptional() @IsBoolean() confirmed?: boolean;
 }
 export class BookingAvailabilityQueryDto {
   @IsDateString() checkInDate!: string;
   @IsDateString() checkOutDate!: string;
 }
 export class OwnerBookingsQueryDto {
+  @IsOptional() @IsString() @MaxLength(120) search?: string;
   @IsEnum(BookingStatus) @IsOptional() status?: BookingStatus;
   @IsOptional() @IsString() lodgeId?: string;
   @IsDateString() @IsOptional() date?: string;

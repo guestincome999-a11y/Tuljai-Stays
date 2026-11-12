@@ -3,6 +3,9 @@ import { io, type Socket } from 'socket.io-client';
 import { resolveAdminApiBaseUrl } from '../config/api-base-url';
 
 const realtimeEvents = [
+  'festival:updated',
+  'lodge:catalog-updated',
+  'room:availability-updated',
   'announcement:new',
   'booking:accepted',
   'booking:cancelled',
@@ -35,6 +38,7 @@ type AdminServerEvents = Record<
   AdminRealtimeEventName,
   (payload: Record<string, unknown>) => void
 > & {
+  'connection:ready': (payload: { authenticated?: boolean }) => void;
   'system:error': (payload: { message?: string }) => void;
 };
 

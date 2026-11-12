@@ -12,6 +12,8 @@ import type {
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { PAYMENT_COLLECTION_STATUS_SQL } from './payment-collection-status';
+
 export const PAYMENT_STATUSES: PaymentCollectionStatus[] = [
   'PENDING',
   'PAID',
@@ -25,6 +27,7 @@ interface PaymentDbRow {
   amount: string;
   bookingCode: string;
   bookingId: string;
+  bookingStatus: AdminPaymentRow['bookingStatus'];
   createdAt: Date;
   guestName: string;
   id: string;
@@ -75,7 +78,9 @@ export class FinanceAdminService {
         Prisma.sql`(b.booking_code ILIKE ${like} OR b.guest_name ILIKE ${like} OR pc.provider_payment_id ILIKE ${like} OR pc.provider_order_id ILIKE ${like})`,
       );
     }
-    const filtered = input.status ? [...base, Prisma.sql`pc.status = ${input.status}`] : base;
+    const filtered = input.status
+      ? [...base, Prisma.sql`(${PAYMENT_COLLECTION_STATUS_SQL}) = ${input.status}`]
+      : base;
     const whereBase = base.length ? Prisma.sql`WHERE ${Prisma.join(base, ' AND ')}` : Prisma.empty;
     const whereFiltered = filtered.length
       ? Prisma.sql`WHERE ${Prisma.join(filtered, ' AND ')}`
@@ -88,12 +93,13 @@ export class FinanceAdminService {
           pc.id,
           pc.booking_id AS "bookingId",
           b.booking_code AS "bookingCode",
+          b.status AS "bookingStatus",
           b.guest_name AS "guestName",
           l.name AS "lodgeName",
           pc.method,
           pc.provider,
           pc.amount::text AS amount,
-          pc.status,
+          ${PAYMENT_COLLECTION_STATUS_SQL} AS status,
           pc.provider_order_id AS "providerOrderId",
           pc.provider_payment_id AS "providerPaymentId",
           pc.paid_at AS "paidAt",
@@ -112,11 +118,11 @@ export class FinanceAdminService {
         ${whereFiltered}
       `),
       this.prisma.$queryRaw<StatusCountDbRow[]>(Prisma.sql`
-        SELECT pc.status, COUNT(*)::int AS count, COALESCE(SUM(pc.amount), 0)::text AS amount
+        SELECT ${PAYMENT_COLLECTION_STATUS_SQL} AS status, COUNT(*)::int AS count, COALESCE(SUM(pc.amount), 0)::text AS amount
         FROM payment_collections pc
         INNER JOIN bookings b ON b.id = pc.booking_id
         ${whereBase}
-        GROUP BY pc.status
+        GROUP BY ${PAYMENT_COLLECTION_STATUS_SQL}
       `),
     ]);
 
@@ -126,23 +132,22 @@ export class FinanceAdminService {
       return { amount: found?.amount ?? '0', count: found?.count ?? 0, status };
     });
     return {
-      items: rows.map(
-        (row): AdminPaymentRow => ({
-          amount: row.amount,
-          bookingCode: row.bookingCode,
-          bookingId: row.bookingId,
-          createdAt: row.createdAt.toISOString(),
-          guestName: row.guestName,
-          id: row.id,
-          lodgeName: row.lodgeName,
-          method: row.method,
-          paidAt: row.paidAt ? row.paidAt.toISOString() : null,
-          provider: row.provider,
-          providerOrderId: row.providerOrderId,
-          providerPaymentId: row.providerPaymentId,
-          status: row.status,
-        }),
-      ),
+      items: rows.map((row): AdminPaymentRow => ({
+        amount: row.amount,
+        bookingCode: row.bookingCode,
+        bookingId: row.bookingId,
+        bookingStatus: row.bookingStatus,
+        createdAt: row.createdAt.toISOString(),
+        guestName: row.guestName,
+        id: row.id,
+        lodgeName: row.lodgeName,
+        method: row.method,
+        paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+        provider: row.provider,
+        providerOrderId: row.providerOrderId,
+        providerPaymentId: row.providerPaymentId,
+        status: row.status,
+      })),
       page: input.page,
       pageSize: input.pageSize,
       statusCounts,
@@ -182,19 +187,17 @@ export class FinanceAdminService {
     ]);
     const totalItems = totals[0]?.total ?? 0;
     return {
-      items: rows.map(
-        (row): AdminSettlementHistoryRow => ({
-          amount: row.amount,
-          id: row.id,
-          lodgeId: row.lodgeId,
-          lodgeName: row.lodgeName,
-          notes: row.notes,
-          paymentMethod: row.paymentMethod,
-          reference: row.reference,
-          settledAt: row.settledAt.toISOString(),
-          settledByName: row.settledByName,
-        }),
-      ),
+      items: rows.map((row): AdminSettlementHistoryRow => ({
+        amount: row.amount,
+        id: row.id,
+        lodgeId: row.lodgeId,
+        lodgeName: row.lodgeName,
+        notes: row.notes,
+        paymentMethod: row.paymentMethod,
+        reference: row.reference,
+        settledAt: row.settledAt.toISOString(),
+        settledByName: row.settledByName,
+      })),
       page: input.page,
       pageSize: input.pageSize,
       settledTotal: totals[0]?.settledTotal ?? '0',

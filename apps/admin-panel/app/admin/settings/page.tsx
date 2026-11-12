@@ -234,6 +234,16 @@ function SettingInput({
       </select>
     );
   }
+  if (type === 'json')
+    return (
+      <textarea
+        aria-label="Cancellation policy JSON"
+        disabled={disabled}
+        rows={6}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
 
   return (
     <input

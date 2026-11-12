@@ -222,6 +222,11 @@ export function RoomManagementScreen() {
           </View>
         </ScrollView>
 
+        {assignedLodges.selectedLodge && !assignedLodges.selectedLodge.isActive && (
+          <FormErrorBanner
+            message={`Closed to new bookings: ${assignedLodges.selectedLodge.operationsReason || 'Contact Tuljai Stays operations'}. Existing reservations remain valid.`}
+          />
+        )}
         <FormErrorBanner
           message={
             assignedLodges.isLoading

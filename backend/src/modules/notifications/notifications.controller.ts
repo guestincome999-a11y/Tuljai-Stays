@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -21,6 +22,7 @@ import {
   CreateAnnouncementDto,
   ListAnnouncementsQueryDto,
   ListNotificationsQueryDto,
+  MarkNotificationsReadDto,
   UpdateAnnouncementDto,
 } from './dto/notifications.dto';
 import { NotificationsService } from './notifications.service';
@@ -34,6 +36,7 @@ export class NotificationsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('notifications')
+  @Header('Cache-Control', 'no-store')
   public listNotifications(
     @Query() query: ListNotificationsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -43,6 +46,7 @@ export class NotificationsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('notifications/unread-count')
+  @Header('Cache-Control', 'no-store')
   public unreadCount(@CurrentUser() user: AuthenticatedUser) {
     return this.notificationsService.unreadCount(user);
   }
@@ -55,8 +59,11 @@ export class NotificationsController {
 
   @UseGuards(JwtAuthGuard)
   @Post('notifications/read-all')
-  public markAllRead(@CurrentUser() user: AuthenticatedUser) {
-    return this.notificationsService.markAllRead(user);
+  public markAllRead(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: MarkNotificationsReadDto,
+  ) {
+    return this.notificationsService.markAllRead(user, dto?.ids);
   }
 
   @UseGuards(JwtAuthGuard)

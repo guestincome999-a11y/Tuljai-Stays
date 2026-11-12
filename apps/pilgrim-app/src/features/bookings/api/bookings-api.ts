@@ -198,21 +198,22 @@ export async function getBookingLodgeContact(bookingId: string): Promise<Booking
 }
 
 export async function cancelBooking(bookingId: string, reason?: string): Promise<Booking> {
-  return apiClient.post<Booking>(`/bookings/${bookingId}/cancel`, { reason });
+  return apiClient.request<Booking>(`/bookings/${bookingId}/cancel`, {
+    method: 'POST',
+    body: { reason, confirmed: true },
+    timeout: 40_000,
+  });
+}
+
+export function getCancellationPreview(bookingId: string) {
+  return apiClient.get<{
+    refundPercent: number | null;
+    amountPaise: number | null;
+    message: string;
+  }>(`/bookings/${bookingId}/cancellation-preview`);
 }
 
 async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {
-  // Booking records carry joined names. Public catalogue failures (or a lodge
-  // being unlisted later) must never replace a guest's actual booking details.
-  if (booking.lodgeName && booking.roomTypeName) {
-    return {
-      booking,
-      coverPhotoUrl: null,
-      directionsQuery: booking.lodgeGoogleMapsLink ?? booking.lodgeName,
-      lodgeName: booking.lodgeName,
-      roomTypeName: booking.roomTypeName,
-    };
-  }
   const [lodge, photos, roomTypes] = await Promise.all([
     getLodgeDetails(booking.lodgeId).catch(() => null),
     listLodgePhotos(booking.lodgeId).catch(() => []),
@@ -234,8 +235,8 @@ async function enrichBooking(booking: Booking): Promise<EnrichedBooking> {
           .filter(Boolean)
           .join(', ')
       : (lodge?.name ?? null),
-    lodgeName: booking.lodgeName ?? lodge?.name ?? '',
-    roomTypeName: booking.roomTypeName ?? roomType?.name ?? '',
+    lodgeName: lodge?.name ?? 'Tuljai Stays lodge',
+    roomTypeName: roomType?.name ?? 'Selected room',
   };
 }
 
@@ -244,6 +245,8 @@ export async function preparePrepaidIntent(input: CreateBookingRequest): Promise
   await apiClient.post('/payments/prepaid/prepare', { ...input, paymentMethod: 'ONLINE' });
 }
 export interface PaymentRecoveryStatus {
+  booking?: Booking | null;
+  gatewayStatus?: string;
   status: string;
   bookingId: string | null;
   recoveryRequired: boolean;

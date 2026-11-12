@@ -222,19 +222,15 @@ export function DashboardScreen() {
               action: () => router.push('/(app)/bookings'),
             },
             {
+              label: 'Scan QR',
+              icon: 'qrcode-scan',
+              action: () => router.push('/(app)/scan'),
+            },
+            {
               label: 'Room Availability',
               icon: 'bed-outline',
               action: () =>
                 router.push({ pathname: '/(app)/rooms', params: { tab: 'AVAILABILITY' } }),
-            },
-            {
-              label: 'Add Manual Booking',
-              icon: 'calendar-plus',
-              action: () =>
-                router.push({
-                  pathname: '/(app)/rooms',
-                  params: { action: 'manual', tab: 'AVAILABILITY' },
-                }),
             },
             {
               label: 'Lodge Profile',

@@ -19,6 +19,7 @@ declare module 'expo-router' {
   }
 
   interface NavigatorProps {
+    backBehavior?: 'firstRoute' | 'initialRoute' | 'order' | 'history' | 'fullHistory' | 'none';
     children?: React.ReactNode;
     initialRouteName?: string;
     screenOptions?: ScreenOptions | ((context: ScreenOptionsContext) => ScreenOptions);
@@ -42,6 +43,7 @@ declare module 'expo-router' {
   }
   export const router: Router;
   export function useRouter(): Router;
+  export function usePathname(): string;
   export function useFocusEffect(effect: () => void | (() => void)): void;
   export function useLocalSearchParams<
     T extends Record<string, string | string[] | undefined> = Record<

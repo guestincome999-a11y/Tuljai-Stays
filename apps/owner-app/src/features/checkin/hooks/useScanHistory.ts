@@ -15,8 +15,8 @@ interface ScanHistoryState {
 }
 
 export function useScanHistory(filter: ScanHistoryFilter) {
-  const realtime = useRealtime();
   const assignedLodges = useAssignedLodges();
+  const realtime = useRealtime();
   const lodgeId = assignedLodges.selectedLodge?.id ?? null;
   const [state, setState] = useState<ScanHistoryState>({
     data: [],
@@ -71,13 +71,17 @@ export function useScanHistory(filter: ScanHistoryFilter) {
 
   useEffect(() => {
     void load();
-  }, [load, realtime.connectionRevision]);
+  }, [load]);
 
   useEffect(() => {
     const event = realtime.lastEvent;
     if (event?.payload.lodgeId && event.payload.lodgeId !== lodgeId) return;
     if (event?.name === 'checkin:completed' || event?.name === 'qr:scan-failed') void load(true);
   }, [load, lodgeId, realtime.lastEvent]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) void load(true);
+  }, [load, realtime.connectionRevision]);
 
   return {
     ...state,

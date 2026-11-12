@@ -36,6 +36,7 @@ import {
 } from './dto/booking.dto';
 import {
   GenerateQrDto,
+  LookupBookingQrDto,
   MarkIdVerifiedDto,
   QrScanLogQueryDto,
   RegisterQueryDto,
@@ -117,9 +118,29 @@ export class BookingsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('bookings/:id/cancellation-preview')
+  public cancellationPreview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.cancellationPreview(id, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('bookings/:id/cancel')
   public cancelBooking(
     @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.cancelBooking(id, dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('admin/bookings/:id/cancel')
+  public adminCancelBooking(
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelBookingDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -151,6 +172,13 @@ export class BookingsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.bookingsService.listOwnerBookings(query, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Post('owner/bookings/lookup-qr')
+  public lookupBookingQr(@Body() dto: LookupBookingQrDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.qrCheckinService.lookupBookingQr(dto, user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

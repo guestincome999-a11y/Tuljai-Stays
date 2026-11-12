@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -17,6 +18,16 @@ export class GenerateQrDto {
   @Min(300)
   @Max(604800)
   ttlSeconds?: number;
+}
+
+export class LookupBookingQrDto {
+  @IsString()
+  @MaxLength(1800)
+  qrPayload!: string;
+
+  @IsOptional()
+  @IsUUID()
+  lodgeId?: string;
 }
 
 export class ScanQrDto {

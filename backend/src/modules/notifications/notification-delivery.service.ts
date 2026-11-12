@@ -46,21 +46,19 @@ export class NotificationDeliveryService {
       return;
     }
 
-    const badge = await this.prisma.notification.count({
-      where: {
-        deletedAt: null,
-        readAt: null,
-        recipientUserId: notification.recipientUserId,
-      },
-    });
-
+    // Alert delivery is unordered. Never let a delayed alert restore an old
+    // APNs/launcher badge; running clients reconcile through the snapshot API.
     for (const device of devices) {
+      const previous = await this.prisma.notificationDeliveryLog.findFirst({
+        where: { notificationId: notification.id, deviceTokenId: device.id, channel: 'PUSH' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (previous?.status === 'SENT' || (previous?.attemptCount ?? 0) >= 3) continue;
       const data = this.toFcmData(notification);
       const highPriority = ['HIGH', 'CRITICAL'].includes(notification.priority);
       const usesExpoPush = this.expoPushService.isExpoPushToken(device.fcmToken);
       const result = usesExpoPush
         ? await this.expoPushService.sendToToken({
-            badge,
             body: notification.body,
             data,
             expoPushToken: device.fcmToken,
@@ -68,15 +66,22 @@ export class NotificationDeliveryService {
             title: notification.title,
           })
         : await this.fcmService.sendToToken({
-            badge,
             body: notification.body,
             data,
             fcmToken: device.fcmToken,
             highPriority,
             title: notification.title,
           });
-      await this.prisma.notificationDeliveryLog.create({
-        data: {
+      await this.prisma.notificationDeliveryLog.upsert({
+        where: { id: previous?.id ?? '00000000-0000-0000-0000-000000000000' },
+        update: {
+          attemptCount: { increment: 1 },
+          failureReason: result.error,
+          lastAttemptAt: new Date(),
+          providerMessageId: result.messageId,
+          status: result.success ? 'SENT' : 'FAILED',
+        },
+        create: {
           attemptCount: 1,
           channel: 'PUSH',
           deviceTokenId: device.id,

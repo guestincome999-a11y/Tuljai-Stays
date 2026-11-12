@@ -47,6 +47,32 @@ const user = { id: 'owner', roles: ['OWNER'] };
 const tokenId = '22222222-2222-4222-8222-222222222222';
 const bookingId = '11111111-1111-4111-8111-111111111111';
 
+test('search scanner identifies signed v1 and opaque v2 passes without consuming or checking in', async () => {
+  const service = Object.create(QrCheckinService.prototype);
+  let reads = 0;
+  let authorized = 0;
+  service.configService = { getOrThrow: () => 'synthetic-test-only-secret' };
+  service.prisma = { bookingQrToken: { findFirst: async () => {
+    reads++;
+    return { booking: { bookingCode: 'TJS-SEARCH', lodgeId: 'lodge', deletedAt: null } };
+  } } };
+  service.lodgeAccessService = { assertCanManageLodge: async () => { authorized++; } };
+  const body = { version: 1, bookingId, qrTokenId: tokenId, tokenVersion: 1, bookingCode: 'TJS-SEARCH', expiresAt: '2020-01-01T00:00:00Z' };
+  for (const opaque of [false, true]) {
+    const qrPayload = service.signQrDisplayPayload(body, opaque);
+    assert.equal(service.verifyQrDisplayPayload(qrPayload), null, 'expired passes still cannot check in');
+    const found = await service.lookupBookingQr({ qrPayload, lodgeId: 'lodge' }, user);
+    assert.equal(found.bookingCode, 'TJS-SEARCH');
+    await assert.rejects(service.lookupBookingQr({ qrPayload, lodgeId: 'other-lodge' }, user), /different lodge/);
+    await assert.rejects(service.lookupBookingQr({ qrPayload: qrPayload + 'tampered' }, user), /valid Tuljai/);
+  }
+  assert.equal(reads, 4);
+  assert.equal(authorized, 4);
+  service.lodgeAccessService.assertCanManageLodge = async () => { throw new nest.ForbiddenException('Unauthorized lodge'); };
+  const qrPayload = service.signQrDisplayPayload({ ...body, expiresAt: '2099-01-01T00:00:00Z' });
+  await assert.rejects(service.lookupBookingQr({ qrPayload }, user), /Unauthorized lodge/);
+});
+
 // Models transactional serialization/rollback and conditional claims. This is a
 // service regression test; it does not claim to exercise a live PostgreSQL server.
 function fixture({
@@ -57,6 +83,7 @@ function fixture({
 } = {}) {
   let booking = {
     id: bookingId,
+    bookingCode: 'TJS-MANUAL',
     lodgeId: 'lodge',
     roomId: 'room',
     status,
@@ -84,7 +111,11 @@ function fixture({
   const prisma = {
     bookingQrToken: {
       findFirst: async ({ where }) =>
-        where.id === tokenId && where.bookingId === bookingId ? structuredClone(token) : null,
+        (where.id === tokenId ||
+          (where.id === undefined && where.status?.in?.includes(token.status))) &&
+        where.bookingId === bookingId
+          ? structuredClone(token)
+          : null,
       findUnique: async ({ where }) =>
         where.tokenHash === createHash('sha256').update('legacy-token').digest('hex')
           ? structuredClone(token)
@@ -98,6 +129,7 @@ function fixture({
       },
     },
     booking: {
+      findFirst: async () => structuredClone(booking),
       updateMany: async ({ where, data }) => {
         if (!where.status.in.includes(booking.status) || where.roomId !== booking.roomId)
           return { count: 0 };
@@ -290,4 +322,34 @@ test('register service uses supplied transaction for register and audit writes',
   assert.equal(upsert.where.bookingId, bookingId);
   assert.equal(upsert.create.registerCode, `REG-${bookingId}`);
   assert.equal(audit.data.guestRegisterId, 'register');
+});
+
+test('authorized manual check-in reuses atomic QR consumption and cannot create a duplicate register', async () => {
+  const f = fixture();
+  const results = await Promise.all(
+    Array.from({ length: 5 }, () => f.service.verifyManualCheckin(bookingId, user)),
+  );
+  assert.equal(results.filter((result) => result.scanResult === 'SUCCESS').length, 1);
+  assert.equal(f.transitions(), 1);
+  assert.equal(f.registers(), 1);
+  assert.equal((await f.service.verifyManualCheckin(bookingId, user)).scanResult, 'USED');
+});
+test('manual verification never bypasses lodge authorization', async () => {
+  const f = fixture({ unauthorized: true });
+  await assert.rejects(f.service.verifyManualCheckin(bookingId, user), nest.ForbiddenException);
+  assert.equal(f.transitions(), 0);
+});
+
+test('temporarily disabled lodge still exposes an existing confirmed pilgrim pass', async () => {
+  const f = fixture();
+  Object.assign(f.booking(), {
+    pilgrimUserId: 'pilgrim',
+    lodge: { isActive: false, deletedAt: null, status: 'VERIFIED', verificationStatus: 'VERIFIED' },
+  });
+  f.service.ensureActiveQrToken = async () => f.token();
+  f.service.configService.get = (_key, fallback) => fallback;
+  const pass = await f.service.getQrMetadata(bookingId, { id: 'pilgrim' });
+  assert.equal(pass.bookingId, bookingId);
+  assert.equal(pass.status, 'ACTIVE');
+  assert.ok(pass.qrPayload.startsWith('tjsqr.v1.'));
 });

@@ -204,6 +204,16 @@ export class VerifyLodgeDto {
 export class ListLodgesQueryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(10)
+  checkInDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  checkOutDate?: string;
+
+  @IsOptional()
+  @IsString()
   citySlug?: string;
 
   @IsOptional()

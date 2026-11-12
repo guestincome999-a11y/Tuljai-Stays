@@ -6,12 +6,23 @@ import { Prisma } from '@prisma/client';
 import type { FeatureFlag, PromotionalBanner, SystemSetting } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
+import {
+  CANCELLATION_POLICY_KEY,
+  DEFAULT_CANCELLATION_POLICY,
+  parseCancellationPolicy,
+} from '../payments/refund-policy';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/providers/supabase-storage.service';
 
 import type { UpdateFeatureFlagDto, UpdateSystemSettingDto } from './dto/settings.dto';
 
 const DEFAULT_SETTINGS: SystemSetting[] = [
+  {
+    key: CANCELLATION_POLICY_KEY,
+    description: 'Cancellation refund percentages by India calendar days before check-in',
+    isPublic: true,
+    value: JSON.parse(JSON.stringify(DEFAULT_CANCELLATION_POLICY)),
+  },
   {
     description: 'Booking lock duration',
     isPublic: false,
@@ -350,6 +361,11 @@ export class SettingsService {
     dto: UpdateSystemSettingDto,
     actorUserId: string,
   ): Promise<SystemSetting> {
+    if (
+      ['festival_name', 'festival_start_date', 'festival_end_date', 'festival_mode'].includes(key)
+    )
+      throw new BadRequestException('Use Festival Control to update operational configuration');
+    if (key === CANCELLATION_POLICY_KEY) parseCancellationPolicy(dto.value);
     if (key === 'promotional_banners') {
       await this.validatePromotionalBanners(dto.value);
     }
@@ -417,6 +433,10 @@ export class SettingsService {
     dto: UpdateFeatureFlagDto,
     actorUserId: string,
   ): Promise<FeatureFlag> {
+    if (key === 'festival_mode')
+      throw new BadRequestException(
+        'Use Festival Control with a reason and current configuration version',
+      );
     const flag = await this.prisma.featureFlag.upsert({
       create: {
         description: dto.description,
@@ -586,6 +606,11 @@ export class SettingsService {
         skipDuplicates: true,
       }),
     ]);
+  }
+
+  public invalidateOperationalCaches(): void {
+    this.invalidateFeatureFlagsCache();
+    this.invalidateSettingsCache();
   }
 
   private invalidateFeatureFlagsCache(): void {

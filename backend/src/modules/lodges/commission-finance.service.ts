@@ -117,8 +117,8 @@ export class LodgeCommissionFinanceService {
           }>
         >(Prisma.sql`
           SELECT
-            COALESCE((SELECT SUM(total_amount) FROM bookings WHERE lodge_id = ${lodgeId}::uuid AND deleted_at IS NULL), 0)::text AS "bookingRevenue",
-            COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger WHERE lodge_id = ${lodgeId}::uuid AND status <> 'VOIDED'), 0)::text AS "commissionReceivable",
+            COALESCE((SELECT SUM(total_amount) FROM bookings WHERE lodge_id = ${lodgeId}::uuid AND deleted_at IS NULL AND public.tuljai_commission_is_eligible(status::text,payment_status::text)), 0)::text AS "bookingRevenue",
+            COALESCE((SELECT SUM(commission_amount) FROM lodge_commission_ledger led WHERE lodge_id = ${lodgeId}::uuid AND status <> 'VOIDED' AND EXISTS (SELECT 1 FROM bookings b WHERE b.id=led.booking_id AND b.deleted_at IS NULL AND public.tuljai_commission_is_eligible(b.status::text,b.payment_status::text))), 0)::text AS "commissionReceivable",
             COALESCE((
               SELECT SUM(GREATEST(l.commission_amount - COALESCE(a.allocated_amount, 0), 0))
               FROM lodge_commission_ledger l
@@ -128,6 +128,7 @@ export class LodgeCommissionFinanceService {
                 GROUP BY ledger_id
               ) a ON a.ledger_id = l.id
               WHERE l.lodge_id = ${lodgeId}::uuid AND l.status <> 'VOIDED'
+                AND EXISTS (SELECT 1 FROM bookings b WHERE b.id=l.booking_id AND b.deleted_at IS NULL AND public.tuljai_commission_is_eligible(b.status::text,b.payment_status::text))
             ), 0)::text AS outstanding,
             COALESCE((
               SELECT SUM(a.amount)
@@ -191,6 +192,7 @@ export class LodgeCommissionFinanceService {
           SELECT SUM(led.commission_amount)
           FROM lodge_commission_ledger led
           WHERE led.lodge_id = l.id AND led.status <> 'VOIDED'
+            AND EXISTS (SELECT 1 FROM bookings b WHERE b.id=led.booking_id AND b.deleted_at IS NULL AND public.tuljai_commission_is_eligible(b.status::text,b.payment_status::text))
         ), 0)::text AS receivable,
         COALESCE((
           SELECT SUM(GREATEST(led.commission_amount - COALESCE(alloc.allocated_amount, 0), 0))
@@ -201,6 +203,7 @@ export class LodgeCommissionFinanceService {
             GROUP BY ledger_id
           ) alloc ON alloc.ledger_id = led.id
           WHERE led.lodge_id = l.id AND led.status <> 'VOIDED'
+            AND EXISTS (SELECT 1 FROM bookings b WHERE b.id=led.booking_id AND b.deleted_at IS NULL AND public.tuljai_commission_is_eligible(b.status::text,b.payment_status::text))
         ), 0)::text AS outstanding,
         COALESCE((
           SELECT SUM(amount) FROM lodge_commission_settlements WHERE lodge_id = l.id
@@ -223,6 +226,9 @@ export class LodgeCommissionFinanceService {
     if (!dto.paymentMethod.trim()) throw new BadRequestException('Payment method is required.');
 
     await this.prisma.$transaction(async (tx) => {
+      // Use the same booking-before-ledger lock order as cancellation and its commission trigger.
+      await tx.$queryRaw`SELECT b.id FROM bookings b INNER JOIN lodge_commission_ledger l ON l.booking_id=b.id
+        WHERE l.lodge_id=${lodgeId}::uuid AND l.status='OUTSTANDING' ORDER BY b.id FOR UPDATE OF b`;
       const outstanding = await tx.$queryRaw<
         Array<{
           id: string;
@@ -236,6 +242,7 @@ export class LodgeCommissionFinanceService {
           COALESCE((SELECT SUM(a.amount) FROM lodge_commission_settlement_allocations a WHERE a.ledger_id = l.id), 0)::text AS allocated
         FROM lodge_commission_ledger l
         WHERE l.lodge_id = ${lodgeId}::uuid AND l.status = 'OUTSTANDING'
+          AND EXISTS (SELECT 1 FROM bookings b WHERE b.id=l.booking_id AND b.deleted_at IS NULL AND public.tuljai_commission_is_eligible(b.status::text,b.payment_status::text))
         ORDER BY l.eligible_at ASC, l.created_at ASC
         FOR UPDATE
       `);

@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Snackbar } from 'react-native-paper';
 
 import { useAuth } from '../auth/auth-context';
+import { notifyAvailabilityChange } from '../features/bookings/availability-sync';
+import { requestPaymentReconciliation } from '../features/bookings/payment-outcome';
 
 import { createRealtimeSocket, type RealtimeSocket } from './realtime-client';
 import {
@@ -25,6 +27,7 @@ const RealtimeContext = createContext<RealtimeContextValue>({
 });
 
 const eventNames: PilgrimRealtimeEventName[] = [
+  'festival:updated',
   'announcement:new',
   'booking:accepted',
   'booking:cancelled',
@@ -37,6 +40,7 @@ const eventNames: PilgrimRealtimeEventName[] = [
   'notification:new',
   'notification:unread-count',
   'qr:generated',
+  'room:availability-updated',
 ];
 
 const bookingEventNames = new Set<PilgrimRealtimeEventName>([
@@ -77,7 +81,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     socket.on('connect', () => setConnected(false));
     socket.on('connection:ready', (payload) => {
       setConnected(payload.authenticated);
-      if (payload.authenticated) setConnectionRevision((current) => current + 1);
+      if (payload.authenticated) {
+        setConnectionRevision((current) => current + 1);
+        notifyAvailabilityChange();
+      }
     });
     socket.on('connect_error', () => setConnected(false));
     socket.on('disconnect', () => setConnected(false));
@@ -88,6 +95,16 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     for (const eventName of eventNames) {
       socket.on(eventName, (payload) => {
+        if (eventName === 'room:availability-updated') {
+          notifyAvailabilityChange(
+            isRecord(payload) && typeof payload.lodgeId === 'string' ? payload.lodgeId : undefined,
+          );
+        }
+        if (eventName === 'lodge:catalog-updated' || eventName === 'festival:updated')
+          notifyAvailabilityChange(
+            isRecord(payload) && typeof payload.lodgeId === 'string' ? payload.lodgeId : undefined,
+          );
+        if (eventName.startsWith('booking:')) requestPaymentReconciliation();
         const event = {
           name: eventName,
           payload: isRecord(payload) ? payload : {},
@@ -105,6 +122,12 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       setConnected(false);
     };
   }, [accessToken, auth.isAuthenticated, auth.refreshSession]);
+
+  useEffect(() => {
+    if (connected) return;
+    const fallback = setInterval(() => notifyAvailabilityChange(), 45_000);
+    return () => clearInterval(fallback);
+  }, [connected]);
 
   const value = useMemo(
     () => ({ connected, connectionRevision, lastBookingEvent, lastEvent }),

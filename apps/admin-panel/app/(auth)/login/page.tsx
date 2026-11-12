@@ -84,7 +84,9 @@ export default function AdminLoginPage() {
       <div className="auth-orb auth-orb-two" aria-hidden="true" />
       <section className="auth-card auth-card-premium" aria-labelledby="admin-login-title">
         <div className="auth-brand-row">
-          <div className="auth-brand-mark" aria-hidden="true">TS</div>
+          <div className="auth-brand-mark" aria-hidden="true">
+            TS
+          </div>
           <div>
             <p className="eyebrow">Tuljai Stays · Admin</p>
             <span className="auth-secure-label">Protected console</span>
@@ -140,11 +142,18 @@ export default function AdminLoginPage() {
                     <button className="dev-otp-action" type="button" onClick={useDevelopmentOtp}>
                       Use code
                     </button>
-                    <button className="dev-otp-action" type="button" onClick={() => void copyDevelopmentOtp()}>
+                    <button
+                      className="dev-otp-action"
+                      type="button"
+                      onClick={() => void copyDevelopmentOtp()}
+                    >
                       {copiedOtp ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                  <p>This helper is enabled only when the admin preview mode is explicitly configured. Remove the preview flag before real production launch.</p>
+                  <p>
+                    This helper is enabled only when the admin preview mode is explicitly
+                    configured. Remove the preview flag before real production launch.
+                  </p>
                 </div>
               ) : null}
 
@@ -160,21 +169,27 @@ export default function AdminLoginPage() {
                 />
               </label>
               <label className="form-field auth-field">
-                <span>Authenticator code <small>(only if 2FA is enabled)</small></span>
+                <span>
+                  Authenticator code <small>(only if 2FA is enabled)</small>
+                </span>
                 <input
                   autoComplete="one-time-code"
                   inputMode="numeric"
                   maxLength={6}
                   placeholder="6 digit authenticator code"
                   value={totpCode}
-                  onChange={(event) => setTotpCode(event.target.value.replace(/\D/gu, '').slice(0, 6))}
+                  onChange={(event) =>
+                    setTotpCode(event.target.value.replace(/\D/gu, '').slice(0, 6))
+                  }
                 />
               </label>
             </>
           ) : null}
 
           {auth.errorMessage || localError ? (
-            <p className="error-banner" role="alert">{localError ?? auth.errorMessage}</p>
+            <p className="error-banner" role="alert">
+              {localError ?? auth.errorMessage}
+            </p>
           ) : null}
 
           {expiresAt ? (
@@ -183,8 +198,16 @@ export default function AdminLoginPage() {
             </p>
           ) : null}
 
-          <button className="button button-primary auth-submit" disabled={auth.isSubmitting} type="submit">
-            {auth.isSubmitting ? 'Please wait…' : otpRequested ? 'Verify & open admin' : 'Send preview OTP'}
+          <button
+            className="button button-primary auth-submit"
+            disabled={auth.isSubmitting}
+            type="submit"
+          >
+            {auth.isSubmitting
+              ? 'Please wait…'
+              : otpRequested
+                ? 'Verify & open admin'
+                : 'Send preview OTP'}
           </button>
 
           {otpRequested ? (
@@ -303,7 +326,10 @@ export default function AdminLoginPage() {
           min-height: 50px;
           outline: none;
           padding: 12px 14px;
-          transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+          transition:
+            border-color 160ms ease,
+            box-shadow 160ms ease,
+            transform 160ms ease;
           width: 100%;
         }
         .auth-field input:focus {
@@ -387,7 +413,10 @@ export default function AdminLoginPage() {
           border-radius: 13px !important;
           box-shadow: 0 10px 22px rgba(11, 42, 91, 0.22);
           min-height: 52px;
-          transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+          transition:
+            transform 160ms ease,
+            box-shadow 160ms ease,
+            opacity 160ms ease;
         }
         .auth-submit:hover:not(:disabled) {
           box-shadow: 0 14px 28px rgba(11, 42, 91, 0.28);
@@ -420,9 +449,18 @@ export default function AdminLoginPage() {
           text-align: center;
         }
         @media (max-width: 560px) {
-          .auth-card-premium { border-radius: 22px; padding: 24px 18px; }
-          .dev-otp-code-row { align-items: stretch; flex-wrap: wrap; }
-          .dev-otp-code-row code { flex: 1 1 100%; text-align: center; }
+          .auth-card-premium {
+            border-radius: 22px;
+            padding: 24px 18px;
+          }
+          .dev-otp-code-row {
+            align-items: stretch;
+            flex-wrap: wrap;
+          }
+          .dev-otp-code-row code {
+            flex: 1 1 100%;
+            text-align: center;
+          }
         }
       `}</style>
     </main>

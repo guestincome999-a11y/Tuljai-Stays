@@ -1,6 +1,7 @@
 import type { AdminPermission } from '../permissions/permissions';
 
-export type SettingValueType = 'boolean' | 'date' | 'email' | 'number' | 'phone' | 'text' | 'url';
+export type SettingValueType =
+  'boolean' | 'date' | 'email' | 'number' | 'phone' | 'text' | 'url' | 'json';
 
 export interface SettingDefinition {
   category:
@@ -27,6 +28,15 @@ export interface FeatureFlagDefinition {
 }
 
 export const settingDefinitions: SettingDefinition[] = [
+  {
+    category: 'Booking',
+    key: 'booking_cancellation_policy',
+    type: 'json',
+    critical: true,
+    publicDefault: true,
+    description:
+      'Refund percentages by India calendar days before check-in. Default: 4+ days 100%, 2–3 days 90%, 0–1 days 80%. Applies to new bookings; existing snapshots are preserved.',
+  },
   {
     category: 'Booking',
     description: 'Seconds to hold availability during booking creation.',
@@ -168,15 +178,13 @@ export const remoteAppConfigKeys = [
   'booking_instruction_text',
 ];
 
-export const festivalSettingKeys = [
+export const festivalContentKeys = [
   'festival_banner_text',
   'festival_announcement',
   'temple_advisory_message',
   'crowd_warning_message',
   'festival_emergency_contact_text',
   'festival_support_instructions',
-  'festival_start_date',
-  'festival_end_date',
   'festival_ui_color',
 ];
 
@@ -191,7 +199,6 @@ export const maintenanceSettingKeys = [
 export const featureFlagDefinitions: FeatureFlagDefinition[] = [
   { description: 'WhatsApp delivery integration.', key: 'whatsapp_notifications', critical: true },
   { description: 'Online payment collection.', key: 'online_payments', critical: true },
-  { description: 'Festival mode pricing and alerts.', key: 'festival_mode' },
   { description: 'Owner fullscreen alerts.', key: 'owner_fullscreen_alerts' },
   { description: 'Register exports.', key: 'register_exports' },
   { description: 'Multi-city expansion.', key: 'multi_city', critical: true },
@@ -216,6 +223,7 @@ export function formatControlLabel(value: string): string {
 }
 
 export function coerceSettingValue(value: string, type: SettingValueType): unknown {
+  if (type === 'json') return JSON.parse(value);
   if (type === 'boolean') {
     return value === 'true';
   }

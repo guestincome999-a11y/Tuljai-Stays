@@ -25,6 +25,7 @@ interface OwnerBookingsState {
 }
 
 export interface OwnerBookingsFilters {
+  search?: string;
   checkInFrom?: string;
   checkInTo?: string;
   checkOutFrom?: string;
@@ -50,7 +51,9 @@ export function useOwnerBookings(
   status: BookingStatus | null,
   filters: OwnerBookingsFilters = {},
 ) {
-  const { checkInFrom, checkInTo, checkOutFrom, checkOutTo, date, order, payment } = filters;
+  const { checkInFrom, checkInTo, checkOutFrom, checkOutTo, date, order, payment, search } =
+    filters;
+  const requestRevision = useRef(0);
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
   const [state, setState] = useState<OwnerBookingsState>({ ...emptyState, isLoading: true });
@@ -68,12 +71,25 @@ export function useOwnerBookings(
       page,
       payment,
       status: status ?? undefined,
+      search,
     }),
-    [checkInFrom, checkInTo, checkOutFrom, checkOutTo, date, lodgeId, order, payment, status],
+    [
+      checkInFrom,
+      checkInTo,
+      checkOutFrom,
+      checkOutTo,
+      date,
+      lodgeId,
+      order,
+      payment,
+      status,
+      search,
+    ],
   );
 
   const load = useCallback(
     async (refreshing = false) => {
+      const revision = ++requestRevision.current;
       if (!lodgeId) {
         setState(emptyState);
         return;
@@ -81,7 +97,7 @@ export function useOwnerBookings(
       setState((current) => ({
         ...current,
         errorMessage: null,
-        isLoading: !refreshing && current.data.length === 0,
+        isLoading: !refreshing,
         isRefreshing: refreshing,
       }));
       if (isOffline) {
@@ -95,6 +111,7 @@ export function useOwnerBookings(
       }
       try {
         const result = await listOwnerBookings(buildQuery(1));
+        if (revision !== requestRevision.current) return;
         setState({
           data: result.items,
           errorMessage: null,
@@ -106,6 +123,7 @@ export function useOwnerBookings(
           totalPages: result.totalPages,
         });
       } catch {
+        if (revision !== requestRevision.current) return;
         setState((current) => ({
           ...current,
           errorMessage: 'Bookings could not be loaded. Please try again.',
@@ -122,8 +140,10 @@ export function useOwnerBookings(
       return;
     }
     setState((current) => ({ ...current, errorMessage: null, isLoadingMore: true }));
+    const revision = requestRevision.current;
     try {
       const result = await listOwnerBookings(buildQuery(state.page + 1));
+      if (revision !== requestRevision.current) return;
       setState((current) => ({
         ...current,
         data: [
@@ -138,6 +158,7 @@ export function useOwnerBookings(
         totalPages: result.totalPages,
       }));
     } catch {
+      if (revision !== requestRevision.current) return;
       setState((current) => ({
         ...current,
         errorMessage: 'More bookings could not be loaded. Please try again.',
@@ -148,6 +169,9 @@ export function useOwnerBookings(
 
   useEffect(() => {
     void load();
+    return () => {
+      requestRevision.current++;
+    };
   }, [load]);
 
   useEffect(() => {

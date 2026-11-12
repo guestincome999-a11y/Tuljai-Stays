@@ -4,7 +4,11 @@ import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-import type { AssignLodgeOwnerDto, CreateTeamMemberDto, UpdateTeamMemberDto } from './dto/owner.dto';
+import type {
+  AssignLodgeOwnerDto,
+  CreateTeamMemberDto,
+  UpdateTeamMemberDto,
+} from './dto/owner.dto';
 
 export interface TeamMember {
   id: string;

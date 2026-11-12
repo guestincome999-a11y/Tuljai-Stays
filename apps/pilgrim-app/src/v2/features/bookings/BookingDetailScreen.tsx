@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BookingActionButton } from '../../../features/bookings/components/BookingActionButton';
-import { cancelBooking, fetchBooking, fetchMyBookings } from '../../core/bookings';
+import { cancelBooking, fetchBooking } from '../../core/bookings';
 import type { MyBookingCard } from '../../core/bookings';
 import { fetchLodge } from '../../core/catalog';
 import { daysBetween, formatShortDate } from '../../core/dates';
@@ -34,18 +33,16 @@ import { LodgeContactActions } from './LodgeContactActions';
 import { QrPass } from './QrPass';
 import { ReviewCard } from './ReviewCard';
 
-function DirectionsButton({ lodgeId, lodgeName }: { lodgeId: string; lodgeName: string }) {
+function DirectionsButton({ lodgeId }: { lodgeId: string }) {
   const { t } = useLang();
   const { data } = useCachedFetch(`lodge:${lodgeId}`, () => fetchLodge(lodgeId));
-  const link =
-    data?.lodge.googleMapsLink ||
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lodgeName}, Tuljapur`)}`;
+  const link = data?.lodge.googleMapsLink;
+  if (!link) return null;
 
   return (
-    <BookingActionButton
-      compact
-      icon="map-marker-outline"
+    <Button
       label={t(detailStrings.directions)}
+      variant="secondary"
       onPress={() => void Linking.openURL(link)}
     />
   );
@@ -77,8 +74,14 @@ export function BookingDetailScreen({
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const { data: booking } = useCachedFetch(`booking:${bookingId}`, () => fetchBooking(bookingId));
-  const { data: list } = useCachedFetch('my-bookings', fetchMyBookings);
-  const card: MyBookingCard | undefined = list?.find((item) => item.id === bookingId);
+  const card: MyBookingCard | undefined = booking
+    ? {
+        ...booking,
+        lodgeName: booking.lodgeName ?? '',
+        roomTypeName: booking.roomTypeName ?? '',
+        coverUrl: null,
+      }
+    : undefined;
 
   const status = booking?.status ?? card?.status ?? null;
   const text = status ? bookingStatusText[status] : undefined;
@@ -157,7 +160,6 @@ export function BookingDetailScreen({
                   {card.roomTypeName}
                 </Text>
               </View>
-              <DirectionsButton lodgeId={card.lodgeId} lodgeName={card.lodgeName} />
             </View>
             <SummaryRow
               label={t(detailStrings.checkIn)}
@@ -177,10 +179,6 @@ export function BookingDetailScreen({
         ) : (
           <Skeleton height={150} />
         )}
-
-        {status && CONTACT_STATUSES.includes(status) ? (
-          <LodgeContactActions bookingId={bookingId} />
-        ) : null}
 
         {booking ? (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
@@ -211,6 +209,11 @@ export function BookingDetailScreen({
         {status === 'CHECKED_OUT' || status === 'COMPLETED' ? (
           <ReviewCard bookingId={bookingId} />
         ) : null}
+
+        {status && CONTACT_STATUSES.includes(status) ? (
+          <LodgeContactActions bookingId={bookingId} />
+        ) : null}
+        {card ? <DirectionsButton lodgeId={card.lodgeId} /> : null}
 
         {status && CANCELLABLE_STATUSES.includes(status) ? (
           <Button

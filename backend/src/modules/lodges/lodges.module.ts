@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { BookingAvailabilityModule } from '../bookings/booking-availability.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 
 import { LodgeCommissionFinanceController } from './commission-finance.controller';
@@ -11,7 +12,7 @@ import { LodgesController } from './lodges.controller';
 import { LodgesService } from './lodges.service';
 
 @Module({
-  imports: [RealtimeModule],
+  imports: [BookingAvailabilityModule, RealtimeModule],
   controllers: [LodgesController, LodgeCommissionController, LodgeCommissionFinanceController],
   providers: [
     LodgesService,

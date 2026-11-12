@@ -1,3 +1,5 @@
+import type { BookingRefundSummary } from '@tuljai/types';
+
 export type BookingStatus = 'confirmed' | 'checked-in' | 'pending' | 'completed' | 'cancelled';
 
 export interface PilgrimRoom {
@@ -10,9 +12,11 @@ export interface PilgrimRoom {
   id: string;
   name: string;
   price: number;
+  priceAvailable?: boolean;
 }
 
 export interface PilgrimLodge {
+  priceAvailable?: boolean;
   amenities: Array<{ icon: string; label: string }>;
   badge?: string;
   description: string;
@@ -23,15 +27,14 @@ export interface PilgrimLodge {
    * data, or lodges the admin hasn't added a link for yet). */
   googleMapsLink?: string | null;
   hero: string;
-  /** False while only summary data has loaded. Listings can render immediately;
-   * detail and booking screens hydrate full room information on demand. */
+  /** False while only lightweight summary data has loaded; the lodges screen
+   * renders a skeleton card in place of full content until this becomes true. */
   hydrated?: boolean;
   id: string;
   location: string;
   name: string;
   photos: string[];
   price: number;
-  priceAvailable?: boolean;
   rating: number;
   reviewCount: number;
   rooms: PilgrimRoom[];
@@ -42,9 +45,8 @@ export interface PilgrimLodge {
 }
 
 export interface PilgrimBooking {
-  googleMapsLink?: string | null;
-  checkInTime?: string | null;
-  checkOutTime?: string | null;
+  cancellationReason?: string | null;
+  refunds?: BookingRefundSummary[];
   amount: number;
   bookingCode: string;
   checkIn: string;
@@ -59,14 +61,7 @@ export interface PilgrimBooking {
   lodgeId: string;
   lodgeName: string;
   paymentStatus:
-    | 'Paid'
-    | 'Partially paid'
-    | 'Pay at lodge'
-    | 'Payment pending'
-    | 'Payment failed'
-    | 'Not required'
-    | 'Refunded';
-  paidAmount?: number;
+    'Paid' | 'Pay at lodge' | 'Refunded' | 'Partially paid' | 'Payment pending' | 'Payment failed' | 'Not required';
   qrReady?: boolean;
   roomName: string;
   status: BookingStatus;

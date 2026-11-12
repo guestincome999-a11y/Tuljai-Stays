@@ -1,8 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import type {
-  AdminBookingConflict,
-  AdminBookingViewPage,
-} from '@tuljai/types';
+import type { AdminBookingConflict, AdminBookingViewPage } from '@tuljai/types';
 
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';

@@ -448,6 +448,8 @@ function scannerHarness(f, options = {}) {
       },
       '@expo/vector-icons': { MaterialCommunityIcons: 'Icon' },
       '@tuljai/ui': {
+        radius: {},
+        spacing: {},
         colors: { light: { warning: '#b86b00', success: '#16803d', textMuted: '#666666' } },
       },
       'expo-camera': {

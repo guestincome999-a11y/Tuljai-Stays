@@ -64,6 +64,7 @@ export interface LodgeAddress {
 }
 
 export interface Lodge {
+  operationsReason?: string | null;
   /** Average of published review ratings for this lodge, rounded to 1 decimal. Null if it has no published reviews yet. */
   averageRating: number | null;
   cityId: UUID;

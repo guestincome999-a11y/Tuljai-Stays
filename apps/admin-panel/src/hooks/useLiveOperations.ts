@@ -227,7 +227,7 @@ export function useLiveOperations() {
 
   const festivalModeEnabled = useMemo(
     () =>
-      state.featureFlags.some((flag) => flag.key === 'festival_mode' && flag.enabled) ||
+      state.featureFlags.find((flag) => flag.key === 'festival_mode')?.enabled ??
       state.settings.some((setting) => setting.key === 'festival_mode' && setting.value === true),
     [state.featureFlags, state.settings],
   );

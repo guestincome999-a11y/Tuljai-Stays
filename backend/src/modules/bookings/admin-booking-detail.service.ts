@@ -35,13 +35,32 @@ export class AdminBookingDetailService {
       throw new NotFoundException('Booking not found');
     }
 
-    const [activity, enrichedBooking] = await Promise.all([
+    const [activity, enrichedBooking, emailDelivery] = await Promise.all([
       getAdminBookingActivity(this.prisma, booking),
       withCashCollection(this.prisma, booking),
+      this.prisma.bookingDeliveryJob.findFirst({
+        where: { bookingId: id, type: 'CONFIRMATION_EMAIL', operation: 'initial' },
+        select: {
+          status: true,
+          recipient: true,
+          attempts: true,
+          lastAttemptAt: true,
+          lastError: true,
+          providerMessageId: true,
+          sentAt: true,
+        },
+      }),
     ]);
     return {
       ...enrichedBooking,
       activity,
+      emailDelivery: emailDelivery
+        ? {
+            ...emailDelivery,
+            lastAttemptAt: emailDelivery.lastAttemptAt?.toISOString() ?? null,
+            sentAt: emailDelivery.sentAt?.toISOString() ?? null,
+          }
+        : null,
       cityName: names.city.name,
       lodgeName: names.lodge.name,
       roomNumber: names.room?.roomNumber ?? null,

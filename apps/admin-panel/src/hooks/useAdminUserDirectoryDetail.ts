@@ -50,7 +50,9 @@ export function useAdminUserDirectoryDetail(userId: string) {
         await load();
         return true;
       } catch {
-        setActionError('The account status could not be updated. Backend validation prevented this action.');
+        setActionError(
+          'The account status could not be updated. Backend validation prevented this action.',
+        );
         return false;
       } finally {
         setIsSubmitting(false);

@@ -1,6 +1,6 @@
 import { emptyAuthSession, type AuthSession } from '@tuljai/shared';
 import type { AuthUserProfile } from '@tuljai/types';
-import { ApplicationError, isAccessTokenFresh } from '@tuljai/utils';
+import { ApplicationError } from '@tuljai/utils';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -78,15 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function restore() {
       const restored = await restoreAuthSession();
       if (!mounted) return;
-      if (restored.user && isAccessTokenFresh(restored.tokens?.accessToken)) {
-        const onboardingRequired = await isOnboardingRequired();
-        if (!mounted) return;
-        setSession(restored);
-        apiClient.resetSessionExpiredFlag();
-        if (onboardingRequired) router.replace('/(auth)/onboarding');
-        setBootstrapComplete(true);
-        return;
-      }
       if (restored.tokens?.refreshToken) {
         let refreshed;
         try {

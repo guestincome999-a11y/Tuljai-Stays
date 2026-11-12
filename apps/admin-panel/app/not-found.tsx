@@ -2,8 +2,21 @@ import Link from 'next/link';
 
 export default function NotFound() {
   return (
-    <main style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <section className="panel" style={{ maxWidth: 480, textAlign: 'center' }} role="alert" aria-live="polite">
+    <main
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+    >
+      <section
+        className="panel"
+        style={{ maxWidth: 480, textAlign: 'center' }}
+        role="alert"
+        aria-live="polite"
+      >
         <p className="eyebrow">404</p>
         <h1 style={{ marginTop: 8 }}>This page doesn&apos;t exist</h1>
         <p style={{ marginTop: 8 }}>

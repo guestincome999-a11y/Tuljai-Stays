@@ -20,6 +20,7 @@ interface AdminBookingsState {
 }
 
 export interface AdminBookingFilters {
+  lodgeId?: string;
   fromDate: string;
   query: string;
   status: BookingStatus | '';
@@ -51,6 +52,7 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
 
       try {
         const query: AdminBookingsQuery = {
+          lodgeId: filters.lodgeId,
           fromDate: filters.fromDate || undefined,
           limit: 20,
           page,
@@ -75,7 +77,7 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
         }));
       }
     },
-    [filters.fromDate, filters.status, filters.toDate, page],
+    [filters.lodgeId, filters.fromDate, filters.status, filters.toDate, page],
   );
 
   useEffect(() => {
@@ -94,7 +96,10 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
     void tokenStorage.getAccessToken().then((accessToken) => {
       if (!active || !accessToken) return;
       const socket = createAdminRealtimeSocket(accessToken);
-      socket.on('connect', () => setRealtimeConnected(true));
+      socket.on('connection:ready', (payload: { authenticated?: boolean }) => {
+        setRealtimeConnected(Boolean(payload.authenticated));
+        if (payload.authenticated) void load(true);
+      });
       socket.on('disconnect', () => setRealtimeConnected(false));
       subscribeAdminRealtimeSessionRecovery(socket, async () => {
         setRealtimeConnected(false);

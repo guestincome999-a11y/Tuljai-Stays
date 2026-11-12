@@ -17,8 +17,21 @@ export default function Error({
   }, [error]);
 
   return (
-    <main style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <section className="panel" style={{ maxWidth: 480, textAlign: 'center' }} role="alert" aria-live="assertive">
+    <main
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+    >
+      <section
+        className="panel"
+        style={{ maxWidth: 480, textAlign: 'center' }}
+        role="alert"
+        aria-live="assertive"
+      >
         <p className="eyebrow">Something went wrong</p>
         <h1 style={{ marginTop: 8 }}>This page hit an unexpected error</h1>
         <p style={{ marginTop: 8 }}>

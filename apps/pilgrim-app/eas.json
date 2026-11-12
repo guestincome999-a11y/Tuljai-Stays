@@ -38,6 +38,14 @@
         "EXPO_PUBLIC_USE_MOCKS": "false"
       },
       "channel": "production"
+    },
+    "release-apk": {
+      "extends": "production",
+      "environment": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

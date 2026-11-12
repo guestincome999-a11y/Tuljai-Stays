@@ -10,10 +10,12 @@ export type PilgrimRealtimeEventName = Extract<
   | 'booking:updated'
   | 'checkin:completed'
   | 'checkout:completed'
+  | 'festival:updated'
   | 'lodge:catalog-updated'
   | 'notification:new'
   | 'notification:unread-count'
   | 'qr:generated'
+  | 'room:availability-updated'
 >;
 
 export interface PilgrimRealtimeEvent {

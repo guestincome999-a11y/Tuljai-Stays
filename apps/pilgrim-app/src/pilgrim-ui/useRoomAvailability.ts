@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { checkAvailability } from '../features/bookings/api/bookings-api';
+import { useAvailabilityRevision } from '../features/bookings/availability-sync';
 
 // Wait for the guest to stop tapping through dates before asking the server.
 const AVAILABILITY_DEBOUNCE_MS = 350;
@@ -56,6 +57,7 @@ export function useRoomAvailability(input: RoomAvailabilityInput): RoomAvailabil
   const roomKey = input.roomTypeIds.join('|');
   const requestKey = `${lodgeId ?? ''}#${roomKey}#${checkInDate}#${checkOutDate}#${input.refreshKey ?? 0}`;
   const active = enabled && Boolean(lodgeId) && roomKey !== '';
+  const revision = useAvailabilityRevision(lodgeId, active);
   const [completed, setCompleted] = useState<CompletedCheck | null>(null);
 
   useEffect(() => {
@@ -91,7 +93,7 @@ export function useRoomAvailability(input: RoomAvailabilityInput): RoomAvailabil
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [active, checkInDate, checkOutDate, lodgeId, requestKey, roomKey]);
+  }, [active, checkInDate, checkOutDate, lodgeId, requestKey, roomKey, revision]);
 
   const counts = completed?.key === requestKey ? completed.counts : EMPTY_COUNTS;
   const roomTypeIds = roomKey === '' ? [] : roomKey.split('|');

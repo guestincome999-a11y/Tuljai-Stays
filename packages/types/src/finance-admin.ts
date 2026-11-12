@@ -1,9 +1,11 @@
+import type { BookingStatus } from './booking';
 import type { ISODateTime, UUID } from './common';
 
 export type PaymentCollectionStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELLED';
 export type PaymentCollectionMethod = 'ONLINE' | 'PAY_AT_LODGE';
 
 export interface AdminPaymentRow {
+  bookingStatus?: BookingStatus;
   amount: string;
   bookingCode: string;
   bookingId: UUID;

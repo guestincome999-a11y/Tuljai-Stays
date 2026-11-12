@@ -37,6 +37,7 @@ export default function AppLayout() {
       style={{ flex: 1, backgroundColor: ownerColors.cream }}
     >
       <Tabs
+        backBehavior="history"
         screenOptions={({ route }: { route: OwnerTabRoute }) => ({
           headerShown: false,
           sceneStyle: { backgroundColor: ownerColors.cream },

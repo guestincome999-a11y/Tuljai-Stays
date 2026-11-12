@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 /** Explicit date override > configured inclusive festival window > base price. */
 export async function calculateStayPrice(
-  db: Pick<Prisma.TransactionClient, 'roomPricing' | 'systemSetting'>,
+  db: Pick<Prisma.TransactionClient, 'roomPricing' | 'systemSetting' | 'featureFlag'>,
   roomTypeId: string,
   basePrice: Prisma.Decimal,
   checkInDate: Date,
@@ -21,7 +21,16 @@ export async function calculateStayPrice(
   const prices = new Map(overrides.map((row) => [row.date.getTime(), row.price]));
   let festivalStart: number | null = null;
   let festivalEnd: number | null = null;
-  if (festivalPrice !== null) {
+  const festivalMode =
+    festivalPrice === null
+      ? false
+      : (
+          await db.featureFlag.findUnique({
+            where: { key: 'festival_mode' },
+            select: { enabled: true },
+          })
+        )?.enabled === true;
+  if (festivalPrice !== null && festivalMode) {
     const settings = await db.systemSetting.findMany({
       where: { key: { in: ['festival_start_date', 'festival_end_date'] } },
       select: { key: true, value: true },

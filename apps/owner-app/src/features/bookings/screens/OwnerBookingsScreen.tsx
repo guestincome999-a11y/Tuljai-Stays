@@ -1,14 +1,23 @@
 import type { BookingStatus, OwnerBookingSummary } from '@tuljai/types';
 import { EmptyState } from '@tuljai/ui';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Chip, Text, TextInput, useTheme } from 'react-native-paper';
+import {
+  ActivityIndicator,
+  Button,
+  Chip,
+  IconButton,
+  Text,
+  TextInput,
+  useTheme,
+} from 'react-native-paper';
 
 import { FormErrorBanner } from '../../../components/FormErrorBanner';
 import { radius } from '../../../owner-ui/theme';
 import { spacing } from '../../../owner-ui/theme';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
+import { BookingSearchScanner } from '../components/BookingSearchScanner';
 import { DateRangeModal } from '../components/DateRangeModal';
 import { OwnerBookingCard } from '../components/OwnerBookingCard';
 import { useOwnerBookings } from '../hooks/useOwnerBookings';
@@ -93,6 +102,12 @@ export function OwnerBookingsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const [search, setSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scannerVisible, setScannerVisible] = useState(false);
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearchQuery(search.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [when, setWhen] = useState<WhenKey>('ALL');
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
@@ -100,11 +115,10 @@ export function OwnerBookingsScreen() {
   const [payment, setPayment] = useState<PaymentFilter>(null);
   const [activeStatus, setActiveStatus] = useState<BookingStatus | null>(null);
   const lodgeId = assignedLodges.selectedLodge?.id ?? null;
-  const bookings = useOwnerBookings(
-    lodgeId,
-    activeStatus,
-    resolveFilters(when, customRange, payment),
-  );
+  const bookings = useOwnerBookings(lodgeId, activeStatus, {
+    ...resolveFilters(when, customRange, payment),
+    search: searchQuery || undefined,
+  });
   const refresh = useCallback(() => {
     void bookings.refresh();
   }, [bookings]);
@@ -188,28 +202,39 @@ export function OwnerBookingsScreen() {
                 ))}
               </View>
             </ScrollView>
-            <TextInput
-              outlineStyle={{ borderRadius: radius.md }}
-              accessibilityLabel="Search loaded bookings by guest or booking ID"
-              label="Search loaded guest or booking ID"
-              mode="outlined"
-              value={search}
-              onChangeText={setSearch}
-              left={<TextInput.Icon icon="magnify" />}
-              right={
-                search ? (
-                  <TextInput.Icon
-                    accessibilityLabel="Clear search"
-                    icon="close"
-                    onPress={() => setSearch('')}
-                  />
-                ) : undefined
-              }
-            />
+            <View style={styles.searchRow}>
+              <TextInput
+                style={{ flex: 1 }}
+                outlineStyle={{ borderRadius: radius.md }}
+                accessibilityLabel="Search bookings by guest or booking ID"
+                label="Search guest or booking ID"
+                mode="outlined"
+                value={search}
+                onChangeText={setSearch}
+                left={<TextInput.Icon icon="magnify" />}
+                right={
+                  search ? (
+                    <TextInput.Icon
+                      accessibilityLabel="Clear search"
+                      icon="close"
+                      onPress={() => setSearch('')}
+                    />
+                  ) : undefined
+                }
+              />
+              <IconButton
+                icon="qrcode-scan"
+                mode="contained-tonal"
+                accessibilityLabel="Scan QR to fill booking search"
+                disabled={!lodgeId}
+                onPress={() => setScannerVisible(true)}
+              />
+            </View>
             {search.trim() ? (
               <Text style={{ color: theme.colors.onSurfaceVariant }} variant="bodySmall">
-                {matchingBookings.length} matches in {bookings.data.length} loaded bookings. Load
-                more to include older results.
+                {bookings.isLoading || search.trim() !== searchQuery
+                  ? 'Searching bookings…'
+                  : `${bookings.totalItems} matching bookings in the selected filters.`}
               </Text>
             ) : null}
             <Button
@@ -340,11 +365,23 @@ export function OwnerBookingsScreen() {
         title="Choose check-in dates"
         visible={pickerVisible}
       />
+      {scannerVisible && lodgeId ? (
+        <BookingSearchScanner
+          lodgeId={lodgeId}
+          onClose={() => setScannerVisible(false)}
+          onFound={(bookingCode) => {
+            setSearch(bookingCode);
+            setSearchQuery(bookingCode);
+            setScannerVisible(false);
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   container: {
     flex: 1,
   },

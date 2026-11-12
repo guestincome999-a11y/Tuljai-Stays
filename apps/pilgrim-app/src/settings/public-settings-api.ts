@@ -14,5 +14,5 @@ export function isFestivalModeEnabled(settings: SystemSetting[], flags: FeatureF
   const flag = flags.find((item) => item.key === 'festival_mode');
   const legacySetting = settings.find((item) => item.key === 'festival_mode');
 
-  return flag?.enabled === true || legacySetting?.value === true;
+  return flag ? flag.enabled : legacySetting?.value === true;
 }

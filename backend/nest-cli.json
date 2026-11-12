@@ -5,6 +5,15 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": false,
-    "assets": [{ "include": "modules/operations/report-assets/**/*", "outDir": "dist/backend/src" }]
+    "assets": [
+      {
+        "include": "assets/**/*",
+        "outDir": "dist/backend/src"
+      },
+      {
+        "include": "modules/operations/report-assets/**/*",
+        "outDir": "dist/backend/src"
+      }
+    ]
   }
 }

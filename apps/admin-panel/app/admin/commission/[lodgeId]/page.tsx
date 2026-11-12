@@ -72,11 +72,17 @@ export default function LodgeCommissionDetailPage({
   async function saveRule() {
     const numericRate = Number(ruleRate);
     const numericFixedAmount = Number(ruleFixedAmount);
-    if (ruleType === 'PERCENTAGE' && (!Number.isFinite(numericRate) || numericRate < 0 || numericRate > 100)) {
+    if (
+      ruleType === 'PERCENTAGE' &&
+      (!Number.isFinite(numericRate) || numericRate < 0 || numericRate > 100)
+    ) {
       setError('Percentage commission must be between 0% and 100%.');
       return;
     }
-    if (ruleType === 'FIXED_PER_BOOKING' && (!Number.isFinite(numericFixedAmount) || numericFixedAmount < 0)) {
+    if (
+      ruleType === 'FIXED_PER_BOOKING' &&
+      (!Number.isFinite(numericFixedAmount) || numericFixedAmount < 0)
+    ) {
       setError('Fixed commission must be zero or greater.');
       return;
     }
@@ -106,7 +112,9 @@ export default function LodgeCommissionDetailPage({
     setMessage('');
     try {
       setReport(await createLodgeCommissionSettlement(lodgeId, values));
-      setMessage('Settlement recorded and allocated against the oldest outstanding commission first.');
+      setMessage(
+        'Settlement recorded and allocated against the oldest outstanding commission first.',
+      );
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Settlement could not be recorded.');
@@ -133,8 +141,12 @@ export default function LodgeCommissionDetailPage({
         <FinHeader
           actions={
             <>
-              <Link className="fin-btn fin-btn-outline" href="/admin/commission">Back to lodges</Link>
-              <button className="fin-btn fin-btn-soft" onClick={() => void load()} type="button">Refresh</button>
+              <Link className="fin-btn fin-btn-outline" href="/admin/commission">
+                Back to lodges
+              </Link>
+              <button className="fin-btn fin-btn-soft" onClick={() => void load()} type="button">
+                Refresh
+              </button>
             </>
           }
           description="Detailed lodge revenue, commission accounting, settlement history and transaction history."
@@ -146,16 +158,44 @@ export default function LodgeCommissionDetailPage({
         {report ? (
           <>
             <section aria-label="Lodge totals" className="fin-kpis">
-              <FinKpi icon="receipt" label="Booking revenue" meta="Base for commission" tone="blue" value={formatMoney(report.summary.bookingRevenue)} />
-              <FinKpi icon="money" label="Commission receivable" meta="Earned from bookings" tone="green" value={formatMoney(report.summary.commissionReceivable)} />
-              <FinKpi icon="clock" label="Outstanding" meta="Awaiting settlement" tone="orange" value={formatMoney(report.summary.outstanding)} />
-              <FinKpi icon="check" label="Settled" meta="Recorded payments" tone="purple" value={formatMoney(report.summary.settled)} />
+              <FinKpi
+                icon="receipt"
+                label="Booking revenue"
+                meta="Base for commission"
+                tone="blue"
+                value={formatMoney(report.summary.bookingRevenue)}
+              />
+              <FinKpi
+                icon="money"
+                label="Commission receivable"
+                meta="Earned from bookings"
+                tone="green"
+                value={formatMoney(report.summary.commissionReceivable)}
+              />
+              <FinKpi
+                icon="clock"
+                label="Outstanding"
+                meta="Awaiting settlement"
+                tone="orange"
+                value={formatMoney(report.summary.outstanding)}
+              />
+              <FinKpi
+                icon="check"
+                label="Settled"
+                meta="Recorded payments"
+                tone="purple"
+                value={formatMoney(report.summary.settled)}
+              />
             </section>
 
             <section className="fin-split">
               <FinPanel
                 action={
-                  <button className="fin-btn fin-btn-sm fin-btn-soft" onClick={() => setEditingRule((value) => !value)} type="button">
+                  <button
+                    className="fin-btn fin-btn-sm fin-btn-soft"
+                    onClick={() => setEditingRule((value) => !value)}
+                    type="button"
+                  >
                     {editingRule ? 'Cancel' : 'Edit rule'}
                   </button>
                 }
@@ -169,14 +209,20 @@ export default function LodgeCommissionDetailPage({
                     <div className="fin-form">
                       <label className="fin-field">
                         <span>Commission status</span>
-                        <select onChange={(e) => setRuleEnabled(e.target.value === 'ON')} value={ruleEnabled ? 'ON' : 'OFF'}>
+                        <select
+                          onChange={(e) => setRuleEnabled(e.target.value === 'ON')}
+                          value={ruleEnabled ? 'ON' : 'OFF'}
+                        >
                           <option value="OFF">OFF · No commission charged</option>
                           <option value="ON">ON · Charge commission</option>
                         </select>
                       </label>
                       <label className="fin-field">
                         <span>Commission type</span>
-                        <select onChange={(e) => setRuleType(e.target.value as LodgeCommissionType)} value={ruleType}>
+                        <select
+                          onChange={(e) => setRuleType(e.target.value as LodgeCommissionType)}
+                          value={ruleType}
+                        >
                           <option value="PERCENTAGE">Percentage (%)</option>
                           <option value="FIXED_PER_BOOKING">Fixed amount per booking (₹)</option>
                         </select>
@@ -184,21 +230,45 @@ export default function LodgeCommissionDetailPage({
                       {ruleType === 'PERCENTAGE' ? (
                         <label className="fin-field">
                           <span>Commission rate (%)</span>
-                          <input inputMode="decimal" max="100" min="0" onChange={(e) => setRuleRate(e.target.value)} step="0.01" type="number" value={ruleRate} />
+                          <input
+                            inputMode="decimal"
+                            max="100"
+                            min="0"
+                            onChange={(e) => setRuleRate(e.target.value)}
+                            step="0.01"
+                            type="number"
+                            value={ruleRate}
+                          />
                         </label>
                       ) : (
                         <label className="fin-field">
                           <span>Commission per booking (₹)</span>
-                          <input inputMode="decimal" min="0" onChange={(e) => setRuleFixedAmount(e.target.value)} step="0.01" type="number" value={ruleFixedAmount} />
+                          <input
+                            inputMode="decimal"
+                            min="0"
+                            onChange={(e) => setRuleFixedAmount(e.target.value)}
+                            step="0.01"
+                            type="number"
+                            value={ruleFixedAmount}
+                          />
                         </label>
                       )}
                       <label className="fin-field">
                         <span>Effective from</span>
-                        <input onChange={(e) => setRuleEffectiveFrom(e.target.value)} type="date" value={ruleEffectiveFrom} />
+                        <input
+                          onChange={(e) => setRuleEffectiveFrom(e.target.value)}
+                          type="date"
+                          value={ruleEffectiveFrom}
+                        />
                       </label>
                     </div>
                     <div className="fin-actions fin-actions-end">
-                      <button className="fin-btn" disabled={savingRule} onClick={() => void saveRule()} type="button">
+                      <button
+                        className="fin-btn"
+                        disabled={savingRule}
+                        onClick={() => void saveRule()}
+                        type="button"
+                      >
                         {savingRule ? 'Saving…' : 'Save rule'}
                       </button>
                     </div>
@@ -206,13 +276,19 @@ export default function LodgeCommissionDetailPage({
                 )}
               </FinPanel>
 
-              <FinPanel sub="Every settlement is stored separately and allocated against the oldest outstanding commission first." title="Record lodge payment">
+              <FinPanel
+                sub="Every settlement is stored separately and allocated against the oldest outstanding commission first."
+                title="Record lodge payment"
+              >
                 <SettlementForm onSubmit={settle} />
               </FinPanel>
             </section>
 
             <FinPanel sub="Commission History Manager" title="Booking-level accounting ledger">
-              <LedgerTable onVoid={(id) => void voidTransaction(id)} transactions={report.transactions} />
+              <LedgerTable
+                onVoid={(id) => void voidTransaction(id)}
+                transactions={report.transactions}
+              />
             </FinPanel>
 
             <FinPanel sub="Immutable payment records" title="Settlement history">

@@ -33,6 +33,22 @@ interface RazorpayPaymentResponse {
   status: 'created' | 'authorized' | 'captured' | 'refunded' | 'failed';
   captured: boolean;
   currency: string;
+  method?: string;
+  amount_refunded?: number;
+}
+
+export interface RazorpayRefund {
+  id: string;
+  payment_id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'processed' | 'failed';
+  receipt?: string | null;
+  notes?: Record<string, string>;
+  speed_requested?: string;
+  speed_processed?: string;
+  created_at?: number;
+  error_description?: string;
 }
 
 @Injectable()
@@ -93,7 +109,12 @@ export class RazorpayProvider implements PaymentProvider {
     } finally {
       // Operation and elapsed time only; never log gateway bodies or credentials.
       this.logger.log({
-        operation: init.method === 'POST' ? 'gateway_write' : 'gateway_read',
+        operation:
+          path === '/orders' && init.method === 'POST'
+            ? 'razorpay_order_creation'
+            : init.method === 'POST'
+              ? 'gateway_write'
+              : 'gateway_read',
         durationMs: Math.round(performance.now() - started),
       });
     }
@@ -178,14 +199,38 @@ export class RazorpayProvider implements PaymentProvider {
     return timingSafeEqual(expected, Buffer.from(signature, 'hex'));
   }
 
-  public async refundPayment(paymentId: string, amount?: number): Promise<{ refundId: string }> {
-    const refund = await this.request<{ id: string }>(
-      `/payments/${encodeURIComponent(paymentId)}/refund`,
-      {
-        method: 'POST',
-        body: JSON.stringify(amount ? { amount } : {}),
-      },
-    );
-    return { refundId: refund.id };
+  public refundPayment(paymentId: string, amount?: number): Promise<{ refundId: string }> {
+    void paymentId;
+    void amount;
+    throw new BadRequestException('Refunds must use the validated cancellation refund ledger');
+  }
+
+  public async createRefund(
+    paymentId: string,
+    input: { amount: number; receipt: string; notes: Record<string, string> },
+  ): Promise<RazorpayRefund> {
+    if (!Number.isSafeInteger(input.amount) || input.amount <= 0)
+      throw new BadRequestException('Refund amount must be positive paise');
+    return this.request<RazorpayRefund>(`/payments/${encodeURIComponent(paymentId)}/refund`, {
+      method: 'POST',
+      body: JSON.stringify({ ...input, speed: 'normal' }),
+    });
+  }
+
+  public async getRefund(id: string): Promise<RazorpayRefund> {
+    return this.request<RazorpayRefund>(`/refunds/${encodeURIComponent(id)}`, { method: 'GET' });
+  }
+
+  /** Read every page; a first-page-only scan could miss an earlier timed-out request. */
+  public async getPaymentRefunds(paymentId: string): Promise<RazorpayRefund[]> {
+    const all: RazorpayRefund[] = [];
+    for (let skip = 0; ; skip += 100) {
+      const page = await this.request<{ items: RazorpayRefund[] }>(
+        `/payments/${encodeURIComponent(paymentId)}/refunds?count=100&skip=${skip}`,
+        { method: 'GET' },
+      );
+      all.push(...page.items);
+      if (page.items.length < 100) return all;
+    }
   }
 }

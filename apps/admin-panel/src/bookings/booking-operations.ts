@@ -1,4 +1,10 @@
-import type { AdminBookingSummary, BookingActivity, Booking, BookingStatus, QrScanLogEntry } from '@tuljai/types';
+import type {
+  AdminBookingSummary,
+  BookingActivity,
+  Booking,
+  BookingStatus,
+  QrScanLogEntry,
+} from '@tuljai/types';
 
 export type BookingPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'NORMAL';
 

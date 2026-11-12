@@ -27,7 +27,6 @@ import {
 } from '../features/notifications/notification-count-store';
 import { getEventBookingId } from '../realtime/realtime-events';
 import { useRealtime } from '../realtime/realtime-provider';
-import { catalogErrorKind } from '../v2/core/catalog-request';
 
 import {
   applyBackendBookingRecord,
@@ -96,8 +95,6 @@ interface PilgrimAppContextValue {
   favoriteIds: string[];
   isBackendConnected: boolean;
   isSyncing: boolean;
-  isLoadingLodges: boolean;
-  lodgeLoadError: string | null;
   language: PilgrimLanguage;
   lodges: PilgrimLodge[];
   markNotificationsRead: () => Promise<void>;
@@ -126,7 +123,29 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   );
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [loadedPreferencesUserId, setLoadedPreferencesUserId] = useState<string | null>(null);
-  const [lodges, setLodges] = useState<PilgrimLodge[]>(mockMode ? pilgrimLodges : []);
+  const [lodges, setLodges] = useState<PilgrimLodge[]>(pilgrimLodges);
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const cacheLodgeSummaries = useCallback((items: PilgrimLodge[]) => {
+    setLodges((current) => {
+      const byId = new Map(current.map((item) => [item.id, item]));
+      for (const item of items) {
+        const previous = byId.get(item.id);
+        byId.set(
+          item.id,
+          previous?.hydrated && !item.hydrated
+            ? {
+                ...previous,
+                price: item.price,
+                priceAvailable: item.priceAvailable,
+                rating: item.rating,
+                reviewCount: item.reviewCount,
+              }
+            : item,
+        );
+      }
+      return [...byId.values()];
+    });
+  }, []);
   const [bookings, setBookings] = useState<PilgrimBooking[]>(
     mockMode ? initialPilgrimBookings : [],
   );
@@ -139,10 +158,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     [mockMode, notificationItems],
   );
   const [isBackendConnected, setIsBackendConnected] = useState(false);
-  const [catalogRevision, setCatalogRevision] = useState(0);
   const [isSyncing, setIsSyncing] = useState(true);
-  const [isLoadingLodges, setIsLoadingLodges] = useState(true);
-  const [lodgeLoadError, setLodgeLoadError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
   const privateDataVersionRef = useRef(0);
@@ -162,31 +178,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   // Bumped on every catalog reload so only the newest reload may write its
   // refreshed lodge details back into state (a slow older one is discarded).
   const lodgeLoadVersionRef = useRef(0);
-  const lodgeLoadPendingRef = useRef(false);
   const lastLodgeLoadAtRef = useRef(0);
-
-  const cacheLodgeSummaries = useCallback((items: PilgrimLodge[]) => {
-    setLodges((current) => {
-      const byId = new Map(current.map((item) => [item.id, item]));
-      for (const item of items) {
-        const previous = byId.get(item.id);
-        byId.set(
-          item.id,
-          previous?.hydrated && !item.hydrated
-            ? {
-                ...previous,
-                price: item.price,
-                priceAvailable: item.priceAvailable,
-                rating: item.rating,
-                reviewCount: item.reviewCount,
-                hero: item.hero || previous.hero,
-              }
-            : item,
-        );
-      }
-      return [...byId.values()];
-    });
-  }, []);
 
   const ensureLodgesHydrated = useCallback((lodgeIds: string[]) => {
     if (lodgeIds.length === 0) return;
@@ -220,16 +212,15 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
-  const loadLodges = useCallback(async (): Promise<PilgrimLodge[]> => {
-    // Drop every cached lodge/photo/room-type response first, so prices and
-    // content edited in the admin panel are fetched fresh from the backend
-    // instead of being served from the in-memory cache.
-    invalidateLodgeCatalogCache();
-    const loadVersion = ++lodgeLoadVersionRef.current;
-    lodgeLoadPendingRef.current = true;
-    setIsLoadingLodges(true);
-    setLodgeLoadError(null);
-    try {
+  const pendingLodgeLoad = useRef<Promise<PilgrimLodge[]> | null>(null);
+  const loadLodges = useCallback((): Promise<PilgrimLodge[]> => {
+    if (pendingLodgeLoad.current) return pendingLodgeLoad.current;
+    const request = (async () => {
+      // Drop every cached lodge/photo/room-type response first, so prices and
+      // content edited in the admin panel are fetched fresh from the backend
+      // instead of being served from the in-memory cache.
+      invalidateLodgeCatalogCache();
+      const loadVersion = ++lodgeLoadVersionRef.current;
       const summaries = await loadLodgeSummaries();
       if (loadVersion !== lodgeLoadVersionRef.current) return summaries;
 
@@ -242,13 +233,8 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       const merged = summaries.map((summary) => {
         const previous = previousById.get(summary.id);
         if (previous?.hydrated && summary.hydrated === false) {
-          const refreshedSummary = {
-            ...previous, price: summary.price, priceAvailable: summary.priceAvailable,
-            rating: summary.rating, reviewCount: summary.reviewCount, hero: summary.hero,
-            amenities: summary.amenities, tags: summary.tags,
-          };
-          toRefresh.push(refreshedSummary);
-          return refreshedSummary;
+          toRefresh.push(previous);
+          return previous;
         }
         return summary;
       });
@@ -280,19 +266,11 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       });
 
       return summaries;
-    } catch (error) {
-      if (loadVersion === lodgeLoadVersionRef.current) {
-        setLodgeLoadError(catalogErrorKind(error) === 'network'
-          ? 'Connection interrupted or timed out. Check your internet and retry.'
-          : 'The server could not load stays. Please retry shortly.');
-      }
-      throw error;
-    } finally {
-      if (loadVersion === lodgeLoadVersionRef.current) {
-        lodgeLoadPendingRef.current = false;
-        setIsLoadingLodges(false);
-      }
-    }
+    })().finally(() => {
+      if (pendingLodgeLoad.current === request) pendingLodgeLoad.current = null;
+    });
+    pendingLodgeLoad.current = request;
+    return request;
   }, []);
 
   const loadPrivateData = useCallback(
@@ -323,11 +301,9 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         if (auth.isAuthenticated)
           setSyncError('Account updates are temporarily unavailable. Lodge details are live.');
       }
-    } catch (error) {
+    } catch {
       setIsBackendConnected(false);
-      setSyncError(catalogErrorKind(error) === 'network'
-        ? 'Connection interrupted or timed out. Check your internet and retry.'
-        : 'The server could not load stays. Please retry shortly.');
+      setSyncError('Live data is temporarily unavailable. Showing saved lodge information.');
     } finally {
       setIsSyncing(false);
     }
@@ -397,31 +373,43 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         ),
       );
     }
-    void loadPrivateData(lodgesRef.current).catch(() => undefined);
-  }, [auth.isAuthenticated, loadPrivateData, realtime.lastBookingEvent]);
+    void loadPrivateData(lodges).catch(() => undefined);
+  }, [auth.isAuthenticated, loadPrivateData, lodges, realtime.lastBookingEvent]);
 
   useEffect(() => {
     if (auth.isAuthenticated && realtime.lastEvent?.name === 'notification:new')
-      void loadPrivateData(lodgesRef.current).catch(() => undefined);
-  }, [auth.isAuthenticated, realtime.lastEvent, loadPrivateData]);
+      void loadPrivateData(lodges).catch(() => undefined);
+  }, [auth.isAuthenticated, realtime.lastEvent, loadPrivateData, lodges]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      // A slow read must finish before polling starts another generation.
-      if (AppState.currentState === 'active' && !lodgeLoadPendingRef.current) {
-        void loadLodges().catch(() => undefined);
-      }
-    }, 30_000);
+    const timer = setInterval(
+      () => {
+        if (AppState.currentState === 'active') void loadLodges().catch(() => undefined);
+      },
+      realtime.connected ? 120_000 : 45_000,
+    );
     return () => clearInterval(timer);
-  }, [loadLodges]);
+  }, [loadLodges, realtime.connected]);
 
   useEffect(() => {
     if (realtime.connectionRevision > 0) void loadLodges().catch(() => undefined);
   }, [loadLodges, realtime.connectionRevision]);
 
   useEffect(() => {
-    if (realtime.lastEvent?.name !== 'lodge:catalog-updated') return;
-    void loadLodges().catch(() => undefined);
+    const event = realtime.lastEvent;
+    if (
+      !event ||
+      !['lodge:catalog-updated', 'room:availability-updated', 'festival:updated'].includes(
+        event.name,
+      )
+    )
+      return;
+    if (event.name === 'lodge:catalog-updated' && event.payload.isActive === false)
+      setLodges((current) => current.filter((lodge) => lodge.id !== event.payload.lodgeId));
+    const timer = setTimeout(() => {
+      void loadLodges().catch(() => undefined);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [loadLodges, realtime.lastEvent]);
 
   useEffect(() => {
@@ -435,16 +423,16 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!auth.isAuthenticated || realtime.connectionRevision === 0) return;
-    void loadPrivateData(lodgesRef.current).catch(() => undefined);
-  }, [auth.isAuthenticated, loadPrivateData, realtime.connectionRevision]);
+    void loadPrivateData(lodges).catch(() => undefined);
+  }, [auth.isAuthenticated, loadPrivateData, lodges, realtime.connectionRevision]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active' && auth.isAuthenticated)
-        void loadPrivateData(lodgesRef.current).catch(() => undefined);
+        void loadPrivateData(lodges).catch(() => undefined);
     });
     return () => subscription.remove();
-  }, [auth.isAuthenticated, loadPrivateData]);
+  }, [auth.isAuthenticated, loadPrivateData, lodges]);
 
   // All pages share the same count; NotificationSync owns native badge writes.
   useEffect(() => {
@@ -470,7 +458,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     let active = true;
     let requestInFlight = false;
     const syncPendingBookings = async () => {
-      if (requestInFlight || AppState.currentState !== 'active') return;
+      if (requestInFlight) return;
       requestInFlight = true;
       try {
         const records = await Promise.all(
@@ -507,8 +495,15 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       bookingNotificationsEnabled,
       bookings,
       cancelBooking: async (id, reason) => {
-        await cancelBackendBooking(id, reason);
-        await loadPrivateData(lodges);
+        const cancelled = await cancelBackendBooking(id, reason);
+        setBookings((current) =>
+          current.map((booking) =>
+            booking.id === id ? applyBackendBookingRecord(booking, cancelled) : booking,
+          ),
+        );
+        // Cancellation has committed. A failed list/notification refresh must
+        // not turn that success into a "could not cancel" alert.
+        void loadPrivateData(lodges).catch(() => undefined);
       },
       createBooking: async (input) => {
         const lock = await createBookingLock({
@@ -547,8 +542,6 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       favoriteIds,
       isBackendConnected,
       isSyncing,
-      isLoadingLodges,
-      lodgeLoadError,
       language,
       lodges,
       markNotificationsRead: notificationState.markAllRead,
@@ -578,8 +571,6 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       favoriteIds,
       isBackendConnected,
       isSyncing,
-      isLoadingLodges,
-      lodgeLoadError,
       language,
       loadPrivateData,
       lodges,

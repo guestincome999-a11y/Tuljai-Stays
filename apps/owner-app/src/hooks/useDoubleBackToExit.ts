@@ -1,29 +1,29 @@
+import { usePathname } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { BackHandler, Platform, ToastAndroid } from 'react-native';
 
 const EXIT_WINDOW_MS = 2000;
 
 /**
- * Overrides the Android hardware back button globally so it never navigates
- * to the previous screen/stack entry. First press shows a toast; a second
- * press within EXIT_WINDOW_MS exits the app. This applies on every screen,
- * not just the root, so in-app navigation must rely on on-screen back
- * controls / tab navigation rather than the hardware back button.
+ * Protects Home from accidental exits. All other screens retain normal
+ * navigation back behavior without an exit prompt.
  *
  * No-op on iOS, which has no hardware back button.
  */
 export function useDoubleBackToExit(message = 'Press back again to exit') {
+  const pathname = usePathname();
   const lastBackPressRef = useRef(0);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') {
+    lastBackPressRef.current = 0;
+    if (Platform.OS !== 'android' || pathname !== '/dashboard') {
       return undefined;
     }
 
     const onBackPress = () => {
       const now = Date.now();
 
-      if (now - lastBackPressRef.current < EXIT_WINDOW_MS) {
+      if (lastBackPressRef.current > 0 && now - lastBackPressRef.current < EXIT_WINDOW_MS) {
         BackHandler.exitApp();
         return true;
       }
@@ -35,5 +35,5 @@ export function useDoubleBackToExit(message = 'Press back again to exit') {
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [message]);
+  }, [message, pathname]);
 }

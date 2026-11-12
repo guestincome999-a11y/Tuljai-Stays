@@ -3,7 +3,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { clearTimeout } from 'node:timers';
+import { fileURLToPath, URL } from 'node:url';
 import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
@@ -410,7 +411,9 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
     const source = ts.transpileModule(readFileSync(filename, 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText;
-    const { NextRequest } = require('next/server');
+    // Resolve Next from its owning workspace; npm may install it without root hoisting.
+    const adminRequire = createRequire(path.join(root, 'apps/admin-panel/package.json'));
+    const { NextRequest } = adminRequire('next/server');
     const mod = { exports: {} };
     let unavailable = false;
     const backendFetch = async (url, options) => {
@@ -420,20 +423,20 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
         const result = url.endsWith('/auth/logout')
           ? await server.service.logout(server.user.id, input)
           : await server.service.refreshToken(input);
-        return Response.json({ data: result });
+        return globalThis.Response.json({ data: result });
       } catch {
-        return Response.json({ message: 'Unauthorized' }, { status: 401 });
+        return globalThis.Response.json({ message: 'Unauthorized' }, { status: 401 });
       }
     };
     vm.runInNewContext(`(function(require,module,exports){${source}\n})`, {
       Date: ClockDate,
-      process: { env: { NODE_ENV: 'production' } },
+      process: { env: { NODE_ENV: 'production', ADMIN_PUBLIC_ORIGIN: 'https://admin.invalid' } },
       fetch: backendFetch,
     })(
       (id) =>
         id.includes('config/api-base-url')
           ? { resolveAdminApiBaseUrl: () => 'https://backend.invalid/api' }
-          : require(id),
+          : adminRequire(id),
       mod,
       mod.exports,
     );
@@ -450,6 +453,11 @@ test('Admin: persistent HttpOnly cookie keeps the original deadline, rejects CSR
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
+    // Render forwards to an internal HTTP address; the configured public origin remains authoritative.
+    const proxiedRequest = new NextRequest('http://127.0.0.1:10000/api/auth-session', {
+      method: 'PATCH', headers: { origin },
+    });
+    assert.equal((await route.PATCH(proxiedRequest)).status, 401);
     const credentials = { deviceId: 'admin-device', refreshToken: login.tokens.refreshToken };
     const rejected = await route.POST(request('POST', credentials, 'https://attacker.invalid'));
     assert.equal(rejected.status, 403);

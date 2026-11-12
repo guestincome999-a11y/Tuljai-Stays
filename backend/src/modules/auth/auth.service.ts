@@ -795,9 +795,8 @@ export class AuthService {
       data: { isActive: false },
       where: {
         appType: dto.appType,
-        deviceId: { not: dto.deviceId },
         fcmToken: dto.fcmToken,
-        userId,
+        NOT: { deviceId: dto.deviceId, userId },
       },
     });
     await this.prisma.deviceToken.upsert({

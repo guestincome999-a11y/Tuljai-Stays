@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';
@@ -7,6 +7,43 @@ import { NotificationsService } from './notifications.service';
 
 @Injectable()
 export class NotificationEventsService {
+  private readonly logger = new Logger(NotificationEventsService.name);
+  /** Lightweight post-commit hints. Disconnected clients refetch on reconnect/focus. */
+  public bookingCommitted(booking: {
+    id: string;
+    lodgeId: string;
+    pilgrimUserId: string;
+    cityId: string;
+    roomTypeId: string;
+    status: string;
+  }): void {
+    const payload = {
+      bookingId: booking.id,
+      lodgeId: booking.lodgeId,
+      roomTypeId: booking.roomTypeId,
+      status: booking.status,
+    };
+    try {
+      this.realtimeEventsService.publishToRole('PILGRIM', 'room:availability-updated', {
+        lodgeId: booking.lodgeId,
+        roomTypeId: booking.roomTypeId,
+      });
+      this.realtimeEventsService.publishToUser(booking.pilgrimUserId, 'booking:updated', payload);
+      this.realtimeEventsService.publishToLodge(booking.lodgeId, 'booking:updated', payload);
+      this.realtimeEventsService.publishToLodge(
+        booking.lodgeId,
+        'room:availability-updated',
+        payload,
+      );
+      this.realtimeEventsService.publishToCity(booking.cityId, 'room:availability-updated', {
+        lodgeId: booking.lodgeId,
+        roomTypeId: booking.roomTypeId,
+      });
+      this.realtimeEventsService.publishToRole('ADMIN', 'dashboard:update', payload);
+    } catch {
+      this.logger.warn({ operation: 'booking_realtime_hint_failed', bookingId: booking.id });
+    }
+  }
   public paymentCollected(bookingId: string, lodgeId: string): void {
     const payload = { bookingId, lodgeId };
     this.realtimeEventsService.publishToLodge(lodgeId, 'booking:updated', payload);
@@ -94,6 +131,35 @@ export class NotificationEventsService {
     );
   }
 
+  public async bookingPaymentConfirmed(bookingId: string): Promise<void> {
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (
+      !booking ||
+      booking.paymentStatus !== 'FULLY_PAID' ||
+      !['ACCEPTED', 'QR_GENERATED'].includes(booking.status)
+    )
+      return;
+    const intent = await this.prisma.paymentIntent.findUnique({ where: { bookingId } });
+    await this.notificationsService.create({
+      bookingId,
+      lodgeId: booking.lodgeId,
+      recipientRole: 'PILGRIM',
+      recipientUserId: booking.pilgrimUserId,
+      title: 'Payment successful',
+      body: `Payment verified. Booking ${booking.bookingCode} is confirmed and your room is reserved.`,
+      type: 'SYSTEM',
+      priority: 'HIGH',
+      dedupeKey: `confirmation:payment:${bookingId}`,
+      data: {
+        context: 'PAYMENT',
+        operationallyImportant: true,
+        paymentStatus: 'PAID',
+        paymentId: intent?.providerPaymentId,
+        roomId: booking.roomId,
+      },
+    });
+  }
+
   /**
    * Informs lodge owners that a room was just booked and paid for online —
    * no approval needed. Deliberately does NOT use bookingCreated()'s
@@ -110,7 +176,7 @@ export class NotificationEventsService {
       where: { id: bookingId },
     });
 
-    if (!booking) {
+    if (!booking || !['ACCEPTED', 'QR_GENERATED'].includes(booking.status)) {
       return;
     }
 
@@ -135,6 +201,7 @@ export class NotificationEventsService {
         recipientUserId: owner.userId,
         title: 'New confirmed booking',
         type: 'BOOKING_CONFIRMED',
+        dedupeKey: `confirmation:owner:${booking.id}:${owner.userId}`,
       });
     }
 
@@ -159,6 +226,10 @@ export class NotificationEventsService {
       where: { id: bookingId },
     });
     if (!booking) return;
+    this.realtimeEventsService.publishToRole('PILGRIM', 'room:availability-updated', {
+      lodgeId: booking.lodgeId,
+      roomTypeId: booking.roomTypeId,
+    });
 
     const payload = {
       bookingCode: booking.bookingCode,
@@ -176,12 +247,13 @@ export class NotificationEventsService {
       recipientRole: 'PILGRIM',
       recipientUserId: booking.pilgrimUserId,
       title: 'Booking cancelled',
+      dedupeKey: `cancel:${booking.id}:${booking.pilgrimUserId}`,
       type: 'BOOKING_CANCELLED',
     });
     for (const owner of booking.lodge.owners) {
       this.realtimeEventsService.publishToUser(owner.userId, 'booking:cancelled', payload);
       await this.notificationsService.create({
-        body: `Booking ${booking.bookingCode} was cancelled by the pilgrim.`,
+        body: `Booking ${booking.bookingCode} was cancelled.`,
         bookingId: booking.id,
         data: payload,
         lodgeId: booking.lodgeId,
@@ -189,6 +261,7 @@ export class NotificationEventsService {
         recipientRole: 'OWNER',
         recipientUserId: owner.userId,
         title: 'Booking cancelled',
+        dedupeKey: `cancel:${booking.id}:${owner.userId}`,
         type: 'BOOKING_CANCELLED',
       });
     }
@@ -245,6 +318,10 @@ export class NotificationEventsService {
   public async checkoutCompleted(bookingId: string, lodgeId: string): Promise<void> {
     const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) return;
+    this.realtimeEventsService.publishToRole('PILGRIM', 'room:availability-updated', {
+      lodgeId: booking.lodgeId,
+      roomTypeId: booking.roomTypeId,
+    });
 
     const reviewPayload = {
       action: 'RATE_AND_REVIEW',
@@ -324,6 +401,9 @@ export class NotificationEventsService {
       return;
     }
 
+    if (type === 'BOOKING_ACCEPTED' && !['ACCEPTED', 'QR_GENERATED'].includes(booking.status))
+      return;
+
     const payload = {
       bookingCode: booking.bookingCode,
       bookingId: booking.id,
@@ -347,6 +427,7 @@ export class NotificationEventsService {
       recipientUserId: booking.pilgrimUserId,
       title,
       type,
+      ...(type === 'BOOKING_ACCEPTED' ? { dedupeKey: `confirmation:pilgrim:${booking.id}` } : {}),
     });
   }
 }

@@ -18,6 +18,7 @@ const { CatalogQueryDto } = require('../src/modules/catalog/dto/catalog-query.dt
 function fixture(prices = ['0', '500', '1000.50', '1200', '1200.01', null]) {
   let reads = 0;
   const prisma = {
+    featureFlag: { findUnique: async () => ({ enabled: false }) },
     lodge: {
       findMany: async (query) => {
         reads++;
@@ -109,7 +110,7 @@ test('concurrent reads share one build, cached and uncached filters agree', asyn
   let calls = 0;
   const original = prisma.lodge.findMany;
   prisma.lodge.findMany = async (q) => {
-    calls++;
+    if (q.include?.amenities) calls++;
     return original(q);
   };
   const pages = await Promise.all(

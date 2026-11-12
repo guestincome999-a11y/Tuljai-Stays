@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { useAvailabilityRevision } from '../../features/bookings/availability-sync';
+
 import { fetchAvailability } from './booking';
 
 /**
@@ -25,6 +27,7 @@ export function useAvailability({
   const discardRef = useRef(shouldDiscard);
   discardRef.current = shouldDiscard;
   const idsKey = roomTypeIds.join(',');
+  const revision = useAvailabilityRevision(lodgeId, enabled);
 
   useEffect(() => {
     if (!enabled || idsKey === '') return undefined;
@@ -54,7 +57,7 @@ export function useAvailability({
     return () => {
       cancelled = true;
     };
-  }, [checkInDate, checkOutDate, enabled, idsKey, lodgeId]);
+  }, [checkInDate, checkOutDate, enabled, idsKey, lodgeId, revision]);
 
   return counts;
 }

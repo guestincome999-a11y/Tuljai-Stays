@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: ['fix/price-availability-sync']
+    branches: [main, 'fix/price-availability-sync', 'codex/automated-cancellation-refunds']
   workflow_dispatch:
 
 permissions:
@@ -39,3 +39,5 @@ jobs:
       - run: npm run db:generate
       - run: npm run build --workspace @tuljai/utils
       - run: npm run test --workspace @tuljai/backend
+      - run: npm run test:reports --workspace @tuljai/backend
+      - run: npm run test --workspace @tuljai/owner-app

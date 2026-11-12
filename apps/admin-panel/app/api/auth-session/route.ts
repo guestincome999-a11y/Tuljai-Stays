@@ -30,7 +30,9 @@ function parseCredentials(value: unknown): { deviceId: string; refreshToken: str
 
 async function handle(request: NextRequest): Promise<NextResponse> {
   // Cookie-authenticated mutations are only allowed from this exact origin.
-  const expectedOrigin = process.env.ADMIN_PUBLIC_ORIGIN ?? `${request.nextUrl.protocol}//${request.headers.get('host') ?? request.nextUrl.host}`;
+  const expectedOrigin =
+    process.env.ADMIN_PUBLIC_ORIGIN ??
+    `${request.nextUrl.protocol}//${request.headers.get('host') ?? request.nextUrl.host}`;
   if (request.headers.get('origin') !== expectedOrigin) {
     return NextResponse.json({ message: 'Invalid origin' }, { status: 403 });
   }

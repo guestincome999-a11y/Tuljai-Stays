@@ -9,6 +9,125 @@ import { runInNewContext } from 'node:vm';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 const tick = () => delay(0);
+
+function cancellationHarness(cancelRequest, refresh) {
+  const slots = [];
+  let index = 0;
+  const hooks = {
+    useState: (value) => {
+      const i = index++;
+      if (!(i in slots)) slots[i] = value;
+      return [
+        slots[i],
+        (next) => {
+          slots[i] = next;
+        },
+      ];
+    },
+  };
+  const utils = {};
+  runInNewContext(
+    ts.transpileModule(
+      readFileSync(new URL('../../../packages/utils/src/errors.ts', import.meta.url), 'utf8'),
+      { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+    ).outputText,
+    { exports: utils },
+  );
+  const exports = {};
+  const jsx = (type, props) => ({ type, props });
+  const imports = {
+    react: hooks,
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    '@tuljai/utils': utils,
+    '../../api/refunds-api': { cancelAdminBooking: cancelRequest },
+    '../finance/FinanceUi': { FinPanel: 'Panel' },
+  };
+  runInNewContext(
+    ts.transpileModule(
+      readFileSync(
+        new URL('../src/components/bookings/AdminCancellationPanel.tsx', import.meta.url),
+        'utf8',
+      ),
+      { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } },
+    ).outputText,
+    {
+      exports,
+      require: (name) => {
+        assert.ok(name in imports, name);
+        return imports[name];
+      },
+      window: { confirm: () => true },
+    },
+  );
+  function nodes(node) {
+    if (!node || typeof node !== 'object') return [];
+    return [node, ...[node.props?.children].flat().flatMap(nodes)];
+  }
+  return {
+    utils,
+    render() {
+      index = 0;
+      return nodes(
+        exports.AdminCancellationPanel({ bookingId: 'booking-one', onCancelled: refresh }),
+      );
+    },
+  };
+}
+
+test('admin cancellation stays successful when its subsequent booking refresh fails', async () => {
+  let requests = 0;
+  const h = cancellationHarness(
+    async () => {
+      requests++;
+    },
+    async () => {
+      throw new Error('refresh unavailable');
+    },
+  );
+  h.render()
+    .find((node) => node.type === 'button')
+    .props.onClick();
+  await tick();
+  const nodes = h.render();
+  assert.equal(requests, 1);
+  assert.equal(nodes.find((node) => node.type === 'button').props.disabled, true);
+  assert.equal(
+    nodes.find((node) => node.props?.role === 'alert'),
+    undefined,
+  );
+  assert.match(
+    nodes.find((node) => node.props?.role === 'status').props.children,
+    /Booking cancelled/,
+  );
+});
+
+test('admin cancellation shows the backend eligibility reason and request reference', async () => {
+  let refreshes = 0;
+  const h = cancellationHarness(
+    async () => {
+      throw new h.utils.ApplicationError(
+        'Support ticket must belong to this pilgrim and booking',
+        'REQUEST_FAILED',
+        { statusCode: 400, requestId: 'req-ticket' },
+      );
+    },
+    async () => {
+      refreshes++;
+    },
+  );
+  h.render()
+    .find((node) => node.type === 'button')
+    .props.onClick();
+  await tick();
+  const nodes = h.render();
+  assert.equal(refreshes, 0);
+  assert.equal(
+    nodes.find((node) => node.props?.role === 'alert').props.children,
+    'Support ticket must belong to this pilgrim and booking (Reference: req-ticket)',
+  );
+  assert.equal(nodes.find((node) => node.type === 'button').props.disabled, false);
+});
+
 function harness(getBooking) {
   const slots = [];
   let index = 0;

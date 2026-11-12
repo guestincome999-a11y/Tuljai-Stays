@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { catalogPrice, matchesCatalogBudget } from '@tuljai/utils';
 
+import { BookingAvailabilityService } from '../bookings/booking-availability.service';
 import { LodgesService } from '../lodges/lodges.service';
+import { operationalDateRange } from '../operations/operational-dates';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
@@ -19,7 +20,7 @@ import type { CatalogQueryDto } from './dto/catalog-query.dto';
 const DEFAULT_CITY_SLUG = 'tuljapur';
 const DEFAULT_PAGE_SIZE = 12;
 // Lodge counts in a pilgrimage town are small, so the whole visible catalogue is assembled in
-// four batched queries and cached briefly. Filtering and sorting then happen before pagination,
+// three batched queries and cached briefly. Filtering and sorting then happen before pagination,
 // which the previous client-side approach could not do correctly.
 const CATALOG_CACHE_TTL_MS = 15_000;
 const MAX_CARD_AMENITIES = 4;
@@ -29,15 +30,22 @@ interface CatalogCacheEntry {
   expiresAt: number;
 }
 
+function toNumber(value: string | null): number | null {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 @Injectable()
 export class CatalogService {
   private cacheGeneration = 0;
-  private pendingCards: Promise<CatalogLodgeCard[]> | null = null;
+  private building: { generation: number; promise: Promise<CatalogLodgeCard[]> } | null = null;
   private cache: CatalogCacheEntry | null = null;
 
   public constructor(
     private readonly prisma: PrismaService,
     private readonly lodgesService: LodgesService,
+    private readonly availability: BookingAvailabilityService,
   ) {}
 
   public async listLodges(query: CatalogQueryDto): Promise<CatalogPage> {
@@ -48,7 +56,41 @@ export class CatalogService {
     ) {
       throw new BadRequestException('minPrice must be less than or equal to maxPrice');
     }
-    const cards = await this.getAllCards();
+    let cards = await this.getAllCards();
+    // Cached presentation data never authorizes visibility. Re-read eligibility on every request,
+    // including on other backend instances after an admin closes a lodge.
+    const [live, flag] = await Promise.all([
+      this.prisma.lodge.findMany({
+        where: {
+          deletedAt: null,
+          isActive: true,
+          status: 'VERIFIED',
+          verificationStatus: 'VERIFIED',
+          city: { slug: DEFAULT_CITY_SLUG },
+        },
+        select: { id: true },
+      }),
+      this.prisma.featureFlag.findUnique({
+        where: { key: 'festival_mode' },
+        select: { enabled: true },
+      }),
+    ]);
+    const liveIds = new Set(live.map((lodge) => lodge.id));
+    const cachedIds = new Set(cards.map((card) => card.id));
+    if (live.some((lodge) => !cachedIds.has(lodge.id))) {
+      this.invalidate();
+      cards = await this.getAllCards();
+    }
+    cards = cards.filter((card) => liveIds.has(card.id));
+    if (flag?.enabled || query.checkInDate || query.checkOutDate) {
+      const dates = operationalDateRange(query.checkInDate, query.checkOutDate);
+      const counts = await this.availability.lodgeAvailableCounts(
+        new Date(dates.checkInDate),
+        new Date(dates.checkOutDate),
+        [...liveIds],
+      );
+      cards = cards.filter((card) => (counts.get(card.id) ?? 0) > 0);
+    }
     const amenitySlugs = (query.amenities ?? '')
       .split(',')
       .map((slug) => slug.trim().toLowerCase())
@@ -65,6 +107,7 @@ export class CatalogService {
           );
 
     const filtered = cards.filter((card) => {
+      const price = toNumber(card.startingPrice);
       if (ids && !ids.has(card.id)) return false;
       if (query.propertyType && card.propertyType !== query.propertyType) return false;
       if (search && !card.name.toLowerCase().includes(search)) return false;
@@ -74,7 +117,8 @@ export class CatalogService {
       ) {
         return false;
       }
-      if (!matchesCatalogBudget(card.startingPrice, query.minPrice, query.maxPrice)) return false;
+      if (query.minPrice !== undefined && (price === null || price < query.minPrice)) return false;
+      if (query.maxPrice !== undefined && (price === null || price > query.maxPrice)) return false;
       if (
         query.maxDistance !== undefined &&
         (card.distanceFromTempleMeters === null ||
@@ -103,14 +147,6 @@ export class CatalogService {
     const [lodge, photos, roomTypes] = await Promise.all([
       this.lodgesService.getPublicById(lodgeId),
       this.prisma.lodgePhoto.findMany({
-        select: {
-          id: true,
-          category: true,
-          isCover: true,
-          lodgeId: true,
-          thumbnailUrl: true,
-          fileUrl: true,
-        },
         orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
         where: { approvalStatus: 'APPROVED', deletedAt: null, lodgeId },
       }),
@@ -192,7 +228,6 @@ export class CatalogService {
   public invalidate(): void {
     this.cacheGeneration += 1;
     this.cache = null;
-    this.pendingCards = null;
   }
 
   private async getAllCards(): Promise<CatalogLodgeCard[]> {
@@ -200,36 +235,19 @@ export class CatalogService {
       return this.cache.cards;
     }
 
-    if (this.pendingCards) return this.pendingCards;
-    const pending = this.buildCards(this.cacheGeneration);
-    this.pendingCards = pending;
-    try {
-      return await pending;
-    } finally {
-      if (this.pendingCards === pending) this.pendingCards = null;
-    }
+    if (this.building?.generation === this.cacheGeneration) return this.building.promise;
+    const generation = this.cacheGeneration;
+    const promise = this.buildAllCards(generation).finally(() => {
+      if (this.building?.promise === promise) this.building = null;
+    });
+    this.building = { generation, promise };
+    return promise;
   }
 
-  private async buildCards(generation: number): Promise<CatalogLodgeCard[]> {
+  private async buildAllCards(generation: number): Promise<CatalogLodgeCard[]> {
     const lodges = await this.prisma.lodge.findMany({
-      select: {
-        id: true,
-        name: true,
-        propertyType: true,
-        distanceFromTempleMeters: true,
-        amenities: {
-          select: {
-            amenity: {
-              select: {
-                iconName: true,
-                name: true,
-                slug: true,
-                isActive: true,
-                deletedAt: true,
-              },
-            },
-          },
-        },
+      include: {
+        amenities: { include: { amenity: true } },
       },
       where: {
         city: { slug: DEFAULT_CITY_SLUG },
@@ -240,27 +258,13 @@ export class CatalogService {
       },
     });
     const lodgeIds = lodges.map((lodge) => lodge.id);
-    if (lodgeIds.length === 0) {
-      if (generation === this.cacheGeneration)
-        this.cache = { cards: [], expiresAt: Date.now() + CATALOG_CACHE_TTL_MS };
-      return [];
-    }
 
     const [photos, roomTypes, reviews] = await Promise.all([
       this.prisma.lodgePhoto.findMany({
-        select: {
-          id: true,
-          category: true,
-          isCover: true,
-          lodgeId: true,
-          thumbnailUrl: true,
-          fileUrl: true,
-        },
         orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
         where: { approvalStatus: 'APPROVED', deletedAt: null, lodgeId: { in: lodgeIds } },
       }),
       this.prisma.roomType.findMany({
-        select: { lodgeId: true, basePrice: true, festivalPrice: true },
         where: this.visibleRoomTypeWhere({ lodgeId: { in: lodgeIds } }),
       }),
       this.prisma.review.groupBy({
@@ -335,23 +339,18 @@ export class CatalogService {
   private sortCards(cards: CatalogLodgeCard[], sort: string): CatalogLodgeCard[] {
     const far = Number.MAX_SAFE_INTEGER;
     return [...cards].sort((left, right) => {
-      const tie = left.id.localeCompare(right.id);
       if (sort === 'price') {
-        return (
-          (catalogPrice(left.startingPrice) ?? far) - (catalogPrice(right.startingPrice) ?? far) ||
-          tie
-        );
+        return (toNumber(left.startingPrice) ?? far) - (toNumber(right.startingPrice) ?? far);
       }
       if (sort === 'rating') {
-        return (right.averageRating ?? 0) - (left.averageRating ?? 0) || tie;
+        return (right.averageRating ?? 0) - (left.averageRating ?? 0);
       }
       if (sort === 'name') {
-        return left.name.localeCompare(right.name) || tie;
+        return left.name.localeCompare(right.name);
       }
       return (
         (left.distanceFromTempleMeters ?? far) - (right.distanceFromTempleMeters ?? far) ||
-        left.name.localeCompare(right.name) ||
-        tie
+        left.name.localeCompare(right.name)
       );
     });
   }

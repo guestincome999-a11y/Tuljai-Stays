@@ -29,6 +29,18 @@ export interface ScanOperation extends RecognizedQr {
 // No signing key is shipped to the app; the existing endpoint remains authoritative.
 export function recognizeQr(qrPayload: string): RecognizedQr | null {
   if (qrPayload.length > 1800) return null;
+  const opaque =
+    /^tjsqr\.v2\.([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{40,1600})\.([A-Za-z0-9_-]{22})$/u.exec(
+      qrPayload,
+    );
+  if (opaque)
+    return {
+      bookingId: '',
+      bookingCode: 'Booking pass',
+      qrTokenId: '',
+      qrPayload,
+      key: `checkin.${opaque[1]}.${opaque[3]}`,
+    };
   const parts = /^tjsqr\.v1\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/u.exec(qrPayload);
   if (!parts) return null;
   try {

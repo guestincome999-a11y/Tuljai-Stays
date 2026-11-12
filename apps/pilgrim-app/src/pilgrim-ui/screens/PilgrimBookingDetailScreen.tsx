@@ -1,30 +1,37 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BookingLodgeContact } from '@tuljai/types';
 import { palette } from '@tuljai/ui';
+import { getApiErrorMessage } from '@tuljai/utils';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import {
   createRazorpayOrder,
   getBookingLodgeContact,
+  getCancellationPreview,
   verifyRazorpayPayment,
   type RazorpayOrder,
 } from '../../features/bookings/api/bookings-api';
-import { BookingActionButton } from '../../features/bookings/components/BookingActionButton';
 import { usePublicSettings } from '../../settings/usePublicSettings';
-import { canOpenBookingPass } from '../booking-pass-policy';
 import {
   AnimatedResultBadge,
   AppScreen,
   EmptyState,
   InfoRow,
   PrimaryButton,
-  PaymentStatusBadge,
   SecondaryButton,
   StatusBadge,
-  StayImage,
   TopBar,
   ui,
 } from '../components';
@@ -49,9 +56,10 @@ export function PilgrimBookingDetailScreen() {
   const booking = bookings.find((item) => item.id === params.id);
   const lodge = booking ? lodges.find((item) => item.id === booking.lodgeId) : undefined;
   const [onlinePaymentBusy, setOnlinePaymentBusy] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellationBusy, setCancellationBusy] = useState(false);
   const [paymentAttemptFailed, setPaymentAttemptFailed] = useState<string | null>(null);
   const [justPaidOnline, setJustPaidOnline] = useState(false);
-  const [confirmationDismissed, setConfirmationDismissed] = useState(false);
   // Pre-create the Razorpay order as soon as this screen can show "Pay &
   // Confirm Now" / "Retry payment", instead of waiting for the tap — so
   // opening the checkout sheet doesn't wait on that round trip first. Mirrors
@@ -68,12 +76,7 @@ export function PilgrimBookingDetailScreen() {
   // every call; a rejection (booking not yet confirmed, already checked in,
   // or not the requester's own booking) just means the section stays
   // hidden.
-  const [contactRecord, setLodgeContact] = useState<{
-    bookingId: string;
-    contact: BookingLodgeContact;
-  } | null>(null);
-  const lodgeContact = contactRecord?.bookingId === booking?.id ? contactRecord?.contact : null;
-  const onlinePaymentLock = useRef(false);
+  const [lodgeContact, setLodgeContact] = useState<BookingLodgeContact | null>(null);
   const bookingId = booking?.id;
   const bookingStatus = booking?.status;
 
@@ -85,7 +88,7 @@ export function PilgrimBookingDetailScreen() {
     let cancelled = false;
     void getBookingLodgeContact(bookingId)
       .then((contact) => {
-        if (!cancelled) setLodgeContact({ bookingId, contact });
+        if (!cancelled) setLodgeContact(contact);
       })
       .catch(() => {
         if (!cancelled) setLodgeContact(null);
@@ -148,39 +151,56 @@ export function PilgrimBookingDetailScreen() {
   const bookingLodgeName = booking.lodgeName;
   const bookingRoomName = booking.roomName;
 
-  function askToCancel() {
+  async function askToCancel() {
+    if (cancellationBusy) return;
+    if (!cancellationReason.trim()) {
+      Alert.alert('Cancellation reason required', 'Please enter a reason before cancelling.');
+      return;
+    }
+    setCancellationBusy(true);
+    let preview;
+    try {
+      preview = await getCancellationPreview(currentBookingId);
+    } catch {
+      setCancellationBusy(false);
+      Alert.alert('Could not load cancellation policy', 'Please try again.');
+      return;
+    }
     Alert.alert(
       t('Cancel this booking?', 'हे बुकिंग रद्द करायचे?'),
-      t(
-        'Your room will be released. Refund eligibility depends on the stay policy.',
-        'तुमची खोली सोडली जाईल. परतावा निवास धोरणानुसार असेल.',
-      ),
+      `Your room will be released. Eligible refund: ${preview.amountPaise === null ? 'Pending review' : formatRupees(preview.amountPaise / 100)} (${preview.refundPercent ?? 0}%). ${preview.message}`,
       [
-        { style: 'cancel', text: t('Keep booking', 'बुकिंग ठेवा') },
+        {
+          style: 'cancel',
+          text: t('Keep booking', 'बुकिंग ठेवा'),
+          onPress: () => setCancellationBusy(false),
+        },
         {
           style: 'destructive',
           text: t('Yes, cancel', 'हो, रद्द करा'),
           onPress: () => {
-            void cancelBooking(currentBookingId, 'Cancelled by pilgrim from mobile app').catch(
-              () => {
+            void cancelBooking(currentBookingId, cancellationReason.trim())
+              .catch((error: unknown) => {
                 Alert.alert(
                   t('Could not cancel booking', 'बुकिंग रद्द करता आली नाही'),
-                  t(
-                    'Please try again or contact Tuljai support.',
-                    'कृपया पुन्हा प्रयत्न करा किंवा तुळजाई सहाय्याशी संपर्क साधा.',
+                  getApiErrorMessage(
+                    error,
+                    t(
+                      'Please try again or contact Tuljai support.',
+                      'कृपया पुन्हा प्रयत्न करा किंवा तुळजाई सहाय्याशी संपर्क साधा.',
+                    ),
                   ),
                 );
-              },
-            );
+              })
+              .finally(() => setCancellationBusy(false));
           },
         },
       ],
+      { cancelable: false },
     );
   }
 
   async function payAndConfirmNow() {
-    if (onlinePaymentLock.current) return;
-    onlinePaymentLock.current = true;
     setOnlinePaymentBusy(true);
     setPaymentAttemptFailed(null);
     try {
@@ -199,7 +219,7 @@ export function PilgrimBookingDetailScreen() {
         name: 'Tuljai Stays',
         description: `${bookingLodgeName} · ${bookingRoomName}`,
         notes: { bookingId: currentBookingId },
-        theme: { color: ui.maroon },
+        theme: { color: '#C2410C' },
       });
       const verified = await verifyRazorpayPayment(currentBookingId, {
         orderId: result.razorpay_order_id,
@@ -226,7 +246,6 @@ export function PilgrimBookingDetailScreen() {
       preparedOrderBookingIdRef.current = null;
       prepareOrder(currentBookingId);
     } finally {
-      onlinePaymentLock.current = false;
       setOnlinePaymentBusy(false);
     }
   }
@@ -237,7 +256,7 @@ export function PilgrimBookingDetailScreen() {
         onBack={() => router.back()}
         right={
           <Pressable
-            className="h-14 w-14 items-center justify-center rounded-2xl bg-warm-100"
+            className="h-12 w-12 items-center justify-center rounded-2xl bg-warm-100"
             onPress={() =>
               void openExternalLink(
                 `https://wa.me/?text=${encodeURIComponent(`Tuljai Stays booking ${booking.bookingCode}`)}`,
@@ -256,7 +275,7 @@ export function PilgrimBookingDetailScreen() {
         <View className="items-center rounded-3xl bg-danger-50 px-5 py-7">
           <AnimatedResultBadge tone="danger" />
           <Text className="mt-5 text-center text-2xl font-extrabold text-danger-700">
-            {t('Booking not confirmed', 'बुकिंग निश्चित झाले नाही')}
+            {t('Booking status: Cancelled', 'बुकिंग स्थिती: रद्द')}
           </Text>
           <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
             {t(
@@ -267,7 +286,40 @@ export function PilgrimBookingDetailScreen() {
         </View>
       ) : null}
 
-      {params.justBooked === '1' && booking.status === 'confirmed' && !confirmationDismissed ? (
+      {booking.status === 'cancelled' ? (
+        <View className="gap-3 rounded-2xl border border-warm-100 bg-white p-5">
+          <Text className="text-lg font-extrabold text-warm-900">Refund information</Text>
+          <Text className="text-sm text-warm-600">
+            Cancellation reason: {booking.cancellationReason ?? 'See booking history'}
+          </Text>
+          {!booking.refunds?.length ? (
+            <Text className="text-sm text-warm-600">
+              No online refund recorded. Pay-at-Lodge payments are handled by the lodge.
+            </Text>
+          ) : null}
+          {booking.refunds?.map((refund) => (
+            <View className="gap-2" key={refund.id}>
+              <Text className="font-bold text-warm-900">
+                {refund.status} ·{' '}
+                {refund.amount === null
+                  ? 'Amount pending review'
+                  : formatRupees(Number(refund.amount))}
+              </Text>
+              {refund.refundId ? (
+                <Text selectable className="text-xs text-warm-600">
+                  Refund ID: {refund.refundId}
+                </Text>
+              ) : null}
+              <Text className="text-sm text-warm-600">
+                Original payment method: {refund.originalPaymentMethod}
+              </Text>
+              <Text className="text-sm leading-5 text-warm-600">{refund.message}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {params.justBooked === '1' ? (
         <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-7">
           <AnimatedResultBadge tone="success" />
           <Text className="mt-5 text-center text-2xl font-extrabold text-templeGreen-700">
@@ -275,20 +327,12 @@ export function PilgrimBookingDetailScreen() {
           </Text>
           <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
             {t(
-              'Your lodge has confirmed this booking. Your stay details are below.',
-              'लॉजने बुकिंग निश्चित केले आहे. निवासाची माहिती खाली आहे.',
+              'A confirmation has been sent to your mobile number.',
+              'तुमच्या मोबाइल क्रमांकावर पुष्टीकरण पाठवले आहे.',
             )}
           </Text>
-          <SecondaryButton
-            className="mt-4 w-full"
-            icon="book-open-outline"
-            onPress={() => setConfirmationDismissed(true)}
-          >
-            {t('View Booking', 'बुकिंग पहा')}
-          </SecondaryButton>
           <ConfirmedNextSteps
             bookingId={booking.id}
-            googleMapsLink={booking.googleMapsLink ?? lodge?.googleMapsLink}
             lodgeName={lodge?.name ?? booking.lodgeName}
             router={router}
             t={t}
@@ -296,7 +340,7 @@ export function PilgrimBookingDetailScreen() {
         </View>
       ) : null}
 
-      {justPaidOnline && booking.status === 'confirmed' && !confirmationDismissed ? (
+      {justPaidOnline ? (
         <View className="items-center rounded-3xl bg-templeGreen-50 px-5 py-7">
           <AnimatedResultBadge tone="success" />
           <Text className="mt-5 text-center text-2xl font-extrabold text-templeGreen-700">
@@ -308,16 +352,8 @@ export function PilgrimBookingDetailScreen() {
               'तुमचा निवास त्वरित निश्चित झाला. लॉजच्या मंजुरीची गरज नाही.',
             )}
           </Text>
-          <SecondaryButton
-            className="mt-4 w-full"
-            icon="book-open-outline"
-            onPress={() => setConfirmationDismissed(true)}
-          >
-            {t('View Booking', 'बुकिंग पहा')}
-          </SecondaryButton>
           <ConfirmedNextSteps
             bookingId={booking.id}
-            googleMapsLink={booking.googleMapsLink ?? lodge?.googleMapsLink}
             lodgeName={lodge?.name ?? booking.lodgeName}
             router={router}
             t={t}
@@ -359,29 +395,14 @@ export function PilgrimBookingDetailScreen() {
       ) : null}
 
       <View className="overflow-hidden rounded-3xl border border-warm-100 bg-white">
-        <StayImage className="h-44 w-full" uri={booking.image} label={booking.lodgeName} />
+        <Image className="h-44 w-full" resizeMode="cover" source={{ uri: booking.image }} />
         <View className="gap-4 p-4">
           <StatusBadge status={booking.status} />
-          <View className="flex-row items-center gap-3">
-            <View className="min-w-0 flex-1">
-              <Text className="text-xl font-extrabold text-warm-900">{booking.lodgeName}</Text>
-              <Text className="mt-1 text-sm text-warm-500">
-                {lodge?.location ?? t('Tuljapur', 'तुळजापूर')}
-              </Text>
-            </View>
-            <BookingActionButton
-              compact
-              icon="map-marker-outline"
-              label={t('Lodge location', 'लॉजचे ठिकाण')}
-              onPress={() =>
-                void openExternalLink(
-                  booking.googleMapsLink ||
-                    lodge?.googleMapsLink ||
-                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${booking.lodgeName}, Tuljapur`)}`,
-                  t,
-                )
-              }
-            />
+          <View>
+            <Text className="text-xl font-extrabold text-warm-900">{booking.lodgeName}</Text>
+            <Text className="mt-1 text-sm text-warm-500">
+              {lodge?.location ?? t('Tuljapur', 'तुळजापूर')}
+            </Text>
           </View>
         </View>
       </View>
@@ -449,7 +470,7 @@ export function PilgrimBookingDetailScreen() {
           <InfoRow
             icon="calendar-arrow-right"
             label={t('Check-in', 'चेक-इन')}
-            value={[booking.checkIn, booking.checkInTime].filter(Boolean).join(' · ')}
+            value={`${booking.checkIn} · after 12:00 PM`}
           />
           <InfoRow
             icon="calendar-arrow-left"
@@ -457,7 +478,7 @@ export function PilgrimBookingDetailScreen() {
             value={
               booking.checkoutDateFlexible
                 ? t('Not fixed · confirm with lodge', 'निश्चित नाही · लॉजसोबत ठरवा')
-                : [booking.checkOut, booking.checkOutTime].filter(Boolean).join(' · ')
+                : `${booking.checkOut} · before 10:00 AM`
             }
           />
           <InfoRow icon="bed-king-outline" label={t('Room', 'खोली')} value={booking.roomName} />
@@ -469,28 +490,6 @@ export function PilgrimBookingDetailScreen() {
           />
         </View>
       </View>
-
-      {lodgeContact && LODGE_CONTACT_ELIGIBLE_STATUSES.includes(booking.status) ? (
-        <View className="flex-row gap-3">
-          <BookingActionButton
-            icon="phone-outline"
-            label={t('Call lodge', 'लॉजला कॉल')}
-            onPress={() => void openExternalLink(`tel:${lodgeContact.primaryPhone}`, t)}
-          />
-          {lodgeContact.whatsappNumber ? (
-            <BookingActionButton
-              icon="whatsapp"
-              label={t('WhatsApp', 'व्हॉट्सअॅप')}
-              onPress={() =>
-                void openExternalLink(
-                  `https://wa.me/${lodgeContact.whatsappNumber!.replace(/\D/g, '')}`,
-                  t,
-                )
-              }
-            />
-          ) : null}
-        </View>
-      ) : null}
 
       <View>
         <Text className="mb-3 text-xl font-extrabold text-warm-900">
@@ -504,30 +503,24 @@ export function PilgrimBookingDetailScreen() {
             subtitle={formatBookingTimestamp(booking.createdAt)}
           />
           <TimelineItem
-            active={['confirmed', 'checked-in', 'completed'].includes(booking.status)}
+            active={booking.status !== 'pending'}
             icon="home-heart"
-            label={t('Booking confirmed', 'बुकिंग निश्चित')}
+            label={t('Confirmed by lodge', 'लॉजने पुष्टी केली')}
             subtitle={
               booking.status === 'pending'
                 ? t('Waiting for response', 'प्रतीक्षा')
-                : booking.status === 'cancelled'
-                  ? t('Not active', 'सक्रिय नाही')
-                  : t('Confirmed', 'निश्चित')
+                : formatBookingTimestamp(booking.updatedAt)
             }
           />
           <TimelineItem
-            active={booking.status === 'checked-in' || booking.status === 'completed'}
+            active={booking.status === 'checked-in'}
             icon="qrcode-scan"
             label={
-              booking.status === 'checked-in' || booking.status === 'completed'
+              booking.status === 'checked-in'
                 ? t('Checked in at lodge', 'लॉजवर चेक-इन पूर्ण')
                 : t('Check-in at lodge', 'लॉजवर चेक-इन')
             }
-            subtitle={
-              booking.status === 'checked-in' || booking.status === 'completed'
-                ? t('Completed', 'पूर्ण')
-                : booking.checkIn
-            }
+            subtitle={booking.status === 'checked-in' ? t('Completed', 'पूर्ण') : booking.checkIn}
             last
           />
         </View>
@@ -538,37 +531,67 @@ export function PilgrimBookingDetailScreen() {
           <Text className="text-lg font-extrabold text-warm-900">
             {t('Payment summary', 'पेमेंट सारांश')}
           </Text>
-          <PaymentStatusBadge status={booking.paymentStatus} />
+          <Text className="text-sm font-extrabold text-templeGreen-700">
+            {booking.paymentStatus}
+          </Text>
         </View>
         <View className="mt-4 flex-row items-end justify-between border-t border-warm-100 pt-4">
-          <Text className="text-sm text-warm-500">{t('Booking total', 'बुकिंगची एकूण रक्कम')}</Text>
+          <Text className="text-sm text-warm-500">{t('Total paid', 'एकूण भरले')}</Text>
           <Text className="text-2xl font-extrabold text-maroon-700">
             {formatRupees(booking.amount)}
           </Text>
         </View>
       </View>
 
-      {canOpenBookingPass(booking) ? (
-        <PrimaryButton
-          icon="qrcode"
-          onPress={() =>
-            router.push({ pathname: '/(app)/pass', params: { bookingId: booking.id } })
-          }
-        >
-          {t('View Pass', 'पास पहा')}
-        </PrimaryButton>
-      ) : null}
-      <SecondaryButton icon="home-outline" onPress={() => router.replace('/(app)/home')}>
-        {t('Go to Home', 'मुख्यपृष्ठावर जा')}
-      </SecondaryButton>
-      {booking.paidAmount !== undefined ? (
-        <View className="rounded-2xl bg-templeGreen-50 p-4">
-          <Text className="text-sm font-bold text-templeGreen-700">
-            {t('Amount paid', 'भरलेली रक्कम')}: {formatRupees(booking.paidAmount)}
-          </Text>
+      {lodgeContact ? (
+        <View className="rounded-3xl border border-templeGreen-200 bg-templeGreen-50 p-5">
+          <View className="flex-row items-center gap-3">
+            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-templeGreen-500">
+              <MaterialCommunityIcons color="#FFFFFF" name="phone-outline" size={24} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-extrabold text-templeGreen-800">
+                {t('Lodge Contact Details', 'लॉज संपर्क माहिती')}
+              </Text>
+              <Text className="mt-1 text-sm text-templeGreen-700">{lodgeContact.lodgeName}</Text>
+            </View>
+          </View>
+          <View className="mt-4 flex-row gap-3">
+            <SecondaryButton
+              className="flex-1"
+              icon="phone-outline"
+              onPress={() => void openExternalLink(`tel:${lodgeContact.primaryPhone}`, t)}
+            >
+              {t('Call lodge', 'लॉजला कॉल')}
+            </SecondaryButton>
+            {lodgeContact.whatsappNumber ? (
+              <SecondaryButton
+                className="flex-1"
+                icon="whatsapp"
+                onPress={() =>
+                  void openExternalLink(
+                    `https://wa.me/${lodgeContact.whatsappNumber!.replace(/\D/g, '')}`,
+                    t,
+                  )
+                }
+              >
+                {t('WhatsApp', 'व्हॉट्सअॅप')}
+              </SecondaryButton>
+            ) : null}
+          </View>
         </View>
       ) : null}
+
       <View className="gap-3">
+        <View className="flex-row gap-3">
+          <SecondaryButton
+            className="flex-1"
+            icon="map-marker-outline"
+            onPress={() => void openDirections(lodge?.name ?? booking.lodgeName, t)}
+          >
+            {t('Directions', 'दिशा')}
+          </SecondaryButton>
+        </View>
         {supportPhone || supportEmail ? (
           <SecondaryButton
             icon="headset"
@@ -583,9 +606,25 @@ export function PilgrimBookingDetailScreen() {
           </SecondaryButton>
         ) : null}
         {booking.status === 'confirmed' || booking.status === 'pending' ? (
-          <SecondaryButton destructive icon="calendar-remove-outline" onPress={askToCancel}>
-            {t('Cancel booking', 'बुकिंग रद्द करा')}
-          </SecondaryButton>
+          <View className="gap-3">
+            <TextInput
+              accessibilityLabel="Cancellation reason"
+              maxLength={500}
+              placeholder="Reason for cancellation"
+              value={cancellationReason}
+              onChangeText={setCancellationReason}
+              className="rounded-xl border border-warm-200 bg-white p-3 text-warm-900"
+            />
+            <SecondaryButton
+              destructive
+              icon="calendar-remove-outline"
+              onPress={() => void askToCancel()}
+            >
+              {cancellationBusy
+                ? 'Processing cancellation…'
+                : t('Cancel booking', 'बुकिंग रद्द करा')}
+            </SecondaryButton>
+          </View>
         ) : null}
       </View>
       <PrimaryButton onPress={() => router.push('/(app)/lodges')}>
@@ -597,13 +636,11 @@ export function PilgrimBookingDetailScreen() {
 
 function ConfirmedNextSteps({
   bookingId,
-  googleMapsLink,
   lodgeName,
   router,
   t,
 }: {
   bookingId: string;
-  googleMapsLink?: string | null;
   lodgeName: string;
   router: ReturnType<typeof useRouter>;
   t: (english: string, marathi: string) => string;
@@ -618,11 +655,14 @@ function ConfirmedNextSteps({
         <MaterialCommunityIcons color="#FFFFFF" name="qrcode-scan" size={20} />
         <Text className="text-sm font-extrabold text-white">{t('Get Pass', 'पास मिळवा')}</Text>
       </Pressable>
-      <BookingActionButton
-        icon="map-marker-outline"
-        label={t('Location', 'ठिकाण')}
-        onPress={() => void openDirections(lodgeName, t, googleMapsLink)}
-      />
+      <Pressable
+        accessibilityRole="button"
+        className="min-h-14 flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-templeGreen-200 bg-white active:bg-templeGreen-100"
+        onPress={() => void openDirections(lodgeName, t)}
+      >
+        <MaterialCommunityIcons color={ui.maroon} name="map-marker-outline" size={20} />
+        <Text className="text-sm font-extrabold text-maroon-700">{t('Location', 'ठिकाण')}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -667,11 +707,9 @@ function TimelineItem({
 async function openDirections(
   name: string,
   t: (english: string, marathi: string) => string,
-  googleMapsLink?: string | null,
 ): Promise<void> {
   await openExternalLink(
-    googleMapsLink ||
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`,
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, Tuljapur`)}`,
     t,
   );
 }
