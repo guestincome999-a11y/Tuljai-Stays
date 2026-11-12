@@ -1,0 +1,15 @@
+# Premium design integration — 9 November 2026
+
+Source: `D:\Tuljai-Stays-redesign`, branch `codex/pilgrim-premium-qr`, commit `c107028d`. Target: existing `D:\Tuljai-Stays` working tree on `codex/owner-native-redesign`. Common base: `86360d78`. A file-level three-way merge was used; no branch reset or wholesale checkout replacement was performed. Prior contents and merge inputs are retained under ignored `.codex-temp/premium-merge`.
+
+Merged the premium tokens/theme, devotional hero, animated splash, welcome route, shared controls/images, home, browse/filter sheet, detail, checkout presentation, bookings, booking detail, QR download/share, and profile. The new native sharing module and QR test dependencies were installed. Owner/Admin/backend changes from the current working tree were retained.
+
+Retained performance and reliability changes: no forced 2.2-second splash wait; fresh access-token startup reuse; long session policy; strict numeric catalogue price normalization; virtualized browse/gallery; cached thumbnails; summary-first cards; six-card server pagination; obsolete request cancellation and revision guards; failure/loading states separate from zero results; poll overlap guard; existing payment recovery/idempotency and authoritative quotes. Kept lead guest display on the redesigned pass. QR export uses the existing server credential and gallery/share features; no parallel QR protocol was added.
+
+Version: 0.2.0 / Android versionCode 43. Native runtime and splash/brand colours were aligned directly with the existing native project, without regenerating it. APK includes ARM64, 32-bit ARM and x86_64. Stable output: `.codex-temp/apks/Tuljai-Stays-Premium-Android.apk`.
+
+Validation so far: merged TypeScript check passed; 26 Pilgrim tests passed including premium QR tests and a new test executing the active premium browse hook; whole Pilgrim ESLint passed after removing an unused merge import and correcting import order. Final native release build passed in 11m 15s. SDK aapt verifies version 0.2.0, build 43, Android API 24 minimum, and all three ABIs. Installation and cold launch passed on the 4 GB background emulator; the app stayed running. Visually inspected `performance-screenshots/premium-welcome.png` and `performance-screenshots/premium-login.png`, confirming devotional artwork, premium maroon/gold theme, typography and welcome-to-login transition. No visible clipping was observed at 1080×2400. Android System UI showed a boot-time ANR that was dismissed; timings are not a phone performance benchmark.
+
+The server and database have not been deployed or changed by this merge. No commits or pushes were created. Authenticated screenshots/live booking/payment/owner checks remain dependent on a valid test session; automated test passes do not substitute for those checks.
+
+Final APK size: 108449095 bytes. SHA-256: `b435ac5f3bdeaad3026f5478f1fed97acb4a0de2cbeb0e4d283fd975d0d91af9`. Screens behind login remain unverified in the emulator because the isolated installation has no authenticated session.

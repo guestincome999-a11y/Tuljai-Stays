@@ -115,8 +115,8 @@ export default function FeedbackPage() {
                       {review.rating}/5
                     </td>
                     <td>{review.comment || 'No written comment.'}</td>
-                    <td>{review.lodgeId}</td>
-                    <td>{review.pilgrimUserId}</td>
+                    <td>{review.lodgeName ?? 'Lodge unavailable'}</td>
+                    <td>{review.guestDisplayName ?? 'Guest'}</td>
                     <td>{review.status}</td>
                     <td>
                       <div className="button-row">

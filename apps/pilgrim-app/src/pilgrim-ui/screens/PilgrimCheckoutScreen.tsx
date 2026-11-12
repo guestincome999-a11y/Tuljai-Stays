@@ -1,30 +1,47 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BookingGuestIdProofUpload } from '@tuljai/types';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, BackHandler, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
 
 import { useAuth } from '../../auth/auth-context';
 import {
   confirmPrepaidBooking,
+  checkAvailability,
+  preparePrepaidIntent,
+  getPaymentStatus,
   holdPrepaidRoom,
   releasePrepaidHold,
   uploadGuestIdProof,
   type GuestIdProofFile,
   type PrepaidOrder,
+  type PaymentRecoveryStatus,
 } from '../../features/bookings/api/bookings-api';
+import { newCheckoutAttemptKey } from '../../features/bookings/checkout-attempt';
+import { guestCapacityError } from '../../features/bookings/guest-capacity';
 import {
-  AnimatedResultBadge,
+  idProofPickerUnavailable,
+  isIdProofPickerUnavailable,
+} from '../../features/bookings/id-proof-picker-error';
+import {
+  readPendingPayment,
+  rememberPendingPayment,
+  clearPendingPayment,
+} from '../../features/bookings/payment-recovery-store';
+import { useStayPrice } from '../../features/bookings/useStayPrice';
+import {
   AppScreen,
   EmptyState,
   Field,
   PrimaryButton,
   RoomsUnavailableNotice,
   SecondaryButton,
+  StayImage,
   TopBar,
   ui,
 } from '../components';
+import { BookingOutcomeScreen } from '../components/BookingOutcomeScreen';
 import { formatRupees } from '../mock-data';
 import { usePilgrimApp } from '../PilgrimAppProvider';
 import { isRoomFullError, useRoomAvailability } from '../useRoomAvailability';
@@ -88,13 +105,12 @@ export function PilgrimCheckoutScreen() {
   const [prepaidPreparing, setPrepaidPreparing] = useState(false);
   const [prepaidError, setPrepaidError] = useState<string | null>(null);
   const [prepaidRefreshTick, setPrepaidRefreshTick] = useState(0);
+  const prepaidAttemptRef = useRef<{ signature: string; key: string } | null>(null);
   // Whether the chosen room is full for the chosen stay, keyed by stay
   // signature so a change of room or dates immediately drops the old answer.
   // Fed by the live availability check, by the room-hold attempt (409 =
   // full, success = free) and by a failed pay-at-lodge booking request.
-  const [roomStatus, setRoomStatus] = useState<{ full: boolean; signature: string } | null>(
-    null,
-  );
+  const [roomStatus, setRoomStatus] = useState<{ full: boolean; signature: string } | null>(null);
   const prepaidRef = useRef<{ signature: string; promise: Promise<PreparedPrepaid> } | null>(null);
   const refreshDueRef = useRef(false);
   // Once the Razorpay sheet has opened, the hold must never be released or
@@ -104,7 +120,10 @@ export function PilgrimCheckoutScreen() {
   const [request, setRequest] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ONLINE');
   const [agree, setAgree] = useState(true);
+  const submissionLock = useRef(false);
   const [submitting, setSubmitting] = useState(false);
+  const [completedBookingId, setCompletedBookingId] = useState<string | null>(null);
+  const [guestLimitError, setGuestLimitError] = useState<string | null>(null);
   const [paymentFailure, setPaymentFailure] = useState<string | null>(null);
   const documentPickerActiveRef = useRef(false);
 
@@ -114,11 +133,17 @@ export function PilgrimCheckoutScreen() {
     () => buildDateOptions(addDays(parseDateOnly(checkInDate), 1), 60),
     [checkInDate],
   );
+  const priceQuote = useStayPrice(
+    lodge && room ? { lodgeId: lodge.id, roomTypeId: room.id, checkInDate, checkOutDate } : null,
+    checkAvailability,
+  );
   const nights = Math.max(daysBetween(checkInDate, checkOutDate), 1);
   const subtotal = (room?.price ?? 0) * nights;
   // Room rate only — no taxes or extra charges. Matches what the backend
   // prices the booking and Razorpay order at.
-  const total = subtotal;
+  const [quotedTotal, setQuotedTotal] = useState<{ signature: string; amount: number } | null>(
+    null,
+  );
   // The backend requires guestPhone in E.164 form (+91XXXXXXXXXX). The field
   // itself only ever collects a 10-digit national number, so normalize it
   // here once rather than at each call site that needs to send it on.
@@ -140,6 +165,10 @@ export function PilgrimCheckoutScreen() {
     roomTypeIds: lodge?.rooms.map((item) => item.id) ?? [],
     shouldDiscard: () => Boolean(prepaidRef.current),
   });
+  const total =
+    paymentMethod === 'ONLINE' && quotedTotal?.signature === prepaidSignature
+      ? quotedTotal.amount
+      : (priceQuote.amount ?? subtotal);
   const selectedRoomId = room?.id;
   const selectedRoomCount = selectedRoomId ? availability.counts[selectedRoomId] : undefined;
   useEffect(() => {
@@ -157,6 +186,10 @@ export function PilgrimCheckoutScreen() {
         return current.promise;
       }
       if (!lodge || !room) return Promise.reject(new Error('Room unavailable'));
+      if (forceRefresh || prepaidAttemptRef.current?.signature !== prepaidSignature) {
+        prepaidAttemptRef.current = { signature: prepaidSignature, key: newCheckoutAttemptKey() };
+      }
+      const attemptKey = prepaidAttemptRef.current.key;
       // Free the previous hold first: the backend counts a guest's own active
       // holds when checking availability, so a stale one could make the
       // replacement fail when it's the last room.
@@ -164,12 +197,16 @@ export function PilgrimCheckoutScreen() {
       pendingReleaseRef.current = release;
       const promise = (async (): Promise<PreparedPrepaid> => {
         await release;
-        const order = await holdPrepaidRoom({
-          checkInDate,
-          checkOutDate,
-          lodgeId: lodge.id,
-          roomTypeId: room.id,
-        });
+        const order = await holdPrepaidRoom(
+          {
+            checkInDate,
+            checkOutDate,
+            lodgeId: lodge.id,
+            roomTypeId: room.id,
+          },
+          attemptKey,
+        );
+        setQuotedTotal({ signature: prepaidSignature, amount: order.amount / 100 });
         return { lockCode: order.lockCode, order, preparedAt: Date.now() };
       })();
       prepaidRef.current = { signature: prepaidSignature, promise };
@@ -227,11 +264,22 @@ export function PilgrimCheckoutScreen() {
       clearTimeout(startTimer);
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [holdEnabled, step, preparePrepaid, prepaidRefreshTick, prepaidSignature]);
+  }, [
+    holdEnabled,
+    step,
+    preparePrepaid,
+    prepaidRefreshTick,
+    prepaidSignature,
+    lodge?.id,
+    room?.id,
+    checkInDate,
+    checkOutDate,
+  ]);
 
   // Pay at lodge holds nothing: drop the hold if the guest switches to it.
   useEffect(() => {
     if (paymentMethod !== 'PAY_AT_LODGE') return;
+    prepaidAttemptRef.current = null;
     const held = prepaidRef.current;
     prepaidRef.current = null;
     if (held) pendingReleaseRef.current = releaseHeld(held.promise);
@@ -246,6 +294,20 @@ export function PilgrimCheckoutScreen() {
       if (held) void releaseHeld(held.promise);
     },
     [],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (submissionLock.current) return true;
+        if (step > 1) {
+          setStep((current) => Math.max(1, current - 1) as Step);
+          return true;
+        }
+        return false;
+      });
+      return () => subscription.remove();
+    }, [step]),
   );
 
   function validateGuestDetails(): boolean {
@@ -269,7 +331,10 @@ export function PilgrimCheckoutScreen() {
     if (idProofUploading) {
       Alert.alert(
         t('ID proof uploading', 'ओळखपत्र अपलोड होत आहे'),
-        t('Please wait a moment for the ID proof to finish uploading.', 'ओळखपत्र अपलोड होईपर्यंत थोडा वेळ थांबा.'),
+        t(
+          'Please wait a moment for the ID proof to finish uploading.',
+          'ओळखपत्र अपलोड होईपर्यंत थोडा वेळ थांबा.',
+        ),
       );
       return false;
     }
@@ -283,12 +348,30 @@ export function PilgrimCheckoutScreen() {
     return true;
   }
 
+  function validateCapacity() {
+    if (!room) return false;
+    const maxAdults = room.capacityAdults ?? Number(room.capacity.match(/(\d+) adults/)?.[1] ?? 1);
+    const maxChildren =
+      room.capacityChildren ?? Number(room.capacity.match(/(\d+) child/)?.[1] ?? 0);
+    const error = guestCapacityError(adults, children, maxAdults, maxChildren);
+    setGuestLimitError(error);
+    return !error;
+  }
+
   function goToStep(target: Step) {
+    if (target > 1 && !validateCapacity()) {
+      setStep(1);
+      return;
+    }
     if (target === 3 && !validateGuestDetails()) return;
     setStep(target);
   }
 
   function continueFlow() {
+    if (!validateCapacity()) {
+      setStep(1);
+      return;
+    }
     if (step === 2 && !validateGuestDetails()) return;
     setStep((current) => Math.min(3, current + 1) as Step);
   }
@@ -336,24 +419,121 @@ export function PilgrimCheckoutScreen() {
           t('ID proof', 'ओळखपत्र'),
           uploadError instanceof Error
             ? uploadError.message
-            : t('Could not upload ID proof. Please try again.', 'ओळखपत्र अपलोड करता आले नाही. पुन्हा प्रयत्न करा.'),
+            : t(
+                'Could not upload ID proof. Please try again.',
+                'ओळखपत्र अपलोड करता आले नाही. पुन्हा प्रयत्न करा.',
+              ),
         );
       } finally {
         setIdProofUploading(false);
       }
     } catch (error) {
-      if (error instanceof Error) Alert.alert(t('ID proof', 'ओळखपत्र'), error.message);
+      Alert.alert(
+        t('ID proof', 'ओळखपत्र'),
+        isIdProofPickerUnavailable(error)
+          ? t(idProofPickerUnavailable.en, idProofPickerUnavailable.mr)
+          : error instanceof Error
+            ? error.message
+            : t(
+                'Could not open the file picker. Please try again.',
+                'फाइल निवडता आली नाही. पुन्हा प्रयत्न करा.',
+              ),
+      );
     } finally {
       documentPickerActiveRef.current = false;
     }
   }
 
+  async function resumePayment(previous: NonNullable<PaymentRecoveryStatus['retryCheckout']>) {
+    if (!auth.user?.id) return;
+    setSubmitting(true);
+    try {
+      const result = await RazorpayCheckout.open({
+        key: previous.order.keyId,
+        amount: previous.order.amount,
+        currency: previous.order.currency,
+        order_id: previous.order.orderId,
+        name: 'Tuljai Stays',
+        description: `${previous.lodgeName}: ${previous.checkInDate} to ${previous.checkOutDate}`,
+      });
+      const booking = await confirmPrepaidBooking({
+        ...previous.guestDetails,
+        orderId: result.razorpay_order_id,
+        paymentId: result.razorpay_payment_id,
+        signature: result.razorpay_signature,
+      });
+      await clearPendingPayment(auth.user.id);
+      setPaymentMethod('ONLINE');
+      setCompletedBookingId(booking.id);
+    } catch {
+      setPaymentFailure(
+        'Payment status is uncertain. Retry to check your existing payment; do not start another payment.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function confirmBooking() {
+    if (submissionLock.current) return;
     if (!lodge || !room) {
       Alert.alert(
         t('Room unavailable', 'खोली उपलब्ध नाही'),
         t('Please choose another room.', 'कृपया दुसरी खोली निवडा.'),
       );
+      return;
+    }
+    if (auth.user?.id) {
+      setSubmitting(true);
+      try {
+        const pendingOrder = await readPendingPayment(auth.user.id);
+        if (pendingOrder) {
+          const status = await getPaymentStatus(pendingOrder);
+          if (status.status === 'CONFIRMED' && status.bookingId) {
+            await clearPendingPayment(auth.user.id);
+            setPaymentMethod('ONLINE');
+            setCompletedBookingId(status.bookingId);
+          } else if (status.retryCheckout) {
+            const previous = status.retryCheckout;
+            Alert.alert(
+              'Resume previous payment',
+              `${previous.lodgeName}: ${previous.checkInDate} to ${previous.checkOutDate}. Total ${formatRupees(previous.order.amount / 100)}.`,
+              [
+                { text: 'Later', style: 'cancel' },
+                {
+                  text: 'Resume',
+                  onPress: () => {
+                    void resumePayment(previous);
+                  },
+                },
+              ],
+            );
+          } else {
+            const message = status.recoveryRequired
+              ? 'Payment needs operator review. Do not pay again; contact support.'
+              : 'Payment confirmation is pending. Retry to check status; do not pay again.';
+            setPaymentFailure(message);
+            Alert.alert('Payment status', message);
+          }
+          return;
+        }
+      } catch (error) {
+        Alert.alert(
+          'Payment status unavailable',
+          error instanceof Error ? error.message : 'Please retry before starting another payment.',
+        );
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
+    if (paymentMethod === 'PAY_AT_LODGE' && priceQuote.amount === null) {
+      priceQuote.retry();
+      Alert.alert('Price unavailable', 'Please wait for the current room price, then try again.');
+      return;
+    }
+    if (!validateCapacity()) {
+      setStep(1);
       return;
     }
     if (!validateGuestDetails() || !agree) {
@@ -370,6 +550,7 @@ export function PilgrimCheckoutScreen() {
       return;
     }
 
+    submissionLock.current = true;
     setSubmitting(true);
     setPaymentFailure(null);
     // Once Razorpay has taken the payment, a conflict is no longer a simple
@@ -390,29 +571,41 @@ export function PilgrimCheckoutScreen() {
         }
         const { lockCode, order } = prepared;
 
+        const preparationStarted = performance.now();
+        await preparePrepaidIntent({
+          checkoutDateFlexible: false,
+          guestEmail: email.trim() || undefined,
+          guestIdProofMimeType: uploadedIdProof!.mimeType,
+          guestIdProofOriginalName: uploadedIdProof!.originalName,
+          guestIdProofSizeBytes: uploadedIdProof!.sizeBytes,
+          guestIdProofStoragePath: uploadedIdProof!.storagePath,
+          guestName: name.trim(),
+          guestPhone: normalizedGuestPhone,
+          lockCode,
+          numberOfAdults: adults,
+          numberOfChildren: children,
+          specialRequest: request.trim() || undefined,
+        });
+        if (__DEV__)
+          console.info('checkout_prepare_ms', Math.round(performance.now() - preparationStarted));
+        if (!auth.user?.id) throw new Error('Please sign in again before payment.');
+        await rememberPendingPayment(auth.user.id, order.orderId);
         paymentStartedRef.current = true;
-        let result: Awaited<ReturnType<typeof RazorpayCheckout.open>>;
-        try {
-          result = await RazorpayCheckout.open({
-            key: order.keyId,
-            amount: order.amount,
-            currency: order.currency,
-            order_id: order.orderId,
-            name: 'Tuljai Stays',
-            description: `${lodge.name} · ${room.name}`,
-            prefill: {
-              name: name.trim(),
-              contact: phone.replace(/\D/gu, ''),
-              email: email.trim() || undefined,
-            },
-            notes: { lockCode },
-            theme: { color: '#C2410C' },
-          });
-        } catch (openError) {
-          // Sheet dismissed or failed: the hold is still good for a retry.
-          paymentStartedRef.current = false;
-          throw openError;
-        }
+        const result = await RazorpayCheckout.open({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.orderId,
+          name: 'Tuljai Stays',
+          description: `${lodge.name} · ${room.name}`,
+          prefill: {
+            name: name.trim(),
+            contact: phone.replace(/\D/gu, ''),
+            email: email.trim() || undefined,
+          },
+          notes: { lockCode },
+          theme: { color: ui.maroon },
+        });
 
         paymentCaptured = true;
 
@@ -440,6 +633,7 @@ export function PilgrimCheckoutScreen() {
         bookingId = booking.id;
         // The lock is consumed by the confirmed booking; never reuse it.
         prepaidRef.current = null;
+        await clearPendingPayment(auth.user.id);
       } else {
         // Make sure a hold released by switching to pay-at-lodge has landed,
         // since the backend counts the guest's own active holds.
@@ -462,24 +656,7 @@ export function PilgrimCheckoutScreen() {
         bookingId = booking.id;
       }
 
-      Alert.alert(
-        paymentMethod === 'ONLINE'
-          ? t('Payment successful', 'पेमेंट यशस्वी')
-          : t('Booking request sent', 'बुकिंग विनंती पाठवली'),
-        paymentMethod === 'ONLINE'
-          ? t(
-              'Your prepaid room is confirmed immediately. No lodge approval is required.',
-              'तुमची प्रीपेड खोली त्वरित निश्चित झाली आहे. लॉजची मंजुरी आवश्यक नाही.',
-            )
-          : t(
-              'The lodge owner will review your request before confirmation.',
-              'पुष्टीकरणापूर्वी लॉज मालक तुमची विनंती तपासतील.',
-            ),
-      );
-      router.replace({
-        pathname: '/(app)/bookings/[id]',
-        params: { id: bookingId, justBooked: '1' },
-      });
+      setCompletedBookingId(bookingId);
     } catch (error) {
       if (!paymentCaptured && isRoomFullError(error)) {
         // The room filled up while the guest was booking: show the sad
@@ -493,10 +670,42 @@ export function PilgrimCheckoutScreen() {
           ? error.message
           : t('Please try again.', 'कृपया पुन्हा प्रयत्न करा.');
       setPaymentFailure(message);
-      Alert.alert(t('Booking could not be completed', 'बुकिंग पूर्ण होऊ शकले नाही'), message);
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
+  }
+
+  if (completedBookingId || paymentFailure) {
+    return (
+      <BookingOutcomeScreen
+        success={Boolean(completedBookingId)}
+        busy={submitting}
+        title={
+          completedBookingId
+            ? paymentMethod === 'ONLINE'
+              ? 'Booking confirmed!'
+              : 'Booking request sent'
+            : 'Payment needs attention'
+        }
+        message={
+          completedBookingId
+            ? paymentMethod === 'ONLINE'
+              ? 'Your payment is verified and your stay is confirmed. Your booking details are ready.'
+              : 'Your request is with the lodge owner for approval.'
+            : (paymentFailure ?? '')
+        }
+        onContinue={() => {
+          if (completedBookingId)
+            router.replace({
+              pathname: '/(app)/bookings/[id]',
+              params: { id: completedBookingId },
+            });
+          else void confirmBooking();
+        }}
+        onBack={completedBookingId ? undefined : () => setPaymentFailure(null)}
+      />
+    );
   }
 
   if (!lodge || !room) {
@@ -523,9 +732,11 @@ export function PilgrimCheckoutScreen() {
   return (
     <AppScreen className="gap-5 pt-1">
       <TopBar
-        onBack={() =>
-          step === 1 ? router.back() : setStep((current) => Math.max(1, current - 1) as Step)
-        }
+        onBack={() => {
+          if (submissionLock.current) return;
+          if (step === 1) router.back();
+          else setStep((current) => Math.max(1, current - 1) as Step);
+        }}
         subtitle={lodge.name}
         title={t('Complete your booking', 'बुकिंग पूर्ण करा')}
       />
@@ -563,11 +774,14 @@ export function PilgrimCheckoutScreen() {
       {step === 1 ? (
         <View className="gap-5">
           <SectionTitle title={t('Your stay', 'तुमचा निवास')} />
-          <View className="rounded-3xl border border-warm-200 bg-white p-4">
-            <Text className="text-lg font-extrabold text-warm-900">{lodge.name}</Text>
-            <Text className="mt-1 text-sm text-warm-500">
-              {room.name} · {room.bed} · {room.capacity}
-            </Text>
+          <View className="overflow-hidden rounded-3xl border border-warm-200 bg-white">
+            <StayImage className="h-36 w-full" uri={lodge.hero} label={lodge.name} />
+            <View className="gap-1 p-4">
+              <Text className="text-lg font-bold text-warm-900">{lodge.name}</Text>
+              <Text className="text-sm text-warm-600">
+                {room.name} · {room.capacity}
+              </Text>
+            </View>
           </View>
           <SectionTitle title={t('Select room', 'खोली निवडा')} />
           <View className="gap-3">
@@ -622,19 +836,30 @@ export function PilgrimCheckoutScreen() {
               setCheckOutDate(value);
             }}
           />
+          {guestLimitError ? (
+            <Text accessibilityLiveRegion="polite" className="text-sm font-bold text-danger-700">
+              {guestLimitError}
+            </Text>
+          ) : null}
           <GuestCounter
             label={t('Adults', 'प्रौढ')}
             value={adults}
             min={1}
             max={6}
-            onChange={setAdults}
+            onChange={(value) => {
+              setAdults(value);
+              setGuestLimitError(null);
+            }}
           />
           <GuestCounter
             label={t('Children', 'मुले')}
             value={children}
             min={0}
             max={6}
-            onChange={setChildren}
+            onChange={(value) => {
+              setChildren(value);
+              setGuestLimitError(null);
+            }}
           />
         </View>
       ) : null}
@@ -717,17 +942,6 @@ export function PilgrimCheckoutScreen() {
 
       {step === 3 ? (
         <View className="gap-5">
-          {paymentFailure ? (
-            <View className="items-center rounded-3xl bg-danger-50 px-5 py-6">
-              <AnimatedResultBadge tone="danger" />
-              <Text className="mt-4 text-center text-lg font-extrabold text-danger-700">
-                {t('Payment failed', 'पेमेंट अयशस्वी')}
-              </Text>
-              <Text className="mt-2 text-center text-sm leading-5 text-warm-600">
-                {paymentFailure}
-              </Text>
-            </View>
-          ) : null}
           <SectionTitle title={t('Review guest details', 'पाहुण्यांची माहिती तपासा')} />
           <Pressable
             onPress={() => setStep(2)}
@@ -796,12 +1010,26 @@ export function PilgrimCheckoutScreen() {
             <Text className="text-lg font-extrabold text-warm-900">
               {t('Price details', 'किंमत तपशील')}
             </Text>
+            <Text className="mt-2 text-sm text-warm-600">
+              {lodge.name} · {room.name}
+            </Text>
+            <Text className="mt-1 text-sm text-warm-600">
+              {checkInDate} → {checkOutDate}
+            </Text>
             <PriceRow
-              label={`${formatRupees(room.price)} × ${nights} nights`}
-              value={formatRupees(subtotal)}
+              label={t(`Room price for ${nights} nights`, `${nights} रात्रींचे खोली भाडे`)}
+              value={formatRupees(total)}
             />
+            <Text className="mt-2 text-xs leading-5 text-warm-600">
+              {t(
+                'Your final payable amount is shown in secure checkout.',
+                'अंतिम देय रक्कम सुरक्षित पेमेंटमध्ये दाखवली जाते.',
+              )}
+            </Text>
             <View className="mt-4 flex-row items-center justify-between border-t border-warm-100 pt-4">
-              <Text className="text-base font-extrabold text-warm-900">{t('Total', 'एकूण')}</Text>
+              <Text className="text-base font-extrabold text-warm-900">
+                {paymentMethod === 'ONLINE' && quotedTotal?.signature === prepaidSignature ? t('Total', 'एकूण') : t('Estimated total', 'अंदाजित एकूण')}
+              </Text>
               <Text className="text-2xl font-extrabold text-maroon-700">{formatRupees(total)}</Text>
             </View>
           </View>
@@ -836,7 +1064,7 @@ export function PilgrimCheckoutScreen() {
           onPress={() => void confirmBooking()}
         >
           {paymentMethod === 'ONLINE'
-            ? t(`Pay ${formatRupees(total)}`, `${formatRupees(total)} भरा`)
+            ? t('Pay & Confirm Now', 'आता पैसे भरा आणि निश्चित करा')
             : t('Confirm booking', 'बुकिंग निश्चित करा')}
         </PrimaryButton>
       )}
@@ -856,7 +1084,7 @@ export function PilgrimCheckoutScreen() {
           {prepaidPreparing
             ? t('Setting up secure payment…', 'सुरक्षित पेमेंट तयार होत आहे…')
             : t(
-                "Payment will be set up when you tap Pay — it may take a moment longer.",
+                'Payment will be set up when you tap Pay — it may take a moment longer.',
                 'पेमेंट Pay दाबल्यावर तयार होईल — त्याला थोडा जास्त वेळ लागू शकतो.',
               )}
         </Text>

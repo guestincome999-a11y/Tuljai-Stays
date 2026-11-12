@@ -63,7 +63,7 @@ export function OwnerNotificationsScreen() {
     void notifications.refresh();
     void pendingBookings.refresh();
   });
-  const unreadCount = notifications.data.filter((item) => !item.readAt).length;
+  const unreadCount = notifications.unreadCount;
   const showPendingBookings = activeType === null || activeType === 'BOOKING_REQUEST';
   const displayedNotifications = useMemo(() => {
     const requestedBookingId = typeof params.bookingId === 'string' ? params.bookingId : null;
@@ -126,9 +126,9 @@ export function OwnerNotificationsScreen() {
           </Text>
         </View>
         <Button
-          accessibilityHint="Marks every visible notification as read."
+          accessibilityHint="Marks existing unread notifications as read."
           accessibilityLabel="Mark all owner notifications as read"
-          disabled={isOffline || notifications.isSubmitting || unreadCount === 0}
+          disabled={notifications.isSubmitting || unreadCount === 0}
           mode="contained-tonal"
           onPress={() => {
             void notifications.markAllRead();
@@ -157,7 +157,9 @@ export function OwnerNotificationsScreen() {
           actions.errorMessage ??
           pendingBookings.errorMessage ??
           notifications.errorMessage ??
-          (isOffline ? 'Notification actions are disabled while offline.' : null)
+          (isOffline
+            ? 'Read changes will sync when connected. Booking actions require internet.'
+            : null)
         }
       />
 
@@ -252,10 +254,9 @@ export function OwnerNotificationsScreen() {
       <View style={styles.list}>
         {displayedNotifications.map((notification) => (
           <NotificationCard
+            isOffline={isOffline}
             disabled={
-              isOffline ||
-              notifications.isSubmitting ||
-              actions.submittingBookingId === notification.bookingId
+              notifications.isSubmitting || actions.submittingBookingId === notification.bookingId
             }
             key={notification.id}
             notification={notification}
@@ -353,6 +354,7 @@ export function OwnerNotificationsScreen() {
 }
 
 const NotificationCard = memo(function NotificationCard({
+  isOffline,
   disabled,
   notification,
   responded,
@@ -363,6 +365,7 @@ const NotificationCard = memo(function NotificationCard({
   onViewBooking,
   onViewReview,
 }: {
+  isOffline: boolean;
   disabled: boolean;
   notification: Notification;
   responded: boolean;
@@ -409,10 +412,10 @@ const NotificationCard = memo(function NotificationCard({
         <View style={styles.actions}>
           {isBookingRequest && !responded ? (
             <>
-              <Button disabled={disabled} mode="contained" onPress={onAccept}>
+              <Button disabled={disabled || isOffline} mode="contained" onPress={onAccept}>
                 Accept Booking
               </Button>
-              <Button disabled={disabled} mode="outlined" onPress={onReject}>
+              <Button disabled={disabled || isOffline} mode="outlined" onPress={onReject}>
                 Reject Booking
               </Button>
             </>

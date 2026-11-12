@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   getLodgeDetailsView,
@@ -68,6 +68,8 @@ export function useHomeDiscovery() {
 }
 
 export function useLodgeList(initialFilters: Partial<LodgeFilters> = {}, initialSearch = '') {
+  const revision = useRef(0);
+  const appending = useRef(false);
   const [amenities, setAmenities] = useState<Awaited<ReturnType<typeof listAmenities>>>([]);
   const [filters, setFilters] = useState<LodgeFilters>({
     ...defaultLodgeFilters,
@@ -86,10 +88,14 @@ export function useLodgeList(initialFilters: Partial<LodgeFilters> = {}, initial
 
   const load = useCallback(
     async (nextPage: number, mode: 'replace' | 'append' | 'refresh') => {
+      if (mode === 'append' && appending.current) return;
+      const request = mode === 'append' ? revision.current : ++revision.current;
+      appending.current = true;
       setState((current) => ({
         ...current,
         errorMessage: null,
-        isLoading: mode === 'replace' && (current.data?.length ?? 0) === 0,
+        data: mode === 'replace' ? [] : current.data,
+        isLoading: mode === 'replace',
         isRefreshing: mode === 'refresh',
       }));
       setIsLoadingMore(mode === 'append');
@@ -102,6 +108,7 @@ export function useLodgeList(initialFilters: Partial<LodgeFilters> = {}, initial
           search: search.trim() || undefined,
         };
         const response = await searchLodgePreviews(query);
+        if (request !== revision.current) return;
         setState((current) => ({
           data: mode === 'append' ? [...(current.data ?? []), ...response.items] : response.items,
           errorMessage: null,
@@ -111,6 +118,7 @@ export function useLodgeList(initialFilters: Partial<LodgeFilters> = {}, initial
         }));
         setPage(nextPage);
       } catch {
+        if (request !== revision.current) return;
         setState((current) => ({
           ...current,
           errorMessage: 'We could not load lodges right now. Please try again.',
@@ -118,7 +126,10 @@ export function useLodgeList(initialFilters: Partial<LodgeFilters> = {}, initial
           isRefreshing: false,
         }));
       } finally {
-        setIsLoadingMore(false);
+        if (request === revision.current) {
+          appending.current = false;
+          setIsLoadingMore(false);
+        }
       }
     },
     [filters, search],
@@ -144,9 +155,18 @@ export function useLodgeList(initialFilters: Partial<LodgeFilters> = {}, initial
 
   useEffect(() => {
     void load(1, 'replace');
+    return () => {
+      revision.current += 1;
+      appending.current = false;
+    };
   }, [filters, load, search]);
 
-  const canLoadMore = page < state.totalPages && !state.isLoading && !isLoadingMore;
+  const canLoadMore =
+    page < state.totalPages &&
+    !state.isLoading &&
+    !state.isRefreshing &&
+    !state.errorMessage &&
+    !isLoadingMore;
 
   return {
     amenities,

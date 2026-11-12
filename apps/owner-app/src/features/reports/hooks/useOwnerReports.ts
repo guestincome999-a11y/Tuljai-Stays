@@ -1,32 +1,21 @@
+import { allReportPages, type ReportDateRange } from '@tuljai/shared';
 import type {
   BookingReportRow,
   CommissionSummary,
   LodgeCommissionFinanceReport,
 } from '@tuljai/types';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
 import { useRealtime } from '../../../realtime/realtime-provider';
-import { useOwnerDashboardSummary } from '../../dashboard/hooks/useOwnerDashboardSummary';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import {
   getOwnerBookingReport,
   getOwnerCommissionFinanceReport,
   getOwnerCommissionReport,
-  getOwnerRegisterReport,
 } from '../api/owner-reports-api';
 
-interface OwnerReportsState {
-  bookingRows: BookingReportRow[];
-  commissionRows: CommissionSummary[];
-  commissionFinance: LodgeCommissionFinanceReport | null;
-  errorMessage: string | null;
-  isLoading: boolean;
-  isRefreshing: boolean;
-  registerRows: BookingReportRow[];
-}
-
-const REPORT_REFRESH_EVENTS = new Set([
+const EVENTS = new Set([
   'booking:new',
   'booking:accepted',
   'booking:cancelled',
@@ -34,159 +23,140 @@ const REPORT_REFRESH_EVENTS = new Set([
   'booking:expired',
   'checkin:completed',
   'checkout:completed',
-  'room:availability-updated',
-  'room:status-updated',
   'dashboard:update',
 ]);
-
-export function useOwnerReports() {
-  const assignedLodges = useAssignedLodges();
-  const dashboard = useOwnerDashboardSummary();
+interface State {
+  bookingRows: BookingReportRow[];
+  commissionRows: CommissionSummary[];
+  commissionFinance: LodgeCommissionFinanceReport | null;
+  errorMessage: string | null;
+  financeError: string | null;
+  isLoading: boolean;
+  isRefreshing: boolean;
+}
+export function useOwnerReports(range: ReportDateRange, reportType: 'all' | 'completed') {
+  const assigned = useAssignedLodges();
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
-  const lodgeId = assignedLodges.selectedLodge?.id;
-  const [state, setState] = useState<OwnerReportsState>({
+  const lodgeId = assigned.selectedLodge?.id;
+  const revision = useRef(0);
+  const [state, setState] = useState<State>({
     bookingRows: [],
     commissionRows: [],
     commissionFinance: null,
     errorMessage: null,
+    financeError: null,
     isLoading: true,
     isRefreshing: false,
-    registerRows: [],
   });
-
   const load = useCallback(
     async (refreshing = false) => {
-      setState((current) => ({
-        ...current,
-        errorMessage: null,
-        isLoading: !refreshing && current.bookingRows.length === 0,
-        isRefreshing: refreshing,
-      }));
-
-      if (isOffline) {
-        setState((current) => ({
-          ...current,
-          errorMessage: 'Connect to the internet to load reports.',
+      const current = ++revision.current;
+      if (assigned.isLoading) return;
+      if (isOffline || !lodgeId) {
+        setState({
+          bookingRows: [],
+          commissionRows: [],
+          commissionFinance: null,
+          financeError: null,
+          errorMessage: isOffline
+            ? 'Connect to the internet to load and export reports.'
+            : (assigned.errorMessage ?? 'No lodge assigned yet.'),
           isLoading: false,
           isRefreshing: false,
-        }));
+        });
         return;
       }
-
-      const range = getWeekRange();
-
+      setState((previous) => ({
+        ...previous,
+        errorMessage: null,
+        financeError: null,
+        isLoading: !refreshing,
+        isRefreshing: refreshing,
+      }));
       try {
-        const [bookingReport, registerReport, commissionReport, commissionFinance] =
-          await Promise.all([
-            getOwnerBookingReport({ lodgeId, ...range }),
-            getOwnerRegisterReport({ lodgeId, ...range }),
-            getOwnerCommissionReport({ lodgeId, ...range }),
-            lodgeId ? getOwnerCommissionFinanceReport(lodgeId) : Promise.resolve(null),
-          ]);
+        const query = { lodgeId, ...range, reportType, limit: 500 };
+        const [bookingRows, commissionRows, finance] = await Promise.all([
+          allReportPages((page) => getOwnerBookingReport({ ...query, page })),
+          getOwnerCommissionReport(query),
+          getOwnerCommissionFinanceReport(lodgeId).then(
+            (value) => ({ value, error: null }),
+            () => ({
+              value: null,
+              error: 'Commission history could not be loaded. Pull down to retry.',
+            }),
+          ),
+        ]);
+        if (current !== revision.current) return;
         setState({
-          bookingRows: bookingReport.items,
-          commissionRows: commissionReport,
-          commissionFinance,
+          bookingRows,
+          commissionRows,
+          commissionFinance: finance.value,
+          financeError: finance.error,
           errorMessage: null,
           isLoading: false,
           isRefreshing: false,
-          registerRows: registerReport.items,
         });
       } catch {
-        setState((current) => ({
-          ...current,
-          errorMessage: 'Reports could not be loaded right now.',
+        if (current !== revision.current) return;
+        setState({
+          bookingRows: [],
+          commissionRows: [],
+          commissionFinance: null,
+          financeError: null,
+          errorMessage: 'Reports could not be loaded. Pull down to retry.',
           isLoading: false,
           isRefreshing: false,
-        }));
+        });
       }
     },
-    [isOffline, lodgeId],
+    [
+      assigned.isLoading,
+      assigned.errorMessage,
+      isOffline,
+      lodgeId,
+      range.startDate,
+      range.endDate,
+      reportType,
+    ],
   );
-
   useEffect(() => {
     void load();
+    return () => {
+      revision.current++;
+    };
   }, [load]);
-
   useEffect(() => {
-    if (!realtime.lastEvent || !REPORT_REFRESH_EVENTS.has(realtime.lastEvent.name)) {
-      return undefined;
-    }
+    if (!realtime.lastEvent || !EVENTS.has(realtime.lastEvent.name)) return;
     const timeout = setTimeout(() => void load(true), 750);
     return () => clearTimeout(timeout);
   }, [load, realtime.lastEvent]);
-
   useEffect(() => {
-    if (realtime.connectionRevision === 0) return;
-    void load(true);
+    if (realtime.connectionRevision) void load(true);
   }, [load, realtime.connectionRevision]);
-
-  const summary = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const todayBookings = state.bookingRows.filter((row) => row.checkInDate === today).length;
-    const completedBookings = state.bookingRows.filter((row) =>
-      ['CHECKED_OUT', 'COMPLETED'].includes(row.status),
-    ).length;
-    const cancelledOrRejectedBookings = state.bookingRows.filter((row) =>
-      ['CANCELLED', 'REJECTED'].includes(row.status),
-    ).length;
-    const estimatedRevenue = state.bookingRows.reduce(
-      (total, row) => total + parseAmount(row.totalAmount),
-      0,
-    );
-    const estimatedCommission = state.commissionRows.reduce(
-      (total, row) => total + parseAmount(row.commissionTotal),
-      0,
-    );
-
-    return {
-      cancelledOrRejectedBookings,
-      checkInsCheckouts: dashboard.data
-        ? `${dashboard.data.checkedInGuests}/${dashboard.data.todayCheckOuts}`
-        : '0/0',
-      completedBookings,
-      estimatedCommission,
-      estimatedRevenue,
-      occupancyEstimate: dashboard.data
-        ? getOccupancyEstimate(dashboard.data.occupiedRooms, dashboard.data.availableRooms)
-        : 0,
-      thisWeekBookings: state.bookingRows.length,
-      todayBookings,
-    };
-  }, [dashboard.data, state.bookingRows, state.commissionRows]);
-
+  const summary = useMemo(
+    () => ({
+      totalBookings: state.bookingRows.length,
+      completedBookings: state.bookingRows.filter((row) =>
+        ['CHECKED_OUT', 'COMPLETED'].includes(row.status),
+      ).length,
+      estimatedRevenue: state.bookingRows.reduce(
+        (sum, row) => sum + Number(row.totalAmount ?? 0),
+        0,
+      ),
+      estimatedCommission: state.bookingRows.reduce(
+        (sum, row) => sum + Number(row.commissionAmount ?? 0),
+        0,
+      ),
+    }),
+    [state.bookingRows, state.commissionRows],
+  );
   return {
     ...state,
-    refresh: () => {
-      void dashboard.refresh();
-      return load(true);
-    },
-    selectedLodge: assignedLodges.selectedLodge,
+    registerRows: state.bookingRows,
     summary,
+    selectedLodge: assigned.selectedLodge,
+    isOffline,
+    refresh: () => load(true),
   };
-}
-
-function getWeekRange(): { endDate: string; startDate: string } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 7);
-
-  return {
-    endDate: end.toISOString().slice(0, 10),
-    startDate: start.toISOString().slice(0, 10),
-  };
-}
-
-function parseAmount(value: string | null): number {
-  if (!value) return 0;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function getOccupancyEstimate(occupiedRooms: number, availableRooms: number): number {
-  const total = occupiedRooms + availableRooms;
-  if (total === 0) return 0;
-  return Math.round((occupiedRooms / total) * 100);
 }

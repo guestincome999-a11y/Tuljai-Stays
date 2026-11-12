@@ -113,7 +113,7 @@ export async function listOwnerPhotos(lodgeId: string): Promise<LodgePhoto[]> {
 export async function uploadLodgePhoto(
   lodgeId: string,
   photo: PickedPhoto,
-): Promise<{ fileUrl: string }> {
+): Promise<{ fileUrl: string; thumbnailUrl?: string }> {
   const formData = new FormData();
   formData.append('file', {
     name: photo.fileName,
@@ -123,7 +123,7 @@ export async function uploadLodgePhoto(
     // Blob/File type that TypeScript's lib.dom.d.ts expects for FormData.append.
   } as unknown as Blob);
 
-  return apiClient.request<{ fileUrl: string }>(`/owner/lodges/${lodgeId}/photos/upload`, {
+  return apiClient.request<{ fileUrl: string; thumbnailUrl?: string }>(`/owner/lodges/${lodgeId}/photos/upload`, {
     body: formData,
     headers: { 'Content-Type': 'multipart/form-data' },
     method: 'POST',

@@ -3,11 +3,7 @@
 import type { BookingReportRow, CommissionSummary } from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import {
-  listBookingReport,
-  listCommissionReport,
-  listLodgeCommissionOverview,
-} from '../../../src/api/admin-bi-api';
+import { listBookingReport, listCommissionReport } from '../../../src/api/admin-bi-api';
 import {
   buildLodgeRankings,
   getOwnerBadge,
@@ -18,7 +14,12 @@ import { PermissionGate } from '../../../src/components/PermissionGate';
 export default function AdminPerformancePage() {
   const [rows, setRows] = useState<BookingReportRow[]>([]);
   const [commissions, setCommissions] = useState<CommissionSummary[]>([]);
-  const [lodgeNames, setLodgeNames] = useState<Map<string, string>>(new Map());
+  const lodgeNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const row of [...rows, ...commissions])
+      if (row.lodgeId && row.lodgeName) names.set(row.lodgeId, row.lodgeName);
+    return names;
+  }, [rows, commissions]);
   const [sort, setSort] = useState<'bookings' | 'revenue' | 'score'>('score');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -34,13 +35,6 @@ export default function AdminPerformancePage() {
     } catch {
       setErrorMessage('Performance data could not be loaded.');
     }
-    // Lodge names are a display nicety; the ranking still works if this call fails.
-    try {
-      const overview = await listLodgeCommissionOverview();
-      setLodgeNames(new Map(overview.map((row) => [row.lodgeId, row.lodgeName])));
-    } catch {
-      setLodgeNames(new Map());
-    }
   }, []);
 
   useEffect(() => {
@@ -51,7 +45,7 @@ export default function AdminPerformancePage() {
     () => [...buildLodgeRankings(rows, commissions)].sort((a, b) => b[sort] - a[sort]),
     [commissions, rows, sort],
   );
-  const lodgeLabel = (lodgeId: string) => lodgeNames.get(lodgeId) ?? 'Unnamed lodge';
+  const lodgeLabel = (lodgeId: string) => lodgeNames.get(lodgeId) ?? 'Lodge unavailable';
 
   return (
     <PermissionGate permission="reports.view">

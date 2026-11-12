@@ -1,6 +1,7 @@
 import type { Notification, NotificationUnreadCount, PaginatedResponse } from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
+import { notificationState } from '../notification-count-store';
 
 export async function getUnreadNotificationCount(): Promise<NotificationUnreadCount> {
   return apiClient.get<NotificationUnreadCount>('/notifications/unread-count');
@@ -12,10 +13,6 @@ export async function listNotifications(): Promise<PaginatedResponse<Notificatio
   });
 }
 
-export async function markNotificationRead(notificationId: string): Promise<Notification> {
-  return apiClient.post<Notification>(`/notifications/${notificationId}/read`);
-}
+export const markNotificationRead = notificationState.markRead;
 
-export async function markAllNotificationsRead(): Promise<NotificationUnreadCount> {
-  return apiClient.post<NotificationUnreadCount>('/notifications/read-all');
-}
+export const markAllNotificationsRead = notificationState.markAllRead;

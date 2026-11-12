@@ -14,7 +14,10 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "ts-node prisma/seed.ts",
     "admin:set-password": "ts-node prisma/set-admin-password.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:auth": "node --test scripts/auth-session.test.mjs",
+    "test:reports": "node --test scripts/reports.test.mjs",
+    "test": "node --test --test-concurrency=1 scripts/photo-thumbnail.test.mjs scripts/catalog-performance.test.mjs scripts/auth-session.test.mjs scripts/payment-regression.test.mjs scripts/payment-idempotency.test.mjs scripts/booking-integration.test.mjs scripts/qr-checkin.test.mjs scripts/cash-collection.test.mjs scripts/admin-booking-activity.test.mjs"
   },
   "dependencies": {
     "@fastify/helmet": "^13.0.2",
@@ -38,10 +41,12 @@
     "nodemailer": "^10.0.11",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.17.2",
     "pg": "^8.22.0",
     "razorpay": "^2.9.8",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "0.35.5",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
@@ -49,6 +54,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pdfkit": "^0.17.3",
     "@types/pg": "^8.20.0",
     "prisma": "^7.8.0",
     "ts-node": "^10.9.2",

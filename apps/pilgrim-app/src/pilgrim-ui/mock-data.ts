@@ -4,6 +4,8 @@ export interface PilgrimRoom {
   available: number;
   bed: string;
   capacity: string;
+  capacityAdults?: number;
+  capacityChildren?: number;
   features: string[];
   id: string;
   name: string;
@@ -21,8 +23,8 @@ export interface PilgrimLodge {
    * data, or lodges the admin hasn't added a link for yet). */
   googleMapsLink?: string | null;
   hero: string;
-  /** False while only lightweight summary data has loaded; the lodges screen
-   * renders a skeleton card in place of full content until this becomes true. */
+  /** False while only summary data has loaded. Listings can render immediately;
+   * detail and booking screens hydrate full room information on demand. */
   hydrated?: boolean;
   id: string;
   location: string;
@@ -56,7 +58,15 @@ export interface PilgrimBooking {
   image: string;
   lodgeId: string;
   lodgeName: string;
-  paymentStatus: 'Paid' | 'Pay at lodge' | 'Refunded';
+  paymentStatus:
+    | 'Paid'
+    | 'Partially paid'
+    | 'Pay at lodge'
+    | 'Payment pending'
+    | 'Payment failed'
+    | 'Not required'
+    | 'Refunded';
+  paidAmount?: number;
   qrReady?: boolean;
   roomName: string;
   status: BookingStatus;

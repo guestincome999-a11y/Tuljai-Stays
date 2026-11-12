@@ -4,3 +4,9 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Local Android signing material downloaded from EAS
+credentials.json
+credentials/
+*.jks
+*.keystore

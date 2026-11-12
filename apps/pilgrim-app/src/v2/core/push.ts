@@ -19,7 +19,7 @@ Notifications.setNotificationHandler({
     Promise.resolve({
       priority: Notifications.AndroidNotificationPriority.HIGH,
       shouldPlaySound: true,
-      shouldSetBadge: true,
+      shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
     }),
@@ -126,11 +126,4 @@ export async function refreshPushRegistration(): Promise<boolean> {
   if (!granted(permissions)) return false;
   await registerCurrentToken();
   return true;
-}
-
-export async function syncBadge(unreadCount: number): Promise<void> {
-  const count = Math.max(0, Math.floor(unreadCount));
-  await Notifications.setBadgeCountAsync(count).catch(() => false);
-  // Android launchers follow the notifications still in the tray, so clear them once all are read.
-  if (count === 0) await Notifications.dismissAllNotificationsAsync().catch(() => undefined);
 }

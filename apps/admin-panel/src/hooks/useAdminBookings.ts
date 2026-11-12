@@ -1,7 +1,7 @@
 'use client';
 
 import type { AdminBookingSummary, BookingStatus, PaginatedResponse } from '@tuljai/types';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { listAdminBookings, type AdminBookingsQuery } from '../api/admin-bookings-api';
 import {
@@ -28,6 +28,7 @@ export interface AdminBookingFilters {
 
 export function useAdminBookings(filters: AdminBookingFilters, page: number) {
   const auth = useAdminAuth();
+  const controller = useRef<AbortController | null>(null);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [state, setState] = useState<AdminBookingsState>({
     data: null,
@@ -38,6 +39,9 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
 
   const load = useCallback(
     async (refreshing = false) => {
+      controller.current?.abort();
+      const active = new AbortController();
+      controller.current = active;
       setState((current) => ({
         ...current,
         errorMessage: null,
@@ -53,7 +57,8 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
           status: filters.status || undefined,
           toDate: filters.toDate || undefined,
         };
-        const response = await listAdminBookings(query);
+        const response = await listAdminBookings(query, active.signal);
+        if (active.signal.aborted) return;
         setState({
           data: response,
           errorMessage: null,
@@ -61,6 +66,7 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
           isRefreshing: false,
         });
       } catch {
+        if (active.signal.aborted) return;
         setState((current) => ({
           ...current,
           errorMessage: 'Bookings could not be loaded. Please retry.',
@@ -74,6 +80,7 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
 
   useEffect(() => {
     void load();
+    return () => controller.current?.abort();
   }, [load]);
 
   useEffect(() => {
@@ -113,7 +120,9 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
       return undefined;
     }
 
-    const interval = setInterval(() => void load(true), 45_000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') void load(true);
+    }, 45_000);
     return () => clearInterval(interval);
   }, [load, realtimeConnected]);
 

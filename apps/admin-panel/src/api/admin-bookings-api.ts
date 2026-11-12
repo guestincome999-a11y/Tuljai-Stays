@@ -14,8 +14,10 @@ export interface AdminBookingsQuery {
 
 export async function listAdminBookings(
   query: AdminBookingsQuery = {},
+  signal?: AbortSignal,
 ): Promise<PaginatedResponse<AdminBookingSummary>> {
   return apiClient.get<PaginatedResponse<AdminBookingSummary>>('/admin/bookings', {
+    signal,
     params: {
       limit: query.limit ?? 20,
       page: query.page ?? 1,

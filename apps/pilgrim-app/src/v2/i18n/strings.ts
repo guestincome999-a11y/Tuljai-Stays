@@ -16,14 +16,14 @@ export const strings = {
 
 /** Formats rupees with Indian digit grouping (12,34,567) without relying on device Intl support. */
 export function formatRupees(value: string | number): string {
-  const amount = Math.round(Number(value));
+  const amount = Number(value);
   if (!Number.isFinite(amount)) return '';
-  const digits = String(Math.abs(amount));
+  const [digits, fraction] = Math.abs(amount).toFixed(2).split('.');
   const lastThree = digits.slice(-3);
   const rest = digits.slice(0, -3);
   const grouped =
     rest.length > 0 ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/gu, ',')},${lastThree}` : lastThree;
-  return `₹${amount < 0 ? '-' : ''}${grouped}`;
+  return `₹${amount < 0 ? '-' : ''}${grouped}${fraction === '00' ? '' : `.${fraction}`}`;
 }
 
 export function formatDistance(meters: number, lang: 'en' | 'mr'): string {

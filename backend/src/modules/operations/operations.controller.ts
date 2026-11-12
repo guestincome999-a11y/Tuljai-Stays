@@ -79,6 +79,20 @@ export class OperationsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
+  @Get('admin/reports/bookings/pdf')
+  public adminBookingPdf(@Query() query: ReportQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.operationsService.bookingReportPdf(query, user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
+  @Get('owner/reports/bookings/pdf')
+  public ownerBookingPdf(@Query() query: ReportQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.operationsService.bookingReportPdf(query, user, true);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Get('admin/reports/occupancy')
   public adminOccupancyReport(
     @Query() query: ReportQueryDto,

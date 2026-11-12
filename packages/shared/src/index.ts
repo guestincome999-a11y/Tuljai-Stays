@@ -3,3 +3,6 @@ export * from './app-config';
 export * from './auth-session';
 export * from './environment';
 export * from './platform-status';
+export * from './notification-state';
+export * from './notification-badge';
+export * from './reporting';

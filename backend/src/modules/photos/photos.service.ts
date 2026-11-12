@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { MultipartFile } from '@fastify/multipart';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthenticatedUser, LodgePhoto } from '@tuljai/types';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
@@ -11,11 +11,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/providers/supabase-storage.service';
 
 import type { CreateLodgePhotoDto, RejectPhotoDto } from './dto/photo.dto';
+import { createPhotoThumbnail } from './photo-thumbnail';
 
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
 
 @Injectable()
 export class PhotosService {
+  private readonly logger = new Logger(PhotosService.name);
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly lodgeAccessService: LodgeAccessService,
@@ -28,7 +30,7 @@ export class PhotosService {
     file: MultipartFile,
     lodgeId: string,
     user: AuthenticatedUser,
-  ): Promise<{ fileUrl: string }> {
+  ): Promise<{ fileUrl: string; thumbnailUrl?: string }> {
     await this.lodgeAccessService.assertCanManageLodge(user, lodgeId);
 
     const contents = await file.toBuffer();
@@ -52,14 +54,35 @@ export class PhotosService {
       this.storageService.getLodgePhotosBucketName(),
     );
 
+    let thumbnailUrl: string | undefined;
+    try {
+      const thumbnail = await createPhotoThumbnail(contents);
+      if (thumbnail) {
+        thumbnailUrl = await this.storageService.uploadPublicObject(
+          `${storagePath}.thumb.webp`,
+          thumbnail,
+          'image/webp',
+          this.storageService.getLodgePhotosBucketName(),
+        );
+      }
+    } catch {
+      // The original remains usable. Do not turn a derivative failure into a failed upload.
+      this.logger.warn('Lodge thumbnail unavailable; retaining original image');
+    }
+
     await this.auditLogService.create({
       action: 'LODGE_PHOTO_UPLOADED',
       actorUserId: user.id,
       entityType: 'lodge_photo',
-      metadata: { lodgeId, mimeType: detectedImage.mimeType, sizeBytes: contents.length, storagePath },
+      metadata: {
+        lodgeId,
+        mimeType: detectedImage.mimeType,
+        sizeBytes: contents.length,
+        storagePath,
+      },
     });
 
-    return { fileUrl };
+    return { fileUrl, ...(thumbnailUrl ? { thumbnailUrl } : {}) };
   }
 
   public async createLodgePhoto(

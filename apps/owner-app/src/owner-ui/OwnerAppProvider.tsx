@@ -30,12 +30,11 @@ const OwnerAppContext = createContext<OwnerAppContextValue | null>(null);
 
 export function OwnerAppProvider({ children }: PropsWithChildren) {
   const [language, setLanguage] = useState<OwnerLanguage>('en');
-  const [isLanguageReady, setIsLanguageReady] = useState(false);
 
   useEffect(() => {
     void loadOwnerSettings()
       .then((settings) => setLanguage(settings.language === 'MR' ? 'mr' : 'en'))
-      .finally(() => setIsLanguageReady(true));
+      .catch(() => undefined);
   }, []);
 
   const updateLanguage = useCallback((nextLanguage: OwnerLanguage) => {
@@ -55,9 +54,9 @@ export function OwnerAppProvider({ children }: PropsWithChildren) {
     [language, updateLanguage],
   );
 
-  return isLanguageReady ? (
+  return (
     <OwnerAppContext.Provider value={value}>{children}</OwnerAppContext.Provider>
-  ) : null;
+  );
 }
 
 export function useOwnerApp() {

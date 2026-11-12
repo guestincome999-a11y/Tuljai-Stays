@@ -1,10 +1,13 @@
+
 import type { TokenStorage } from '@tuljai/shared';
 import type { AuthTokens } from '@tuljai/types';
+
+import { getOrCreateAdminDeviceId } from './admin-device';
 
 const TOKEN_STORAGE_KEY = 'tuljai.admin.tokens';
 
 function canUseBrowserStorage(): boolean {
-  return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
 function readTokens(): AuthTokens | null {
@@ -12,7 +15,7 @@ function readTokens(): AuthTokens | null {
     return null;
   }
 
-  const stored = window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  const stored = window.localStorage.getItem(TOKEN_STORAGE_KEY);
 
   if (!stored) {
     return null;
@@ -21,15 +24,17 @@ function readTokens(): AuthTokens | null {
   try {
     return JSON.parse(stored) as AuthTokens;
   } catch {
-    window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     return null;
   }
 }
 
 export const tokenStorage: TokenStorage = {
-  clear(): Promise<void> {
+  async clear(): Promise<void> {
+    const response = await fetch('/api/auth-session', { method: 'DELETE' });
+    if (!response.ok) throw new Error('Unable to revoke session. Please retry.');
     if (canUseBrowserStorage()) {
-      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
 
     return Promise.resolve();
@@ -40,9 +45,23 @@ export const tokenStorage: TokenStorage = {
   getRefreshToken(): Promise<string | null> {
     return Promise.resolve(readTokens()?.refreshToken ?? null);
   },
-  setTokens(tokens: AuthTokens): Promise<void> {
+  async setTokens(tokens: AuthTokens): Promise<void> {
+    if (tokens.refreshToken !== 'http-only-cookie') {
+      const response = await fetch('/api/auth-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refreshToken: tokens.refreshToken,
+          deviceId: getOrCreateAdminDeviceId(),
+        }),
+      });
+      if (!response.ok) throw new Error('Unable to persist session securely');
+    }
     if (canUseBrowserStorage()) {
-      window.sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(tokens));
+      window.localStorage.setItem(
+        TOKEN_STORAGE_KEY,
+        JSON.stringify({ ...tokens, refreshToken: 'http-only-cookie' }),
+      );
     }
 
     return Promise.resolve();

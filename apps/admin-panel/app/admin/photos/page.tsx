@@ -85,7 +85,7 @@ export default function AdminPhotoReviewPage() {
                 alt={`${photo.lodgeName ?? 'Lodge'} ${photo.category}`}
                 src={photo.thumbnailUrl ?? photo.fileUrl}
               />
-              <strong>{photo.lodgeName ?? photo.lodgeId}</strong>
+              <strong>{photo.lodgeName ?? 'Lodge unavailable'}</strong>
               <span>{formatGovernanceStatus(photo.category)}</span>
               <span className="status-card">{formatGovernanceStatus(photo.approvalStatus)}</span>
               <div className="row-actions">

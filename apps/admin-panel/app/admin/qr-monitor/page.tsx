@@ -170,11 +170,11 @@ export default function AdminQrMonitorPage() {
             {filteredLogs.map((log) => (
               <div className="admin-table-row" key={log.id}>
                 <span>{new Date(log.createdAt).toLocaleString('en-IN')}</span>
-                <span>{log.bookingCode ?? log.bookingId ?? 'Unknown'}</span>
+                <span>{log.bookingCode ?? 'Booking unavailable'}</span>
                 <span>{log.guestName ?? 'Hidden / unavailable'}</span>
                 <span className="status-card">{formatMonitoringLabel(log.result)}</span>
                 <span>{log.failureReason ?? 'None'}</span>
-                <span>{log.lodgeId ?? 'Not linked'}</span>
+                <span>{log.lodgeName ?? 'Lodge unavailable'}</span>
               </div>
             ))}
           </div>

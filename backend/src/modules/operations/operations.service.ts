@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type {
   AdminBookingTrendPoint,
@@ -24,7 +24,9 @@ import { LodgeAccessService } from '../lodges/lodge-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
+import { buildBookingReportPdf } from './booking-report-pdf';
 import type { ReportQueryDto } from './dto/operations.dto';
+import { reportDateRange } from './report-range';
 
 @Injectable()
 export class OperationsService {
@@ -166,8 +168,12 @@ export class OperationsService {
         take: 5,
         where: { ...alive, approvalStatus: 'PENDING' },
       }),
-      this.prisma.booking.count({ where: { ...alive, paymentStatus: 'FAILED', updatedAt: { gte: dayAgo } } }),
-      this.prisma.notificationDeliveryLog.count({ where: { createdAt: { gte: dayAgo }, status: 'FAILED' } }),
+      this.prisma.booking.count({
+        where: { ...alive, paymentStatus: 'FAILED', updatedAt: { gte: dayAgo } },
+      }),
+      this.prisma.notificationDeliveryLog.count({
+        where: { createdAt: { gte: dayAgo }, status: 'FAILED' },
+      }),
       this.prisma.booking.count({
         where: { ...alive, createdAt: { lt: staleBefore }, status: 'PENDING_OWNER_APPROVAL' },
       }),
@@ -300,7 +306,11 @@ export class OperationsService {
         new Date(Date.now() - offsetDays * 24 * 60 * 60 * 1000),
       );
     const key =
-      period === 'today' ? istDay(0) : period === 'week' ? istDay(6) : `${istDay(0).slice(0, 7)}-01`;
+      period === 'today'
+        ? istDay(0)
+        : period === 'week'
+          ? istDay(6)
+          : `${istDay(0).slice(0, 7)}-01`;
     return new Date(`${key}T00:00:00+05:30`);
   }
 
@@ -531,6 +541,46 @@ export class OperationsService {
     return this.listBookingReport({ ...query, lodgeId: query.lodgeId }, lodgeIds);
   }
 
+  public async bookingReportPdf(query: ReportQueryDto, user: AuthenticatedUser, owner = false) {
+    if (!query.startDate || !query.endDate) {
+      throw new BadRequestException('Choose a start and end date before exporting.');
+    }
+    reportDateRange(query.startDate, query.endDate);
+    const reportType = query.reportType ?? 'completed';
+    const lodgeIds = owner ? await this.getOwnerLodgeIds(user) : undefined;
+    const rows: BookingReportRow[] = [];
+    // Traverse every page, independent of the preview's page size.
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const result = await this.listBookingReport(
+        { ...query, reportType, limit: 500, page },
+        lodgeIds,
+      );
+      rows.push(...result.items);
+      totalPages = result.totalPages;
+      page++;
+    } while (page <= totalPages);
+    const pdf = await buildBookingReportPdf(rows, query.startDate, query.endDate, reportType);
+    await this.auditLogService.create({
+      action: owner ? 'OWNER_BOOKING_REPORT_EXPORTED' : 'ADMIN_BOOKING_REPORT_EXPORTED',
+      actorUserId: user.id,
+      entityType: 'report',
+      metadata: {
+        startDate: query.startDate,
+        endDate: query.endDate,
+        reportType,
+        bookingCount: rows.length,
+        lodgeId: query.lodgeId,
+      },
+    });
+    return {
+      base64: pdf.toString('base64'),
+      bookingCount: rows.length,
+      filename: `tuljai-${reportType === 'completed' ? 'completed-' : ''}bookings-${query.startDate}-to-${query.endDate}.pdf`,
+    };
+  }
+
   public async commissionReport(
     query: ReportQueryDto,
     lodgeIds?: string[],
@@ -543,10 +593,16 @@ export class OperationsService {
       where: { AND: [where, this.commissionEligibleWhere] },
     });
 
+    const lodges = await this.prisma.lodge.findMany({
+      where: { id: { in: bookings.map((item) => item.lodgeId) } },
+      select: { id: true, name: true },
+    });
+    const names = new Map(lodges.map((lodge) => [lodge.id, lodge.name]));
     return bookings.map((item) => ({
       bookingCount: item._count.id,
       commissionTotal: item._sum.commissionAmount?.toString() ?? '0',
       lodgeId: item.lodgeId,
+      lodgeName: names.get(item.lodgeId) ?? 'Lodge unavailable',
     }));
   }
 
@@ -597,17 +653,21 @@ export class OperationsService {
       deletedAt: null,
       ...(query.cityId ? { cityId: query.cityId } : {}),
       ...(query.lodgeId
-        ? { lodgeId: query.lodgeId }
+        ? {
+            lodgeId: lodgeIds
+              ? { in: lodgeIds.filter((id) => id === query.lodgeId) }
+              : query.lodgeId,
+          }
         : lodgeIds
           ? { lodgeId: { in: lodgeIds } }
           : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.reportType === 'completed'
+        ? { AND: [{ status: { in: ['CHECKED_OUT', 'COMPLETED'] } }] }
+        : {}),
       ...(query.startDate || query.endDate
         ? {
-            createdAt: {
-              gte: query.startDate ? new Date(query.startDate) : undefined,
-              lte: query.endDate ? new Date(query.endDate) : undefined,
-            },
+            createdAt: reportDateRange(query.startDate, query.endDate),
           }
         : {}),
     };
@@ -636,7 +696,8 @@ export class OperationsService {
     const where = this.buildBookingWhere(query, lodgeIds);
     const [items, totalItems] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
-        orderBy: { createdAt: 'desc' },
+        include: { lodge: { select: { name: true } }, roomType: { select: { name: true } } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: pagination.skip,
         take: pagination.take,
         where,
@@ -644,14 +705,39 @@ export class OperationsService {
       this.prisma.booking.count({ where }),
     ]);
 
+    const snapshots = items.length
+      ? await this.prisma.$queryRaw<
+          {
+            id: string;
+            commissionRatePercent: string | null;
+            commissionType: string | null;
+            commissionFixedAmount: string | null;
+            paymentMode: string | null;
+          }[]
+        >(Prisma.sql`
+          SELECT b.id, b.commission_rate_percent::text AS "commissionRatePercent",
+            b.commission_type AS "commissionType", b.commission_fixed_amount::text AS "commissionFixedAmount",
+            (SELECT string_agg(DISTINCT pc.method::text, ' + ' ORDER BY pc.method::text)
+              FROM payment_collections pc WHERE pc.booking_id = b.id AND pc.status = 'PAID') AS "paymentMode"
+          FROM bookings b WHERE b.id IN (${Prisma.join(items.map((booking) => Prisma.sql`${booking.id}::uuid`))})
+        `)
+      : [];
+    const byId = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
     return {
       items: items.map((booking) => ({
+        roomTypeName: booking.roomType.name,
+        paymentStatus: booking.paymentStatus,
+        paymentMode: byId.get(booking.id)?.paymentMode ?? null,
+        commissionRatePercent: byId.get(booking.id)?.commissionRatePercent ?? null,
+        commissionType: byId.get(booking.id)?.commissionType ?? null,
+        commissionFixedAmount: byId.get(booking.id)?.commissionFixedAmount ?? null,
         bookingCode: booking.bookingCode,
         checkInDate: booking.checkInDate.toISOString().slice(0, 10),
         checkOutDate: booking.checkOutDate.toISOString().slice(0, 10),
         commissionAmount: booking.commissionAmount?.toString() ?? null,
         guestName: booking.guestName,
         lodgeId: booking.lodgeId,
+        lodgeName: booking.lodge.name,
         status: booking.status,
         totalAmount: booking.totalAmount?.toString() ?? null,
       })),

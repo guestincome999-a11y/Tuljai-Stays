@@ -1,11 +1,9 @@
-import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
-import {
-  Mukta_400Regular,
-  Mukta_500Medium,
-  Mukta_600SemiBold,
-  Mukta_700Bold,
-} from '@expo-google-fonts/mukta';
-import { TiroDevanagariMarathi_400Regular } from '@expo-google-fonts/tiro-devanagari-marathi';
+import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
+import { Mukta_400Regular } from '@expo-google-fonts/mukta/400Regular';
+import { Mukta_500Medium } from '@expo-google-fonts/mukta/500Medium';
+import { Mukta_600SemiBold } from '@expo-google-fonts/mukta/600SemiBold';
+import { Mukta_700Bold } from '@expo-google-fonts/mukta/700Bold';
+import { TiroDevanagariMarathi_400Regular } from '@expo-google-fonts/tiro-devanagari-marathi/400Regular';
 import { useFonts } from 'expo-font';
 
 import type { TextRole } from './tokens';

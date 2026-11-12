@@ -9,6 +9,13 @@ out/
 web-build/
 *.apk
 *.aab
+outputs/
+
+# Local Android signing material
+credentials.json
+credentials/
+*.jks
+*.keystore
 
 # Expo and native generated output
 .expo/
@@ -42,6 +49,8 @@ backend/generated/
 # Local repository and audit artifacts
 .git/
 .codex-temp/
+.codex-offline-baseline/
+.idea/
 package-lock.before-audit-force.json
 
 # OS and editor

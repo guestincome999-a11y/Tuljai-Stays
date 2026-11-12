@@ -8,6 +8,16 @@ import type {
 
 import { apiClient } from '../../../api/client';
 
+const bookingScanCache = new Map<string, OwnerBookingSummary>();
+let cacheRevision = 0;
+export function clearBookingScanCache() {
+  cacheRevision++;
+  bookingScanCache.clear();
+}
+export function getCachedScanBooking(bookingId: string) {
+  return bookingScanCache.get(bookingId);
+}
+
 export interface OwnerBookingsQuery {
   checkInFrom?: string;
   checkInTo?: string;
@@ -25,13 +35,20 @@ export interface OwnerBookingsQuery {
 export async function listOwnerBookings(
   query: OwnerBookingsQuery,
 ): Promise<PaginatedResponse<OwnerBookingSummary>> {
-  return apiClient.get<PaginatedResponse<OwnerBookingSummary>>('/owner/bookings', {
+  const revision = cacheRevision;
+  const response = await apiClient.get<PaginatedResponse<OwnerBookingSummary>>('/owner/bookings', {
     params: query,
   });
+  if (revision === cacheRevision)
+    response.items.forEach((booking) => bookingScanCache.set(booking.id, booking));
+  return response;
 }
 
 export async function getOwnerBooking(bookingId: string): Promise<OwnerBookingSummary> {
-  return apiClient.get<OwnerBookingSummary>(`/owner/bookings/${bookingId}`);
+  const revision = cacheRevision;
+  const booking = await apiClient.get<OwnerBookingSummary>(`/owner/bookings/${bookingId}`);
+  if (revision === cacheRevision) bookingScanCache.set(booking.id, booking);
+  return booking;
 }
 
 export async function acceptOwnerBooking(bookingId: string): Promise<Booking> {

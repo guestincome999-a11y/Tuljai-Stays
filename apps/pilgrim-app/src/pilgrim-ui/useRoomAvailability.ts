@@ -12,12 +12,15 @@ export interface RoomAvailabilityState {
   checking: boolean;
   /** Free rooms per room type id. A missing id means "unknown", never "full". */
   counts: Record<string, number>;
+  totals: Record<string, number>;
 }
 
 interface RoomAvailabilityInput {
   checkInDate: string;
   checkOutDate: string;
   enabled?: boolean;
+  /** Caller-controlled invalidation for focus, foreground and pull-to-refresh. */
+  refreshKey?: number;
   lodgeId?: string;
   roomTypeIds: string[];
   /**
@@ -32,6 +35,7 @@ const EMPTY_COUNTS: Record<string, number> = {};
 
 interface CompletedCheck {
   counts: Record<string, number>;
+  totals: Record<string, number>;
   key: string;
 }
 
@@ -50,7 +54,7 @@ export function useRoomAvailability(input: RoomAvailabilityInput): RoomAvailabil
     discardRef.current = shouldDiscard;
   });
   const roomKey = input.roomTypeIds.join('|');
-  const requestKey = `${lodgeId ?? ''}#${roomKey}#${checkInDate}#${checkOutDate}`;
+  const requestKey = `${lodgeId ?? ''}#${roomKey}#${checkInDate}#${checkOutDate}#${input.refreshKey ?? 0}`;
   const active = enabled && Boolean(lodgeId) && roomKey !== '';
   const [completed, setCompleted] = useState<CompletedCheck | null>(null);
 
@@ -68,15 +72,19 @@ export function useRoomAvailability(input: RoomAvailabilityInput): RoomAvailabil
             lodgeId,
             roomTypeId,
           });
-          return [roomTypeId, result.availableRoomCount] as const;
+          return [roomTypeId, result.availableRoomCount, result.priceSummary?.totalAmount] as const;
         }),
       ).then((results) => {
         if (cancelled || discardRef.current?.()) return;
         const counts: Record<string, number> = {};
+        const totals: Record<string, number> = {};
         for (const result of results) {
-          if (result.status === 'fulfilled') counts[result.value[0]] = result.value[1];
+          if (result.status === 'fulfilled') {
+            counts[result.value[0]] = result.value[1];
+            if (result.value[2] !== undefined) totals[result.value[0]] = Number(result.value[2]);
+          }
         }
-        setCompleted({ counts, key: requestKey });
+        setCompleted({ counts, totals, key: requestKey });
       });
     }, AVAILABILITY_DEBOUNCE_MS);
     return () => {
@@ -91,6 +99,7 @@ export function useRoomAvailability(input: RoomAvailabilityInput): RoomAvailabil
     allFull: roomTypeIds.length > 0 && roomTypeIds.every((id) => counts[id] === 0),
     checking: active && completed?.key !== requestKey,
     counts,
+    totals: completed?.key === requestKey ? completed.totals : {},
   };
 }
 

@@ -62,7 +62,7 @@ export function LodgeListScreen() {
         ListEmptyComponent={
           lodges.isLoading ? (
             <ActivityIndicator animating size="large" />
-          ) : (
+          ) : lodges.errorMessage ? null : (
             <EmptyState
               title="No lodges found"
               description="Try a different search or remove a few filters."

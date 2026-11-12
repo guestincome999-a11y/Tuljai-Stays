@@ -1,6 +1,7 @@
 import type {
   AdminDashboardSummary,
   BookingReportRow,
+  BookingReportPdf,
   CommissionSummary,
   LodgeCommissionFinanceReport,
   LodgeCommissionOverviewRow,
@@ -12,6 +13,7 @@ import type {
 import { apiClient } from './client';
 
 export interface BiReportQuery {
+  reportType?: 'all' | 'completed';
   cityId?: string;
   endDate?: string;
   limit?: number;
@@ -35,6 +37,7 @@ export async function listBookingReport(
       lodgeId: query.lodgeId,
       page: query.page ?? 1,
       startDate: query.startDate,
+      reportType: query.reportType,
     },
   });
 }
@@ -50,6 +53,7 @@ export async function listOccupancyReport(
       lodgeId: query.lodgeId,
       page: query.page ?? 1,
       startDate: query.startDate,
+      reportType: query.reportType,
     },
   });
 }
@@ -63,7 +67,15 @@ export async function listCommissionReport(
       endDate: query.endDate,
       lodgeId: query.lodgeId,
       startDate: query.startDate,
+      reportType: query.reportType,
     },
+  });
+}
+
+export function exportBookingReportPdf(query: BiReportQuery): Promise<BookingReportPdf> {
+  return apiClient.get<BookingReportPdf>('/admin/reports/bookings/pdf', {
+    params: query,
+    timeout: 120_000,
   });
 }
 

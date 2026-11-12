@@ -1,5 +1,6 @@
 import { ApiClient, readPublicEnvironment } from '@tuljai/shared';
 import type { RefreshTokenResponse } from '@tuljai/types';
+import { ApplicationError } from '@tuljai/utils';
 
 import { updateStoredAccessToken } from '../auth/auth-session-store';
 import { secureTokenStore } from '../auth/secure-token-store';
@@ -36,10 +37,11 @@ async function refreshPilgrimAccessToken(): Promise<string | null> {
         deviceId: await getOrCreateDeviceId(),
         refreshToken,
       });
-      await updateStoredAccessToken(response.accessToken);
+      await updateStoredAccessToken(response.accessToken, response.sessionExpiresAt);
       return response.accessToken;
-    } catch {
-      return null;
+    } catch (error) {
+      if (error instanceof ApplicationError && error.details.statusCode === 401) return null;
+      throw error;
     }
   })().finally(() => {
     pilgrimRefreshPromise = null;

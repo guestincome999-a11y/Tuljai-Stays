@@ -1,6 +1,7 @@
 import type { QrScanLogEntry, QrScanResult } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
 
+import { useRealtime } from '../../../realtime/realtime-provider';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { listQrScanHistory } from '../api/checkin-api';
 
@@ -14,6 +15,7 @@ interface ScanHistoryState {
 }
 
 export function useScanHistory(filter: ScanHistoryFilter) {
+  const realtime = useRealtime();
   const assignedLodges = useAssignedLodges();
   const lodgeId = assignedLodges.selectedLodge?.id ?? null;
   const [state, setState] = useState<ScanHistoryState>({
@@ -69,7 +71,13 @@ export function useScanHistory(filter: ScanHistoryFilter) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, realtime.connectionRevision]);
+
+  useEffect(() => {
+    const event = realtime.lastEvent;
+    if (event?.payload.lodgeId && event.payload.lodgeId !== lodgeId) return;
+    if (event?.name === 'checkin:completed' || event?.name === 'qr:scan-failed') void load(true);
+  }, [load, lodgeId, realtime.lastEvent]);
 
   return {
     ...state,

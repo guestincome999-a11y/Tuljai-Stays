@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { newCheckoutAttemptKey } from '../../features/bookings/checkout-attempt';
+
 import { holdPrepaidRoom, isRoomFullError, releasePrepaidHold } from './booking';
 import type { PrepaidOrder, StayRequest } from './booking';
 
@@ -38,7 +40,9 @@ export function usePrepaidHold({ enabled, stay }: { enabled: boolean; stay: Stay
   const [status, setStatus] = useState<HoldStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [roomFull, setRoomFull] = useState(false);
-  const [order, setOrder] = useState<PrepaidOrder | null>(null);
+  const [preparedOrder, setOrder] = useState<{ signature: string; order: PrepaidOrder } | null>(
+    null,
+  );
   const [refreshTick, setRefreshTick] = useState(0);
 
   const stayRef = useRef(stay);
@@ -48,6 +52,7 @@ export function usePrepaidHold({ enabled, stay }: { enabled: boolean; stay: Stay
   const paymentStartedRef = useRef(false);
   const refreshDueRef = useRef(false);
   const firstPrepareRef = useRef(true);
+  const attemptRef = useRef<{ signature: string; key: string } | null>(null);
 
   const prepare = useCallback(
     (force = false): Promise<PreparedHold> => {
@@ -56,11 +61,16 @@ export function usePrepaidHold({ enabled, stay }: { enabled: boolean; stay: Stay
       const current = heldRef.current;
       if (current && current.signature === signature && !force) return current.promise;
 
+      if (force || attemptRef.current?.signature !== signature) {
+        attemptRef.current = { signature, key: newCheckoutAttemptKey() };
+      }
+      const attemptKey = attemptRef.current.key;
+
       const release = current ? releaseHeld(current.promise) : Promise.resolve();
       pendingReleaseRef.current = release;
       const promise = (async (): Promise<PreparedHold> => {
         await release;
-        const prepared = await holdPrepaidRoom(wanted);
+        const prepared = await holdPrepaidRoom(wanted, attemptKey);
         return { lockCode: prepared.lockCode, order: prepared, preparedAt: Date.now() };
       })();
       heldRef.current = { promise, signature };
@@ -89,7 +99,7 @@ export function usePrepaidHold({ enabled, stay }: { enabled: boolean; stay: Stay
         prepare(force)
           .then((prepared) => {
             if (cancelled) return;
-            setOrder(prepared.order);
+            setOrder({ signature, order: prepared.order });
             setStatus('ready');
             refreshTimer = setTimeout(
               () => {
@@ -124,6 +134,7 @@ export function usePrepaidHold({ enabled, stay }: { enabled: boolean; stay: Stay
     const held = heldRef.current;
     heldRef.current = null;
     if (held) pendingReleaseRef.current = releaseHeld(held.promise);
+    attemptRef.current = null;
     setOrder(null);
     setStatus('idle');
   }, [enabled]);
@@ -161,7 +172,7 @@ export function usePrepaidHold({ enabled, stay }: { enabled: boolean; stay: Stay
     },
     ensureReady,
     error,
-    order,
+    order: enabled && preparedOrder?.signature === signature ? preparedOrder.order : null,
     /** Resolves once any release triggered by switching to pay-at-lodge has landed. */
     settled: (): Promise<void> => pendingReleaseRef.current,
     roomFull,

@@ -1,10 +1,25 @@
 import type { BookingGuestIdProofUpload } from '@tuljai/types';
 import { useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { bookPayAtLodge, confirmPrepaidBooking } from '../../core/booking';
+import type { PaymentRecoveryStatus } from '../../../features/bookings/api/bookings-api';
+import { guestCapacityError } from '../../../features/bookings/guest-capacity';
+import {
+  readPendingPayment,
+  rememberPendingPayment,
+  clearPendingPayment,
+} from '../../../features/bookings/payment-recovery-store';
+import { useStayPrice } from '../../../features/bookings/useStayPrice';
+import { BookingOutcomeScreen } from '../../../pilgrim-ui/components/BookingOutcomeScreen';
 import type { GuestBookingDetails, StayRequest } from '../../core/booking';
+import {
+  bookPayAtLodge,
+  fetchAvailability,
+  confirmPrepaidBooking,
+  preparePrepaidIntent,
+} from '../../core/booking';
+import { getPrepaidPaymentStatus, confirmRecoveredPayment } from '../../core/booking';
 import { fetchLodge } from '../../core/catalog';
 import { useRemoteConfig } from '../../core/config';
 import { addDays, daysBetween, formatShortDate, startOfToday, toDateOnly } from '../../core/dates';
@@ -38,7 +53,7 @@ export interface BookingScreenProps {
   onBooked: (bookingId: string, method: PaymentMethod) => void;
 }
 
-type FieldKey = 'email' | 'id' | 'name' | 'phone' | 'terms';
+type FieldKey = 'guests' | 'email' | 'id' | 'name' | 'phone' | 'terms';
 
 export function BookingScreen({
   initialRoomTypeId,
@@ -72,6 +87,8 @@ export function BookingScreen({
   const [agree, setAgree] = useState(true);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [outcome, setOutcome] = useState<{ id: string; method: PaymentMethod } | null>(null);
+  const complete = (id: string, method: PaymentMethod) => setOutcome({ id, method });
   const [failure, setFailure] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [roomTakenWhileBooking, setRoomTakenWhileBooking] = useState(false);
@@ -100,7 +117,8 @@ export function BookingScreen({
 
   const selectedCount = room ? counts[room.id] : undefined;
   const roomFull = hold.roomFull || selectedCount === 0 || roomTakenWhileBooking;
-  const estimate = room ? Number(room.basePrice) * nights : 0;
+  const priceQuote = useStayPrice(stay, fetchAvailability);
+  const estimate = priceQuote.amount ?? (room ? Number(room.basePrice) * nights : 0);
   // Once the hold exists, the order amount (in paise) is the exact figure Razorpay will charge.
   const total = hold.order && method === 'ONLINE' ? hold.order.amount / 100 : estimate;
   const maxAdults = Math.max(room?.capacityAdults ?? 1, 1);
@@ -118,6 +136,8 @@ export function BookingScreen({
 
   function validate(): boolean {
     const next: Partial<Record<FieldKey, string>> = {};
+    const capacityError = guestCapacityError(adults, children, maxAdults, maxChildren);
+    if (capacityError) next.guests = capacityError;
     if (name.trim().length === 0) next.name = t(bookingStrings.nameInvalid);
     if (phone.replace(/\D/gu, '').length !== 10) next.phone = t(bookingStrings.phoneInvalid);
     if (email.trim().length > 0 && !/^\S+@\S+\.\S+$/u.test(email.trim())) {
@@ -130,7 +150,75 @@ export function BookingScreen({
     return Object.keys(next).length === 0;
   }
 
+  async function resumePayment(previous: NonNullable<PaymentRecoveryStatus['retryCheckout']>) {
+    if (!session.user?.id) return;
+    setSubmitting(true);
+    try {
+      const payment = await openRazorpay(previous.order, {
+        description: `${previous.lodgeName}: ${previous.checkInDate} to ${previous.checkOutDate}`,
+        name: previous.guestDetails.guestName,
+        phone: previous.guestDetails.guestPhone,
+        themeColor: colors.primary,
+      });
+      const booking = await confirmRecoveredPayment({ ...previous.guestDetails, ...payment });
+      await clearPendingPayment(session.user.id);
+      complete(booking.id, 'ONLINE');
+    } catch {
+      setFailure(
+        'Payment status is uncertain. Retry to check your existing payment; do not start another payment.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function submit() {
+    if (session.user?.id) {
+      setSubmitting(true);
+      try {
+        const pending = await readPendingPayment(session.user.id);
+        if (pending) {
+          const status = await getPrepaidPaymentStatus(pending);
+          if (status.status === 'CONFIRMED' && status.bookingId) {
+            await clearPendingPayment(session.user.id);
+            complete(status.bookingId, 'ONLINE');
+          } else if (status.retryCheckout) {
+            const previous = status.retryCheckout;
+            Alert.alert(
+              'Resume previous payment',
+              `${previous.lodgeName}: ${previous.checkInDate} to ${previous.checkOutDate}. Total ${formatRupees(previous.order.amount / 100)}.`,
+              [
+                { text: 'Later', style: 'cancel' },
+                {
+                  text: 'Resume',
+                  onPress: () => {
+                    void resumePayment(previous);
+                  },
+                },
+              ],
+            );
+          } else
+            setFailure(
+              status.recoveryRequired
+                ? 'Payment needs operator review. Do not pay again; contact support.'
+                : 'Payment is pending. Retry to check status; do not pay again.',
+            );
+          return;
+        }
+      } catch (cause) {
+        setFailure(
+          cause instanceof Error ? cause.message : 'Payment status unavailable. Please retry.',
+        );
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
+    if (method === 'PAY_AT_LODGE' && priceQuote.amount === null) {
+      priceQuote.retry();
+      setFailure('Current price is unavailable. Please wait and retry.');
+      return;
+    }
     if (!stay || !room || !idProof) {
       validate();
       return;
@@ -157,28 +245,27 @@ export function BookingScreen({
       if (method === 'ONLINE') {
         // Normally resolves instantly because the hold and order were prepared in the background.
         const prepared = await hold.ensureReady();
+        await preparePrepaidIntent(prepared.lockCode, details);
+        if (!session.user?.id) throw new Error('Please sign in again before payment.');
+        await rememberPendingPayment(session.user.id, prepared.order.orderId);
         hold.beginPayment();
-        let payment;
-        try {
-          payment = await openRazorpay(prepared.order, {
-            description: `${data?.lodge.name ?? ''} · ${room.name}`,
-            email: details.guestEmail,
-            name: details.guestName,
-            phone: phone.replace(/\D/gu, ''),
-            themeColor: colors.primary,
-          });
-        } catch (openError) {
-          hold.cancelPayment();
-          throw openError;
-        }
+        const payment = await openRazorpay(prepared.order, {
+          description: `${data?.lodge.name ?? ''} · ${room.name}`,
+          email: details.guestEmail,
+          name: details.guestName,
+          phone: phone.replace(/\D/gu, ''),
+          themeColor: colors.primary,
+        });
+
         captured = payment.paymentId;
         const booking = await confirmPrepaidBooking(prepared.lockCode, details, payment);
         hold.consume();
-        onBooked(booking.id, 'ONLINE');
+        await clearPendingPayment(session.user.id);
+        complete(booking.id, 'ONLINE');
       } else {
         await hold.settled();
         const booking = await bookPayAtLodge(stay, details);
-        onBooked(booking.id, 'PAY_AT_LODGE');
+        complete(booking.id, 'PAY_AT_LODGE');
       }
     } catch (cause) {
       if (cause instanceof PaymentDismissedError) return;
@@ -195,6 +282,33 @@ export function BookingScreen({
       setSubmitting(false);
     }
   }
+
+  if (outcome || failure)
+    return (
+      <BookingOutcomeScreen
+        success={Boolean(outcome)}
+        busy={submitting}
+        title={
+          outcome
+            ? outcome.method === 'ONLINE'
+              ? 'Booking confirmed!'
+              : 'Booking request sent'
+            : 'Payment needs attention'
+        }
+        message={
+          outcome
+            ? outcome.method === 'ONLINE'
+              ? 'Your payment is verified and your stay is confirmed.'
+              : 'Your request is with the lodge owner for approval.'
+            : (failure ?? '')
+        }
+        onContinue={() => {
+          if (outcome) onBooked(outcome.id, outcome.method);
+          else void submit();
+        }}
+        onBack={outcome ? undefined : () => setFailure(null)}
+      />
+    );
 
   const header = (
     <View style={[styles.header, { paddingTop: insets.top + space.md }]}>
@@ -351,6 +465,11 @@ export function BookingScreen({
 
         <View style={[styles.card, styles.stack, { backgroundColor: colors.surface }]}>
           <Text variant="heading">{t(bookingStrings.guests)}</Text>
+          {guestCapacityError(adults, children, maxAdults, maxChildren) ? (
+            <Text color="danger">
+              {guestCapacityError(adults, children, maxAdults, maxChildren)}
+            </Text>
+          ) : null}
           <GuestStepper
             label={t(bookingStrings.adults)}
             max={maxAdults}

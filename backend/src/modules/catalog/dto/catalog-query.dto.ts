@@ -1,6 +1,17 @@
 import { PropertyType } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { catalogPrice } from '@tuljai/utils';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export const CATALOG_SORTS = ['distance', 'name', 'price', 'rating'] as const;
 export type CatalogSort = (typeof CATALOG_SORTS)[number];
@@ -22,16 +33,24 @@ export class CatalogQueryDto {
   @Type(() => Number)
   maxDistance?: number;
 
-  @IsInt()
+  @IsNumber({ allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(0)
-  @Type(() => Number)
+  @Transform(({ value }: { value: unknown }) =>
+    value === undefined || value === null || value === ''
+      ? undefined
+      : (catalogPrice(value) ?? NaN),
+  )
   maxPrice?: number;
 
-  @IsInt()
+  @IsNumber({ allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(0)
-  @Type(() => Number)
+  @Transform(({ value }: { value: unknown }) =>
+    value === undefined || value === null || value === ''
+      ? undefined
+      : (catalogPrice(value) ?? NaN),
+  )
   minPrice?: number;
 
   @IsInt()

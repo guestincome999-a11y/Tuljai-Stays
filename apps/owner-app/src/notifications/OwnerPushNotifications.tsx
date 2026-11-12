@@ -9,13 +9,10 @@ import {
   rejectOwnerBooking,
 } from '../features/bookings/api/owner-bookings-api';
 import { saveSelectedLodgeId } from '../features/lodges/storage/selected-lodge-store';
-import { markNotificationRead } from '../features/notifications/api/owner-notifications-api';
 import {
   refreshNotificationUnreadCount,
-  setNotificationUnreadCount,
-  subscribeNotificationUnreadCount,
+  notificationState,
 } from '../features/notifications/notification-count-store';
-import { useRealtime } from '../realtime/realtime-provider';
 
 import { publishBookingAlert } from './booking-alert-events';
 import {
@@ -23,35 +20,24 @@ import {
   registerOwnerPushNotifications,
   registerRotatedOwnerPushToken,
   REJECT_BOOKING_ACTION,
-  syncOwnerNotificationBadge,
 } from './push-registration';
 
 export function OwnerPushNotifications() {
   const auth = useAuth();
-  const realtime = useRealtime();
   const router = useRouter();
   const handledResponseId = useRef<string | null>(null);
 
   // Refreshes the shared unread-count store (which also drives the dashboard
-  // bell). The OS app-icon badge is written only by the store subscription
-  // below — never directly from a fetch result, which could land out of order
+  // bell). NotificationSync writes the OS badge from this state, so an old
+  // fetch result cannot overwrite the latest badge.
   // and leave the badge stuck on a stale number.
   const refreshBadge = useCallback(async () => {
     if (!auth.isAuthenticated) {
-      setNotificationUnreadCount(0);
       return;
     }
 
     await refreshNotificationUnreadCount();
   }, [auth.isAuthenticated]);
-
-  useEffect(
-    () =>
-      subscribeNotificationUnreadCount((count) => {
-        void syncOwnerNotificationBadge(count);
-      }),
-    [],
-  );
 
   const handleResponse = useCallback(
     async (response: Notifications.NotificationResponse) => {
@@ -72,9 +58,9 @@ export function OwnerPushNotifications() {
           .catch(() => false);
 
         if (accepted && notificationId) {
-          await markNotificationRead(notificationId).catch(() => undefined);
+          void notificationState.markRead(notificationId);
         }
-        await refreshBadge();
+        void refreshBadge();
         router.push({
           pathname: '/(app)/bookings/[id]',
           params: { actionResult: accepted ? 'accepted' : 'failed', id: bookingId },
@@ -89,9 +75,9 @@ export function OwnerPushNotifications() {
           .catch(() => false);
 
         if (rejected && notificationId) {
-          await markNotificationRead(notificationId).catch(() => undefined);
+          void notificationState.markRead(notificationId);
         }
-        await refreshBadge();
+        void refreshBadge();
         router.push({
           pathname: '/(app)/bookings/[id]',
           params: { actionResult: rejected ? 'rejected' : 'failed', id: bookingId },
@@ -100,9 +86,9 @@ export function OwnerPushNotifications() {
       }
 
       if (notificationId) {
-        await markNotificationRead(notificationId).catch(() => undefined);
+        void notificationState.markRead(notificationId);
       }
-      await refreshBadge();
+      void refreshBadge();
 
       const type = readString(data.type);
       const announcementId = readString(data.announcementId);
@@ -148,7 +134,6 @@ export function OwnerPushNotifications() {
 
   useEffect(() => {
     if (!auth.isAuthenticated) {
-      setNotificationUnreadCount(0);
       return undefined;
     }
 
@@ -200,22 +185,6 @@ export function OwnerPushNotifications() {
       tokenSubscription.remove();
     };
   }, [auth.isAuthenticated, handleResponse, refreshBadge]);
-
-  useEffect(() => {
-    const event = realtime.lastEvent;
-
-    if (event?.name === 'notification:unread-count') {
-      const unreadCount = event.payload.unreadCount;
-      if (typeof unreadCount === 'number') {
-        setNotificationUnreadCount(unreadCount);
-      }
-      return;
-    }
-
-    if (event?.name === 'notification:new') {
-      void refreshBadge();
-    }
-  }, [realtime.lastEvent, refreshBadge]);
 
   return null;
 }

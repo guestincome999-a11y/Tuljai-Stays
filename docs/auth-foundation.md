@@ -29,13 +29,16 @@ Module 02 Sequence 01 adds the backend foundation for OTP authentication, users,
 | ------------------------------- | ------- | ----------------------------------------------------- |
 | `JWT_ACCESS_SECRET`             | none    | Required                                              |
 | `JWT_REFRESH_SECRET`            | none    | Required                                              |
-| `JWT_ACCESS_TOKEN_TTL`          | `15m`   | Used for access token expiry                          |
-| `JWT_REFRESH_TOKEN_TTL`         | `30d`   | Used for refresh token persistence expiry             |
+| `JWT_ACCESS_EXPIRES_IN`         | `15m`   | Used for access token expiry                          |
+| `JWT_REFRESH_EXPIRES_IN`        | `180d`  | Used for refresh token persistence expiry             |
+| `AUTH_SESSION_MAX_AGE_DAYS`     | `180`   | Fixed maximum lifetime from original login            |
 | `OTP_TTL_SECONDS`               | `300`   | OTP expiry in seconds                                 |
 | `OTP_MAX_ATTEMPTS`              | `5`     | Max verification attempts per OTP                     |
 | `OTP_RATE_LIMIT_WINDOW_SECONDS` | `900`   | OTP request rate-limit window                         |
 | `OTP_RATE_LIMIT_MAX_REQUESTS`   | `5`     | Max OTP requests per phone and purpose per window     |
 | `ALLOW_DEV_OTP_RESPONSE`        | `false` | Returns OTP only when true and `NODE_ENV=development` |
+
+See [Persistent authentication sessions](persistent-auth-sessions.md) for fixed 180-day limits, secure client persistence, migration and tests.
 
 ## Security Notes
 
@@ -53,7 +56,6 @@ Module 02 Sequence 01 adds the backend foundation for OTP authentication, users,
 ## Future Work
 
 - Add SMS provider integration.
-- Add persistent secure token storage in mobile apps.
 - Add admin bootstrap or invite workflow.
 - Add tests for OTP rate limiting, token refresh, logout, and RBAC.
 - Add API throttling middleware if broader rate limits are needed beyond OTP requests.

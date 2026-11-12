@@ -31,7 +31,7 @@ export class PhotosController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('lodgeId') lodgeId: string,
     @Req() request: FastifyRequest,
-  ): Promise<{ fileUrl: string }> {
+  ): Promise<{ fileUrl: string; thumbnailUrl?: string }> {
     const file = await request.file();
     if (!file) {
       throw new BadRequestException('Select a photo to upload');

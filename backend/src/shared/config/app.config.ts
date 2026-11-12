@@ -19,8 +19,10 @@ export const appConfig = registerAs('api', () => ({
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET,
     refreshSecret: process.env.JWT_REFRESH_SECRET,
-    accessTokenTtl: process.env.JWT_ACCESS_TOKEN_TTL ?? '15m',
-    refreshTokenTtl: process.env.JWT_REFRESH_TOKEN_TTL ?? '30d',
+    accessTokenTtl: process.env.JWT_ACCESS_EXPIRES_IN ?? process.env.JWT_ACCESS_TOKEN_TTL ?? '15m',
+    refreshTokenTtl:
+      process.env.JWT_REFRESH_EXPIRES_IN ?? process.env.JWT_REFRESH_TOKEN_TTL ?? '180d',
+    sessionMaxAgeDays: Number(process.env.AUTH_SESSION_MAX_AGE_DAYS ?? 180),
   },
   otp: {
     ttlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 300),

@@ -11,6 +11,7 @@ import type {
 } from '@tuljai/types';
 
 import { apiClient } from '../../../api/client';
+import type { CatalogPage } from '../../../v2/core/catalog';
 import type { LodgeDetailsView, LodgePreview, LodgeSearchQuery } from '../types/lodge-discovery';
 
 interface PublicLodgeQuery {
@@ -20,8 +21,6 @@ interface PublicLodgeQuery {
   propertyType?: PropertyType;
   search?: string;
 }
-
-const TULJAPUR_CITY_SLUG = 'tuljapur';
 
 // Lodge details, photos and room types (prices!) are edited from the admin
 // panel at any time, so cached copies expire quickly instead of living for the
@@ -198,20 +197,22 @@ export async function listAnnouncementsPreview(): Promise<Announcement[]> {
 export async function searchLodgePreviews(
   query: LodgeSearchQuery,
 ): Promise<PaginatedResponse<LodgePreview>> {
-  const response = await listPublicLodges({
-    citySlug: TULJAPUR_CITY_SLUG,
-    page: query.page,
-    pageSize: query.pageSize,
-    propertyType: query.propertyType,
-    search: query.search,
+  const response = await apiClient.get<CatalogPage>('/catalog/lodges', {
+    params: {
+      page: query.page,
+      pageSize: query.pageSize,
+      propertyType: query.propertyType,
+      search: query.search,
+      amenities: query.amenitySlugs.join(','),
+      minPrice: query.priceMin,
+      maxPrice: query.priceMax,
+      maxDistance: query.distanceMaxMeters,
+      sort: query.sort === 'newest' ? 'name' : query.sort,
+    },
+    timeout: 60_000,
   });
-  const previews = await Promise.all(response.items.map((lodge) => toLodgePreview(lodge)));
-  const filtered = applyClientFilters(previews, query);
-
-  return {
-    ...response,
-    items: sortLodgePreviews(filtered, query.sort),
-  };
+  const items = await Promise.all(response.items.map((card) => getLodgePreview(card.id)));
+  return { ...response, items };
 }
 
 export async function loadHomeDiscoverySnapshot(): Promise<{
@@ -238,67 +239,11 @@ export async function loadHomeDiscoverySnapshot(): Promise<{
   };
 }
 
-function applyClientFilters(previews: LodgePreview[], query: LodgeSearchQuery): LodgePreview[] {
-  return previews.filter((preview) => {
-    const price = getRoomPrice(preview.roomTypePreview);
-    const distance = preview.lodge.distanceFromTempleMeters;
-    const hasAmenities =
-      query.amenitySlugs.length === 0 ||
-      query.amenitySlugs.every((slug) =>
-        preview.amenities.some((amenity) => amenity.slug.toLowerCase() === slug.toLowerCase()),
-      );
-
-    if (!hasAmenities) {
-      return false;
-    }
-
-    if (query.priceMin !== undefined && (!price || price < query.priceMin)) {
-      return false;
-    }
-
-    if (query.priceMax !== undefined && (!price || price > query.priceMax)) {
-      return false;
-    }
-
-    if (
-      query.distanceMaxMeters !== undefined &&
-      (distance === null || distance > query.distanceMaxMeters)
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function sortLodgePreviews(
-  previews: LodgePreview[],
-  sort: LodgeSearchQuery['sort'],
-): LodgePreview[] {
-  return [...previews].sort((left, right) => {
-    if (sort === 'price') {
-      return (
-        (getRoomPrice(left.roomTypePreview) ?? Number.MAX_SAFE_INTEGER) -
-        (getRoomPrice(right.roomTypePreview) ?? Number.MAX_SAFE_INTEGER)
-      );
-    }
-
-    if (sort === 'distance') {
-      return (
-        (left.lodge.distanceFromTempleMeters ?? Number.MAX_SAFE_INTEGER) -
-        (right.lodge.distanceFromTempleMeters ?? Number.MAX_SAFE_INTEGER)
-      );
-    }
-
-    return left.lodge.name.localeCompare(right.lodge.name);
-  });
-}
-
 async function toLodgePreview(lodge: Lodge): Promise<LodgePreview> {
   const [details, photos, roomTypes] = await Promise.all([
-    getLodgeDetails(lodge.id).catch(() => null),
+    getLodgeDetails(lodge.id),
     listLodgePhotos(lodge.id).catch(() => []),
-    listLodgeRoomTypes(lodge.id).catch(() => []),
+    listLodgeRoomTypes(lodge.id),
   ]);
   const coverPhoto = photos.find((photo) => photo.isCover) ?? photos[0] ?? null;
 
@@ -308,14 +253,4 @@ async function toLodgePreview(lodge: Lodge): Promise<LodgePreview> {
     lodge,
     roomTypePreview: roomTypes[0] ?? null,
   };
-}
-
-function getRoomPrice(roomType: RoomType | null): number | null {
-  if (!roomType) {
-    return null;
-  }
-
-  const parsed = Number(roomType.basePrice);
-
-  return Number.isFinite(parsed) ? parsed : null;
 }

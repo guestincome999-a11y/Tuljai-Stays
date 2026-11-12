@@ -1,5 +1,6 @@
 import { emptyAuthSession, type AuthSession } from '@tuljai/shared';
 import type { AuthUserProfile, UserRole } from '@tuljai/types';
+import { ApplicationError, isAccessTokenFresh } from '@tuljai/utils';
 import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -68,15 +69,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (isAccessTokenFresh(restored.tokens?.accessToken)) {
+        setSession(restored);
+        apiClient.resetSessionExpiredFlag();
+        setBootstrapComplete(true);
+        return;
+      }
+
       if (restored.tokens?.refreshToken) {
-        const refreshed = await refreshAccessToken(restored.tokens.refreshToken).catch(() => null);
+        let refreshed;
+        try {
+          refreshed = await refreshAccessToken(restored.tokens.refreshToken);
+        } catch (error) {
+          if (!(error instanceof ApplicationError) || error.details.statusCode !== 401) {
+            setSession(restored);
+            setBootstrapComplete(true);
+            return;
+          }
+          refreshed = null;
+        }
 
         if (refreshed) {
           const nextSession = {
             ...restored,
             tokens: {
               ...restored.tokens,
-              accessToken: refreshed.accessToken,
+              ...refreshed,
             },
           };
           await saveAuthSession(nextSession);
@@ -133,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const refreshToken = session.tokens?.refreshToken;
 
     if (refreshToken) {
-      await logoutFromApi(refreshToken).catch(() => undefined);
+      await logoutFromApi(refreshToken);
     }
 
     await clearAuthSession();
@@ -159,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...session,
       tokens: {
         ...session.tokens,
-        accessToken: refreshed.accessToken,
+        ...refreshed,
       },
     };
     await saveAuthSession(nextSession);

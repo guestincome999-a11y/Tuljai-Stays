@@ -33,7 +33,9 @@ export function useCachedFetch<T>(key: string, fetcher: () => Promise<T>): Cache
     try {
       const next = await fetcherRef.current();
       if (requestId !== latest.current) return;
+      cache.delete(key);
       cache.set(key, next);
+      if (cache.size > 40) cache.delete(cache.keys().next().value!);
       setData(next);
       setError(false);
     } catch {
@@ -45,12 +47,15 @@ export function useCachedFetch<T>(key: string, fetcher: () => Promise<T>): Cache
 
   useEffect(() => {
     setData(cache.get(key) as T | undefined);
+    setLoading(!cache.has(key));
+    setError(false);
     activeRefreshers.add(refresh);
     void refresh();
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void refresh();
     });
     return () => {
+      latest.current += 1;
       activeRefreshers.delete(refresh);
       subscription.remove();
     };

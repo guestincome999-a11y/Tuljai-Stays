@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -26,6 +27,7 @@ import {
   AdminBookingsQueryDto,
   BookingAvailabilityQueryDto,
   CancelBookingDto,
+  CollectPayAtLodgeDto,
   CreateBookingDto,
   CreateBookingLockDto,
   OwnerBookingsQueryDto,
@@ -54,6 +56,17 @@ export class BookingsController {
     private readonly guestRegisterService: GuestRegisterService,
     private readonly qrCheckinService: QrCheckinService,
   ) {}
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN', 'STAFF')
+  @Post('owner/bookings/:id/collect-payment')
+  public collectPayAtLodge(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CollectPayAtLodgeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.collectPayAtLodge(id, dto.expectedAmount, user);
+  }
 
   @UseGuards(JwtAuthGuard)
   @Post('bookings/lock')

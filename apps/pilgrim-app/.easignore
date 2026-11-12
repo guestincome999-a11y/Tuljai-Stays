@@ -15,6 +15,12 @@ web-build/
 android/
 ios/
 
+# Local Android signing material
+credentials.json
+credentials/
+*.jks
+*.keystore
+
 # Coverage and caches
 coverage/
 .turbo/

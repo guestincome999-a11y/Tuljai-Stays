@@ -2,6 +2,7 @@
 
 import { emptyAuthSession, type AuthSession } from '@tuljai/shared';
 import type { AuthUserProfile } from '@tuljai/types';
+import { ApplicationError } from '@tuljai/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   createContext,
@@ -118,16 +119,19 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        const nextSession = { ...storedSession, user: profile };
+        const nextSession = { ...getAuthSession(), user: profile };
         setAuthSession(nextSession);
 
         if (mounted) {
           setSession(nextSession);
         }
-      } catch {
-        await clearSession();
-        if (mounted) {
-          setErrorMessage('Your session expired. Please log in again.');
+      } catch (error) {
+        if (error instanceof ApplicationError && error.details.statusCode === 401) {
+          await clearSession();
+          if (mounted) setErrorMessage('Your session expired. Please log in again.');
+        } else if (mounted) {
+          setSession(getAuthSession());
+          setErrorMessage('Unable to connect. Your saved session will be retried.');
         }
       } finally {
         if (mounted) {
@@ -220,7 +224,7 @@ export function AdminAuthProvider({ children }: PropsWithChildren) {
         deactivateDeviceToken: true,
         deviceId: currentSession.activeSession.deviceId,
         refreshToken: currentSession.tokens.refreshToken,
-      }).catch(() => undefined);
+      });
     }
 
     await clearSession();

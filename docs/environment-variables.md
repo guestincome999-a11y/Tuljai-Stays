@@ -20,8 +20,9 @@
 | `DATABASE_URL`                            | Yes                    | Local PostgreSQL URL                          | Render PostgreSQL internal connection string.                                       |
 | `JWT_ACCESS_SECRET`                       | Yes                    | Local dummy only                              | Strong secret, at least 32 characters.                                              |
 | `JWT_REFRESH_SECRET`                      | Yes                    | Local dummy only                              | Strong secret, at least 32 characters.                                              |
-| `JWT_ACCESS_TOKEN_TTL`                    | No                     | `15m`                                         | Short-lived access token duration.                                                  |
-| `JWT_REFRESH_TOKEN_TTL`                   | No                     | `30d`                                         | Refresh token duration.                                                             |
+| `JWT_ACCESS_EXPIRES_IN`                   | No                     | `15m`                                         | Short-lived access token duration.                                                  |
+| `JWT_REFRESH_EXPIRES_IN`                  | No                     | `180d`                                        | Refresh token duration.                                                             |
+| `AUTH_SESSION_MAX_AGE_DAYS`               | No                     | `180`                                         | Fixed maximum lifetime from original login; never extended by refresh.              |
 | `OTP_TTL_SECONDS`                         | No                     | `300`                                         | OTP validity window.                                                                |
 | `OTP_MAX_ATTEMPTS`                        | No                     | `5`                                           | Maximum verification attempts per OTP request.                                      |
 | `OTP_RATE_LIMIT_WINDOW_SECONDS`           | No                     | `900`                                         | OTP request rate-limit window.                                                      |

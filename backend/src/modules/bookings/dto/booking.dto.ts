@@ -46,6 +46,12 @@ export class CreateBookingDto {
 export class CancelBookingDto {
   @IsOptional() @IsString() @MaxLength(500) reason?: string;
 }
+export class CollectPayAtLodgeDto {
+  @IsString()
+  @MaxLength(24)
+  @Matches(/^\d+(?:\.\d{1,2})?$/)
+  expectedAmount!: string;
+}
 export class RejectBookingDto {
   @IsString() @MaxLength(500) reason!: string;
 }

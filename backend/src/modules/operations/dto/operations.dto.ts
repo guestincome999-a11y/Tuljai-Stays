@@ -1,8 +1,12 @@
 import { BookingStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ReportQueryDto {
+  @IsIn(['all', 'completed'])
+  @IsOptional()
+  reportType?: 'all' | 'completed';
+
   @IsDateString()
   @IsOptional()
   startDate?: string;

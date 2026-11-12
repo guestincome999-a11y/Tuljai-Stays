@@ -7,6 +7,7 @@ import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { OfflineBanner } from '../src/components/OfflineBanner';
 import { ConnectivityProvider } from '../src/connectivity/connectivity-context';
 import { useDoubleBackToExit } from '../src/hooks/useDoubleBackToExit';
+import { NotificationSync } from '../src/notifications/NotificationSync';
 import { PilgrimPushNotifications } from '../src/notifications/PilgrimPushNotifications';
 import { PilgrimAppProvider } from '../src/pilgrim-ui/PilgrimAppProvider';
 import { RealtimeProvider } from '../src/realtime/realtime-provider';
@@ -30,6 +31,7 @@ export default function RootLayout() {
               <PilgrimAppProvider>
                 <PilgrimFontSwitcher>
                   <PilgrimPushNotifications />
+                  <NotificationSync />
                   <StatusBar style="dark" />
                   <OfflineBanner />
                   <Stack

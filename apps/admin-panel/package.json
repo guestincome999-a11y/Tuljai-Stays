@@ -6,8 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "lint": "eslint .",
-    "start": "next start",
-    "typecheck": "next typegen && tsc --noEmit"
+    "start": "node scripts/start.mjs",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --test scripts/booking-detail.test.mjs"
   },
   "dependencies": {
     "@tuljai/shared": "0.1.0",

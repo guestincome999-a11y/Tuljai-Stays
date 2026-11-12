@@ -3,7 +3,9 @@ import type { AdminBookingSummary, AuthenticatedUser } from '@tuljai/types';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { getAdminBookingActivity } from './admin-booking-activity';
 import { BookingsService } from './bookings.service';
+import { withCashCollection } from './cash-collection';
 
 @Injectable()
 export class AdminBookingDetailService {
@@ -33,8 +35,13 @@ export class AdminBookingDetailService {
       throw new NotFoundException('Booking not found');
     }
 
+    const [activity, enrichedBooking] = await Promise.all([
+      getAdminBookingActivity(this.prisma, booking),
+      withCashCollection(this.prisma, booking),
+    ]);
     return {
-      ...booking,
+      ...enrichedBooking,
+      activity,
       cityName: names.city.name,
       lodgeName: names.lodge.name,
       roomNumber: names.room?.roomNumber ?? null,

@@ -5,13 +5,13 @@ export function getOrCreateAdminDeviceId(): string {
     return 'admin-browser-server';
   }
 
-  const stored = window.sessionStorage.getItem(ADMIN_DEVICE_ID_KEY);
+  const stored = window.localStorage.getItem(ADMIN_DEVICE_ID_KEY);
 
   if (stored) {
     return stored;
   }
 
   const deviceId = crypto.randomUUID();
-  window.sessionStorage.setItem(ADMIN_DEVICE_ID_KEY, deviceId);
+  window.localStorage.setItem(ADMIN_DEVICE_ID_KEY, deviceId);
   return deviceId;
 }

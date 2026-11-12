@@ -5,10 +5,12 @@
     "slug": "tuljai-stays-owner",
     "scheme": "tuljaistays-owner",
     "icon": "./assets/icon.png",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "bundleIdentifier": "com.tuljaistays.owner",
       "infoPlist": {
@@ -20,11 +22,16 @@
     "android": {
       "package": "com.tuljaistays.owner",
       "googleServicesFile": "./google-services.json",
-      "permissions": ["CAMERA", "VIBRATE", "READ_MEDIA_IMAGES"],
+      "permissions": [
+        "CAMERA",
+        "VIBRATE",
+        "READ_MEDIA_IMAGES"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#861632",
         "foregroundImage": "./assets/adaptive-icon.png"
-      }
+      },
+      "versionCode": 24
     },
     "plugins": [
       "expo-router",

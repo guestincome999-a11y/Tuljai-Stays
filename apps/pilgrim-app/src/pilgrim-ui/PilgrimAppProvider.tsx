@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { AppState } from 'react-native';
 
@@ -20,29 +21,25 @@ import {
 } from '../features/bookings/api/bookings-api';
 import { invalidateLodgeCatalogCache } from '../features/lodges/api/lodge-discovery-api';
 import {
-  markAllNotificationsRead,
-  markNotificationRead as markBackendNotificationRead,
-} from '../features/notifications/api/notifications-api';
-import {
   getNotificationUnreadCount,
-  refreshNotificationUnreadCount,
-  setNotificationUnreadCount,
+  notificationState,
   subscribeNotificationUnreadCount,
 } from '../features/notifications/notification-count-store';
-import { syncPilgrimNotificationBadge } from '../notifications/push-registration';
-import { getEventBookingId, type PilgrimRealtimeEvent } from '../realtime/realtime-events';
+import { getEventBookingId } from '../realtime/realtime-events';
 import { useRealtime } from '../realtime/realtime-provider';
+import { catalogErrorKind } from '../v2/core/catalog-request';
 
 import {
   applyBackendBookingRecord,
   getFallbackNotifications,
   hydrateBackendLodge,
   loadBackendBookings,
-  loadBackendNotifications,
+  mapNotification,
   loadLodgeSummaries,
   mapBooking,
   synthesizeEnrichedBooking,
 } from './backend-sync';
+import { applyRealtimeBookingEvent, mergeBackendBookingSnapshot } from './booking-state';
 import {
   initialPilgrimBookings,
   pilgrimLodges,
@@ -82,6 +79,8 @@ interface CreateBookingInput {
 }
 
 interface PilgrimAppContextValue {
+  cacheLodgeSummaries: (items: PilgrimLodge[]) => void;
+  catalogRevision: number;
   bookingNotificationsEnabled: boolean;
   bookings: PilgrimBooking[];
   cancelBooking: (id: string, reason?: string) => Promise<void>;
@@ -97,6 +96,8 @@ interface PilgrimAppContextValue {
   favoriteIds: string[];
   isBackendConnected: boolean;
   isSyncing: boolean;
+  isLoadingLodges: boolean;
+  lodgeLoadError: string | null;
   language: PilgrimLanguage;
   lodges: PilgrimLodge[];
   markNotificationsRead: () => Promise<void>;
@@ -125,22 +126,26 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   );
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [loadedPreferencesUserId, setLoadedPreferencesUserId] = useState<string | null>(null);
-  const [lodges, setLodges] = useState<PilgrimLodge[]>(pilgrimLodges);
+  const [lodges, setLodges] = useState<PilgrimLodge[]>(mockMode ? pilgrimLodges : []);
   const [bookings, setBookings] = useState<PilgrimBooking[]>(
     mockMode ? initialPilgrimBookings : [],
   );
-  const [notifications, setNotifications] = useState<PilgrimNotification[]>(
-    mockMode ? getFallbackNotifications() : [],
+  const notificationItems = useSyncExternalStore(
+    notificationState.subscribe,
+    () => notificationState.getSnapshot().items,
+  );
+  const notifications = useMemo(
+    () => (mockMode ? getFallbackNotifications() : notificationItems.map(mapNotification)),
+    [mockMode, notificationItems],
   );
   const [isBackendConnected, setIsBackendConnected] = useState(false);
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [isSyncing, setIsSyncing] = useState(true);
+  const [isLoadingLodges, setIsLoadingLodges] = useState(true);
+  const [lodgeLoadError, setLodgeLoadError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(getNotificationUnreadCount());
-
-  // Bumped whenever the notification list is (re)fetched or changed locally, so
-  // only the most recent operation may write `notifications`. Without it a
-  // slow, older fetch resurrects an already-read notification as unread.
-  const notificationsVersionRef = useRef(0);
+  const privateDataVersionRef = useRef(0);
 
   // Tracks lodge ids currently being hydrated so ensureLodgesHydrated can be
   // called repeatedly (e.g. from a scroll handler) without firing duplicate
@@ -157,7 +162,31 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   // Bumped on every catalog reload so only the newest reload may write its
   // refreshed lodge details back into state (a slow older one is discarded).
   const lodgeLoadVersionRef = useRef(0);
+  const lodgeLoadPendingRef = useRef(false);
   const lastLodgeLoadAtRef = useRef(0);
+
+  const cacheLodgeSummaries = useCallback((items: PilgrimLodge[]) => {
+    setLodges((current) => {
+      const byId = new Map(current.map((item) => [item.id, item]));
+      for (const item of items) {
+        const previous = byId.get(item.id);
+        byId.set(
+          item.id,
+          previous?.hydrated && !item.hydrated
+            ? {
+                ...previous,
+                price: item.price,
+                priceAvailable: item.priceAvailable,
+                rating: item.rating,
+                reviewCount: item.reviewCount,
+                hero: item.hero || previous.hero,
+              }
+            : item,
+        );
+      }
+      return [...byId.values()];
+    });
+  }, []);
 
   const ensureLodgesHydrated = useCallback((lodgeIds: string[]) => {
     if (lodgeIds.length === 0) return;
@@ -171,8 +200,10 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         );
       toHydrate.forEach((lodge) => {
         hydratingIdsRef.current.add(lodge.id);
+        const revision = lodgeLoadVersionRef.current;
         void hydrateBackendLodge(lodge)
           .then((hydratedLodge) => {
+            if (revision !== lodgeLoadVersionRef.current) return;
             setLodges((prev) =>
               prev.map((item) => (item.id === hydratedLodge.id ? hydratedLodge : item)),
             );
@@ -195,92 +226,92 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     // instead of being served from the in-memory cache.
     invalidateLodgeCatalogCache();
     const loadVersion = ++lodgeLoadVersionRef.current;
-    const summaries = await loadLodgeSummaries();
-    if (loadVersion !== lodgeLoadVersionRef.current) return summaries;
+    lodgeLoadPendingRef.current = true;
+    setIsLoadingLodges(true);
+    setLodgeLoadError(null);
+    try {
+      const summaries = await loadLodgeSummaries();
+      if (loadVersion !== lodgeLoadVersionRef.current) return summaries;
 
-    // Lodges whose full details are already on screen keep them while fresh
-    // details load below, so a catalog refresh never flashes back to empty
-    // skeleton cards (and ensureLodgesHydrated, which only re-runs when the
-    // visible ids change, never has to rescue them).
-    const previousById = new Map(lodgesRef.current.map((lodge) => [lodge.id, lodge]));
-    const toRefresh: PilgrimLodge[] = [];
-    const merged = summaries.map((summary) => {
-      const previous = previousById.get(summary.id);
-      if (previous?.hydrated && summary.hydrated === false) {
-        toRefresh.push(previous);
-        return previous;
+      // Lodges whose full details are already on screen keep them while fresh
+      // details load below, so a catalog refresh never flashes back to empty
+      // skeleton cards (and ensureLodgesHydrated, which only re-runs when the
+      // visible ids change, never has to rescue them).
+      const previousById = new Map(lodgesRef.current.map((lodge) => [lodge.id, lodge]));
+      const toRefresh: PilgrimLodge[] = [];
+      const merged = summaries.map((summary) => {
+        const previous = previousById.get(summary.id);
+        if (previous?.hydrated && summary.hydrated === false) {
+          const refreshedSummary = {
+            ...previous, price: summary.price, priceAvailable: summary.priceAvailable,
+            rating: summary.rating, reviewCount: summary.reviewCount, hero: summary.hero,
+            amenities: summary.amenities, tags: summary.tags,
+          };
+          toRefresh.push(refreshedSummary);
+          return refreshedSummary;
+        }
+        return summary;
+      });
+
+      lastLodgeLoadAtRef.current = Date.now();
+      setLodges(merged);
+      setCatalogRevision((value) => value + 1);
+      hydratingIdsRef.current.clear();
+      setFavoriteIds((current) =>
+        current.map((favoriteId) => {
+          const matchingLodge = summaries.find(
+            (lodge) => lodge.id === favoriteId || lodge.slug === favoriteId,
+          );
+          return matchingLodge?.id ?? favoriteId;
+        }),
+      );
+
+      // Re-fetch full details (price, rooms, photos, content) for every lodge
+      // that was already hydrated and swap the fresh copy in place. If a
+      // request fails, hydrateBackendLodge hands back the previous copy
+      // unchanged.
+      toRefresh.forEach((previous) => {
+        void hydrateBackendLodge(previous)
+          .then((fresh) => {
+            if (loadVersion !== lodgeLoadVersionRef.current) return;
+            setLodges((current) => current.map((item) => (item.id === fresh.id ? fresh : item)));
+          })
+          .catch(() => undefined);
+      });
+
+      return summaries;
+    } catch (error) {
+      if (loadVersion === lodgeLoadVersionRef.current) {
+        setLodgeLoadError(catalogErrorKind(error) === 'network'
+          ? 'Connection interrupted or timed out. Check your internet and retry.'
+          : 'The server could not load stays. Please retry shortly.');
       }
-      return summary;
-    });
-
-    lastLodgeLoadAtRef.current = Date.now();
-    setLodges(merged);
-    hydratingIdsRef.current.clear();
-    setFavoriteIds((current) =>
-      current.map((favoriteId) => {
-        const matchingLodge = summaries.find(
-          (lodge) => lodge.id === favoriteId || lodge.slug === favoriteId,
-        );
-        return matchingLodge?.id ?? favoriteId;
-      }),
-    );
-
-    // Re-fetch full details (price, rooms, photos, content) for every lodge
-    // that was already hydrated and swap the fresh copy in place. If a
-    // request fails, hydrateBackendLodge hands back the previous copy
-    // unchanged.
-    toRefresh.forEach((previous) => {
-      void hydrateBackendLodge(previous)
-        .then((fresh) => {
-          if (loadVersion !== lodgeLoadVersionRef.current) return;
-          setLodges((current) => current.map((item) => (item.id === fresh.id ? fresh : item)));
-        })
-        .catch(() => undefined);
-    });
-
-    return summaries;
+      throw error;
+    } finally {
+      if (loadVersion === lodgeLoadVersionRef.current) {
+        lodgeLoadPendingRef.current = false;
+        setIsLoadingLodges(false);
+      }
+    }
   }, []);
 
   const loadPrivateData = useCallback(
     async (availableLodges: PilgrimLodge[]): Promise<PilgrimBooking[]> => {
+      const version = ++privateDataVersionRef.current;
       if (!auth.isAuthenticated) {
-        notificationsVersionRef.current += 1;
         setBookings([]);
-        setNotifications([]);
         return [];
       }
-      const notificationsVersion = ++notificationsVersionRef.current;
-      void refreshNotificationUnreadCount();
-      const [backendBookings, backendNotifications] = await Promise.all([
-        loadBackendBookings(availableLodges),
-        loadBackendNotifications(),
-      ]);
+      const backendBookings = await loadBackendBookings(availableLodges);
+      if (version !== privateDataVersionRef.current) return backendBookings;
       setBookings((current) => mergeBackendBookingSnapshot(current, backendBookings));
-      if (notificationsVersion === notificationsVersionRef.current) {
-        setNotifications(backendNotifications);
-      }
       return backendBookings;
     },
-    [auth.isAuthenticated],
+    [auth.isAuthenticated, auth.user?.id],
   );
 
-  const reloadNotifications = useCallback(async () => {
-    const version = ++notificationsVersionRef.current;
-    const items = await loadBackendNotifications();
-    if (version === notificationsVersionRef.current) setNotifications(items);
-  }, []);
-
-  // After any local read/unread change, re-align both the list and the count
-  // with the server once the request has settled (also reverts the optimistic
-  // change if the request failed).
-  const reconcileNotifications = useCallback(async () => {
-    await Promise.all([
-      reloadNotifications().catch(() => undefined),
-      refreshNotificationUnreadCount(),
-    ]);
-  }, [reloadNotifications]);
-
   const refresh = useCallback(async () => {
+    void notificationState.refresh();
     setIsSyncing(true);
     setSyncError(null);
     try {
@@ -292,9 +323,11 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         if (auth.isAuthenticated)
           setSyncError('Account updates are temporarily unavailable. Lodge details are live.');
       }
-    } catch {
+    } catch (error) {
       setIsBackendConnected(false);
-      setSyncError('Live data is temporarily unavailable. Showing saved lodge information.');
+      setSyncError(catalogErrorKind(error) === 'network'
+        ? 'Connection interrupted or timed out. Check your internet and retry.'
+        : 'The server could not load stays. Please retry shortly.');
     } finally {
       setIsSyncing(false);
     }
@@ -364,20 +397,27 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
         ),
       );
     }
-    void loadPrivateData(lodges).catch(() => undefined);
-  }, [auth.isAuthenticated, loadPrivateData, lodges, realtime.lastBookingEvent]);
+    void loadPrivateData(lodgesRef.current).catch(() => undefined);
+  }, [auth.isAuthenticated, loadPrivateData, realtime.lastBookingEvent]);
 
   useEffect(() => {
-    if (!auth.isAuthenticated || realtime.lastEvent?.name !== 'notification:new') return;
-    void reconcileNotifications();
-  }, [auth.isAuthenticated, reconcileNotifications, realtime.lastEvent]);
+    if (auth.isAuthenticated && realtime.lastEvent?.name === 'notification:new')
+      void loadPrivateData(lodgesRef.current).catch(() => undefined);
+  }, [auth.isAuthenticated, realtime.lastEvent, loadPrivateData]);
 
   useEffect(() => {
-    const event = realtime.lastEvent;
-    if (!auth.isAuthenticated || event?.name !== 'notification:unread-count') return;
-    const nextCount = event.payload.unreadCount;
-    if (typeof nextCount === 'number') setNotificationUnreadCount(nextCount);
-  }, [auth.isAuthenticated, realtime.lastEvent]);
+    const timer = setInterval(() => {
+      // A slow read must finish before polling starts another generation.
+      if (AppState.currentState === 'active' && !lodgeLoadPendingRef.current) {
+        void loadLodges().catch(() => undefined);
+      }
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [loadLodges]);
+
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) void loadLodges().catch(() => undefined);
+  }, [loadLodges, realtime.connectionRevision]);
 
   useEffect(() => {
     if (realtime.lastEvent?.name !== 'lodge:catalog-updated') return;
@@ -395,38 +435,24 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!auth.isAuthenticated || realtime.connectionRevision === 0) return;
-    void loadPrivateData(lodges).catch(() => undefined);
-  }, [auth.isAuthenticated, loadPrivateData, lodges, realtime.connectionRevision]);
+    void loadPrivateData(lodgesRef.current).catch(() => undefined);
+  }, [auth.isAuthenticated, loadPrivateData, realtime.connectionRevision]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active' && auth.isAuthenticated)
-        void loadPrivateData(lodges).catch(() => undefined);
+        void loadPrivateData(lodgesRef.current).catch(() => undefined);
     });
     return () => subscription.remove();
-  }, [auth.isAuthenticated, loadPrivateData, lodges]);
+  }, [auth.isAuthenticated, loadPrivateData]);
 
-  // One count (server-side, all pages) drives both the bell and the OS
-  // app-icon badge, and this is the only place that writes the OS badge. Every
-  // read path (in-app list, push tap, mark-all-read, realtime) updates the
-  // count store; several writers with different sources is what left the badge
-  // stuck on whichever value wrote last.
+  // All pages share the same count; NotificationSync owns native badge writes.
   useEffect(() => {
     setUnreadCount(getNotificationUnreadCount());
     return subscribeNotificationUnreadCount((count) => {
       setUnreadCount(count);
-      void syncPilgrimNotificationBadge(count);
     });
   }, []);
-
-  useEffect(() => {
-    if (!auth.isAuthenticated) setNotificationUnreadCount(0);
-  }, [auth.isAuthenticated]);
-
-  useEffect(() => {
-    if (!mockMode) return;
-    setNotificationUnreadCount(notifications.filter((item) => !item.read).length);
-  }, [mockMode, notifications]);
 
   const pendingBookingIds = useMemo(
     () =>
@@ -444,7 +470,7 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     let active = true;
     let requestInFlight = false;
     const syncPendingBookings = async () => {
-      if (requestInFlight) return;
+      if (requestInFlight || AppState.currentState !== 'active') return;
       requestInFlight = true;
       try {
         const records = await Promise.all(
@@ -476,6 +502,8 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<PilgrimAppContextValue>(
     () => ({
+      cacheLodgeSummaries,
+      catalogRevision,
       bookingNotificationsEnabled,
       bookings,
       cancelBooking: async (id, reason) => {
@@ -519,28 +547,12 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
       favoriteIds,
       isBackendConnected,
       isSyncing,
+      isLoadingLodges,
+      lodgeLoadError,
       language,
       lodges,
-      markNotificationsRead: async () => {
-        notificationsVersionRef.current += 1;
-        setNotifications((current) => current.map((item) => ({ ...item, read: true })));
-        setNotificationUnreadCount(0);
-        if (!auth.isAuthenticated) return;
-        await markAllNotificationsRead().catch(() => undefined);
-        await reconcileNotifications();
-      },
-      markNotificationRead: async (id) => {
-        // Not in the loaded page (e.g. opened from a push) still counts as unread.
-        const wasUnread = notifications.find((item) => item.id === id)?.read !== true;
-        notificationsVersionRef.current += 1;
-        setNotifications((current) =>
-          current.map((item) => (item.id === id ? { ...item, read: true } : item)),
-        );
-        if (wasUnread) setNotificationUnreadCount(getNotificationUnreadCount() - 1);
-        if (!auth.isAuthenticated) return;
-        await markBackendNotificationRead(id).catch(() => undefined);
-        await reconcileNotifications();
-      },
+      markNotificationsRead: notificationState.markAllRead,
+      markNotificationRead: notificationState.markRead,
       notifications,
       refresh,
       setBookingNotificationsEnabled,
@@ -558,17 +570,20 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     }),
     [
       auth.isAuthenticated,
+      cacheLodgeSummaries,
+      catalogRevision,
       bookingNotificationsEnabled,
       bookings,
       ensureLodgesHydrated,
       favoriteIds,
       isBackendConnected,
       isSyncing,
+      isLoadingLodges,
+      lodgeLoadError,
       language,
       loadPrivateData,
       lodges,
       notifications,
-      reconcileNotifications,
       refresh,
       syncError,
       unreadCount,
@@ -582,45 +597,4 @@ export function usePilgrimApp(): PilgrimAppContextValue {
   const context = useContext(PilgrimAppContext);
   if (!context) throw new Error('usePilgrimApp must be used inside PilgrimAppProvider');
   return context;
-}
-
-function applyRealtimeBookingEvent(
-  booking: PilgrimBooking,
-  event: PilgrimRealtimeEvent,
-): PilgrimBooking {
-  const updatedAt =
-    typeof event.payload.updatedAt === 'string'
-      ? event.payload.updatedAt
-      : new Date(event.receivedAt).toISOString();
-  if (event.name === 'booking:accepted' || event.name === 'qr:generated')
-    return { ...booking, qrReady: true, status: 'confirmed', updatedAt };
-  if (
-    event.name === 'booking:cancelled' ||
-    event.name === 'booking:rejected' ||
-    event.name === 'booking:expired'
-  )
-    return { ...booking, qrReady: false, status: 'cancelled', updatedAt };
-  if (event.name === 'checkin:completed')
-    return { ...booking, qrReady: false, status: 'checked-in', updatedAt };
-  if (event.name === 'checkout:completed')
-    return { ...booking, qrReady: false, status: 'completed', updatedAt };
-  return booking;
-}
-
-function mergeBackendBookingSnapshot(
-  current: PilgrimBooking[],
-  backend: PilgrimBooking[],
-): PilgrimBooking[] {
-  const currentById = new Map(current.map((booking) => [booking.id, booking]));
-  return backend.map((booking) => {
-    const existing = currentById.get(booking.id);
-    if (!existing) return booking;
-    const existingUpdatedAt = Date.parse(existing.updatedAt);
-    const backendUpdatedAt = Date.parse(booking.updatedAt);
-    return Number.isFinite(existingUpdatedAt) &&
-      Number.isFinite(backendUpdatedAt) &&
-      existingUpdatedAt > backendUpdatedAt
-      ? existing
-      : booking;
-  });
 }

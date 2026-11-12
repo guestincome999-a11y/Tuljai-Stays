@@ -1,3 +1,4 @@
+import { catalogPrice } from '@tuljai/utils';
 import { useMemo } from 'react';
 
 import type { Bilingual } from '../i18n/language';
@@ -64,7 +65,7 @@ function readList<T extends FilterOption>(
 }
 
 function number(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+  return catalogPrice(value) ?? undefined;
 }
 
 /**
@@ -86,7 +87,8 @@ export function useExploreFilters(): ExploreFilterOptions {
     const prices = readList<PriceFilterOption>(raw['prices'], (_id, item) => {
       const min = number(item['min']);
       const max = number(item['max']);
-      return min === undefined && max === undefined
+      return (min !== undefined && max !== undefined && min > max) ||
+        (min === undefined && max === undefined)
         ? null
         : { ...(min === undefined ? {} : { min }), ...(max === undefined ? {} : { max }) };
     });

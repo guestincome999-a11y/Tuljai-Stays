@@ -1,11 +1,13 @@
 import { StyleSheet } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useConnectivity } from '../connectivity/connectivity-context';
 
 export function OfflineBanner() {
   const { isOffline } = useConnectivity();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   if (!isOffline) {
     return null;
@@ -15,7 +17,11 @@ export function OfflineBanner() {
     <Text
       style={[
         styles.banner,
-        { backgroundColor: theme.colors.errorContainer, color: theme.colors.onErrorContainer },
+        {
+          backgroundColor: theme.colors.errorContainer,
+          color: theme.colors.onErrorContainer,
+          paddingTop: insets.top + 8,
+        },
       ]}
       variant="labelLarge"
     >

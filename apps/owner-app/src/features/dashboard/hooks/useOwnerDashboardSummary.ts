@@ -1,6 +1,7 @@
 import type { OwnerDashboardSummary } from '@tuljai/types';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
@@ -21,6 +22,13 @@ interface DashboardSummaryState {
 
 export function useOwnerDashboardSummary() {
   const auth = useAuth();
+  const revision = useRef(0);
+  useEffect(
+    () => () => {
+      revision.current += 1;
+    },
+    [],
+  );
   const { isOffline } = useConnectivity();
   const realtime = useRealtime();
   const [state, setState] = useState<DashboardSummaryState>({
@@ -32,6 +40,7 @@ export function useOwnerDashboardSummary() {
 
   const load = useCallback(
     async (refreshing = false) => {
+      const request = ++revision.current;
       if (!auth.isAuthenticated) {
         setState({ data: null, errorMessage: null, isLoading: false, isRefreshing: false });
         return;
@@ -46,6 +55,7 @@ export function useOwnerDashboardSummary() {
 
       if (isOffline) {
         const cached = await loadDashboardSummaryCache().catch(() => null);
+        if (request !== revision.current) return;
         setState((current) => ({
           ...current,
           data: current.data ?? cached,
@@ -58,10 +68,13 @@ export function useOwnerDashboardSummary() {
 
       try {
         const data = await getOwnerDashboardSummary();
+        if (request !== revision.current) return;
         await saveDashboardSummaryCache(data).catch(() => undefined);
+        if (request !== revision.current) return;
         setState({ data, errorMessage: null, isLoading: false, isRefreshing: false });
       } catch {
         const cached = await loadDashboardSummaryCache().catch(() => null);
+        if (request !== revision.current) return;
         setState((current) => ({
           ...current,
           data: current.data ?? cached,
@@ -73,7 +86,7 @@ export function useOwnerDashboardSummary() {
         }));
       }
     },
-    [auth.isAuthenticated, isOffline],
+    [auth.isAuthenticated, auth.user?.id, isOffline],
   );
 
   useFocusEffect(
@@ -126,7 +139,9 @@ export function useOwnerDashboardSummary() {
       return undefined;
     }
 
-    const interval = setInterval(() => void load(true), 30_000);
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') void load(true);
+    }, 30_000);
     return () => clearInterval(interval);
   }, [auth.isAuthenticated, isOffline, load, realtime.connected]);
 

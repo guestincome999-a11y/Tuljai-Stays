@@ -1,4 +1,5 @@
 import type {
+  Booking,
   CheckInResponse,
   CheckoutResponse,
   GuestIdType,
@@ -8,6 +9,7 @@ import type {
   QrScanLogEntry,
   QrScanResult,
 } from '@tuljai/types';
+import { ApplicationError } from '@tuljai/utils';
 
 import { apiClient } from '../../../api/client';
 
@@ -38,7 +40,36 @@ export interface QrScanHistoryQuery {
 }
 
 export async function scanQrCode(input: ScanQrRequest): Promise<CheckInResponse> {
-  return apiClient.post<CheckInResponse>('/qr/scan', input);
+  // Keep the deployed scan DTO contract. The signed token identifies the
+  // operation; the durable queue key is local and must not become an extra body field.
+  return apiClient.post<CheckInResponse>('/qr/scan', {
+    deviceId: input.deviceId,
+    qrPayload: input.qrPayload,
+  });
+}
+
+export async function collectPayAtLodge(
+  bookingId: string,
+  expectedAmount: string,
+): Promise<Booking> {
+  try {
+    return await apiClient.post<Booking>(`/owner/bookings/${bookingId}/collect-payment`, {
+      expectedAmount,
+    });
+  } catch (error) {
+    if (
+      error instanceof ApplicationError &&
+      error.details.statusCode === 404 &&
+      /^Cannot POST\b/iu.test(error.message)
+    ) {
+      throw new ApplicationError(
+        'Payment collection is not available on the server yet. Payment has not been recorded. Please contact Tuljai Stays support.',
+        'CASH_COLLECTION_UNAVAILABLE',
+        error.details,
+      );
+    }
+    throw error;
+  }
 }
 
 export async function getGuestRegister(registerId: string): Promise<GuestRegister> {

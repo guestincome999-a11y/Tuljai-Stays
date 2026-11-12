@@ -1,5 +1,6 @@
 import { emptyAuthSession, type AuthSession } from '@tuljai/shared';
 import type { AuthUserProfile } from '@tuljai/types';
+import { ApplicationError, isAccessTokenFresh } from '@tuljai/utils';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -77,12 +78,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function restore() {
       const restored = await restoreAuthSession();
       if (!mounted) return;
+      if (restored.user && isAccessTokenFresh(restored.tokens?.accessToken)) {
+        const onboardingRequired = await isOnboardingRequired();
+        if (!mounted) return;
+        setSession(restored);
+        apiClient.resetSessionExpiredFlag();
+        if (onboardingRequired) router.replace('/(auth)/onboarding');
+        setBootstrapComplete(true);
+        return;
+      }
       if (restored.tokens?.refreshToken) {
-        const refreshed = await refreshAccessToken(restored.tokens.refreshToken).catch(() => null);
+        let refreshed;
+        try {
+          refreshed = await refreshAccessToken(restored.tokens.refreshToken);
+        } catch (error) {
+          if (!(error instanceof ApplicationError) || error.details.statusCode !== 401) {
+            setSession(restored);
+            setBootstrapComplete(true);
+            return;
+          }
+          refreshed = null;
+        }
         if (refreshed) {
           const nextSession = {
             ...restored,
-            tokens: { ...restored.tokens, accessToken: refreshed.accessToken },
+            tokens: { ...restored.tokens, ...refreshed },
           };
           await saveAuthSession(nextSession);
           setSession(nextSession);
@@ -145,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
   const logout = useCallback(async () => {
     const refreshToken = session.tokens?.refreshToken;
-    if (refreshToken) await logoutFromApi(refreshToken).catch(() => undefined);
+    if (refreshToken) await logoutFromApi(refreshToken);
     await clearAuthSession();
     await setOnboardingRequired(false);
     setSession(emptyAuthSession);
@@ -158,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!refreshed) return null;
     const nextSession: AuthSession = {
       ...session,
-      tokens: { ...session.tokens, accessToken: refreshed.accessToken },
+      tokens: { ...session.tokens, ...refreshed },
     };
     await saveAuthSession(nextSession);
     setSession(nextSession);

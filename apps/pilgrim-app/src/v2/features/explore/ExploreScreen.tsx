@@ -103,6 +103,9 @@ export function ExploreScreen({
     setAmenities(next.amenities);
   }
 
+  const errorMessage = list.errorKind === 'network'
+    ? t({ en: 'Connection interrupted or timed out. Check your internet and retry.', mr: 'कनेक्शन तुटले किंवा वेळ संपली. इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.' })
+    : t(strings.loadError);
   const header = (
     <View style={styles.header}>
       <Text variant="title">{t(exploreStrings.title)}</Text>
@@ -160,7 +163,7 @@ export function ExploreScreen({
           ) : list.error ? (
             <View style={styles.empty}>
               <Text align="center" color="inkMuted">
-                {t(strings.loadError)}
+                {errorMessage}
               </Text>
               <Button
                 label={t(detailStrings.tryAgain)}
@@ -189,10 +192,15 @@ export function ExploreScreen({
         ListFooterComponent={
           list.loadingMore ? (
             <ActivityIndicator color={colors.primary} style={styles.footer} />
+          ) : list.error && list.items.length > 0 ? (
+            <View style={styles.empty}>
+              <Text align="center">{errorMessage}</Text>
+              <Button label={t(detailStrings.tryAgain)} onPress={() => void list.refresh()} />
+            </View>
           ) : null
         }
         ListHeaderComponent={header}
-        refreshing={false}
+        refreshing={list.loading && list.items.length > 0}
         renderItem={({ item }) => (
           <LodgeCard
             card={item}

@@ -1,12 +1,11 @@
-import type { AdminBookingSummary, Booking, BookingStatus, QrScanLogEntry } from '@tuljai/types';
+import type { AdminBookingSummary, BookingActivity, Booking, BookingStatus, QrScanLogEntry } from '@tuljai/types';
 
 export type BookingPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'NORMAL';
 
-export interface BookingTimelineItem {
-  description: string;
-  timestamp: string;
-  title: string;
-}
+export type BookingTimelineItem = Omit<BookingActivity, 'timestamp'> & {
+  timestamp: string | null;
+  pending?: boolean;
+};
 
 export interface InterventionItem {
   bookingCode: string;
@@ -114,66 +113,70 @@ export function getOwnerResponseState(booking: AdminBookingSummary | Booking): {
   return { message: `${formatDuration(diffMs)} remaining`, overdue: false };
 }
 
-export function buildBookingTimeline(booking: Booking): BookingTimelineItem[] {
-  const items: BookingTimelineItem[] = [
+export function buildBookingTimeline(
+  booking: Booking & { activity?: BookingActivity[] },
+): BookingTimelineItem[] {
+  if (Array.isArray(booking.activity)) {
+    const recorded = [...booking.activity].sort(
+      (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || a.id.localeCompare(b.id),
+    );
+    return placeLodgeCollectionBeforeCheckin(booking, recorded);
+  }
+  // Compatibility with older detail responses: never use updatedAt as an event time.
+  const items: BookingActivity[] = [
     {
-      description: 'Booking was created and sent for owner approval.',
+      id: 'booked',
+      title: 'Booked',
+      description: 'Booking record created.',
       timestamp: booking.createdAt,
-      title: 'Booking created',
     },
   ];
-
-  if (booking.ownerResponseDeadline) {
+  if (booking.checkedInAt)
     items.push({
-      description: 'Owner response timer started.',
-      timestamp: booking.ownerResponseDeadline,
-      title: 'Owner response deadline',
-    });
-  }
-
-  if (booking.status === 'ACCEPTED' || booking.status === 'QR_GENERATED') {
-    items.push({
-      description: 'Owner or admin accepted the booking.',
-      timestamp: booking.updatedAt,
-      title: 'Booking accepted',
-    });
-  }
-
-  if (booking.status === 'REJECTED') {
-    items.push({
-      description: booking.rejectedReason ?? 'Booking rejected.',
-      timestamp: booking.updatedAt,
-      title: 'Booking rejected',
-    });
-  }
-
-  if (booking.status === 'EXPIRED') {
-    items.push({
-      description: 'Booking expired before completion.',
-      timestamp: booking.updatedAt,
-      title: 'Booking expired',
-    });
-  }
-
-  if (booking.checkedInAt) {
-    items.push({
-      description: 'QR was verified and guest checked in.',
+      id: 'checkin',
+      title: 'Checked in',
+      description: 'Recorded check-in.',
       timestamp: booking.checkedInAt,
-      title: 'Check-in completed',
     });
-  }
-
-  if (booking.checkedOutAt) {
+  if (booking.checkedOutAt)
     items.push({
-      description: 'Guest checkout was completed.',
+      id: 'checkout',
+      title: 'Checked out',
+      description: 'Recorded checkout.',
       timestamp: booking.checkedOutAt,
-      title: 'Checkout completed',
     });
-  }
-
-  return items.sort(
-    (first, second) => new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime(),
+  return placeLodgeCollectionBeforeCheckin(
+    booking,
+    items.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)),
   );
+}
+
+function placeLodgeCollectionBeforeCheckin(
+  booking: Booking,
+  recorded: BookingTimelineItem[],
+): BookingTimelineItem[] {
+  if (booking.paymentStatus !== 'PAY_AT_LODGE') return recorded;
+  const receipts = recorded.filter((item) => item.paymentMethod === 'PAY_AT_LODGE');
+  if (!receipts.length && ['CANCELLED', 'REJECTED', 'EXPIRED', 'NO_SHOW'].includes(booking.status))
+    return recorded;
+  const other = recorded.filter((item) => item.paymentMethod !== 'PAY_AT_LODGE');
+  const checkin = other.findIndex(
+    (item) => item.stage === 'CHECKED_IN' || item.title === 'Checked in',
+  );
+  const collection: BookingTimelineItem[] = receipts.length
+    ? receipts
+    : [
+        {
+          id: `collection-pending:${booking.id}`,
+          title: 'Payment collection pending',
+          description: 'Waiting for the lodge owner to confirm Collected.',
+          timestamp: null,
+          pending: true,
+        },
+      ];
+  // This is a workflow position. Preserve the actual receipt time even if collected after check-in.
+  other.splice(checkin < 0 ? other.length : checkin, 0, ...collection);
+  return other;
 }
 
 export function buildInterventionItems(
@@ -210,7 +213,7 @@ export function buildInterventionItems(
       bookingId: scan.bookingId,
       guestName: scan.guestName ?? 'Unknown guest',
       id: scan.id,
-      lodgeName: scan.lodgeId ?? 'Unknown lodge',
+      lodgeName: scan.lodgeName ?? 'Lodge unavailable',
       priority: 'CRITICAL',
       reason: `QR failure: ${formatStatus(scan.result)}`,
       status: 'FOUNDATION',

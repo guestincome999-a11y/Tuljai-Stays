@@ -59,7 +59,10 @@ export async function getAdminProfile(): Promise<AuthUserProfile> {
 }
 
 export async function logoutAdmin(input: LogoutRequest): Promise<{ success: true }> {
-  return apiClient.post<{ success: true }>('/auth/logout', input);
+  void input;
+  const response = await fetch('/api/auth-session', { method: 'DELETE' });
+  if (!response.ok) throw new Error('Unable to revoke session. Please retry.');
+  return { success: true };
 }
 
 export function normalizeAdminPhoneNumber(value: string): string {

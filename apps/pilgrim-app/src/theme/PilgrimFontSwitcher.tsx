@@ -1,3 +1,5 @@
+import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
+import { useFonts } from 'expo-font';
 import { Fragment, type ReactNode } from 'react';
 import { Platform, Text, TextInput, type TextInputProps, type TextProps } from 'react-native';
 
@@ -16,6 +18,7 @@ type TextWithDefaults = typeof Text & { defaultProps?: TextProps };
 type TextInputWithDefaults = typeof TextInput & { defaultProps?: TextInputProps };
 
 export function PilgrimFontSwitcher({ children }: { children: ReactNode }) {
+  useFonts({ Fraunces_600SemiBold });
   const { language } = usePilgrimApp();
   const fontFamily = language === 'mr' ? marathiFontFamily : undefined;
 

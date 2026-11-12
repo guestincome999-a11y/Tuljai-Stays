@@ -22,6 +22,11 @@ export class GenerateQrDto {
 export class ScanQrDto {
   @IsOptional()
   @IsString()
+  @MaxLength(120)
+  idempotencyKey?: string;
+
+  @IsOptional()
+  @IsString()
   token?: string;
 
   @IsOptional()

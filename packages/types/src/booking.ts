@@ -72,6 +72,8 @@ export interface BookingGuestIdProofUpload {
 }
 
 export interface Booking {
+  /** Server-confirmed receipt of a pay-at-lodge payment; not an online payment. */
+  payAtLodgeCollectedAt?: ISODateTime | null;
   acceptedByUserId: UUID | null;
   advanceAmount: string | null;
   alternatePhone: string | null;
@@ -146,6 +148,7 @@ export interface AvailabilityResponse {
   availableRoomCount: number;
   lodgeId: UUID;
   priceSummary: {
+    totalAmount?: string;
     basePrice: string;
     currency: 'INR';
     festivalPrice: string | null;
@@ -162,7 +165,20 @@ export interface OwnerBookingSummary extends Booking {
 }
 
 export interface AdminBookingSummary extends OwnerBookingSummary {
+  /** Recorded lifecycle and payment events, populated only for admin detail. */
+  activity?: BookingActivity[];
   cityName: string;
+}
+
+export interface BookingActivity {
+  stage?: BookingStatus;
+  id: string;
+  title: string;
+  description: string;
+  timestamp: ISODateTime;
+  actorName?: string | null;
+  amount?: string | null;
+  paymentMethod?: 'ONLINE' | 'PAY_AT_LODGE' | null;
 }
 
 export interface QrPayload {
@@ -258,6 +274,7 @@ export interface CheckoutResponse {
 }
 
 export interface QrScanLogEntry {
+  lodgeName?: string | null;
   bookingCode: string | null;
   bookingId: UUID | null;
   createdAt: ISODateTime;

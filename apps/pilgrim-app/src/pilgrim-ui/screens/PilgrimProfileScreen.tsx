@@ -148,7 +148,7 @@ export function PilgrimProfileScreen() {
           </View>
           <Pressable
             accessibilityLabel={t('Edit traveller name', 'प्रवासी नाव संपादित करा')}
-            className="h-11 w-11 items-center justify-center rounded-full bg-white/10"
+            className="h-14 w-14 items-center justify-center rounded-full bg-white/10"
             onPress={openProfileEditor}
           >
             <MaterialCommunityIcons color="#FFFFFF" name="pencil-outline" size={20} />

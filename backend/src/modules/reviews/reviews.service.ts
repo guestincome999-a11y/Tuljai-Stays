@@ -146,6 +146,7 @@ export class ReviewsService {
     };
     const [items, totalItems] = await this.prisma.$transaction([
       this.prisma.review.findMany({
+        include: { lodge: { select: { name: true } }, pilgrim: { select: { displayName: true } } },
         orderBy: { createdAt: 'desc' },
         skip: pagination.skip,
         take: pagination.take,
@@ -155,7 +156,11 @@ export class ReviewsService {
     ]);
     const responses = await this.getOwnerResponses(items.map((review) => review.id));
     return {
-      items: items.map((review) => this.toReview(review, responses.get(review.id) ?? null)),
+      items: items.map((review) => ({
+        ...this.toReview(review, responses.get(review.id) ?? null),
+        lodgeName: review.lodge.name,
+        guestDisplayName: review.pilgrim.displayName ?? 'Guest',
+      })),
       page: pagination.page,
       pageSize: pagination.pageSize,
       totalItems,

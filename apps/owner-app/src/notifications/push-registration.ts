@@ -1,3 +1,4 @@
+import { createNotificationBadgeWriter } from '@tuljai/shared';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -23,7 +24,7 @@ Notifications.setNotificationHandler({
         ? Notifications.AndroidNotificationPriority.MAX
         : Notifications.AndroidNotificationPriority.HIGH,
       shouldPlaySound: true,
-      shouldSetBadge: true,
+      shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
     });
@@ -69,22 +70,20 @@ export async function registerRotatedOwnerPushToken(
   return true;
 }
 
-export async function syncOwnerNotificationBadge(unreadCount: number): Promise<void> {
-  if (Platform.OS === 'web') {
-    return;
-  }
-
-  const count = Math.max(0, Math.floor(unreadCount));
-  await Notifications.setBadgeCountAsync(count).catch(() => false);
-
-  // On Android the launcher badge follows the notifications still sitting in
-  // the tray, and setBadgeCountAsync(0) does not clear it on many launchers.
-  // Once everything is read, drop the delivered notifications so the last
-  // number can't stay stuck on the icon.
-  if (count === 0) {
-    await Notifications.dismissAllNotificationsAsync().catch(() => undefined);
-  }
-}
+export const syncOwnerNotificationBadge = createNotificationBadgeWriter(
+  async (unreadCount, readIds) => {
+    if (Platform.OS === 'web') return;
+    const read = new Set(readIds);
+    const delivered = await Notifications.getPresentedNotificationsAsync();
+    for (const item of delivered) {
+      const id = item.request.content.data?.notificationId;
+      if (typeof id === 'string' && read.has(id)) {
+        await Notifications.dismissNotificationAsync(item.request.identifier);
+      }
+    }
+    await Notifications.setBadgeCountAsync(Math.max(0, unreadCount));
+  },
+);
 
 async function savePushToken(token: string): Promise<void> {
   await apiClient.post('/auth/device-token', {

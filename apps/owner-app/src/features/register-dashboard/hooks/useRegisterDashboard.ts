@@ -2,6 +2,7 @@ import type { GuestRegister, GuestRegisterStatus, Room } from '@tuljai/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useConnectivity } from '../../../connectivity/connectivity-context';
+import { useRealtime } from '../../../realtime/realtime-provider';
 import { listGuestRegisters } from '../../checkin/api/checkin-api';
 import { useOwnerDashboardSummary } from '../../dashboard/hooks/useOwnerDashboardSummary';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
@@ -27,6 +28,7 @@ export function useRegisterDashboard(searchText: string, filter: RegisterQuickFi
   const dashboard = useOwnerDashboardSummary();
   const lodgeId = assignedLodges.selectedLodge?.id ?? null;
   const { isOffline } = useConnectivity();
+  const realtime = useRealtime();
   const [state, setState] = useState<RegisterDashboardState>({
     errorMessage: null,
     isLoading: true,
@@ -108,7 +110,14 @@ export function useRegisterDashboard(searchText: string, filter: RegisterQuickFi
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, realtime.connectionRevision]);
+
+  useEffect(() => {
+    const event = realtime.lastEvent;
+    if (event?.payload.lodgeId && event.payload.lodgeId !== lodgeId) return;
+    if (event?.name === 'checkin:completed' || event?.name === 'checkout:completed')
+      void load(true);
+  }, [load, lodgeId, realtime.lastEvent]);
 
   const filteredRegisters = useMemo(() => {
     const normalized = searchText.trim().toLowerCase();

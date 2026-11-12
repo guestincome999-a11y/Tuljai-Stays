@@ -3,6 +3,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
+import {
+  idProofPickerUnavailable,
+  isIdProofPickerUnavailable,
+} from '../../../features/bookings/id-proof-picker-error';
 import { uploadIdProof } from '../../core/booking';
 import { useColors } from '../../design/theme';
 import { radius, space } from '../../design/tokens';
@@ -75,8 +79,13 @@ export function IdProofPicker({
       });
       onChange(uploaded);
     } catch (cause) {
-      onChange(null);
-      setLocalError(cause instanceof Error ? cause.message : t(bookingStrings.idMissing));
+      setLocalError(
+        isIdProofPickerUnavailable(cause)
+          ? t(idProofPickerUnavailable)
+          : cause instanceof Error
+            ? cause.message
+            : t(bookingStrings.idMissing),
+      );
     } finally {
       setUploading(false);
       onUploadingChange(false);

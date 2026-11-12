@@ -9,8 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "eslint .",
-    "test": "node --test scripts/owner-ui.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "test": "node --test scripts/owner-ui.test.mjs scripts/checkin.test.mjs scripts/reports.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:notifications": "node --test --test-name-pattern=Owner ../../backend/scripts/notification-sync.test.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

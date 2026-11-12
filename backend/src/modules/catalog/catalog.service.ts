@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { catalogPrice, matchesCatalogBudget } from '@tuljai/utils';
 
 import { LodgesService } from '../lodges/lodges.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,7 +19,7 @@ import type { CatalogQueryDto } from './dto/catalog-query.dto';
 const DEFAULT_CITY_SLUG = 'tuljapur';
 const DEFAULT_PAGE_SIZE = 12;
 // Lodge counts in a pilgrimage town are small, so the whole visible catalogue is assembled in
-// three batched queries and cached briefly. Filtering and sorting then happen before pagination,
+// four batched queries and cached briefly. Filtering and sorting then happen before pagination,
 // which the previous client-side approach could not do correctly.
 const CATALOG_CACHE_TTL_MS = 15_000;
 const MAX_CARD_AMENITIES = 4;
@@ -28,14 +29,10 @@ interface CatalogCacheEntry {
   expiresAt: number;
 }
 
-function toNumber(value: string | null): number | null {
-  if (value === null) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 @Injectable()
 export class CatalogService {
+  private cacheGeneration = 0;
+  private pendingCards: Promise<CatalogLodgeCard[]> | null = null;
   private cache: CatalogCacheEntry | null = null;
 
   public constructor(
@@ -44,6 +41,13 @@ export class CatalogService {
   ) {}
 
   public async listLodges(query: CatalogQueryDto): Promise<CatalogPage> {
+    if (
+      query.minPrice !== undefined &&
+      query.maxPrice !== undefined &&
+      query.minPrice > query.maxPrice
+    ) {
+      throw new BadRequestException('minPrice must be less than or equal to maxPrice');
+    }
     const cards = await this.getAllCards();
     const amenitySlugs = (query.amenities ?? '')
       .split(',')
@@ -61,7 +65,6 @@ export class CatalogService {
           );
 
     const filtered = cards.filter((card) => {
-      const price = toNumber(card.startingPrice);
       if (ids && !ids.has(card.id)) return false;
       if (query.propertyType && card.propertyType !== query.propertyType) return false;
       if (search && !card.name.toLowerCase().includes(search)) return false;
@@ -71,8 +74,7 @@ export class CatalogService {
       ) {
         return false;
       }
-      if (query.minPrice !== undefined && (price === null || price < query.minPrice)) return false;
-      if (query.maxPrice !== undefined && (price === null || price > query.maxPrice)) return false;
+      if (!matchesCatalogBudget(card.startingPrice, query.minPrice, query.maxPrice)) return false;
       if (
         query.maxDistance !== undefined &&
         (card.distanceFromTempleMeters === null ||
@@ -101,6 +103,14 @@ export class CatalogService {
     const [lodge, photos, roomTypes] = await Promise.all([
       this.lodgesService.getPublicById(lodgeId),
       this.prisma.lodgePhoto.findMany({
+        select: {
+          id: true,
+          category: true,
+          isCover: true,
+          lodgeId: true,
+          thumbnailUrl: true,
+          fileUrl: true,
+        },
         orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
         where: { approvalStatus: 'APPROVED', deletedAt: null, lodgeId },
       }),
@@ -180,7 +190,9 @@ export class CatalogService {
 
   /** Drops the cached catalogue so the next read rebuilds it from the database. */
   public invalidate(): void {
+    this.cacheGeneration += 1;
     this.cache = null;
+    this.pendingCards = null;
   }
 
   private async getAllCards(): Promise<CatalogLodgeCard[]> {
@@ -188,9 +200,36 @@ export class CatalogService {
       return this.cache.cards;
     }
 
+    if (this.pendingCards) return this.pendingCards;
+    const pending = this.buildCards(this.cacheGeneration);
+    this.pendingCards = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.pendingCards === pending) this.pendingCards = null;
+    }
+  }
+
+  private async buildCards(generation: number): Promise<CatalogLodgeCard[]> {
     const lodges = await this.prisma.lodge.findMany({
-      include: {
-        amenities: { include: { amenity: true } },
+      select: {
+        id: true,
+        name: true,
+        propertyType: true,
+        distanceFromTempleMeters: true,
+        amenities: {
+          select: {
+            amenity: {
+              select: {
+                iconName: true,
+                name: true,
+                slug: true,
+                isActive: true,
+                deletedAt: true,
+              },
+            },
+          },
+        },
       },
       where: {
         city: { slug: DEFAULT_CITY_SLUG },
@@ -201,13 +240,27 @@ export class CatalogService {
       },
     });
     const lodgeIds = lodges.map((lodge) => lodge.id);
+    if (lodgeIds.length === 0) {
+      if (generation === this.cacheGeneration)
+        this.cache = { cards: [], expiresAt: Date.now() + CATALOG_CACHE_TTL_MS };
+      return [];
+    }
 
     const [photos, roomTypes, reviews] = await Promise.all([
       this.prisma.lodgePhoto.findMany({
+        select: {
+          id: true,
+          category: true,
+          isCover: true,
+          lodgeId: true,
+          thumbnailUrl: true,
+          fileUrl: true,
+        },
         orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
         where: { approvalStatus: 'APPROVED', deletedAt: null, lodgeId: { in: lodgeIds } },
       }),
       this.prisma.roomType.findMany({
+        select: { lodgeId: true, basePrice: true, festivalPrice: true },
         where: this.visibleRoomTypeWhere({ lodgeId: { in: lodgeIds } }),
       }),
       this.prisma.review.groupBy({
@@ -274,25 +327,31 @@ export class CatalogService {
       };
     });
 
-    this.cache = { cards, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS };
+    if (generation === this.cacheGeneration)
+      this.cache = { cards, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS };
     return cards;
   }
 
   private sortCards(cards: CatalogLodgeCard[], sort: string): CatalogLodgeCard[] {
     const far = Number.MAX_SAFE_INTEGER;
     return [...cards].sort((left, right) => {
+      const tie = left.id.localeCompare(right.id);
       if (sort === 'price') {
-        return (toNumber(left.startingPrice) ?? far) - (toNumber(right.startingPrice) ?? far);
+        return (
+          (catalogPrice(left.startingPrice) ?? far) - (catalogPrice(right.startingPrice) ?? far) ||
+          tie
+        );
       }
       if (sort === 'rating') {
-        return (right.averageRating ?? 0) - (left.averageRating ?? 0);
+        return (right.averageRating ?? 0) - (left.averageRating ?? 0) || tie;
       }
       if (sort === 'name') {
-        return left.name.localeCompare(right.name);
+        return left.name.localeCompare(right.name) || tie;
       }
       return (
         (left.distanceFromTempleMeters ?? far) - (right.distanceFromTempleMeters ?? far) ||
-        left.name.localeCompare(right.name)
+        left.name.localeCompare(right.name) ||
+        tie
       );
     });
   }

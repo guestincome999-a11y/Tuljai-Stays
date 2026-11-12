@@ -106,7 +106,7 @@ export default function ReviewModerationPage() {
                     <p className="muted-copy">
                       {review.isVerifiedStay ? 'Verified stay' : 'Unverified stay'} ·{' '}
                       {new Date(review.createdAt).toLocaleDateString('en-IN')} · Lodge{' '}
-                      {review.lodgeId}
+                      {review.lodgeName ?? 'Lodge unavailable'}
                     </p>
                     {review.ownerResponse ? (
                       <div className="status-card">

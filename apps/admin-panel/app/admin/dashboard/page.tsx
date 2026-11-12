@@ -591,7 +591,7 @@ function buildInterventionQueue(
     .map((scan) => ({
       bookingCode: scan.bookingCode ?? 'QR scan',
       id: scan.id,
-      lodge: scan.lodgeId ?? 'Unknown lodge',
+      lodge: scan.lodgeName ?? 'Lodge unavailable',
       pilgrim: scan.guestName ?? 'Unknown pilgrim',
       priority: 'HIGH',
       reason: `QR validation failed: ${formatStatus(scan.result)}`,

@@ -1,5 +1,6 @@
 import type {
   BookingReportRow,
+  BookingReportPdf,
   BookingStatus,
   CommissionSummary,
   LodgeCommissionFinanceReport,
@@ -9,12 +10,20 @@ import type {
 import { apiClient } from '../../../api/client';
 
 export interface OwnerReportQuery {
+  reportType?: 'all' | 'completed';
   endDate?: string;
   limit?: number;
   lodgeId?: string;
   page?: number;
   startDate?: string;
   status?: BookingStatus;
+}
+
+export function exportOwnerBookingReportPdf(query: OwnerReportQuery): Promise<BookingReportPdf> {
+  return apiClient.get<BookingReportPdf>('/owner/reports/bookings/pdf', {
+    params: query,
+    timeout: 120_000,
+  });
 }
 
 export async function getOwnerBookingReport(

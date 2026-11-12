@@ -1,11 +1,8 @@
-import type { Notification, NotificationUnreadCount, PaginatedResponse } from '@tuljai/types';
-import { useEffect } from 'react';
+import type { Notification } from '@tuljai/types';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api } from '../../core/api';
-import { syncBadge } from '../../core/push';
-import { refreshAllCached, useCachedFetch } from '../../core/useCachedFetch';
+import { useNotifications } from '../../../features/notifications/hooks/useNotifications';
 import { useColors } from '../../design/theme';
 import { gutter, radius, space } from '../../design/tokens';
 import { accountStrings } from '../../i18n/accountStrings';
@@ -14,18 +11,6 @@ import { Icon } from '../../ui/Icon';
 import { PressableScale } from '../../ui/PressableScale';
 import { Skeleton } from '../../ui/Skeleton';
 import { Text } from '../../ui/Text';
-
-const PAGE_SIZE = 30;
-
-export function fetchUnreadCount(): Promise<NotificationUnreadCount> {
-  return api.get<NotificationUnreadCount>('/notifications/unread-count');
-}
-
-function fetchNotifications(): Promise<PaginatedResponse<Notification>> {
-  return api.get<PaginatedResponse<Notification>>('/notifications', {
-    params: { limit: PAGE_SIZE, page: 1 },
-  });
-}
 
 function relativeTime(iso: string, lang: 'en' | 'mr'): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -47,26 +32,17 @@ export function NotificationsScreen({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { lang, t } = useLang();
-  const { data, loading } = useCachedFetch('notifications', fetchNotifications);
-  const items = data?.items ?? [];
-  const unread = items.filter((item) => item.readAt === null).length;
+  const state = useNotifications();
+  const items = state.data;
+  const unread = state.unreadCount;
+  const loading = state.isLoading;
 
-  useEffect(() => {
-    void syncBadge(unread);
-  }, [unread]);
-
-  async function open(notification: Notification) {
-    if (notification.readAt === null) {
-      await api.post(`/notifications/${notification.id}/read`).catch(() => undefined);
-      void refreshAllCached();
-    }
+  function open(notification: Notification) {
+    void state.markRead(notification.id);
     if (notification.bookingId) onOpenBooking(notification.bookingId);
   }
 
-  async function markAll() {
-    await api.post('/notifications/read-all').catch(() => undefined);
-    await refreshAllCached();
-  }
+  const markAll = state.markAllRead;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -98,24 +74,25 @@ export function NotificationsScreen({
         refreshControl={
           <RefreshControl
             colors={[colors.primary]}
-            refreshing={false}
+            refreshing={state.isRefreshing}
             tintColor={colors.primary}
-            onRefresh={() => void refreshAllCached()}
+            onRefresh={() => void state.refresh()}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {loading && !data ? (
+        {loading && items.length === 0 ? (
           <>
             <Skeleton height={80} />
             <Skeleton height={80} />
           </>
         ) : null}
-        {data && items.length === 0 ? (
+        {!loading && items.length === 0 ? (
           <Text align="center" color="inkMuted" style={styles.empty}>
             {t(accountStrings.noNotifications)}
           </Text>
         ) : null}
+        {state.errorMessage ? <Text color="inkMuted">{state.errorMessage}</Text> : null}
         {items.map((item) => (
           <PressableScale
             accessibilityLabel={item.title}

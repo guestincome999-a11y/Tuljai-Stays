@@ -1,13 +1,15 @@
 import type { Booking, Notification as ApiNotification, RoomType } from '@tuljai/types';
+import { catalogPrice } from '@tuljai/utils';
 
 import { apiClient } from '../api/client';
 import { listMyBookings, type EnrichedBooking } from '../features/bookings/api/bookings-api';
 import { listNotifications } from '../features/notifications/api/notifications-api';
+import type { MyBookingCard } from '../v2/core/bookings';
 import type { CatalogLodgeCard, CatalogLodgeDetails, CatalogPage } from '../v2/core/catalog';
+import { readCatalog } from '../v2/core/catalog-request';
 
 import {
   initialPilgrimNotifications,
-  pilgrimLodges,
   type PilgrimBooking,
   type PilgrimLodge,
   type PilgrimNotification,
@@ -20,17 +22,13 @@ import {
  * details load through hydrateBackendLodge() afterwards.
  */
 export async function loadLodgeSummaries(): Promise<PilgrimLodge[]> {
-  const response = await apiClient.get<CatalogPage>('/catalog/lodges', {
-    params: { page: 1, pageSize: 50 },
-  });
-  const items = [...response.items];
-  for (let page = 2; page <= response.totalPages; page += 1) {
-    const next = await apiClient.get<CatalogPage>('/catalog/lodges', {
-      params: { page, pageSize: 50 },
-    });
-    items.push(...next.items);
-  }
-  return items.map(toSummaryLodge);
+  const response = await readCatalog(() =>
+    apiClient.get<CatalogPage>('/catalog/lodges', {
+      params: { page: 1, pageSize: 6 },
+      timeout: 60_000,
+    }),
+  );
+  return response.items.map(toSummaryLodge);
 }
 
 /**
@@ -38,17 +36,49 @@ export async function loadLodgeSummaries(): Promise<PilgrimLodge[]> {
  * lodge with hydrated: true. Safe to call with limited concurrency in the
  * background after loadLodgeSummaries() has already rendered summary cards.
  */
+export async function loadLodgeById(id: string): Promise<PilgrimLodge> {
+  return hydrateBackendLodge({
+    id,
+    hydrated: false,
+    name: '',
+    hero: '',
+    photos: [],
+    rooms: [],
+    amenities: [],
+    description: '',
+    distance: '',
+    location: '',
+    price: 0,
+    priceAvailable: false,
+    rating: 0,
+    reviewCount: 0,
+    rules: [],
+    tags: [],
+    type: 'Guest House',
+  });
+}
+
+const lodgeDetailRequests = new Map<string, Promise<CatalogLodgeDetails>>();
+function requestLodgeDetails(id: string): Promise<CatalogLodgeDetails> {
+  const existing = lodgeDetailRequests.get(id);
+  if (existing) return existing;
+  const request = apiClient.get<CatalogLodgeDetails>(`/catalog/lodges/${id}`).finally(() => {
+    lodgeDetailRequests.delete(id);
+  });
+  lodgeDetailRequests.set(id, request);
+  return request;
+}
+
 export async function hydrateBackendLodge(summary: PilgrimLodge): Promise<PilgrimLodge> {
-  const visualFallback = pilgrimLodges.find((item) => item.id === summary.slug);
   let view: CatalogLodgeDetails;
   try {
-    view = await apiClient.get<CatalogLodgeDetails>(`/catalog/lodges/${summary.id}`);
+    view = await requestLodgeDetails(summary.id);
   } catch {
     // Keep whatever summary/fallback content we already have, just stop
     // showing a skeleton for this card.
     return { ...summary, hydrated: true };
   }
-  const photos = view.photos.map((photo) => photo.thumbnailUrl ?? photo.url);
+  const photos = view.photos.map((photo) => photo.url);
   const rooms = view.roomTypes.map(mapRoomType);
   const lowestPrice = Math.min(...rooms.map((room) => room.price));
   const details = view.lodge;
@@ -65,7 +95,7 @@ export async function hydrateBackendLodge(summary: PilgrimLodge): Promise<Pilgri
     // "Open directions" action. Falls back to a name-based Google Maps
     // search on the detail screen when it's missing.
     googleMapsLink: details.googleMapsLink,
-    hero: photos[0] ?? summary.hero ?? visualFallback?.hero ?? pilgrimLodges[0].hero,
+    hero: view.photos[0]?.thumbnailUrl ?? photos[0] ?? summary.hero ?? '',
     hydrated: true,
     id: details.id,
     location: address
@@ -92,34 +122,47 @@ export async function hydrateBackendLodge(summary: PilgrimLodge): Promise<Pilgri
   } satisfies PilgrimLodge;
 }
 
-function toSummaryLodge(summary: CatalogLodgeCard): PilgrimLodge {
+export function toSummaryLodge(summary: CatalogLodgeCard): PilgrimLodge {
   return {
-    amenities: [],
+    amenities: summary.amenitySlugs.map((slug) => ({ icon: iconForAmenity(slug), label: slug })),
     description: '',
     distance: formatDistance(summary.distanceFromTempleMeters),
-    hero: summary.coverUrl ?? pilgrimLodges[0].hero,
+    hero: summary.coverUrl ?? '',
     hydrated: false,
     id: summary.id,
     location: 'Tuljapur',
     name: summary.name,
-    photos: [summary.coverUrl ?? pilgrimLodges[0].hero],
-    price: summary.startingPrice === null ? 0 : Number(summary.startingPrice),
-    priceAvailable:
-      summary.startingPrice !== null && Number.isFinite(Number(summary.startingPrice)),
+    photos: summary.coverUrl ? [summary.coverUrl] : [],
+    price: catalogPrice(summary.startingPrice) ?? 0,
+    priceAvailable: catalogPrice(summary.startingPrice) !== null,
     // Real average of published reviews (null/0 for a lodge with no reviews
     // yet), not the old cosmetic seed-data fallback.
     rating: summary.averageRating ?? 0,
     reviewCount: summary.reviewCount,
     rooms: [],
     rules: [],
-    tags: ['Verified'],
+    tags: ['Verified', ...summary.amenitySlugs],
     type: mapPropertyType(summary.propertyType),
   };
 }
 
 export async function loadBackendBookings(lodges: PilgrimLodge[]): Promise<PilgrimBooking[]> {
   const bookings = await listMyBookings();
-  return bookings.map((item) => mapBooking(item, lodges));
+  // Historical stays need not be present in the small public catalogue page.
+  // Reuse the authorized joined-booking endpoint for their actual photographs.
+  const missingLodgePhotos = bookings.some(
+    (item) => !item.coverPhotoUrl && !lodges.some((lodge) => lodge.id === item.booking.lodgeId),
+  );
+  const cards = missingLodgePhotos
+    ? await apiClient.get<MyBookingCard[]>('/catalog/my-bookings').catch(() => [])
+    : [];
+  const covers = new Map(cards.map((card) => [card.id, card.coverUrl]));
+  return bookings.map((item) =>
+    mapBooking(
+      { ...item, coverPhotoUrl: item.coverPhotoUrl ?? covers.get(item.booking.id) ?? null },
+      lodges,
+    ),
+  );
 }
 
 export async function loadBackendNotifications(): Promise<PilgrimNotification[]> {
@@ -145,18 +188,32 @@ export function mapBooking(enriched: EnrichedBooking, lodges: PilgrimLodge[]): P
         : ''
     }`,
     id: booking.id,
-    image: enriched.coverPhotoUrl ?? lodge?.hero ?? pilgrimLodges[0].hero,
+    image: enriched.coverPhotoUrl ?? lodge?.hero ?? '',
     lodgeId: booking.lodgeId,
     lodgeName: booking.lodgeName || enriched.lodgeName || lodge?.name || '',
     googleMapsLink: booking.lodgeGoogleMapsLink ?? lodge?.googleMapsLink,
     checkInTime: booking.expectedCheckInTime ?? booking.lodgeCheckInTime,
     checkOutTime: booking.expectedCheckOutTime ?? booking.lodgeCheckOutTime,
     paymentStatus:
-      booking.paymentStatus === 'FULLY_PAID' || booking.paymentStatus === 'ADVANCE_PAID'
+      booking.paymentStatus === 'FULLY_PAID'
         ? 'Paid'
-        : booking.paymentStatus === 'REFUNDED'
-          ? 'Refunded'
-          : 'Pay at lodge',
+        : booking.paymentStatus === 'ADVANCE_PAID'
+          ? 'Partially paid'
+          : booking.paymentStatus === 'REFUNDED'
+            ? 'Refunded'
+            : booking.paymentStatus === 'PENDING'
+              ? 'Payment pending'
+              : booking.paymentStatus === 'FAILED'
+                ? 'Payment failed'
+                : booking.paymentStatus === 'NOT_REQUIRED'
+                  ? 'Not required'
+                  : 'Pay at lodge',
+    paidAmount:
+      booking.paymentStatus === 'FULLY_PAID' && booking.totalAmount !== null
+        ? Number(booking.totalAmount)
+        : booking.paymentStatus === 'ADVANCE_PAID' && booking.advanceAmount !== null
+          ? Number(booking.advanceAmount)
+          : undefined,
     qrReady: booking.status === 'ACCEPTED' || booking.status === 'QR_GENERATED',
     roomName:
       booking.roomTypeName ||
@@ -237,6 +294,8 @@ function mapRoomType(
   const descriptionParts = roomType.description?.split(' · ').filter(Boolean) ?? [];
   return {
     available: roomType.totalRooms,
+    capacityAdults: roomType.capacityAdults,
+    capacityChildren: roomType.capacityChildren,
     bed: descriptionParts[0] ?? '',
     capacity: `${roomType.capacityAdults} adults${
       roomType.capacityChildren > 0 ? ` + ${roomType.capacityChildren} child` : ''
@@ -248,7 +307,7 @@ function mapRoomType(
   };
 }
 
-function mapNotification(notification: ApiNotification): PilgrimNotification {
+export function mapNotification(notification: ApiNotification): PilgrimNotification {
   const action = notification.data?.action === 'RATE_AND_REVIEW' ? 'RATE_AND_REVIEW' : undefined;
   return {
     action,
@@ -287,7 +346,7 @@ function mapBookingStatus(status: EnrichedBooking['booking']['status']): Pilgrim
 }
 
 function formatDistance(distance: number | null): string {
-  if (distance === null) return 'Near Tulja Bhavani Temple';
+  if (distance === null) return 'Tuljapur';
   if (distance < 1000) return `${distance} m from temple`;
   return `${(distance / 1000).toFixed(1)} km from temple`;
 }

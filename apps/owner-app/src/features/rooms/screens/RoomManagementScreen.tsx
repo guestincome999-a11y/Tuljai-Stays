@@ -1233,7 +1233,7 @@ function PhotoMetadataModal({
       thumbnailUrl?: string;
     }>,
   ) => void;
-  onUploadPhoto: (photo: PickedPhoto) => Promise<{ fileUrl: string }>;
+  onUploadPhoto: (photo: PickedPhoto) => Promise<{ fileUrl: string; thumbnailUrl?: string }>;
   visible: boolean;
 }) {
   const [category, setCategory] = useState<PhotoCategory>('ROOM');
@@ -1307,7 +1307,7 @@ function PhotoMetadataModal({
           category,
           fileUrl: uploaded.fileUrl,
           isCover: index === 0 ? isCover : false,
-          thumbnailUrl: uploaded.fileUrl,
+          thumbnailUrl: uploaded.thumbnailUrl ?? uploaded.fileUrl,
         });
       }
 

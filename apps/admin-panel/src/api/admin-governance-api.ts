@@ -297,15 +297,10 @@ export async function updateLodgeTeamMember(
  * Management listing: includes inactive room types and types with no
  * currently-available room, so staff can still edit or re-enable them. The
  * public endpoint hides those, which made a type vanish from this screen as
- * soon as it was deactivated or fully blocked. Falls back to the public
- * listing if the management endpoint is not deployed yet.
+ * soon as it was deactivated or fully blocked. Errors remain visible so a failed management request cannot hide room types.
  */
 export async function listGovernanceRoomTypes(lodgeId: string): Promise<RoomType[]> {
-  try {
-    return await apiClient.get<RoomType[]>(`/owner/lodges/${lodgeId}/room-types`);
-  } catch {
-    return apiClient.get<RoomType[]>(`/lodges/${lodgeId}/room-types`);
-  }
+  return apiClient.get<RoomType[]>(`/owner/lodges/${lodgeId}/room-types`);
 }
 
 export async function createGovernanceRoomType(

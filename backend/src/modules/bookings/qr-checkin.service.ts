@@ -222,10 +222,13 @@ export class QrCheckinService {
       throw new BadRequestException('Invalid QR token');
     }
 
-    if (qrToken.status === 'USED' || qrToken.usedAt) {
+    // Authorization precedes replay handling; a used token never grants access.
+    try {
+      await this.lodgeAccessService.assertCanManageLodge(user, qrToken.booking.lodgeId);
+    } catch {
       await this.logScanFailure(
-        'USED',
-        'QR token has already been used',
+        'UNAUTHORIZED',
+        'User cannot scan this lodge QR',
         user,
         context,
         qrToken.bookingId,
@@ -233,7 +236,15 @@ export class QrCheckinService {
         qrToken.booking.lodgeId,
       );
       this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
-      throw new ConflictException('QR token has already been used');
+      throw new ForbiddenException('You cannot scan this QR code');
+    }
+    if (dto.idempotencyKey && dto.idempotencyKey !== `checkin.${qrToken.id}`) {
+      throw new BadRequestException('Invalid check-in idempotency key');
+    }
+    if (qrToken.booking.deletedAt) throw new NotFoundException('Booking not found');
+    if (qrToken.booking.status === 'CANCELLED') throw new BadRequestException('Booking cancelled');
+    if (qrToken.status === 'USED' || qrToken.usedAt) {
+      return this.existingCheckinResult(qrToken, user);
     }
 
     if (qrToken.status !== 'ACTIVE') {
@@ -268,22 +279,6 @@ export class QrCheckinService {
       throw new BadRequestException('QR token has expired');
     }
 
-    try {
-      await this.lodgeAccessService.assertCanManageLodge(user, qrToken.booking.lodgeId);
-    } catch {
-      await this.logScanFailure(
-        'UNAUTHORIZED',
-        'User cannot scan this lodge QR',
-        user,
-        context,
-        qrToken.bookingId,
-        qrToken.id,
-        qrToken.booking.lodgeId,
-      );
-      this.notificationEventsService.qrScanFailed(user.id, qrToken.bookingId);
-      throw new ForbiddenException('You cannot scan this QR code');
-    }
-
     if (!['ACCEPTED', 'QR_GENERATED'].includes(qrToken.booking.status)) {
       await this.logScanFailure(
         'INVALID_STATUS',
@@ -316,86 +311,135 @@ export class QrCheckinService {
     const previousBookingStatus = qrToken.booking.status;
     const assignedRoomId = qrToken.booking.roomId;
     const assignedRoomStatus = qrToken.booking.room.status;
-    const updatedBooking = await this.prisma.$transaction(async (tx) => {
-      await tx.bookingQrToken.update({
-        data: {
-          scanIpAddress: context.ipAddress,
-          scanUserAgent: context.userAgent,
-          status: 'USED',
-          usedAt: checkedInAt,
-          usedByUserId: user.id,
-          usedDeviceId: dto.deviceId ?? context.deviceId,
-        },
-        where: { id: qrToken.id },
-      });
-      const booking = await tx.booking.update({
-        data: {
-          checkedInAt,
-          status: 'CHECKED_IN',
-        },
-        include: {
-          city: true,
-          guests: { where: { deletedAt: null } },
-          lodge: true,
-          room: true,
-          roomType: true,
-        },
-        where: { id: qrToken.bookingId },
-      });
-      await tx.room.update({
-        data: { status: 'OCCUPIED' },
-        where: { id: assignedRoomId },
-      });
-      await tx.roomStatusHistory.create({
-        data: {
-          actorUserId: user.id,
-          bookingId: qrToken.bookingId,
-          fromStatus: assignedRoomStatus,
-          reason: 'QR_CHECK_IN',
-          roomId: assignedRoomId,
-          toStatus: 'OCCUPIED',
-        },
-      });
-      await tx.bookingHistory.create({
-        data: {
-          action: 'BOOKING_CHECKED_IN_BY_QR',
-          actorUserId: user.id,
-          bookingId: qrToken.bookingId,
-          fromStatus: previousBookingStatus,
-          metadata: { qrTokenId: qrToken.id },
-          toStatus: 'CHECKED_IN',
-        },
-      });
-      await tx.qrScanLog.create({
-        data: {
-          bookingId: qrToken.bookingId,
-          deviceId: dto.deviceId ?? context.deviceId,
-          ipAddress: context.ipAddress,
-          lodgeId: qrToken.booking.lodgeId,
-          qrTokenId: qrToken.id,
-          result: 'SUCCESS',
-          scannedByUserId: user.id,
-          userAgent: context.userAgent,
-        },
-      });
+    let replayed = false;
+    const register = await this.prisma
+      .$transaction(async (tx) => {
+        const claimed = await tx.bookingQrToken.updateMany({
+          data: {
+            scanIpAddress: context.ipAddress,
+            scanUserAgent: context.userAgent,
+            status: 'USED',
+            usedAt: checkedInAt,
+            usedByUserId: user.id,
+            usedDeviceId: dto.deviceId ?? context.deviceId,
+          },
+          where: { id: qrToken.id, status: 'ACTIVE', usedAt: null, expiresAt: { gt: checkedInAt } },
+        });
+        if (claimed.count !== 1)
+          throw new ConflictException('QR token has already been used or is no longer active');
+        const bookingClaim = await tx.booking.updateMany({
+          data: {
+            checkedInAt,
+            status: 'CHECKED_IN',
+          },
+          where: {
+            id: qrToken.bookingId,
+            status: { in: ['ACCEPTED', 'QR_GENERATED'] },
+            roomId: assignedRoomId,
+            deletedAt: null,
+          },
+        });
+        if (bookingClaim.count !== 1)
+          throw new ConflictException('Booking status or room assignment changed; scan again');
+        const booking = await tx.booking.findUniqueOrThrow({
+          include: {
+            city: true,
+            guests: { where: { deletedAt: null } },
+            lodge: true,
+            room: true,
+            roomType: true,
+          },
+          where: { id: qrToken.bookingId },
+        });
+        await tx.room.update({
+          data: { status: 'OCCUPIED' },
+          where: { id: assignedRoomId },
+        });
+        await tx.roomStatusHistory.create({
+          data: {
+            actorUserId: user.id,
+            bookingId: qrToken.bookingId,
+            fromStatus: assignedRoomStatus,
+            reason: 'QR_CHECK_IN',
+            roomId: assignedRoomId,
+            toStatus: 'OCCUPIED',
+          },
+        });
+        await tx.bookingHistory.create({
+          data: {
+            action: 'BOOKING_CHECKED_IN_BY_QR',
+            actorUserId: user.id,
+            bookingId: qrToken.bookingId,
+            fromStatus: previousBookingStatus,
+            metadata: { qrTokenId: qrToken.id },
+            toStatus: 'CHECKED_IN',
+          },
+        });
+        await tx.qrScanLog.create({
+          data: {
+            bookingId: qrToken.bookingId,
+            deviceId: dto.deviceId ?? context.deviceId,
+            ipAddress: context.ipAddress,
+            lodgeId: qrToken.booking.lodgeId,
+            qrTokenId: qrToken.id,
+            result: 'SUCCESS',
+            scannedByUserId: user.id,
+            userAgent: context.userAgent,
+          },
+        });
 
-      return booking;
-    });
-    const register = await this.guestRegisterService.createFromBooking({
-      actorUserId: user.id,
-      booking: updatedBooking,
-      qrTokenId: qrToken.id,
-    });
-    await this.notificationEventsService.checkinCompleted(
-      qrToken.bookingId,
-      qrToken.booking.lodgeId,
-      user.id,
-    );
+        return this.guestRegisterService.createFromBooking(
+          {
+            actorUserId: user.id,
+            booking,
+            qrTokenId: qrToken.id,
+          },
+          tx,
+        );
+      })
+      .catch(async (error: unknown) => {
+        // A competing device may have committed while our conditional claim waited.
+        // Return the committed register rather than repeating any transition/history.
+        if (error instanceof ConflictException) {
+          const fresh = await this.resolveQrTokenFromScanDto(dto);
+          if (fresh?.status === 'USED' && fresh.booking.status === 'CHECKED_IN') {
+            replayed = true;
+            return (await this.existingCheckinResult(fresh, user)).register;
+          }
+        }
+        throw error;
+      });
+    if (!replayed)
+      await this.notificationEventsService.checkinCompleted(
+        qrToken.bookingId,
+        qrToken.booking.lodgeId,
+        user.id,
+      );
 
     return {
       booking: await this.bookingsService.getOwnerUnlockedBookingView(qrToken.bookingId, user),
       register,
-      scanResult: 'SUCCESS',
+      scanResult: replayed ? 'USED' : 'SUCCESS',
+    };
+  }
+
+  private async existingCheckinResult(
+    qrToken: QrTokenWithBooking,
+    user: AuthenticatedUser,
+  ): Promise<CheckInResponse> {
+    await this.lodgeAccessService.assertCanManageLodge(user, qrToken.booking.lodgeId);
+    if (qrToken.booking.status !== 'CHECKED_IN' || qrToken.booking.deletedAt) {
+      throw new BadRequestException('Booking is not currently checked in');
+    }
+    const register = await this.prisma.guestRegister.findUnique({
+      where: { bookingId: qrToken.bookingId },
+    });
+    if (!register || register.deletedAt)
+      throw new ConflictException('Check-in register is not ready; retry');
+    return {
+      booking: await this.bookingsService.getOwnerUnlockedBookingView(qrToken.bookingId, user),
+      register: await this.guestRegisterService.getRegister(register.id, user, false),
+      scanResult: 'USED',
     };
   }
 
@@ -435,7 +479,7 @@ export class QrCheckinService {
     };
     const [items, totalItems] = await this.prisma.$transaction([
       this.prisma.qrScanLog.findMany({
-        include: { booking: true },
+        include: { booking: true, lodge: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         skip: pagination.skip,
         take: pagination.take,
@@ -453,6 +497,7 @@ export class QrCheckinService {
         guestName: item.booking?.guestName ?? null,
         id: item.id,
         lodgeId: item.lodgeId,
+        lodgeName: item.lodge?.name ?? null,
         result: item.result,
       })),
       page: pagination.page,

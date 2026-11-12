@@ -1,6 +1,7 @@
 import type { AppType, DevicePlatform, ISODateTime, OtpPurpose, UserRole, UUID } from './common';
 
 export interface AuthenticatedUser {
+  appType?: AppType;
   id: UUID;
   isActive: boolean;
   phoneNumber: string | null;
@@ -11,9 +12,11 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   expiresInSeconds: number;
+  sessionExpiresAt?: ISODateTime;
 }
 
 export interface JwtPayload {
+  sid: UUID;
   phoneNumber: string | null;
   roles: UserRole[];
   sub: UUID;
@@ -106,6 +109,7 @@ export interface RefreshTokenRequest {
 export interface RefreshTokenResponse {
   accessToken: string;
   expiresInSeconds: number;
+  sessionExpiresAt?: ISODateTime;
 }
 
 export interface LogoutRequest {
@@ -122,6 +126,7 @@ export interface RegisterDeviceTokenRequest {
 }
 
 export interface UserSession {
+  sessionExpiresAt?: ISODateTime;
   appType: AppType;
   createdAt: ISODateTime;
   deviceId: string;
