@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { fetchCatalog } from './catalog';
 import type { CatalogLodgeCard, CatalogPage, CatalogQuery } from './catalog';
+import { subscribeCatalogChanges } from './catalog-sync';
+import { registerCachedRefresher } from './useCachedFetch';
 
 const PAGE_SIZE = 12;
 const firstPageCache = new Map<string, CatalogPage>();
@@ -51,30 +54,68 @@ export function useCatalogList(query: CatalogListQuery) {
     return cached ? stateFromPage(cached) : EMPTY_STATE;
   });
   const requestId = useRef(0);
+  const activeRequest = useRef<{ key: string; request: Promise<void> } | null>(null);
+  const loadingNext = useRef(false);
   const queryRef = useRef(query);
   queryRef.current = query;
 
-  const loadFirstPage = useCallback(async () => {
-    const id = ++requestId.current;
-    try {
-      const page = await fetchCatalog({ ...queryRef.current, page: 1, pageSize: PAGE_SIZE });
-      if (id !== requestId.current) return;
-      firstPageCache.set(key, page);
-      setState(stateFromPage(page));
-    } catch {
-      if (id === requestId.current)
-        setState((current) => ({ ...current, error: true, loading: false }));
-    }
+  const loadFirstPage = useCallback((): Promise<void> => {
+    if (activeRequest.current?.key === key) return activeRequest.current.request;
+    const request = (async () => {
+      const id = ++requestId.current;
+      try {
+        const page = await fetchCatalog({ ...queryRef.current, page: 1, pageSize: PAGE_SIZE });
+        if (id !== requestId.current) return;
+        if (firstPageCache.size >= 20) firstPageCache.delete(firstPageCache.keys().next().value!);
+        firstPageCache.set(key, page);
+        setState(stateFromPage(page));
+      } catch {
+        if (id === requestId.current)
+          setState((current) => ({ ...current, error: true, loading: false }));
+      }
+    })().finally(() => {
+      if (activeRequest.current?.request === request) activeRequest.current = null;
+    });
+    activeRequest.current = { key, request };
+    return request;
   }, [key]);
 
   useEffect(() => {
     const cached = firstPageCache.get(key);
     setState(cached ? stateFromPage(cached) : EMPTY_STATE);
     void loadFirstPage();
+    const unregister = registerCachedRefresher(loadFirstPage);
+    const unsubscribe = subscribeCatalogChanges((change) => {
+      firstPageCache.clear();
+      requestId.current++;
+      activeRequest.current = null;
+      if (change.lodgeId && change.isActive === false)
+        setState((current) => ({
+          ...current,
+          items: current.items.filter((lodge) => lodge.id !== change.lodgeId),
+        }));
+    });
+    const foreground = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void loadFirstPage();
+    });
+    // Also covers unauthenticated browsing, where no role-authenticated socket exists.
+    const fallback = setInterval(() => {
+      if (AppState.currentState === 'active') void loadFirstPage();
+    }, 60000);
+    return () => {
+      unregister();
+      unsubscribe();
+      foreground.remove();
+      clearInterval(fallback);
+      requestId.current++;
+      activeRequest.current = null;
+    };
   }, [key, loadFirstPage]);
 
   const loadMore = useCallback(async () => {
-    if (state.loading || state.loadingMore || state.page >= state.totalPages) return;
+    if (loadingNext.current || state.loading || state.loadingMore || state.page >= state.totalPages)
+      return;
+    loadingNext.current = true;
     const id = requestId.current;
     setState((current) => ({ ...current, loadingMore: true }));
     try {
@@ -96,7 +137,10 @@ export function useCatalogList(query: CatalogListQuery) {
         };
       });
     } catch {
-      if (id === requestId.current) setState((current) => ({ ...current, loadingMore: false }));
+      if (id === requestId.current)
+        setState((current) => ({ ...current, error: true, loadingMore: false }));
+    } finally {
+      loadingNext.current = false;
     }
   }, [state.loading, state.loadingMore, state.page, state.totalPages]);
 

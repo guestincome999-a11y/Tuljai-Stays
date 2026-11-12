@@ -43,6 +43,7 @@ export type SocketEventName =
   | 'room:status-updated'
   | 'room:availability-updated'
   | 'announcement:new'
+  | 'festival:updated'
   | 'lodge:catalog-updated'
   | 'dashboard:update'
   | 'owner:alert'

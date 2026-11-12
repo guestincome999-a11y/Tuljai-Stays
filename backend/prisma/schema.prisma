@@ -412,6 +412,7 @@ model Lodge {
   checkOutTime             String?                @map("check_out_time")
   rules                    String?
   isActive                 Boolean                @default(true) @map("is_active")
+  operationsReason         String?                @map("operations_reason")
   createdAt                DateTime               @default(now()) @map("created_at")
   updatedAt                DateTime               @updatedAt @map("updated_at")
   deletedAt                DateTime?              @map("deleted_at")
@@ -830,6 +831,7 @@ model BookingLock {
   @@index([checkInDate, checkOutDate])
   @@index([expiresAt])
   @@index([status])
+  @@index([lodgeId, status, expiresAt, checkInDate, checkOutDate], map: "booking_locks_active_availability_idx")
   @@map("booking_locks")
 }
 
@@ -1373,6 +1375,7 @@ model PaymentIntent {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@index([status, nextCheckAt])
+  @@index([status, updatedAt], map: "payment_intents_status_updated_at_idx")
   @@map("payment_intents")
 }
 

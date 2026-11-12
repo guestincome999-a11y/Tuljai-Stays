@@ -287,6 +287,8 @@ test('webhook signatures use exact raw bytes and reject tampering or malformed h
 
 test('festival fallback uses inclusive configured dates and explicit prices still win', async () => {
   const db = {
+    featureFlag: { findUnique: async () => ({ enabled: true }) },
+
     roomPricing: {
       findMany: async () => [{ date: date('2026-11-03'), price: new Prisma.Decimal('2500.25') }],
     },
@@ -319,6 +321,8 @@ test('festival fallback uses inclusive configured dates and explicit prices stil
 
 test('blank festival window uses base rate; incomplete or invalid windows fail visibly', async () => {
   const db = {
+    featureFlag: { findUnique: async () => ({ enabled: true }) },
+
     roomPricing: { findMany: async () => [] },
     systemSetting: { findMany: async () => [] },
   };

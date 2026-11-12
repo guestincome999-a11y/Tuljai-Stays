@@ -186,8 +186,8 @@ export class QrCheckinService {
       throw new BadRequestException('QR is available only for accepted bookings');
     }
 
-    if (!booking.lodge.isActive || booking.lodge.deletedAt) {
-      throw new BadRequestException('Lodge is not active');
+    if (booking.lodge.deletedAt) {
+      throw new BadRequestException('Lodge is not available');
     }
     if (booking.lodge.status !== 'VERIFIED' || booking.lodge.verificationStatus !== 'VERIFIED') {
       throw new BadRequestException('Lodge is not verified');
@@ -443,6 +443,30 @@ export class QrCheckinService {
     };
   }
 
+  /** Called only after an admin has verified the booking's identity on the server. */
+  public async verifyManualCheckin(
+    bookingId: string,
+    user: AuthenticatedUser,
+  ): Promise<CheckInResponse> {
+    const booking = await this.findBookingForQrOrThrow(bookingId);
+    await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
+    const token = await this.prisma.bookingQrToken.findFirst({
+      where: { bookingId, status: { in: ['ACTIVE', 'USED'] } },
+      orderBy: { tokenVersion: 'desc' },
+    });
+    if (!token)
+      throw new BadRequestException('No eligible QR token. Review the booking before check-in.');
+    const qrPayload = this.signQrDisplayPayload({
+      bookingCode: booking.bookingCode,
+      bookingId,
+      qrTokenId: token.id,
+      tokenVersion: token.tokenVersion,
+      expiresAt: token.expiresAt.toISOString(),
+      version: 1,
+    });
+    return this.scanQr({ bookingId, qrPayload, idempotencyKey: `checkin.${token.id}` }, user, {});
+  }
+
   private async existingCheckinResult(
     qrToken: QrTokenWithBooking,
     user: AuthenticatedUser,
@@ -530,8 +554,8 @@ export class QrCheckinService {
   private async assertCanGenerateQr(booking: BookingForQr, user: AuthenticatedUser): Promise<void> {
     await this.lodgeAccessService.assertCanManageLodge(user, booking.lodgeId);
 
-    if (!booking.lodge.isActive || booking.lodge.deletedAt) {
-      throw new BadRequestException('Lodge is not active');
+    if (booking.lodge.deletedAt) {
+      throw new BadRequestException('Lodge is not available');
     }
 
     if (booking.lodge.status !== 'VERIFIED' || booking.lodge.verificationStatus !== 'VERIFIED') {

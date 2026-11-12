@@ -12,12 +12,14 @@ import { useLang } from '../i18n/language';
 import { useToast } from '../ui/Toast';
 
 import { apiBaseUrl, refreshAccessToken } from './api';
+import { notifyCatalogChange } from './catalog-sync';
 import { refreshAllCached } from './useCachedFetch';
 import { useSession } from './useSession';
 
 const REFRESH_DEBOUNCE_MS = 400;
 
 const EVENT_NAMES = [
+  'festival:updated',
   'announcement:new',
   'booking:accepted',
   'booking:cancelled',
@@ -74,6 +76,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     socket.on('connection:ready', (payload: { authenticated?: boolean }) => {
       connected = Boolean(payload.authenticated);
       if (payload.authenticated) {
+        notifyCatalogChange();
         notifyAvailabilityChange();
         scheduleRefresh();
         void notificationState.refresh();
@@ -93,9 +96,15 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       void refreshAccessToken();
     });
     for (const name of EVENT_NAMES) {
-      socket.on(name, (payload?: { lodgeId?: string }) => {
+      socket.on(name, (payload?: { lodgeId?: string; isActive?: boolean }) => {
+        if (name === 'lodge:catalog-updated' || name === 'festival:updated') {
+          notifyCatalogChange(payload);
+          notifyAvailabilityChange(payload?.lodgeId);
+        }
         if (name === 'room:availability-updated') {
           notifyAvailabilityChange(payload?.lodgeId);
+          notifyCatalogChange(payload);
+          scheduleRefresh();
           return;
         }
         if (name.startsWith('booking:')) requestPaymentReconciliation();

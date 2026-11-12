@@ -19,6 +19,8 @@ import type {
 import { normalizePagination } from '@tuljai/utils';
 
 import { AuditLogService } from '../../shared/audit/audit-log.service';
+import { BookingAvailabilityService } from '../bookings/booking-availability.service';
+import { operationalDateRange } from '../operations/operational-dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime/realtime-events.service';
 
@@ -43,6 +45,7 @@ export class LodgesService {
   public constructor(
     private readonly auditLogService: AuditLogService,
     private readonly prisma: PrismaService,
+    private readonly availability: BookingAvailabilityService,
     private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
 
@@ -374,7 +377,21 @@ export class LodgesService {
    */
   public async listPublic(query: ListLodgesQueryDto): Promise<PaginatedResponse<PublicLodge>> {
     const pagination = normalizePagination(query.page, query.pageSize);
+    const flag = await this.prisma.featureFlag.findUnique({
+      where: { key: 'festival_mode' },
+      select: { enabled: true },
+    });
+    let availableIds: string[] | undefined;
+    if (flag?.enabled || query.checkInDate || query.checkOutDate) {
+      const dates = operationalDateRange(query.checkInDate, query.checkOutDate);
+      const counts = await this.availability.lodgeAvailableCounts(
+        new Date(dates.checkInDate),
+        new Date(dates.checkOutDate),
+      );
+      availableIds = [...counts].filter(([, count]) => count > 0).map(([id]) => id);
+    }
     const where: Prisma.LodgeWhereInput = {
+      id: availableIds ? { in: availableIds } : undefined,
       deletedAt: null,
       isActive: true,
       status: 'VERIFIED',
@@ -674,6 +691,7 @@ export class LodgesService {
       id: string;
       isActive: boolean;
       name: string;
+      operationsReason?: string | null;
       primaryPhone: string;
       propertyType: Lodge['propertyType'];
       slug: string;
@@ -689,6 +707,7 @@ export class LodgesService {
       distanceFromTempleMeters: lodge.distanceFromTempleMeters,
       id: lodge.id,
       isActive: lodge.isActive,
+      operationsReason: lodge.operationsReason,
       name: lodge.name,
       primaryPhone: lodge.primaryPhone,
       propertyType: lodge.propertyType,
@@ -709,8 +728,13 @@ export class LodgesService {
     lodge: Parameters<LodgesService['toLodge']>[0],
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): PublicLodge {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripping primaryPhone from the public shape, see method doc above
-    const { primaryPhone: _primaryPhone, ...publicLodge } = this.toLodge(lodge, reviewAggregate);
+    /* eslint-disable @typescript-eslint/no-unused-vars -- strip private fields from the public response */
+    const {
+      primaryPhone: _primaryPhone,
+      operationsReason: _operationsReason,
+      ...publicLodge
+    } = this.toLodge(lodge, reviewAggregate);
+    /* eslint-enable @typescript-eslint/no-unused-vars */
     return publicLodge;
   }
 
@@ -762,9 +786,10 @@ export class LodgesService {
     lodge: Prisma.LodgeGetPayload<{ include: LodgesService['detailInclude'] }>,
     reviewAggregate: ReviewAggregate = EMPTY_REVIEW_AGGREGATE,
   ): PublicLodgeDetails {
-    /* eslint-disable @typescript-eslint/no-unused-vars -- stripping direct-contact fields from the public shape, see method doc above */
+    /* eslint-disable @typescript-eslint/no-unused-vars -- strip private fields from the public response */
     const {
       primaryPhone: _primaryPhone,
+      operationsReason: _operationsReason,
       email: _email,
       secondaryPhone: _secondaryPhone,
       whatsappNumber: _whatsappNumber,

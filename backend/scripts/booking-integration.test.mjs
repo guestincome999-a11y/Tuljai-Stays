@@ -885,6 +885,11 @@ test(
             });
           }
           const f = await fixture();
+          await db.featureFlag.upsert({
+            where: { key: 'festival_mode' },
+            create: { key: 'festival_mode', enabled: true },
+            update: { enabled: true },
+          });
           await db.roomType.update({ where: { id: f.roomType.id }, data: { festivalPrice: 2500 } });
           await db.paymentIntent.delete({ where: { lockCode: f.lock.lockCode } });
           await db.bookingLock.update({
@@ -1193,6 +1198,295 @@ test(
             await connection.query('RESET ROLE');
             await connection.query('DROP ROLE booking_outbox_untrusted');
           }
+        },
+      );
+      await t.test(
+        'festival closure preserves paid reservations and owners, invalidates discovery across instances, and reopens only with inventory',
+        async () => {
+          const {
+            FestivalOperationsService,
+          } = require('../src/modules/operations/festival-operations.service.ts');
+          const {
+            OperationsTelemetry,
+          } = require('../src/modules/operations/operations-telemetry.ts');
+          const { CatalogService } = require('../src/modules/catalog/catalog.service.ts');
+          const f = await fixture(3);
+          await db.city.update({ where: { id: f.lodge.cityId }, data: { slug: 'tuljapur' } });
+          await db.lodge.update({ where: { id: f.lodge.id }, data: { ownerUserId: f.user.id } });
+          await db.lodgeOwner.create({
+            data: {
+              lodgeId: f.lodge.id,
+              userId: f.user.id,
+              ownerName: 'Local festival owner',
+              ownerPhone: '+919999999999',
+            },
+          });
+          const booking = await a.createPrepaidBooking(f.dto, f.user, f.payment);
+          const beforeBooking = await db.booking.findUniqueOrThrow({ where: { id: booking.id } });
+          const events = [];
+          const realtime = {
+            publishToRole: (role, event, payload) => events.push({ role, event, payload }),
+            publishToLodge() {},
+            publishToUser() {},
+            getPresenceSummary: () => ({ totalOnline: 0 }),
+          };
+          const availability = new BookingAvailabilityService(db);
+          const catalog = new CatalogService(db, {}, availability);
+          const otherCatalog = new CatalogService(db2, {}, new BookingAvailabilityService(db2));
+          await otherCatalog.listLodges({}); // Populate another instance's presentation cache.
+          const ops = new FestivalOperationsService(
+            db,
+            availability,
+            catalog,
+            { invalidateOperationalCaches() {} },
+            realtime,
+            {},
+            { create: async () => {} },
+            new OperationsTelemetry(),
+          );
+          let current = await db.lodge.findUniqueOrThrow({ where: { id: f.lodge.id } });
+          const dto = {
+            isActive: false,
+            reason: 'Emergency closure',
+            detail: 'Close new intake while preserving arrivals',
+            expectedUpdatedAt: current.updatedAt.toISOString(),
+            checkInDate: '2026-12-01',
+            checkOutDate: '2026-12-03',
+          };
+          const results = await Promise.all([
+            ops.updateLodge(f.lodge.id, dto, f.user.id),
+            ops.updateLodge(f.lodge.id, dto, f.user.id),
+          ]);
+          assert.equal(results[0].isActive, false);
+          assert.deepEqual(
+            await db.booking.findUniqueOrThrow({ where: { id: booking.id } }),
+            beforeBooking,
+          );
+          assert.equal(
+            await db.auditLog.count({
+              where: { entityId: f.lodge.id, action: 'FESTIVAL_LODGE_DISABLED' },
+            }),
+            1,
+          );
+          assert.equal(await db.notification.count({ where: { lodgeId: f.lodge.id } }), 1);
+          assert.ok(
+            events.some((event) => event.role === 'PILGRIM' && event.payload.isActive === false),
+          );
+          assert.ok(
+            !(await otherCatalog.listLodges({})).items.some((item) => item.id === f.lodge.id),
+          );
+          const locks = new BookingLocksService({}, availability, config, db);
+          await assert.rejects(
+            locks.createLock(
+              {
+                lodgeId: f.lodge.id,
+                roomTypeId: f.roomType.id,
+                checkInDate: '2026-12-01',
+                checkOutDate: '2026-12-03',
+              },
+              f.user,
+            ),
+            /not available/,
+          );
+          current = await db.lodge.findUniqueOrThrow({ where: { id: f.lodge.id } });
+          await db.room.updateMany({
+            where: { lodgeId: f.lodge.id, id: { not: beforeBooking.roomId } },
+            data: { status: 'MAINTENANCE' },
+          });
+          await assert.rejects(
+            ops.updateLodge(
+              f.lodge.id,
+              { ...dto, isActive: true, expectedUpdatedAt: current.updatedAt.toISOString() },
+              f.user.id,
+            ),
+            /No rooms available/,
+          );
+          await db.room.updateMany({
+            where: { lodgeId: f.lodge.id, status: 'MAINTENANCE' },
+            data: { status: 'AVAILABLE' },
+          });
+          await ops.updateLodge(
+            f.lodge.id,
+            { ...dto, isActive: true, expectedUpdatedAt: current.updatedAt.toISOString() },
+            f.user.id,
+          );
+          assert.ok(
+            (await otherCatalog.listLodges({})).items.some((item) => item.id === f.lodge.id),
+          );
+          // Reopen cannot bypass admin suspension or verification.
+          current = await db.lodge.update({
+            where: { id: f.lodge.id },
+            data: { isActive: false, status: 'SUSPENDED' },
+          });
+          await assert.rejects(
+            ops.updateLodge(
+              f.lodge.id,
+              { ...dto, isActive: true, expectedUpdatedAt: current.updatedAt.toISOString() },
+              f.user.id,
+            ),
+            /Only verified/,
+          );
+          // Stale admin revisions cannot overwrite intervening changes.
+          await assert.rejects(
+            ops.updateLodge(
+              f.lodge.id,
+              {
+                ...dto,
+                detail: 'Different closure reason',
+                expectedUpdatedAt: dto.expectedUpdatedAt,
+              },
+              f.user.id,
+            ),
+            /changed/,
+          );
+        },
+      );
+
+      await t.test(
+        'festival mode changes are atomic, audited and restore normal policy without deleting configuration',
+        async () => {
+          const {
+            FestivalOperationsService,
+          } = require('../src/modules/operations/festival-operations.service.ts');
+          const f = await fixture();
+          const ops = new FestivalOperationsService(
+            db,
+            {},
+            { invalidate() {} },
+            { invalidateOperationalCaches() {} },
+            { publishToRole() {} },
+          );
+          const flag = await db.featureFlag.findUnique({ where: { key: 'festival_mode' } });
+          const dto = {
+            enabled: true,
+            name: 'Navratri Operations',
+            startDate: '2026-12-01',
+            endDate: '2026-12-10',
+            reason: 'Activate tested festival policies',
+            expectedUpdatedAt: flag?.updatedAt.toISOString() ?? '',
+          };
+          const enabled = await ops.updateMode(dto, f.user.id);
+          await assert.rejects(ops.updateMode(dto, f.user.id), /changed/);
+          await ops.updateMode(
+            { ...dto, enabled: false, expectedUpdatedAt: enabled.updatedAt },
+            f.user.id,
+          );
+          assert.equal(
+            (await db.featureFlag.findUniqueOrThrow({ where: { key: 'festival_mode' } })).enabled,
+            false,
+          );
+          assert.equal(
+            (await db.systemSetting.findUniqueOrThrow({ where: { key: 'festival_name' } })).value,
+            dto.name,
+          );
+          const audit = await db.auditLog.findFirstOrThrow({
+            where: { action: 'FESTIVAL_MODE_DISABLED', actorUserId: f.user.id },
+          });
+          assert.equal(audit.metadata.previous.enabled, true);
+          assert.equal(audit.metadata.next.enabled, false);
+        },
+      );
+
+      await t.test('30 concurrent requests for the last room create exactly one hold', async () => {
+        const f = await fixture(1);
+        await db.bookingLock.update({ where: { id: f.lock.id }, data: { status: 'RELEASED' } });
+        const lockServices = [db, db2].map(
+          (client) =>
+            new BookingLocksService({}, new BookingAvailabilityService(client), config, client),
+        );
+        const results = await Promise.allSettled(
+          Array.from({ length: 30 }, (_, index) =>
+            lockServices[index % 2].createLock(
+              {
+                lodgeId: f.lodge.id,
+                roomTypeId: f.roomType.id,
+                checkInDate: '2026-12-01',
+                checkOutDate: '2026-12-03',
+              },
+              f.user,
+              `festival_stress_${index.toString().padStart(4, '0')}`,
+            ),
+          ),
+        );
+        assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+        assert.equal(
+          await db.bookingLock.count({ where: { lodgeId: f.lodge.id, status: 'ACTIVE' } }),
+          1,
+        );
+        const counts = await new BookingAvailabilityService(db).lodgeAvailableCounts(
+          new Date('2026-12-01'),
+          new Date('2026-12-03'),
+          [f.lodge.id],
+        );
+        assert.equal(counts.get(f.lodge.id) ?? 0, 0);
+      });
+
+      await t.test(
+        'closure waits for existing inventory writers and blocks later holds',
+        async () => {
+          const { lockInventory } = require('../src/modules/bookings/inventory-lock.ts');
+          const {
+            FestivalOperationsService,
+          } = require('../src/modules/operations/festival-operations.service.ts');
+          const f = await fixture(2);
+          let release, entered;
+          const ready = new Promise((resolve) => {
+            entered = resolve;
+          });
+          const gate = new Promise((resolve) => {
+            release = resolve;
+          });
+          const writer = db.$transaction(async (tx) => {
+            await lockInventory(tx, f.roomType.id);
+            entered();
+            await gate;
+          });
+          await ready;
+          const current = await db2.lodge.findUniqueOrThrow({ where: { id: f.lodge.id } });
+          const ops = new FestivalOperationsService(
+            db2,
+            new BookingAvailabilityService(db2),
+            { invalidate() {} },
+            {},
+            { publishToRole() {}, publishToLodge() {} },
+          );
+          let closed = false;
+          const closure = ops
+            .updateLodge(
+              f.lodge.id,
+              {
+                isActive: false,
+                reason: 'Maintenance',
+                detail: 'Serialize with inventory writer',
+                expectedUpdatedAt: current.updatedAt.toISOString(),
+                checkInDate: '2026-12-01',
+                checkOutDate: '2026-12-03',
+              },
+              f.user.id,
+            )
+            .then(() => {
+              closed = true;
+            });
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            assert.equal(closed, false);
+          } finally {
+            release();
+          }
+          await writer;
+          await closure;
+          await assert.rejects(
+            new BookingLocksService({}, new BookingAvailabilityService(db), config, db).createLock(
+              {
+                lodgeId: f.lodge.id,
+                roomTypeId: f.roomType.id,
+                checkInDate: '2026-12-01',
+                checkOutDate: '2026-12-03',
+              },
+              f.user,
+            ),
+            /not available/,
+          );
         },
       );
     } finally {

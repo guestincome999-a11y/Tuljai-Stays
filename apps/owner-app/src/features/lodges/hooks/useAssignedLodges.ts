@@ -1,5 +1,6 @@
 import type { Lodge } from '@tuljai/types';
 import { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { useAuth } from '../../../auth/auth-context';
 import { useConnectivity } from '../../../connectivity/connectivity-context';
@@ -108,6 +109,21 @@ export function useAssignedLodges() {
     }
   }, [load, realtime.lastEvent]);
 
+  useEffect(() => {
+    if (realtime.connectionRevision > 0) void load(true);
+  }, [load, realtime.connectionRevision]);
+  useEffect(() => {
+    const foreground = AppState.addEventListener('change', (status) => {
+      if (status === 'active') void load(true);
+    });
+    const timer = setInterval(() => {
+      if (!realtime.connected && AppState.currentState === 'active') void load(true);
+    }, 45000);
+    return () => {
+      foreground.remove();
+      clearInterval(timer);
+    };
+  }, [load, realtime.connected]);
   return {
     ...state,
     refresh: () => load(true),

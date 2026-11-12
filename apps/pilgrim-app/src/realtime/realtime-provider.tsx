@@ -27,6 +27,7 @@ const RealtimeContext = createContext<RealtimeContextValue>({
 });
 
 const eventNames: PilgrimRealtimeEventName[] = [
+  'festival:updated',
   'announcement:new',
   'booking:accepted',
   'booking:cancelled',
@@ -98,8 +99,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           notifyAvailabilityChange(
             isRecord(payload) && typeof payload.lodgeId === 'string' ? payload.lodgeId : undefined,
           );
-          return;
         }
+        if (eventName === 'lodge:catalog-updated' || eventName === 'festival:updated')
+          notifyAvailabilityChange(
+            isRecord(payload) && typeof payload.lodgeId === 'string' ? payload.lodgeId : undefined,
+          );
         if (eventName.startsWith('booking:')) requestPaymentReconciliation();
         const event = {
           name: eventName,

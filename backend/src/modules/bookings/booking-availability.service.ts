@@ -25,7 +25,80 @@ interface AvailabilityOptions {
 
 @Injectable()
 export class BookingAvailabilityService {
+  private readonly pendingCounts = new Map<string, Promise<Map<string, number>>>();
+
   public constructor(private readonly prisma: PrismaService) {}
+
+  /** Same conflict rules as checkout, grouped in three queries instead of per-lodge reads. */
+  public lodgeAvailableCounts(
+    checkInDate: Date,
+    checkOutDate: Date,
+    lodgeIds?: string[],
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<Map<string, number>> {
+    if (db !== this.prisma) return this.readLodgeCounts(checkInDate, checkOutDate, lodgeIds, db);
+    const key = `${checkInDate.toISOString()}:${checkOutDate.toISOString()}:${lodgeIds?.slice().sort().join(',') ?? '*'}`;
+    const pending = this.pendingCounts.get(key);
+    if (pending) return pending;
+    const request = this.readLodgeCounts(checkInDate, checkOutDate, lodgeIds, db).finally(() => {
+      if (this.pendingCounts.get(key) === request) this.pendingCounts.delete(key);
+    });
+    if (this.pendingCounts.size < 32) this.pendingCounts.set(key, request);
+    return request;
+  }
+
+  private async readLodgeCounts(
+    checkInDate: Date,
+    checkOutDate: Date,
+    lodgeIds: string[] | undefined,
+    db: Prisma.TransactionClient,
+  ): Promise<Map<string, number>> {
+    const scope = {
+      lodgeId: lodgeIds ? { in: lodgeIds } : undefined,
+      roomType: { deletedAt: null, isActive: true },
+    };
+    const overlap = { checkInDate: { lt: checkOutDate }, checkOutDate: { gt: checkInDate } };
+    const [rooms, bookings, locks] = await Promise.all([
+      db.room.groupBy({
+        by: ['lodgeId', 'roomTypeId'],
+        _count: { _all: true },
+        where: { ...this.availableRoomWhere({ checkInDate, checkOutDate }), ...scope },
+      }),
+      db.booking.groupBy({
+        by: ['roomTypeId'],
+        _count: { _all: true },
+        where: {
+          ...scope,
+          ...overlap,
+          deletedAt: null,
+          roomId: null,
+          status: { in: ACTIVE_BOOKING_STATUSES },
+        },
+      }),
+      db.bookingLock.groupBy({
+        by: ['roomTypeId'],
+        _count: { _all: true },
+        where: {
+          ...scope,
+          ...overlap,
+          roomId: null,
+          status: 'ACTIVE',
+          expiresAt: { gt: new Date() },
+        },
+      }),
+    ]);
+    const reserved = new Map<string, number>();
+    for (const row of [...bookings, ...locks])
+      reserved.set(row.roomTypeId, (reserved.get(row.roomTypeId) ?? 0) + row._count._all);
+    const result = new Map<string, number>();
+    for (const row of rooms)
+      result.set(
+        row.lodgeId,
+        (result.get(row.lodgeId) ?? 0) +
+          Math.max(0, row._count._all - (reserved.get(row.roomTypeId) ?? 0)),
+      );
+    return result;
+  }
 
   public async getAvailability(
     lodgeId: string,

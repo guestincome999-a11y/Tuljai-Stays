@@ -56,6 +56,8 @@ export interface CatalogLodgeDetails {
 }
 
 export interface CatalogQuery {
+  checkInDate?: string;
+  checkOutDate?: string;
   amenities?: string[];
   ids?: string[];
   maxDistance?: number;
@@ -91,13 +93,21 @@ async function withRetry<T>(read: () => Promise<T>): Promise<T> {
   }
 }
 
+const catalogRequests = new Map<string, Promise<CatalogPage>>();
 export function fetchCatalog(query: CatalogQuery = {}): Promise<CatalogPage> {
-  return withRetry(() =>
+  const key = JSON.stringify(query);
+  const existing = catalogRequests.get(key);
+  if (existing) return existing;
+  const request = withRetry(() =>
     api.get<CatalogPage>('/catalog/lodges', {
       params: { ...query, amenities: query.amenities?.join(','), ids: query.ids?.join(',') },
       timeout: CATALOG_TIMEOUT_MS,
     }),
-  );
+  ).finally(() => {
+    if (catalogRequests.get(key) === request) catalogRequests.delete(key);
+  });
+  if (catalogRequests.size < 50) catalogRequests.set(key, request);
+  return request;
 }
 
 export function fetchLodge(lodgeId: string): Promise<CatalogLodgeDetails> {

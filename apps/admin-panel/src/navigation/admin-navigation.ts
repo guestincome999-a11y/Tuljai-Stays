@@ -12,7 +12,8 @@ export type AdminNavigationSection =
   | 'Reviews & Moderation'
   | 'Reports'
   | 'Settings'
-  | 'Admin Activity';
+  | 'Admin Activity'
+  | 'Festival Control';
 
 export interface AdminNavigationItem {
   href: string;
@@ -29,6 +30,14 @@ export interface AdminNavigationItem {
 }
 
 export const adminNavigationItems: AdminNavigationItem[] = [
+  {
+    href: '/admin/banners',
+    label: 'Banners & Advisories',
+    permission: 'settings.manage',
+    section: 'Content',
+    icon: 'marketing',
+    status: 'ready',
+  },
   {
     href: '/admin/dashboard',
     label: 'Dashboard',
@@ -267,7 +276,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/festival-control',
     label: 'Festival Control',
     permission: 'settings.manage',
-    section: 'Content',
+    section: 'Festival Control',
     icon: 'operations',
     status: 'ready',
     tabGroup: 'festival',
@@ -277,7 +286,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/emergency-control',
     label: 'Emergency Control',
     permission: 'security.manage',
-    section: 'Content',
+    section: 'Festival Control',
     icon: 'security',
     status: 'ready',
     hidden: true,
@@ -289,7 +298,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/notifications-monitor',
     label: 'Notifications',
     permission: 'system_health.view',
-    section: 'Notifications',
+    section: 'Settings',
     icon: 'notifications',
     status: 'ready',
   },
@@ -298,7 +307,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/reviews',
     label: 'Reviews & Moderation',
     permission: 'reviews.manage',
-    section: 'Reviews & Moderation',
+    section: 'Users',
     icon: 'reviews',
     status: 'ready',
     tabGroup: 'reviews',
@@ -308,7 +317,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/feedback',
     label: 'Pilgrim Feedback',
     permission: 'lodges.view',
-    section: 'Reviews & Moderation',
+    section: 'Users',
     icon: 'reviews',
     status: 'ready',
     hidden: true,
@@ -320,7 +329,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/reports',
     label: 'Reports',
     permission: 'reports.view',
-    section: 'Reports',
+    section: 'Settings',
     icon: 'reports',
     status: 'ready',
     tabGroup: 'reports',
@@ -330,7 +339,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/executive',
     label: 'Executive BI',
     permission: 'analytics.view',
-    section: 'Reports',
+    section: 'Settings',
     icon: 'analytics',
     status: 'ready',
     hidden: true,
@@ -341,7 +350,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/analytics',
     label: 'Analytics',
     permission: 'analytics.view',
-    section: 'Reports',
+    section: 'Settings',
     icon: 'analytics',
     status: 'ready',
     hidden: true,
@@ -352,7 +361,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/performance',
     label: 'Performance',
     permission: 'reports.view',
-    section: 'Reports',
+    section: 'Settings',
     icon: 'analytics',
     status: 'ready',
     hidden: true,
@@ -363,7 +372,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/exports',
     label: 'Exports',
     permission: 'reports.export',
-    section: 'Reports',
+    section: 'Settings',
     icon: 'reports',
     status: 'ready',
     hidden: true,
@@ -385,11 +394,9 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/app-content',
     label: 'App Content',
     permission: 'settings.manage',
-    section: 'Settings',
+    section: 'Content',
     icon: 'settings',
     status: 'ready',
-    hidden: true,
-    tabGroup: 'settings',
     tabLabel: 'App Content',
   },
   {
@@ -430,7 +437,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/audit',
     label: 'Admin Activity',
     permission: 'audit_logs.view',
-    section: 'Admin Activity',
+    section: 'Settings',
     icon: 'audit',
     status: 'ready',
     tabGroup: 'activity',
@@ -440,7 +447,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/security',
     label: 'Security',
     permission: 'security.manage',
-    section: 'Admin Activity',
+    section: 'Settings',
     icon: 'security',
     status: 'ready',
     hidden: true,
@@ -451,7 +458,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     href: '/admin/sessions',
     label: 'Sessions',
     permission: 'security.manage',
-    section: 'Admin Activity',
+    section: 'Settings',
     icon: 'security',
     status: 'ready',
     hidden: true,

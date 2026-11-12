@@ -7,7 +7,7 @@ import { StorageModule } from '../storage/storage.module';
 
 import { AdminBookingDetailController } from './admin-booking-detail.controller';
 import { AdminBookingDetailService } from './admin-booking-detail.service';
-import { BookingAvailabilityService } from './booking-availability.service';
+import { BookingAvailabilityModule } from './booking-availability.module';
 import { BookingDeliveryService } from './booking-delivery.service';
 import { BookingHistoryService } from './booking-history.service';
 import { BookingLocksService } from './booking-locks.service';
@@ -23,7 +23,7 @@ import { PrepaidBookingsService } from './prepaid-bookings.service';
 import { QrCheckinService } from './qr-checkin.service';
 
 @Module({
-  imports: [LodgesModule, NotificationsModule, StorageModule],
+  imports: [LodgesModule, NotificationsModule, StorageModule, BookingAvailabilityModule],
   controllers: [
     AdminBookingDetailController,
     BookingViewsController,
@@ -34,7 +34,6 @@ import { QrCheckinService } from './qr-checkin.service';
     EmailService,
     BookingDeliveryService,
     AdminBookingDetailService,
-    BookingAvailabilityService,
     BookingHistoryService,
     BookingLocksService,
     BookingSchedulerService,
@@ -46,7 +45,7 @@ import { QrCheckinService } from './qr-checkin.service';
     QrCheckinService,
   ],
   exports: [
-    BookingAvailabilityService,
+    BookingAvailabilityModule,
     BookingLocksService,
     BookingsService,
     GuestRegisterService,

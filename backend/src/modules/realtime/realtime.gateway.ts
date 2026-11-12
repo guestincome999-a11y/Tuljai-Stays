@@ -38,6 +38,8 @@ type AuthenticatedSocket = Socket<
 })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
+  private lastPublishedAt: string | null = null;
+  private publishFailures: Array<{ event: string; at: string }> = [];
   private readonly presence = new Map<
     string,
     { connectedAt: Date; lastSeenAt: Date; user: AuthenticatedUser }
@@ -121,9 +123,24 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   public emitToRoom(room: string, event: string, payload: Record<string, unknown>): void {
     try {
       this.server.to(room).emit(event, payload);
+      this.lastPublishedAt = new Date().toISOString();
     } catch (error) {
+      this.publishFailures = [
+        { event, at: new Date().toISOString() },
+        ...this.publishFailures,
+      ].slice(0, 20);
       this.logger.error(`Failed to publish realtime event ${event}`, error);
     }
+  }
+
+  public getDeliveryDiagnostics() {
+    return {
+      ready: Boolean(this.server),
+      lastPublishedAt: this.lastPublishedAt,
+      failures: this.publishFailures.filter(
+        (failure) => Date.parse(failure.at) >= Date.now() - 300000,
+      ),
+    };
   }
 
   public emitToRooms(rooms: string[], event: string, payload: Record<string, unknown>): void {

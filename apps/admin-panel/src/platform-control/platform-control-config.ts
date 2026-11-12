@@ -178,15 +178,13 @@ export const remoteAppConfigKeys = [
   'booking_instruction_text',
 ];
 
-export const festivalSettingKeys = [
+export const festivalContentKeys = [
   'festival_banner_text',
   'festival_announcement',
   'temple_advisory_message',
   'crowd_warning_message',
   'festival_emergency_contact_text',
   'festival_support_instructions',
-  'festival_start_date',
-  'festival_end_date',
   'festival_ui_color',
 ];
 
@@ -201,7 +199,6 @@ export const maintenanceSettingKeys = [
 export const featureFlagDefinitions: FeatureFlagDefinition[] = [
   { description: 'WhatsApp delivery integration.', key: 'whatsapp_notifications', critical: true },
   { description: 'Online payment collection.', key: 'online_payments', critical: true },
-  { description: 'Festival mode pricing and alerts.', key: 'festival_mode' },
   { description: 'Owner fullscreen alerts.', key: 'owner_fullscreen_alerts' },
   { description: 'Register exports.', key: 'register_exports' },
   { description: 'Multi-city expansion.', key: 'multi_city', critical: true },

@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
+import { BookingAvailabilityService } from '../bookings/booking-availability.service';
 import { LodgesService } from '../lodges/lodges.service';
+import { operationalDateRange } from '../operations/operational-dates';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
@@ -37,15 +39,51 @@ function toNumber(value: string | null): number | null {
 @Injectable()
 export class CatalogService {
   private cacheGeneration = 0;
+  private building: { generation: number; promise: Promise<CatalogLodgeCard[]> } | null = null;
   private cache: CatalogCacheEntry | null = null;
 
   public constructor(
     private readonly prisma: PrismaService,
     private readonly lodgesService: LodgesService,
+    private readonly availability: BookingAvailabilityService,
   ) {}
 
   public async listLodges(query: CatalogQueryDto): Promise<CatalogPage> {
-    const cards = await this.getAllCards();
+    let cards = await this.getAllCards();
+    // Cached presentation data never authorizes visibility. Re-read eligibility on every request,
+    // including on other backend instances after an admin closes a lodge.
+    const [live, flag] = await Promise.all([
+      this.prisma.lodge.findMany({
+        where: {
+          deletedAt: null,
+          isActive: true,
+          status: 'VERIFIED',
+          verificationStatus: 'VERIFIED',
+          city: { slug: DEFAULT_CITY_SLUG },
+        },
+        select: { id: true },
+      }),
+      this.prisma.featureFlag.findUnique({
+        where: { key: 'festival_mode' },
+        select: { enabled: true },
+      }),
+    ]);
+    const liveIds = new Set(live.map((lodge) => lodge.id));
+    const cachedIds = new Set(cards.map((card) => card.id));
+    if (live.some((lodge) => !cachedIds.has(lodge.id))) {
+      this.invalidate();
+      cards = await this.getAllCards();
+    }
+    cards = cards.filter((card) => liveIds.has(card.id));
+    if (flag?.enabled || query.checkInDate || query.checkOutDate) {
+      const dates = operationalDateRange(query.checkInDate, query.checkOutDate);
+      const counts = await this.availability.lodgeAvailableCounts(
+        new Date(dates.checkInDate),
+        new Date(dates.checkOutDate),
+        [...liveIds],
+      );
+      cards = cards.filter((card) => (counts.get(card.id) ?? 0) > 0);
+    }
     const amenitySlugs = (query.amenities ?? '')
       .split(',')
       .map((slug) => slug.trim().toLowerCase())
@@ -190,7 +228,16 @@ export class CatalogService {
       return this.cache.cards;
     }
 
+    if (this.building?.generation === this.cacheGeneration) return this.building.promise;
     const generation = this.cacheGeneration;
+    const promise = this.buildAllCards(generation).finally(() => {
+      if (this.building?.promise === promise) this.building = null;
+    });
+    this.building = { generation, promise };
+    return promise;
+  }
+
+  private async buildAllCards(generation: number): Promise<CatalogLodgeCard[]> {
     const lodges = await this.prisma.lodge.findMany({
       include: {
         amenities: { include: { amenity: true } },

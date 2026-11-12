@@ -824,7 +824,17 @@ function groupNavigation(
     const existing = sections.get(item.section) ?? [];
     sections.set(item.section, [...existing, item]);
   }
-  return [...sections.entries()];
+  const order = [
+    'Dashboard',
+    'Lodges & Owners',
+    'Bookings',
+    'Users',
+    'Finance',
+    'Settings',
+    'Content',
+    'Festival Control',
+  ];
+  return [...sections.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
 }
 
 function greeting(): string {

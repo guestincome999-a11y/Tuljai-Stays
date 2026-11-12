@@ -188,56 +188,64 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
-  const loadLodges = useCallback(async (): Promise<PilgrimLodge[]> => {
-    // Drop every cached lodge/photo/room-type response first, so prices and
-    // content edited in the admin panel are fetched fresh from the backend
-    // instead of being served from the in-memory cache.
-    invalidateLodgeCatalogCache();
-    const loadVersion = ++lodgeLoadVersionRef.current;
-    const summaries = await loadLodgeSummaries();
-    if (loadVersion !== lodgeLoadVersionRef.current) return summaries;
+  const pendingLodgeLoad = useRef<Promise<PilgrimLodge[]> | null>(null);
+  const loadLodges = useCallback((): Promise<PilgrimLodge[]> => {
+    if (pendingLodgeLoad.current) return pendingLodgeLoad.current;
+    const request = (async () => {
+      // Drop every cached lodge/photo/room-type response first, so prices and
+      // content edited in the admin panel are fetched fresh from the backend
+      // instead of being served from the in-memory cache.
+      invalidateLodgeCatalogCache();
+      const loadVersion = ++lodgeLoadVersionRef.current;
+      const summaries = await loadLodgeSummaries();
+      if (loadVersion !== lodgeLoadVersionRef.current) return summaries;
 
-    // Lodges whose full details are already on screen keep them while fresh
-    // details load below, so a catalog refresh never flashes back to empty
-    // skeleton cards (and ensureLodgesHydrated, which only re-runs when the
-    // visible ids change, never has to rescue them).
-    const previousById = new Map(lodgesRef.current.map((lodge) => [lodge.id, lodge]));
-    const toRefresh: PilgrimLodge[] = [];
-    const merged = summaries.map((summary) => {
-      const previous = previousById.get(summary.id);
-      if (previous?.hydrated && summary.hydrated === false) {
-        toRefresh.push(previous);
-        return previous;
-      }
-      return summary;
+      // Lodges whose full details are already on screen keep them while fresh
+      // details load below, so a catalog refresh never flashes back to empty
+      // skeleton cards (and ensureLodgesHydrated, which only re-runs when the
+      // visible ids change, never has to rescue them).
+      const previousById = new Map(lodgesRef.current.map((lodge) => [lodge.id, lodge]));
+      const toRefresh: PilgrimLodge[] = [];
+      const merged = summaries.map((summary) => {
+        const previous = previousById.get(summary.id);
+        if (previous?.hydrated && summary.hydrated === false) {
+          toRefresh.push(previous);
+          return previous;
+        }
+        return summary;
+      });
+
+      lastLodgeLoadAtRef.current = Date.now();
+      setLodges(merged);
+      hydratingIdsRef.current.clear();
+      setFavoriteIds((current) =>
+        current.map((favoriteId) => {
+          const matchingLodge = summaries.find(
+            (lodge) => lodge.id === favoriteId || lodge.slug === favoriteId,
+          );
+          return matchingLodge?.id ?? favoriteId;
+        }),
+      );
+
+      // Re-fetch full details (price, rooms, photos, content) for every lodge
+      // that was already hydrated and swap the fresh copy in place. If a
+      // request fails, hydrateBackendLodge hands back the previous copy
+      // unchanged.
+      toRefresh.forEach((previous) => {
+        void hydrateBackendLodge(previous)
+          .then((fresh) => {
+            if (loadVersion !== lodgeLoadVersionRef.current) return;
+            setLodges((current) => current.map((item) => (item.id === fresh.id ? fresh : item)));
+          })
+          .catch(() => undefined);
+      });
+
+      return summaries;
+    })().finally(() => {
+      if (pendingLodgeLoad.current === request) pendingLodgeLoad.current = null;
     });
-
-    lastLodgeLoadAtRef.current = Date.now();
-    setLodges(merged);
-    hydratingIdsRef.current.clear();
-    setFavoriteIds((current) =>
-      current.map((favoriteId) => {
-        const matchingLodge = summaries.find(
-          (lodge) => lodge.id === favoriteId || lodge.slug === favoriteId,
-        );
-        return matchingLodge?.id ?? favoriteId;
-      }),
-    );
-
-    // Re-fetch full details (price, rooms, photos, content) for every lodge
-    // that was already hydrated and swap the fresh copy in place. If a
-    // request fails, hydrateBackendLodge hands back the previous copy
-    // unchanged.
-    toRefresh.forEach((previous) => {
-      void hydrateBackendLodge(previous)
-        .then((fresh) => {
-          if (loadVersion !== lodgeLoadVersionRef.current) return;
-          setLodges((current) => current.map((item) => (item.id === fresh.id ? fresh : item)));
-        })
-        .catch(() => undefined);
-    });
-
-    return summaries;
+    pendingLodgeLoad.current = request;
+    return request;
   }, []);
 
   const loadPrivateData = useCallback(
@@ -349,19 +357,34 @@ export function PilgrimAppProvider({ children }: PropsWithChildren) {
   }, [auth.isAuthenticated, realtime.lastEvent, loadPrivateData, lodges]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (AppState.currentState === 'active') void loadLodges().catch(() => undefined);
-    }, 30_000);
+    const timer = setInterval(
+      () => {
+        if (AppState.currentState === 'active') void loadLodges().catch(() => undefined);
+      },
+      realtime.connected ? 120_000 : 45_000,
+    );
     return () => clearInterval(timer);
-  }, [loadLodges]);
+  }, [loadLodges, realtime.connected]);
 
   useEffect(() => {
     if (realtime.connectionRevision > 0) void loadLodges().catch(() => undefined);
   }, [loadLodges, realtime.connectionRevision]);
 
   useEffect(() => {
-    if (realtime.lastEvent?.name !== 'lodge:catalog-updated') return;
-    void loadLodges().catch(() => undefined);
+    const event = realtime.lastEvent;
+    if (
+      !event ||
+      !['lodge:catalog-updated', 'room:availability-updated', 'festival:updated'].includes(
+        event.name,
+      )
+    )
+      return;
+    if (event.name === 'lodge:catalog-updated' && event.payload.isActive === false)
+      setLodges((current) => current.filter((lodge) => lodge.id !== event.payload.lodgeId));
+    const timer = setTimeout(() => {
+      void loadLodges().catch(() => undefined);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [loadLodges, realtime.lastEvent]);
 
   useEffect(() => {

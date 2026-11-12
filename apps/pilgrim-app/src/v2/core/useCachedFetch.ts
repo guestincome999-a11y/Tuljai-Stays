@@ -4,6 +4,13 @@ import { AppState } from 'react-native';
 const cache = new Map<string, unknown>();
 const activeRefreshers = new Set<() => Promise<void>>();
 
+export function registerCachedRefresher(refresh: () => Promise<void>): () => void {
+  activeRefreshers.add(refresh);
+  return () => {
+    activeRefreshers.delete(refresh);
+  };
+}
+
 /** Prime the detail screen with the authoritative mutation response. */
 export function seedCached<T>(key: string, value: T): void {
   cache.set(key, value);

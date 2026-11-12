@@ -361,6 +361,10 @@ export class SettingsService {
     dto: UpdateSystemSettingDto,
     actorUserId: string,
   ): Promise<SystemSetting> {
+    if (
+      ['festival_name', 'festival_start_date', 'festival_end_date', 'festival_mode'].includes(key)
+    )
+      throw new BadRequestException('Use Festival Control to update operational configuration');
     if (key === CANCELLATION_POLICY_KEY) parseCancellationPolicy(dto.value);
     if (key === 'promotional_banners') {
       await this.validatePromotionalBanners(dto.value);
@@ -429,6 +433,10 @@ export class SettingsService {
     dto: UpdateFeatureFlagDto,
     actorUserId: string,
   ): Promise<FeatureFlag> {
+    if (key === 'festival_mode')
+      throw new BadRequestException(
+        'Use Festival Control with a reason and current configuration version',
+      );
     const flag = await this.prisma.featureFlag.upsert({
       create: {
         description: dto.description,
@@ -598,6 +606,11 @@ export class SettingsService {
         skipDuplicates: true,
       }),
     ]);
+  }
+
+  public invalidateOperationalCaches(): void {
+    this.invalidateFeatureFlagsCache();
+    this.invalidateSettingsCache();
   }
 
   private invalidateFeatureFlagsCache(): void {

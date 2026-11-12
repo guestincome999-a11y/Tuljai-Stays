@@ -2,7 +2,7 @@
 
 import type { AdminBookingSummary } from '@tuljai/types';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useAdminAuth } from '../../../src/auth/AdminAuthProvider';
 import {
@@ -40,6 +40,11 @@ export default function AdminBookingsPage() {
   const auth = useAdminAuth();
   const [filters, setFilters] = useState<AdminBookingFilters>(initialFilters);
   const [page, setPage] = useState(1);
+  useEffect(() => {
+    const lodgeId = new URLSearchParams(window.location.search).get('lodgeId');
+    if (lodgeId && /^[a-f0-9-]{36}$/i.test(lodgeId))
+      setFilters((current) => ({ ...current, lodgeId }));
+  }, []);
   const bookings = useAdminBookings(filters, page);
   const canManage = hasPermission(auth.permissions, 'bookings.manage');
   const canSeeContact = hasPermission(auth.permissions, 'bookings.manage');

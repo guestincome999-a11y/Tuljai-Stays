@@ -20,6 +20,7 @@ interface AdminBookingsState {
 }
 
 export interface AdminBookingFilters {
+  lodgeId?: string;
   fromDate: string;
   query: string;
   status: BookingStatus | '';
@@ -47,6 +48,7 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
 
       try {
         const query: AdminBookingsQuery = {
+          lodgeId: filters.lodgeId,
           fromDate: filters.fromDate || undefined,
           limit: 20,
           page,
@@ -69,7 +71,7 @@ export function useAdminBookings(filters: AdminBookingFilters, page: number) {
         }));
       }
     },
-    [filters.fromDate, filters.status, filters.toDate, page],
+    [filters.lodgeId, filters.fromDate, filters.status, filters.toDate, page],
   );
 
   useEffect(() => {

@@ -34,4 +34,8 @@ export class RealtimeEventsService {
   public getPresenceSummary(): PresenceSummary {
     return this.realtimeGateway.getPresenceSummary();
   }
+
+  public getDeliveryDiagnostics() {
+    return this.realtimeGateway.getDeliveryDiagnostics();
+  }
 }
