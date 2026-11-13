@@ -77,7 +77,7 @@ function FestivalControl() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [workflow, setWorkflow] = useState<number | null>(null);
   const [config, setConfig] = useState({ name: '', startDate: '', endDate: '' });
-  const [identity, setIdentity] = useState({ bookingId: '', bookingCode: '', guestPhone: '' });
+  const [identity, setIdentity] = useState({ bookingCode: '', guestPhone: '' });
   const [history, setHistory] = useState<string | null>(null);
   const synchronizedVersion = useRef<string | null>(null);
   const confirmationVersion = useRef('');
@@ -150,7 +150,7 @@ function FestivalControl() {
         setMessage(
           `Booking verification completed: ${result.status.replaceAll('_', ' ')}. Check-in remains protected against duplicate processing.`,
         );
-        setIdentity({ bookingId: '', bookingCode: '', guestPhone: '' });
+        setIdentity({ bookingCode: '', guestPhone: '' });
       }
       setAction(null);
       await refresh();
@@ -906,17 +906,26 @@ function FestivalControl() {
           )}
           {action.kind === 'manual' && (
             <div className="fc-manual-form">
-              {(['bookingId', 'bookingCode', 'guestPhone'] as const).map((key) => (
+              <p className="muted-copy">
+                Enter the booking reference printed on the guest pass and the phone number recorded
+                on the booking.
+              </p>
+              {(['bookingCode', 'guestPhone'] as const).map((key) => (
                 <label className="form-field" key={key}>
                   <span>
-                    {key === 'bookingId'
-                      ? 'Booking ID from booking records'
-                      : key === 'bookingCode'
-                        ? 'Booking code on guest pass'
-                        : 'Guest phone on booking'}
+                    {key === 'bookingCode'
+                      ? 'Booking code on guest pass'
+                      : 'Guest phone on booking'}
                   </span>
                   <input
                     value={identity[key]}
+                    type={key === 'guestPhone' ? 'tel' : 'text'}
+                    placeholder={
+                      key === 'bookingCode'
+                        ? 'Booking reference from guest pass'
+                        : 'Guest phone number'
+                    }
+                    maxLength={key === 'bookingCode' ? 100 : 20}
                     autoComplete="off"
                     onChange={(event) => setIdentity({ ...identity, [key]: event.target.value })}
                   />

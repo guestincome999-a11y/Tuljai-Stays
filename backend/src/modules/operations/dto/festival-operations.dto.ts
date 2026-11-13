@@ -54,7 +54,8 @@ export class RecoveryReasonDto {
 }
 
 export class ManualCheckinDto extends RecoveryReasonDto {
-  @IsUUID() bookingId!: string;
+  // Legacy callers may provide the internal ID; staff only need the printed booking code.
+  @IsOptional() @IsUUID() bookingId?: string;
   @IsString() @MinLength(5) @MaxLength(100) bookingCode!: string;
   @IsString() @Matches(/^\+?[0-9 ()-]{10,20}$/) guestPhone!: string;
 }

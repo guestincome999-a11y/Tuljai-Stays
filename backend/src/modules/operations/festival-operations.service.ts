@@ -580,7 +580,11 @@ export class FestivalOperationsService {
     if (dto.reason.trim().length < 5)
       throw new BadRequestException('Manual verification requires a reason');
     const booking = await this.prisma.booking.findFirst({
-      where: { id: dto.bookingId, deletedAt: null },
+      where: {
+        bookingCode: dto.bookingCode.trim(),
+        deletedAt: null,
+        ...(dto.bookingId ? { id: dto.bookingId } : {}),
+      },
       select: { id: true, bookingCode: true, guestPhone: true, status: true },
     });
     const normalize = (phone: string) => phone.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '');

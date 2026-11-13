@@ -233,12 +233,15 @@ test('manual recovery rejects identity mismatch before invoking the check-in ser
   const audits = [];
   const db = {
     booking: {
-      findFirst: async () => ({
-        id: 'booking',
-        bookingCode: 'TJS-PASS',
-        guestPhone: '+919999999999',
-        status: 'QR_GENERATED',
-      }),
+      findFirst: async ({ where }) => {
+        assert.deepEqual(where, { bookingCode: 'TJS-PASS', deletedAt: null });
+        return {
+          id: 'booking',
+          bookingCode: 'TJS-PASS',
+          guestPhone: '+919999999999',
+          status: 'QR_GENERATED',
+        };
+      },
     },
     auditLog: { create: async ({ data }) => audits.push(data) },
   };
@@ -259,7 +262,6 @@ test('manual recovery rejects identity mismatch before invoking the check-in ser
     },
   );
   const dto = {
-    bookingId: 'booking',
     bookingCode: 'TJS-PASS',
     guestPhone: '8888888888',
     reason: 'Camera failure with verified physical ID',
@@ -271,6 +273,53 @@ test('manual recovery rejects identity mismatch before invoking the check-in ser
   assert.deepEqual(
     audits.map((a) => a.action),
     ['FESTIVAL_MANUAL_CHECKIN_REQUESTED', 'FESTIVAL_MANUAL_CHECKIN_COMPLETED'],
+  );
+});
+
+test('manual check-in validates a printed booking reference without requiring an internal UUID', async () => {
+  const { plainToInstance } = require('class-transformer');
+  const { validate } = require('class-validator');
+  const { ManualCheckinDto } = require('../src/modules/operations/dto/festival-operations.dto.ts');
+  const input = {
+    bookingCode: 'TJS-PASS',
+    guestPhone: '9999999999',
+    reason: 'Physical guest identification verified',
+  };
+  assert.deepEqual(await validate(plainToInstance(ManualCheckinDto, input)), []);
+  const uuid = '11111111-1111-4111-8111-111111111111';
+  assert.deepEqual(
+    await validate(plainToInstance(ManualCheckinDto, { ...input, bookingId: uuid })),
+    [],
+  );
+  assert.ok(
+    (await validate(plainToInstance(ManualCheckinDto, { ...input, bookingId: 'TJS-PASS' }))).some(
+      (error) => error.property === 'bookingId',
+    ),
+  );
+});
+
+test('legacy manual check-in callers must match both their UUID and printed booking code', async () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const db = {
+    booking: {
+      findFirst: async ({ where }) => {
+        assert.deepEqual(where, { bookingCode: 'TJS-PASS', deletedAt: null, id });
+        return null;
+      },
+    },
+  };
+  const service = new FestivalOperationsService(db);
+  await assert.rejects(
+    service.manualCheckin(
+      {
+        bookingId: id,
+        bookingCode: ' TJS-PASS ',
+        guestPhone: '9999999999',
+        reason: 'Check a mismatched booking identity',
+      },
+      { id: 'admin' },
+    ),
+    /identity/,
   );
 });
 
