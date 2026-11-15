@@ -1,4 +1,5 @@
 import { radius, spacing } from '@tuljai/ui';
+import * as SplashScreen from 'expo-splash-screen';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
@@ -27,7 +28,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   public render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.screen}>
+        <View style={styles.screen} onLayout={() => SplashScreen.hide()}>
           <View style={styles.card}>
             <Text variant="headlineSmall">Something went wrong.</Text>
             <Text style={styles.message} variant="bodyMedium">

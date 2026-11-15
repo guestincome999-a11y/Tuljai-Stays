@@ -40,7 +40,10 @@
           "backgroundColor": "#590923",
           "image": "./assets/splash-screen.png",
           "imageWidth": 288,
-          "resizeMode": "cover"
+          "resizeMode": "cover",
+          "android": {
+            "resizeMode": "contain"
+          }
         }
       ],
       "expo-status-bar",

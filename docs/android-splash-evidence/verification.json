@@ -1,0 +1,272 @@
+{
+  "apk": {
+    "apkBytes": 108714002,
+    "sha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+    "abis": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+    "nativeSplashDrawables": [
+      {
+        "resource": "res/42.png",
+        "size": [576, 576]
+      },
+      {
+        "resource": "res/S7.png",
+        "size": [1152, 1152]
+      },
+      {
+        "resource": "res/St.png",
+        "size": [864, 864]
+      },
+      {
+        "resource": "res/Zt.png",
+        "size": [432, 432]
+      },
+      {
+        "resource": "res/gV.png",
+        "size": [288, 288]
+      }
+    ],
+    "pixelIdenticalPhotographs": {
+      "splash-screen.png": ["res/oF.png"],
+      "splash-goddess-cutout.png": ["res/zx.png"]
+    }
+  },
+  "caseCount": 16,
+  "cases": [
+    {
+      "api": "29",
+      "memory": "MemTotal:        2040592 kB",
+      "cpuCores": "2",
+      "density": 160,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-cold-2gb-offline-160",
+      "recordedSplashPhotoFrames": 29,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": null
+    },
+    {
+      "api": "29",
+      "memory": "MemTotal:        2040592 kB",
+      "cpuCores": "2",
+      "density": 480,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-cold-2gb-offline-480",
+      "recordedSplashPhotoFrames": 42,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": null
+    },
+    {
+      "api": "29",
+      "memory": "MemTotal:        2040592 kB",
+      "cpuCores": "2",
+      "density": 640,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-cold-2gb-offline-640",
+      "recordedSplashPhotoFrames": 74,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": null
+    },
+    {
+      "api": "29",
+      "memory": "MemTotal:        2040592 kB",
+      "cpuCores": "2",
+      "density": 320,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-fresh-2gb-offline-320",
+      "recordedSplashPhotoFrames": 58,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": null
+    },
+    {
+      "api": "29",
+      "memory": "MemTotal:        3069712 kB",
+      "cpuCores": "2",
+      "density": 320,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-fresh-3gb-offline-320",
+      "recordedSplashPhotoFrames": 38,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": null
+    },
+    {
+      "api": "29",
+      "memory": "MemTotal:        2040592 kB",
+      "cpuCores": "2",
+      "density": 320,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-repeat-2gb-offline-320",
+      "recordedSplashPhotoFrames": 40,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": null
+    },
+    {
+      "api": "29",
+      "memory": "MemTotal:        2040592 kB",
+      "cpuCores": "2",
+      "density": 240,
+      "trimRunningCritical": true,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-trim-2gb-offline-240",
+      "recordedSplashPhotoFrames": 32,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": null
+    },
+    {
+      "api": "31",
+      "memory": "MemTotal:        2015572 kB",
+      "cpuCores": "2",
+      "density": 160,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-cold-2gb-offline-160",
+      "recordedSplashPhotoFrames": 22,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 100765
+    },
+    {
+      "api": "31",
+      "memory": "MemTotal:        2015572 kB",
+      "cpuCores": "2",
+      "density": 480,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-cold-2gb-offline-480",
+      "recordedSplashPhotoFrames": 27,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 156159
+    },
+    {
+      "api": "31",
+      "memory": "MemTotal:        2015572 kB",
+      "cpuCores": "2",
+      "density": 640,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-cold-2gb-offline-640",
+      "recordedSplashPhotoFrames": 28,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 108299
+    },
+    {
+      "api": "31",
+      "memory": "MemTotal:        2015572 kB",
+      "cpuCores": "2",
+      "density": 320,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-fresh-2gb-offline-320",
+      "recordedSplashPhotoFrames": 51,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 157766
+    },
+    {
+      "api": "31",
+      "memory": "MemTotal:        2015572 kB",
+      "cpuCores": "2",
+      "density": 320,
+      "trimRunningCritical": false,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-repeat-2gb-offline-320",
+      "recordedSplashPhotoFrames": 40,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 58992
+    },
+    {
+      "api": "31",
+      "memory": "MemTotal:        2015572 kB",
+      "cpuCores": "2",
+      "density": 240,
+      "trimRunningCritical": true,
+      "launchMethod": "real launcher icon tap",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-trim-2gb-offline-240",
+      "recordedSplashPhotoFrames": 25,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 184204
+    },
+    {
+      "api": "37",
+      "memory": "MemTotal:        4006188 kB",
+      "cpuCores": "4",
+      "density": 420,
+      "trimRunningCritical": false,
+      "launchMethod": "ADB MAIN/LAUNCHER intent",
+      "simulatedCutout": true,
+      "displaySize": "1080x2400",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-cutout-4gb-offline-420",
+      "recordedSplashPhotoFrames": 68,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 122138
+    },
+    {
+      "api": "37",
+      "memory": "MemTotal:        4006188 kB",
+      "cpuCores": "4",
+      "density": 420,
+      "trimRunningCritical": false,
+      "launchMethod": "ADB MAIN/LAUNCHER intent",
+      "simulatedCutout": false,
+      "displaySize": "1080x2400",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-fresh-4gb-offline-420",
+      "recordedSplashPhotoFrames": 98,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 127886
+    },
+    {
+      "api": "37",
+      "memory": "MemTotal:        6064416 kB",
+      "cpuCores": "4",
+      "density": 560,
+      "trimRunningCritical": false,
+      "launchMethod": "ADB MAIN/LAUNCHER intent",
+      "simulatedCutout": false,
+      "displaySize": "1440x3200",
+      "apkSha256": "bedcac972ba10ac851911561230c7983f059186eef6c60fbe3aef2923a88ebaa",
+      "case": "final-fresh-6gb-offline-560",
+      "recordedSplashPhotoFrames": 1,
+      "reachedWelcome": true,
+      "imageOrCrashErrors": [],
+      "startupSamplePssKiB": 117646
+    }
+  ],
+  "representativeFrames": {
+    "api29": "docs\\android-splash-evidence\\api29-startup.png",
+    "api31": "docs\\android-splash-evidence\\api31-startup.png",
+    "api37": "docs\\android-splash-evidence\\api37-startup.png"
+  },
+  "note": "Frames are sampled from real release-APK screen recordings; APK pixel identity checks establish asset quality. No physical devices tested."
+}

@@ -5,6 +5,7 @@ import { PaperProvider } from 'react-native-paper';
 import { AuthProvider } from '../src/auth/auth-context';
 import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { OfflineBanner } from '../src/components/OfflineBanner';
+import { StartupSplash } from '../src/components/StartupSplash';
 import { ConnectivityProvider } from '../src/connectivity/connectivity-context';
 import { useDoubleBackToExit } from '../src/hooks/useDoubleBackToExit';
 import { NotificationSync } from '../src/notifications/NotificationSync';
@@ -27,28 +28,30 @@ export default function RootLayout() {
       <AppErrorBoundary>
         <ConnectivityProvider>
           <AuthProvider>
-            <RealtimeProvider>
-              <PilgrimAppProvider>
-                <PilgrimFontSwitcher>
-                  <PilgrimPushNotifications />
-                  <NotificationSync />
-                  <StatusBar style="dark" />
-                  <OfflineBanner />
-                  <Stack
-                    screenOptions={{
-                      contentStyle: { backgroundColor: theme.colors.background },
-                      headerShown: false,
-                    }}
-                  >
-                    <Stack.Screen name="index" />
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen name="(app)" />
-                    <Stack.Screen name="auth/google" />
-                  </Stack>
-                  <PilgrimAppUpdates />
-                </PilgrimFontSwitcher>
-              </PilgrimAppProvider>
-            </RealtimeProvider>
+            <StartupSplash>
+              <RealtimeProvider>
+                <PilgrimAppProvider>
+                  <PilgrimFontSwitcher>
+                    <PilgrimPushNotifications />
+                    <NotificationSync />
+                    <StatusBar style="dark" />
+                    <OfflineBanner />
+                    <Stack
+                      screenOptions={{
+                        contentStyle: { backgroundColor: theme.colors.background },
+                        headerShown: false,
+                      }}
+                    >
+                      <Stack.Screen name="index" />
+                      <Stack.Screen name="(auth)" />
+                      <Stack.Screen name="(app)" />
+                      <Stack.Screen name="auth/google" />
+                    </Stack>
+                    <PilgrimAppUpdates />
+                  </PilgrimFontSwitcher>
+                </PilgrimAppProvider>
+              </RealtimeProvider>
+            </StartupSplash>
           </AuthProvider>
         </ConnectivityProvider>
       </AppErrorBoundary>

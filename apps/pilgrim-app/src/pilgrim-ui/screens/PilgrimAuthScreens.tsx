@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { requestLoginOtp, useMockExperience } from '../../auth/auth-api';
 import { useAuth } from '../../auth/auth-context';
 import { GoogleLoginCancelledError, startGoogleLogin } from '../../auth/google-auth';
-import { AnimatedWelcomeSplash } from '../../components/AnimatedWelcomeSplash';
 import { AppScreen, BrandMark, Field, LanguageToggle, PrimaryButton, ui } from '../components';
 import { DevotionalHero } from '../DevotionalHero';
 import { LegalDocument, type LegalDocumentKind } from '../legal-documents';
@@ -430,7 +429,8 @@ export function PilgrimBootstrapScreen() {
     return <Redirect href={isAuthenticated ? '/(app)/home' : '/(auth)/welcome'} />;
   }
 
-  return <AnimatedWelcomeSplash />;
+  // StartupSplash above the router owns the photograph until auth and decoding are ready.
+  return <View style={{ flex: 1, backgroundColor: '#590923' }} />;
 }
 
 function formatPhone(phone: string): string {
