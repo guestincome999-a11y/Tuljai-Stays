@@ -624,7 +624,7 @@ function formatMoney(value: string): string {
     return value;
   }
 
-  return parsed.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  return parsed.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function formatOwnerStatus(

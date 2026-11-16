@@ -122,6 +122,7 @@ export function OwnerFinanceScreen({
     }
   }, [lodgeId, isOffline, range, day, page]);
   useEffect(() => {
+    setData(null);
     void load();
     return () => {
       revision.current++;
@@ -149,6 +150,7 @@ export function OwnerFinanceScreen({
       return;
     }
     if (day) {
+      setData(null);
       setDay(undefined);
       setPage(1);
       return;
@@ -375,7 +377,7 @@ export function OwnerFinanceScreen({
                 </Button>
               </View>
             ) : null}
-            {!assigned.isLoading && !lodgeId && !isOffline ? (
+            {!assigned.isLoading && !assigned.isRefreshing && !lodgeId && !isOffline ? (
               <View style={s.card}>
                 <Text>
                   No lodge is available for financial records. Refresh your assigned lodges or
@@ -635,14 +637,15 @@ export function OwnerFinanceScreen({
               </>
             ) : (
               <>
-                <View style={s.filters}>
+                <View style={s.dateFilters}>
                   {['All', 'This Month', 'Last Month', 'Custom'].map((label) => (
-                    <Chip
+                    <Pressable
                       key={label}
-                      selected={preset === label}
-                      showSelectedCheck={false}
-                      selectedColor={c.primary}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: preset === label }}
+                      style={[s.dateFilter, label === 'All' && { flex: 0.55 }, preset === label && s.dateFilterActive]}
                       onPress={() => {
+                        setData(null);
                         setPreset(label);
                         setDay(undefined);
                         setPage(1);
@@ -650,8 +653,8 @@ export function OwnerFinanceScreen({
                         else setRange(reportPeriod(label === 'Last Month' ? 'lastMonth' : 'month'));
                       }}
                     >
-                      {label}
-                    </Chip>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[s.dateFilterText, preset === label && { color: '#FFFFFF' }]}>{label}</Text>
+                    </Pressable>
                   ))}
                 </View>
                 {preset === 'Custom' ? (
@@ -660,6 +663,7 @@ export function OwnerFinanceScreen({
                       label="From"
                       value={range.startDate!}
                       onChange={(v) => {
+                        setData(null);
                         setRange({ ...range, startDate: v });
                         setPage(1);
                       }}
@@ -668,6 +672,7 @@ export function OwnerFinanceScreen({
                       label="To"
                       value={range.endDate!}
                       onChange={(v) => {
+                        setData(null);
                         setRange({ ...range, endDate: v });
                         setPage(1);
                       }}
@@ -879,6 +884,7 @@ export function OwnerFinanceScreen({
               accessibilityRole="button"
               accessibilityLabel={`View bookings for ${date(item.day.date)}`}
               onPress={() => {
+                setData(null);
                 setDay(item.day!.date);
                 setPage(1);
               }}
@@ -1133,6 +1139,10 @@ const s = StyleSheet.create({
   title: { flex: 1, color: 'white', fontSize: 17, fontWeight: '700' },
   content: { padding: 16, gap: 10, paddingBottom: 40 },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  dateFilters: { flexDirection: 'row', gap: 5, marginBottom: 12 },
+  dateFilter: { flex: 1, minHeight: 38, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 5, borderRadius: 18, backgroundColor: '#FAEDF0' },
+  dateFilterActive: { backgroundColor: c.primary },
+  dateFilterText: { color: c.primary, fontSize: 12, fontWeight: '500' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
