@@ -98,6 +98,7 @@ test('PostgreSQL owner revenue, commission, partial payment, receipt and admin r
         await ledger.createRevenueSettlement(lodge.id,dto,owner.id);await ledger.createRevenueSettlement(lodge.id,dto,owner.id);
         const page=await finance.owner(lodge.id,actor,{});assert.equal(Number(page.balance.ownerReceived),3825);assert.equal(Number(page.balance.deducted),675);assert.equal(Number(page.balance.ownerPayable),0);assert.equal(page.settlements.length,1);
         const receipt=await finance.settlement(lodge.id,page.settlements[0].id,actor);assert.equal(receipt.accountLast4,'1234');assert.equal(receipt.bookings.length,1);assert.equal(receipt.bookings[0].bookingId,online.id);assert.equal(Number(receipt.bookings[0].commission),675);
+        const previousPeriod=await finance.owner(lodge.id,actor,{startDate:'2026-10-01',endDate:'2026-10-31'});assert.equal(previousPeriod.settlements.length,0);assert.equal(Number(previousPeriod.balance.ownerReceived),3825);
         const exported=await controller.exportOwner(lodge.id,actor,{day:'2026-11-16',format:'csv',kind:'revenue'});const csv=Buffer.from(exported.base64,'base64').toString();assert.match(csv,/6500/);assert.match(csv,/975/);
       });
     }finally{await db.$disconnect();await sql.end();await admin.query(`DROP DATABASE "${name}"`);await admin.end();}

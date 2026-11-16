@@ -177,7 +177,7 @@ export class OwnerFinanceService {
           : this.prisma.$queryRaw<
               OwnerFinancePage['settlements']
             >(Prisma.sql`SELECT id, amount::text,reference,to_char(settled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "settledAt",payment_method AS "paymentMethod",commission_deducted::text AS "commissionDeducted"
-        FROM lodge_revenue_settlements WHERE lodge_id=${lodgeId}::uuid ORDER BY settled_at DESC LIMIT 30`),
+        FROM lodge_revenue_settlements WHERE lodge_id=${lodgeId}::uuid AND settled_at>=${start} AND settled_at<${end} ORDER BY settled_at DESC LIMIT 30`),
         summaryOnly
           ? Promise.resolve([{ count: 0 }])
           : this.prisma.$queryRaw<
