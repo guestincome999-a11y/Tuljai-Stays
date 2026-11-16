@@ -14,6 +14,7 @@ import { BookingsService } from '../bookings/bookings.service';
 import { enqueueBookingConfirmation } from '../bookings/confirmation-outbox';
 import type { CreateBookingDto, CreateBookingLockDto } from '../bookings/dto/booking.dto';
 import { lockInventory } from '../bookings/inventory-lock';
+import { CommissionPaymentService } from '../lodges/commission-payment.service';
 import { NotificationEventsService } from '../notifications/notification-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -35,6 +36,7 @@ export class PaymentsService {
     private readonly paymentNotificationsService: PaymentNotificationsService,
     private readonly notificationEventsService: NotificationEventsService,
     private readonly refundsService: RefundsService,
+    private readonly commissionPayments: CommissionPaymentService,
   ) {}
 
   public ensureOnlinePaymentsEnabled(enabled: boolean): void {
@@ -466,6 +468,7 @@ export class PaymentsService {
       }
       return true;
     });
+    await this.commissionPayments?.receiveVerifiedWebhook(payment.order_id);
     if (accepted)
       void this.reconcileOrder(payment.order_id).catch(() =>
         this.logger.warn({ operation: 'webhook_reconciliation_failed', eventId }),

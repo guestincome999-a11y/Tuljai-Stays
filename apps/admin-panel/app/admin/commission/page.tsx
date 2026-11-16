@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { listLodgeCommissionOverview } from '../../../src/api/admin-bi-api';
+import { CommissionPaymentHistory } from '../../../src/components/finance/CommissionPaymentHistory';
 import { FinanceStyles } from '../../../src/components/finance/FinanceStyles';
 import {
   FinBanners,
@@ -21,6 +22,7 @@ export default function AdminCommissionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<'accounts' | 'history'>('accounts');
 
   useEffect(() => {
     void load();
@@ -65,104 +67,127 @@ export default function AdminCommissionPage() {
           title="Lodge commission accounts"
         />
         <FinBanners error={error} />
+        <div className="fin-actions" role="tablist" aria-label="Fees and Commission">
+          <button
+            role="tab"
+            aria-selected={tab === 'accounts'}
+            className="fin-btn fin-btn-outline"
+            onClick={() => setTab('accounts')}
+          >
+            Commission Configuration & Accounts
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'history'}
+            className="fin-btn fin-btn-outline"
+            onClick={() => setTab('history')}
+          >
+            Commission Payment History
+          </button>
+        </div>
+        {tab === 'history' ? (
+          <CommissionPaymentHistory lodges={rows} />
+        ) : (
+          <>
+            <section aria-label="Commission totals" className="fin-kpis">
+              <FinKpi
+                icon="lodge"
+                label="Lodges"
+                meta="Matching the search"
+                tone="blue"
+                value={String(filteredRows.length)}
+              />
+              <FinKpi
+                icon="money"
+                label="Total receivable"
+                meta="Commission earned"
+                tone="green"
+                value={formatMoney(totals.receivable)}
+              />
+              <FinKpi
+                icon="clock"
+                label="Total outstanding"
+                meta="Awaiting settlement"
+                tone="orange"
+                value={formatMoney(totals.outstanding)}
+              />
+              <FinKpi
+                icon="check"
+                label="Total settled"
+                meta="Recorded payments"
+                tone="purple"
+                value={formatMoney(totals.settled)}
+              />
+            </section>
 
-        <section aria-label="Commission totals" className="fin-kpis">
-          <FinKpi
-            icon="lodge"
-            label="Lodges"
-            meta="Matching the search"
-            tone="blue"
-            value={String(filteredRows.length)}
-          />
-          <FinKpi
-            icon="money"
-            label="Total receivable"
-            meta="Commission earned"
-            tone="green"
-            value={formatMoney(totals.receivable)}
-          />
-          <FinKpi
-            icon="clock"
-            label="Total outstanding"
-            meta="Awaiting settlement"
-            tone="orange"
-            value={formatMoney(totals.outstanding)}
-          />
-          <FinKpi
-            icon="check"
-            label="Total settled"
-            meta="Recorded payments"
-            tone="purple"
-            value={formatMoney(totals.settled)}
-          />
-        </section>
-
-        <FinPanel
-          sub={`${filteredRows.length} ${filteredRows.length === 1 ? 'lodge' : 'lodges'}`}
-          title="Commission accounts"
-        >
-          <div className="fin-toolbar">
-            <input
-              aria-label="Search lodge"
-              className="fin-search"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by lodge name…"
-              type="search"
-              value={search}
-            />
-          </div>
-          {loading ? (
-            <div aria-label="Loading" className="fin-skeleton" />
-          ) : !filteredRows.length ? (
-            <p className="fin-empty">No lodges match this search.</p>
-          ) : (
-            <div className="fin-scroll">
-              <table className="fin-table">
-                <thead>
-                  <tr>
-                    <th>Lodge</th>
-                    <th>Status</th>
-                    <th>Rule</th>
-                    <th className="fin-num">Receivable</th>
-                    <th className="fin-num">Outstanding</th>
-                    <th className="fin-num">Settled</th>
-                    <th className="fin-num">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row) => (
-                    <tr key={row.lodgeId}>
-                      <td>
-                        <b>{row.lodgeName}</b>
-                      </td>
-                      <td>
-                        <FinPill tone={row.commissionEnabled ? 'green' : 'gray'}>
-                          {row.commissionEnabled ? 'ON' : 'OFF'}
-                        </FinPill>
-                      </td>
-                      <td>
-                        {row.commissionType === 'FIXED_PER_BOOKING'
-                          ? `Fixed ${formatMoney(row.commissionFixedAmount)}`
-                          : `${row.commissionRatePercent}%`}
-                      </td>
-                      <td className="fin-num">{formatMoney(row.receivable)}</td>
-                      <td className="fin-num">{formatMoney(row.outstanding)}</td>
-                      <td className="fin-num">{formatMoney(row.settled)}</td>
-                      <td className="fin-num">
-                        <Link
-                          className="fin-btn fin-btn-sm fin-btn-soft"
-                          href={`/admin/commission/${row.lodgeId}`}
-                        >
-                          Open ledger
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </FinPanel>
+            <FinPanel
+              sub={`${filteredRows.length} ${filteredRows.length === 1 ? 'lodge' : 'lodges'}`}
+              title="Commission accounts"
+            >
+              <div className="fin-toolbar">
+                <input
+                  aria-label="Search lodge"
+                  className="fin-search"
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by lodge name…"
+                  type="search"
+                  value={search}
+                />
+              </div>
+              {loading ? (
+                <div aria-label="Loading" className="fin-skeleton" />
+              ) : !filteredRows.length ? (
+                <p className="fin-empty">No lodges match this search.</p>
+              ) : (
+                <div className="fin-scroll">
+                  <table className="fin-table">
+                    <thead>
+                      <tr>
+                        <th>Lodge</th>
+                        <th>Status</th>
+                        <th>Rule</th>
+                        <th className="fin-num">Receivable</th>
+                        <th className="fin-num">Outstanding</th>
+                        <th className="fin-num">Settled</th>
+                        <th className="fin-num">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row) => (
+                        <tr key={row.lodgeId}>
+                          <td>
+                            <b>{row.lodgeName}</b>
+                          </td>
+                          <td>
+                            <FinPill tone={row.commissionEnabled ? 'green' : 'gray'}>
+                              {row.commissionEnabled ? 'ON' : 'OFF'}
+                            </FinPill>
+                          </td>
+                          <td>
+                            {row.commissionType === 'FIXED_PER_BOOKING'
+                              ? `Fixed ${formatMoney(row.commissionFixedAmount)}`
+                              : `${row.commissionRatePercent}%`}
+                          </td>
+                          <td className="fin-num">{formatMoney(row.receivable)}</td>
+                          <td className="fin-num">{formatMoney(row.outstanding)}</td>
+                          <td className="fin-num">{formatMoney(row.settled)}</td>
+                          <td className="fin-num">
+                            <Link
+                              className="fin-btn fin-btn-sm fin-btn-soft"
+                              href={`/admin/commission/${row.lodgeId}`}
+                            >
+                              Open ledger
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </FinPanel>
+          </>
+        )}
       </div>
     </PermissionGate>
   );

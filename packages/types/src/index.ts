@@ -7,4 +7,5 @@ export * from './finance-admin';
 export * from './lodging';
 export * from './notifications';
 export * from './operations';
+export * from './owner-finance';
 export * from './festival-operations';

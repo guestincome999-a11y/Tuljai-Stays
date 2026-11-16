@@ -244,10 +244,12 @@ export function SettlementForm({
   onSubmit,
   buttonLabel = 'Record settlement',
   maxAmount,
+  requireEvidence = false,
 }: {
   onSubmit: (values: SettlementFormValues) => Promise<boolean>;
   buttonLabel?: string;
   maxAmount?: number;
+  requireEvidence?: boolean;
 }) {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('BANK_TRANSFER');
@@ -257,6 +259,12 @@ export function SettlementForm({
   const [busy, setBusy] = useState(false);
 
   async function submit() {
+    if (requireEvidence && (!reference.trim() || !notes.trim())) {
+      setProblem(
+        'Enter the offline receipt reference and accounting explanation. Gateway payments must use reconciliation.',
+      );
+      return;
+    }
     const numeric = Number(amount);
     if (!Number.isFinite(numeric) || numeric <= 0) {
       setProblem('Enter a valid settlement amount.');
@@ -310,7 +318,7 @@ export function SettlementForm({
           </select>
         </label>
         <label className="fin-field fin-field-wide">
-          <span>Reference</span>
+          <span>Reference{requireEvidence ? ' (required)' : ''}</span>
           <input
             onChange={(event) => setReference(event.target.value)}
             placeholder="Receipt / transaction reference"
@@ -318,7 +326,7 @@ export function SettlementForm({
           />
         </label>
         <label className="fin-field fin-field-wide">
-          <span>Notes</span>
+          <span>Notes{requireEvidence ? ' (required)' : ''}</span>
           <textarea
             onChange={(event) => setNotes(event.target.value)}
             placeholder="Optional accounting note"

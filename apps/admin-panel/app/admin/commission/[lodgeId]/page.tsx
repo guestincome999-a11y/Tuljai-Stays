@@ -280,7 +280,7 @@ export default function LodgeCommissionDetailPage({
                 sub="Every settlement is stored separately and allocated against the oldest outstanding commission first."
                 title="Record lodge payment"
               >
-                <SettlementForm onSubmit={settle} />
+                <SettlementForm onSubmit={settle} requireEvidence />
               </FinPanel>
             </section>
 

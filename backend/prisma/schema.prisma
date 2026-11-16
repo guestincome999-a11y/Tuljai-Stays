@@ -1357,6 +1357,40 @@ model AuditLog {
 }
 
 // No client/owner access: guestDetails has the same privacy requirements as booking_guests.
+model CommissionPayment {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  lodgeId String @map("lodge_id") @db.Uuid
+  amountPaise Int @map("amount_paise")
+  paymentType String @default("FULL") @map("payment_type")
+  outstandingBeforePaise BigInt? @map("outstanding_before_paise")
+  remainingAfterPaise BigInt? @map("remaining_after_paise")
+  currency String @default("INR")
+  status String @default("PENDING")
+  orderId String? @unique @map("order_id")
+  paymentId String? @unique @map("payment_id")
+  method String?
+  settlementId String? @unique @map("settlement_id") @db.Uuid
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz
+  lastCheckedAt DateTime? @map("last_checked_at") @db.Timestamptz
+  webhookAt DateTime? @map("webhook_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@index([createdAt(sort: Desc), id], map: "commission_payments_history_idx")
+  @@index([ownerId, createdAt(sort: Desc)], map: "commission_payments_owner_idx")
+  @@map("commission_payments")
+}
+
+model CommissionPaymentItem {
+  paymentId String @map("payment_id") @db.Uuid
+  ledgerId String @map("ledger_id") @db.Uuid
+  amountPaise Int @map("amount_paise")
+  dueBeforePaise Int? @map("due_before_paise")
+  @@id([paymentId, ledgerId])
+  @@index([ledgerId], map: "commission_payment_items_ledger_idx")
+  @@map("commission_payment_items")
+}
+
 model PaymentIntent {
   id                String   @id @default(uuid()) @db.Uuid
   lockCode          String   @unique @map("lock_code")

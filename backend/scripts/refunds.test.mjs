@@ -835,7 +835,7 @@ test(
           await assert.rejects(
             finance.createSettlement(
               f.booking.lodgeId,
-              { amount: 1, paymentMethod: 'BANK' },
+              { amount: 1, paymentMethod: 'BANK_TRANSFER', reference: 'test-bank-receipt', notes: 'Synthetic offline receipt evidence' },
               f.adminActor.id,
             ),
             /exceeds/,
@@ -1008,7 +1008,7 @@ test(
           );
           await finance.createSettlement(
             f.booking.lodgeId,
-            { amount: 200.11, paymentMethod: 'BANK_TRANSFER' },
+            { amount: 200.11, paymentMethod: 'BANK_TRANSFER', reference: 'test-prior-commission-receipt', notes: 'Synthetic bank receipt already paid by lodge' },
             f.adminActor.id,
           );
           assert.equal(
@@ -1115,7 +1115,7 @@ test(
           );
           await finance.createSettlement(
             f.booking.lodgeId,
-            { amount: 10, paymentMethod: 'TEST' },
+            { amount: 10, paymentMethod: 'CASH', reference: 'test-cash-commission-receipt', notes: 'Synthetic cash receipt before cancellation' },
             f.adminActor.id,
           );
           await f.cancel();
@@ -1142,7 +1142,7 @@ test(
           await assert.rejects(
             finance.createSettlement(
               f.booking.lodgeId,
-              { amount: 1, paymentMethod: 'TEST' },
+              { amount: 1, paymentMethod: 'BANK_TRANSFER', reference: 'test-receipt-after-cancellation', notes: 'Synthetic receipt for invalid overpayment check' },
               f.adminActor.id,
             ),
             /exceeds/,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { BookingsModule } from '../bookings/bookings.module';
+import { LodgesModule } from '../lodges/lodges.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 import { FinanceAdminController } from './finance-admin.controller';
@@ -14,7 +15,7 @@ import { RefundsController } from './refunds.controller';
 import { RefundsService } from './refunds.service';
 
 @Module({
-  imports: [BookingsModule, NotificationsModule, PaymentProvidersModule],
+  imports: [BookingsModule, NotificationsModule, PaymentProvidersModule, LodgesModule],
   controllers: [FinanceAdminController, PaymentsController, RefundsController],
   providers: [
     FinanceAdminService,

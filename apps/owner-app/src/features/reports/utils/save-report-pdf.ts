@@ -1,12 +1,16 @@
-import type { BookingReportPdf } from '@tuljai/types';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
-export async function saveReportPdf(report: BookingReportPdf): Promise<void> {
+export async function saveReportPdf(report: {
+  filename: string;
+  base64: string;
+  mimeType?: string;
+}): Promise<void> {
+  const mimeType = report.mimeType ?? 'application/pdf';
   if (Platform.OS === 'web') {
     const bytes = Uint8Array.from(atob(report.base64), (char) => char.charCodeAt(0));
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = report.filename;
@@ -24,8 +28,8 @@ export async function saveReportPdf(report: BookingReportPdf): Promise<void> {
     if (!(await Sharing.isAvailableAsync()))
       throw new Error('File sharing is unavailable on this device.');
     await Sharing.shareAsync(file.uri, {
-      mimeType: 'application/pdf',
-      UTI: 'com.adobe.pdf',
+      mimeType,
+      UTI: mimeType === 'text/csv' ? 'public.comma-separated-values-text' : 'com.adobe.pdf',
       dialogTitle: 'Save or share your Tuljai Stays report',
     });
     shared = true;

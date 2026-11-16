@@ -95,3 +95,70 @@ test('failed or unavailable native sharing surfaces the failure and removes temp
     assert.equal(save.calls.at(-1)[0], 'delete');
   }
 });
+
+test('commission custom amounts preserve exact INR paise and reject invalid precision or notation', () => {
+  const { commissionAmountPaise } = load('utils/commission-amount.ts', {});
+  for (const [input, expected] of [
+    ['3200', 320000],
+    ['0.01', 1],
+    ['.50', 50],
+    [' 2500.75 ', 250075],
+    ['10000.00', 1000000],
+  ])
+    assert.equal(commissionAmountPaise(input), expected);
+  for (const input of [
+    '',
+    '0',
+    '0.00',
+    '-1',
+    'NaN',
+    'Infinity',
+    '1e3',
+    '12.345',
+    '1,2',
+    '1.',
+    '21474836.48',
+  ])
+    assert.equal(commissionAmountPaise(input), null);
+});
+test('partial and full commission orders send exact paise and the selected mode to the same endpoint', async () => {
+  const calls = [];
+  const api = load('api/owner-finance-api.ts', {
+    '../../../api/client': {
+      apiClient: {
+        post: async (...args) => {
+          calls.push(args);
+          return { id: 'payment' };
+        },
+      },
+    },
+  });
+  await api.createCommissionOrder('lodge', 320000, 'PARTIAL');
+  await api.createCommissionOrder('lodge', 1000000, 'FULL');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    ['/owner/lodges/lodge/commission/payments', { expectedPaise: 320000, paymentMode: 'PARTIAL' }],
+    ['/owner/lodges/lodge/commission/payments', { expectedPaise: 1000000, paymentMode: 'FULL' }],
+  ]);
+});
+
+test('received amounts use a positive INR sign only for actual positive receipts', () => {
+  const { receivedAmount } = load('utils/finance-presentation.ts', {});
+  assert.equal(receivedAmount('4500.50'), '+₹4,500.50');
+  assert.equal(receivedAmount(0.01), '+₹0.01');
+  assert.equal(receivedAmount(0), '₹0.00');
+  assert.equal(receivedAmount(-100), '−₹100.00');
+  for (const value of [undefined, null, '', 'invalid', Infinity])
+    assert.equal(receivedAmount(value), '—');
+});
+
+test('failed finance requests never claim the lodge has no bookings or expose API paths', () => {
+  const { financeLoadError, showEmptyFinance } = load('utils/finance-presentation.ts', {});
+  const message = financeLoadError(
+    new Error('Cannot GET /api/owner/lodges/private-reference/finance?page=1'),
+  );
+  assert.match(message, /temporarily unavailable/);
+  assert.doesNotMatch(message, /\/api\/|private-reference|Cannot GET/);
+  assert.equal(showEmptyFinance({ loading: false, hasData: false, hasError: true }), false);
+  assert.equal(showEmptyFinance({ loading: true, hasData: true, hasError: false }), false);
+  assert.equal(showEmptyFinance({ loading: false, hasData: true, hasError: false }), true);
+});

@@ -157,7 +157,9 @@ export function ProfileScreen() {
             <List.Icon {...props} color={ownerColors.primary} icon="cash-multiple" />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('/(app)/reports')}
+          onPress={() =>
+            router.push({ pathname: '/(app)/reports', params: { view: 'settlements' } })
+          }
         />
         <List.Item
           title={tr('Support')}

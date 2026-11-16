@@ -108,6 +108,8 @@ export async function createLodgeRevenueSettlement(
   payload: {
     amount: number;
     idempotencyKey: string;
+    bankName?: string;
+    accountLast4?: string;
     notes?: string;
     paymentMethod: string;
     reference?: string;

@@ -1,9 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { OwnerDashboardSummary } from '@tuljai/types';
+import type { OwnerDashboardSummary, OwnerFinancePage } from '@tuljai/types';
 import { EmptyState } from '@tuljai/ui';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
@@ -18,6 +18,8 @@ import { useOwnerBookings } from '../../bookings/hooks/useOwnerBookings';
 import { getOwnerLodgeDetails } from '../../lodge-management/api/owner-amenities-api';
 import { useAssignedLodges } from '../../lodges/hooks/useAssignedLodges';
 import { useUnreadNotificationCount } from '../../notifications/hooks/useOwnerNotifications';
+import { ownerFinanceSummary } from '../../reports/api/owner-finance-api';
+import { receivedAmount } from '../../reports/utils/finance-presentation';
 import { useRoomOperations } from '../../rooms/hooks/useRoomOperations';
 import { useOwnerDashboardSummary } from '../hooks/useOwnerDashboardSummary';
 import { useReceptionSnapshot } from '../hooks/useReceptionSnapshot';
@@ -37,6 +39,22 @@ export function DashboardScreen() {
   const { tr } = useOwnerApp();
   const selectedLodge = assignedLodges.selectedLodge;
   const lodgeId = selectedLodge?.id ?? null;
+  const [financeSummary, setFinanceSummary] = useState<OwnerFinancePage | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setFinanceSummary(null);
+      if (lodgeId && !isOffline)
+        void ownerFinanceSummary(lodgeId)
+          .then((value) => {
+            if (active) setFinanceSummary(value);
+          })
+          .catch(() => undefined);
+      return () => {
+        active = false;
+      };
+    }, [lodgeId, isOffline, realtime.connectionRevision, realtime.lastEvent]),
+  );
   const [lodgeLocation, setLodgeLocation] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
@@ -74,8 +92,8 @@ export function DashboardScreen() {
       icon: 'clock-outline' as const,
     },
     {
-      label: tr('Estimated Revenue'),
-      value: dashboard.data ? `₹${formatMoney(dashboard.data.estimatedRevenue)}` : '—',
+      label: tr('Revenue Info'),
+      value: financeSummary ? `₹${formatMoney(financeSummary.summary.revenue)}` : '—',
       icon: 'cash-multiple' as const,
     },
   ];
@@ -191,7 +209,20 @@ export function DashboardScreen() {
 
       <View style={styles.statGrid}>
         {overview.map((item) => (
-          <Card key={item.label} mode="outlined" style={styles.statCard}>
+          <Card
+            key={item.label}
+            mode="outlined"
+            style={styles.statCard}
+            onPress={
+              item.icon === 'cash-multiple'
+                ? () =>
+                    router.push({
+                      pathname: '/(app)/reports',
+                      params: { view: 'revenue-settlements' },
+                    })
+                : undefined
+            }
+          >
             <Card.Content style={styles.statContent}>
               <MaterialCommunityIcons color={ownerColors.primary} name={item.icon} size={23} />
               <Text style={{ color: ownerColors.text, fontWeight: '700' }} variant="titleLarge">
@@ -200,6 +231,18 @@ export function DashboardScreen() {
               <Text style={{ color: ownerColors.muted }} variant="bodySmall">
                 {item.label}
               </Text>
+              {item.icon === 'cash-multiple' && financeSummary ? (
+                <Text variant="bodySmall" style={{ color: ownerColors.muted }}>
+                  {financeSummary.summary.bookings} bookings · Commission deducted ₹
+                  {formatMoney(financeSummary.balance.deducted)}
+                  {'\n'}
+                  <Text style={{ color: '#168342', fontWeight: '700' }}>
+                    Received {receivedAmount(financeSummary.balance.ownerReceived)}
+                  </Text>
+                  {'\n'}Net payable ₹{formatMoney(financeSummary.balance.ownerPayable)}
+                  {'\n'}Commission pending ₹{formatMoney(financeSummary.balance.payable)}
+                </Text>
+              ) : null}
             </Card.Content>
           </Card>
         ))}
@@ -207,8 +250,8 @@ export function DashboardScreen() {
       <Text style={{ color: ownerColors.muted }} variant="bodySmall">
         {tr(
           assignedLodges.lodges.length > 1
-            ? 'Revenue estimate for all dates. Rooms are for this lodge; other totals include all your lodges.'
-            : 'Revenue estimate for all dates.',
+            ? 'Revenue Info shows this lodge. Other dashboard totals include all your lodges.'
+            : 'Revenue Info uses eligible bookings for all dates.',
         )}
       </Text>
 
@@ -398,8 +441,8 @@ export function DashboardScreen() {
           onPress={() =>
             router.push({ pathname: '/(app)/reports', params: { view: 'settlements' } })
           }
-          subtitle="Outstanding until Tuljai Stays records settlement"
-          value={dashboard.data ? formatMoney(dashboard.data.commissionPayable) : '—'}
+          subtitle="Commission payable to Tuljai Stays from lodge collections"
+          value={financeSummary ? formatMoney(financeSummary.balance.payable) : '—'}
           variant="payable"
         />
         <FinanceCard

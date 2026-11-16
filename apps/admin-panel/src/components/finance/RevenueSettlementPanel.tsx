@@ -18,17 +18,21 @@ export function RevenueSettlementPanel({
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [bankName, setBankName] = useState('');
+  const [accountLast4, setAccountLast4] = useState('');
 
   async function submit(values: SettlementFormValues): Promise<boolean> {
     setError(null);
     setMessage(null);
-    const fingerprint = JSON.stringify(values);
+    const fingerprint = JSON.stringify({ ...values, bankName, accountLast4 });
     if (attempt.current?.fingerprint !== fingerprint)
       attempt.current = { fingerprint, key: crypto.randomUUID() };
     try {
       const updated = await createLodgeRevenueSettlement(report.lodgeId, {
         ...values,
         idempotencyKey: attempt.current.key,
+        bankName: bankName.trim() || undefined,
+        accountLast4: accountLast4 || undefined,
       });
       onUpdate(updated);
       attempt.current = null;
@@ -49,6 +53,21 @@ export function RevenueSettlementPanel({
         sub="Record an online revenue payment already made to this lodge. Unpaid commission on online bookings is deducted and marked settled."
       >
         <FinBanners error={error} message={message} />
+        <div className="fin-form-grid">
+          <label className="fin-field">
+            Bank name (optional)
+            <input maxLength={80} value={bankName} onChange={(e) => setBankName(e.target.value)} />
+          </label>
+          <label className="fin-field">
+            Account last four digits only
+            <input
+              inputMode="numeric"
+              maxLength={4}
+              value={accountLast4}
+              onChange={(e) => setAccountLast4(e.target.value.replace(/\D/g, ''))}
+            />
+          </label>
+        </div>
         {report.revenue ? (
           <SettlementForm
             buttonLabel="Record revenue settlement"

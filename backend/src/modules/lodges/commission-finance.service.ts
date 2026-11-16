@@ -289,8 +289,10 @@ export class LodgeCommissionFinanceService {
           paymentMethod: string;
           reference: string | null;
           notes: string | null;
+          bankName: string | null;
+          accountLast4: string | null;
         }>
-      >`SELECT lodge_id AS "lodgeId", amount::text, payment_method AS "paymentMethod", reference, notes
+      >`SELECT lodge_id AS "lodgeId", amount::text, payment_method AS "paymentMethod", reference, notes, bank_name AS "bankName", account_last4 AS "accountLast4"
         FROM lodge_revenue_settlements WHERE idempotency_key = ${dto.idempotencyKey}::uuid`;
       if (previous[0]) {
         const saved = previous[0];
@@ -299,7 +301,9 @@ export class LodgeCommissionFinanceService {
           Number(saved.amount) !== dto.amount ||
           saved.paymentMethod !== dto.paymentMethod.trim() ||
           saved.reference !== (dto.reference ?? null) ||
-          saved.notes !== (dto.notes ?? null)
+          saved.notes !== (dto.notes ?? null) ||
+          (saved.bankName ?? null) !== (dto.bankName ?? null) ||
+          (saved.accountLast4 ?? null) !== (dto.accountLast4 ?? null)
         )
           throw new BadRequestException(
             'This settlement request was already used with different details.',
@@ -340,9 +344,9 @@ export class LodgeCommissionFinanceService {
       }
       const entries = await tx.$queryRaw<Array<{ id: string }>>`
         INSERT INTO lodge_revenue_settlements (lodge_id, amount, commission_deducted, commission_settlement_id,
-          idempotency_key, payment_method, reference, notes, settled_by_user_id)
+          idempotency_key, payment_method, reference, notes, settled_by_user_id,bank_name,account_last4)
         VALUES (${lodgeId}::uuid, ${dto.amount}, ${deducted}, ${commissionSettlementId}::uuid,
-          ${dto.idempotencyKey}::uuid, ${dto.paymentMethod.trim()}, ${dto.reference ?? null}, ${dto.notes ?? null}, ${actorUserId}::uuid)
+          ${dto.idempotencyKey}::uuid, ${dto.paymentMethod.trim()}, ${dto.reference ?? null}, ${dto.notes ?? null}, ${actorUserId}::uuid,${dto.bankName ?? null},${dto.accountLast4 ?? null})
         RETURNING id`;
       await tx.auditLog.create({
         data: {
@@ -373,10 +377,30 @@ export class LodgeCommissionFinanceService {
       throw new BadRequestException('Settlement amount must be greater than zero.');
     if (!dto.paymentMethod.trim()) throw new BadRequestException('Payment method is required.');
 
+    if (
+      !['BANK_TRANSFER', 'UPI', 'CASH', 'OTHER'].includes(dto.paymentMethod) ||
+      !dto.reference?.trim() ||
+      !dto.notes?.trim()
+    )
+      throw new BadRequestException(
+        'Offline commission receipts require an approved method, receipt reference and accounting explanation. Razorpay payments must be reconciled with the gateway.',
+      );
+
     await this.prisma.$transaction(async (tx) => {
       // Use the same booking-before-ledger lock order as cancellation and its commission trigger.
       await tx.$queryRaw`SELECT b.id FROM bookings b INNER JOIN lodge_commission_ledger l ON l.booking_id=b.id
         WHERE l.lodge_id=${lodgeId}::uuid AND l.status='OUTSTANDING' ORDER BY b.id FOR UPDATE OF b`;
+      await tx.$queryRaw`SELECT id FROM lodges WHERE id=${lodgeId}::uuid FOR UPDATE`;
+      const reserved = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM commission_payments
+        WHERE lodge_id=${lodgeId}::uuid AND status IN ('PENDING','FAILED','CANCELLED','RECOVERY_REQUIRED') LIMIT 1`;
+      if (reserved.length)
+        throw new BadRequestException(
+          'A gateway commission payment is pending. Reconcile it before recording an offline adjustment.',
+        );
+      if (/razorpay|revenue.offset/i.test(dto.paymentMethod))
+        throw new BadRequestException(
+          'Gateway payments and revenue offsets must use their verified workflows.',
+        );
       const outstanding = await tx.$queryRaw<
         Array<{
           id: string;
@@ -440,58 +464,78 @@ export class LodgeCommissionFinanceService {
         }
         remaining = toMoney(remaining - allocation);
       }
-    });
-
-    await this.auditLogService.create({
-      action: 'LODGE_COMMISSION_SETTLEMENT_CREATED',
-      actorUserId,
-      entityId: lodgeId,
-      entityType: 'lodge',
-      metadata: {
-        amount: dto.amount,
-        paymentMethod: dto.paymentMethod,
-        reference: dto.reference ?? null,
-      },
+      await tx.auditLog.create({
+        data: {
+          action: 'LODGE_COMMISSION_SETTLEMENT_CREATED',
+          actorUserId,
+          entityId: lodgeId,
+          entityType: 'lodge',
+          metadata: {
+            amount: dto.amount,
+            paymentMethod: dto.paymentMethod,
+            reference: dto.reference ?? null,
+            notes: dto.notes,
+          },
+        },
+      });
     });
 
     return this.getReport(lodgeId);
   }
 
   public async voidTransaction(ledgerId: string, actorUserId: string): Promise<void> {
-    const rows = await this.prisma.$queryRaw<
-      Array<{ allocated: string; lodgeId: string; status: string }>
-    >(Prisma.sql`
+    await this.prisma.$transaction(async (tx) => {
+      const identity = await tx.$queryRaw<
+        { bookingId: string; lodgeId: string }[]
+      >`SELECT booking_id AS "bookingId",lodge_id AS "lodgeId" FROM lodge_commission_ledger WHERE id=${ledgerId}::uuid`;
+      if (!identity[0]) throw new NotFoundException('Commission transaction not found.');
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id=${identity[0].bookingId}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM lodges WHERE id=${identity[0].lodgeId}::uuid FOR UPDATE`;
+      const reserved = await tx.$queryRaw<
+        { id: string }[]
+      >`SELECT p.id FROM commission_payments p JOIN commission_payment_items i ON i.payment_id=p.id
+      WHERE i.ledger_id=${ledgerId}::uuid AND p.status IN ('PENDING','FAILED','CANCELLED','RECOVERY_REQUIRED') LIMIT 1`;
+      if (reserved.length)
+        throw new BadRequestException(
+          'Reconcile the reserved gateway payment before adjusting this commission.',
+        );
+      const rows = await tx.$queryRaw<
+        Array<{ allocated: string; lodgeId: string; status: string }>
+      >(Prisma.sql`
       SELECT
         l.lodge_id AS "lodgeId",
         l.status,
         COALESCE((SELECT SUM(a.amount) FROM lodge_commission_settlement_allocations a WHERE a.ledger_id = l.id), 0)::text AS allocated
       FROM lodge_commission_ledger l
       WHERE l.id = ${ledgerId}::uuid
-      LIMIT 1
+      LIMIT 1 FOR UPDATE OF l
     `);
-    const row = rows[0];
-    if (!row) throw new NotFoundException('Commission transaction not found.');
-    if (row.status === 'VOIDED')
-      throw new BadRequestException('This commission transaction is already voided.');
-    if (row.status === 'SETTLED')
-      throw new BadRequestException('A settled commission cannot be voided.');
-    if (Number(row.allocated) > 0)
-      throw new BadRequestException(
-        'Settlement payments are already applied to this commission, so it cannot be voided.',
-      );
+      const row = rows[0];
+      if (!row) throw new NotFoundException('Commission transaction not found.');
+      if (row.status === 'VOIDED')
+        throw new BadRequestException('This commission transaction is already voided.');
+      if (row.status === 'SETTLED')
+        throw new BadRequestException('A settled commission cannot be voided.');
+      if (Number(row.allocated) > 0)
+        throw new BadRequestException(
+          'Settlement payments are already applied to this commission, so it cannot be voided.',
+        );
 
-    await this.prisma.$executeRaw(Prisma.sql`
+      await tx.$executeRaw(Prisma.sql`
       UPDATE lodge_commission_ledger
       SET status = 'VOIDED', voided_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
       WHERE id = ${ledgerId}::uuid
     `);
 
-    await this.auditLogService.create({
-      action: 'LODGE_COMMISSION_TRANSACTION_VOIDED',
-      actorUserId,
-      entityId: ledgerId,
-      entityType: 'lodge_commission_ledger',
-      metadata: { lodgeId: row.lodgeId },
+      await tx.auditLog.create({
+        data: {
+          action: 'LODGE_COMMISSION_TRANSACTION_VOIDED',
+          actorUserId,
+          entityId: ledgerId,
+          entityType: 'lodge_commission_ledger',
+          metadata: { lodgeId: row.lodgeId },
+        },
+      });
     });
   }
 

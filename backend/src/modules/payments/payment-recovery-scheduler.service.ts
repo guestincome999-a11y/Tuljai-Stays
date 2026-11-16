@@ -1,5 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
+import { CommissionPaymentService } from '../lodges/commission-payment.service';
+
 import { PaymentsService } from './payments.service';
 import { RefundsService } from './refunds.service';
 
@@ -11,12 +13,17 @@ export class PaymentRecoverySchedulerService implements OnModuleInit, OnModuleDe
   public constructor(
     private readonly payments: PaymentsService,
     private readonly refunds: RefundsService,
+    private readonly commission: CommissionPaymentService,
   ) {}
   public onModuleInit(): void {
     this.timer = setInterval(() => {
       if (this.running) return;
       this.running = true;
-      void Promise.allSettled([this.payments.reconcilePending(), this.refunds.reconcilePending()])
+      void Promise.allSettled([
+        this.payments.reconcilePending(),
+        this.refunds.reconcilePending(),
+        this.commission.reconcilePending(),
+      ])
         .then((results) => {
           if (results.some((result) => result.status === 'rejected'))
             this.logger.error('Payment or refund recovery cycle failed');

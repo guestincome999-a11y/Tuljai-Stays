@@ -24,9 +24,18 @@ import { ReportDateField } from '../components/ReportDateField';
 import { useOwnerReports } from '../hooks/useOwnerReports';
 import { saveReportPdf } from '../utils/save-report-pdf';
 
+import { OwnerFinanceScreen } from './OwnerFinanceScreen';
+
 type ReportFilters = { startDate: string; endDate: string; reportType: 'all' | 'completed' };
 
 export function OwnerReportsScreen() {
+  const { view } = useLocalSearchParams<{ view?: string }>();
+  if (view === 'settlements' || view === 'revenue-settlements')
+    return <OwnerFinanceScreen mode={view === 'settlements' ? 'commission' : 'revenue'} />;
+  return <GeneralOwnerReportsScreen />;
+}
+
+function GeneralOwnerReportsScreen() {
   const [filters, setFilters] = useState<ReportFilters>(() => ({
     ...reportPeriod('month'),
     reportType: 'completed',
@@ -63,6 +72,8 @@ export function OwnerReportsScreen() {
     }
   }
 
+  if (tab === 'finance')
+    return <OwnerFinanceScreen mode="commission" onBack={() => setTab('bookings')} />;
   return (
     <ScrollView
       contentContainerStyle={[styles.screen, { backgroundColor: theme.colors.background }]}
